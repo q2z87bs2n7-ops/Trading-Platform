@@ -23,12 +23,11 @@ jobs:
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
 
-      - name: Create / link Vercel project
-        run: vercel link --yes --project trading-platform --token="${{ secrets.VERCEL_TOKEN }}"
-
       - name: Deploy to production
         run: |
           set -euo pipefail
+          # --yes auto-creates and links the project on the first run
+          # (project name defaults to the repo directory, "trading-platform").
           url="$(vercel deploy --prod --yes --token="${{ secrets.VERCEL_TOKEN }}")"
           echo "Deployed: $url"
           {
