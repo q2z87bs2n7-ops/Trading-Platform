@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { quotesSocket } from "../api";
+import { useEffect, useState } from "react";
+import { getQuotes } from "../api";
 import type { Quote } from "../types";
 
 interface Props {
@@ -8,30 +8,33 @@ interface Props {
   onSelect: (symbol: string) => void;
 }
 
+const POLL_MS = 2000;
+
 export default function Watchlist({ symbols, selected, onSelect }: Props) {
   const [quotes, setQuotes] = useState<Record<string, Quote>>({});
   const [err, setErr] = useState<string | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
     if (symbols.length === 0) return;
-    const ws = quotesSocket(symbols);
-    wsRef.current = ws;
-    ws.onmessage = (ev) => {
-      const data = JSON.parse(ev.data);
-      if (data.error) {
-        setErr(data.error);
-        return;
-      }
-      setErr(null);
-      setQuotes((prev) => {
-        const next = { ...prev };
-        for (const q of data.quotes as Quote[]) next[q.symbol] = q;
-        return next;
-      });
+    let alive = true;
+    const tick = () =>
+      getQuotes(symbols)
+        .then((data) => {
+          if (!alive) return;
+          setErr(null);
+          setQuotes((prev) => {
+            const next = { ...prev };
+            for (const q of data.quotes) next[q.symbol] = q;
+            return next;
+          });
+        })
+        .catch((e) => alive && setErr(e.message));
+    tick();
+    const id = setInterval(tick, POLL_MS);
+    return () => {
+      alive = false;
+      clearInterval(id);
     };
-    ws.onerror = () => setErr("Quote stream connection error");
-    return () => ws.close();
   }, [symbols.join(",")]);
 
   return (

@@ -1,4 +1,4 @@
-import type { Account, Bar } from "./types";
+import type { Account, Bar, Quote } from "./types";
 
 async function getJSON<T>(url: string): Promise<T> {
   const res = await fetch(url);
@@ -19,9 +19,7 @@ export const getBars = (symbol: string, timeframe = "1Day", limit = 120) =>
     `/api/bars?symbol=${encodeURIComponent(symbol)}&timeframe=${timeframe}&limit=${limit}`,
   );
 
-export function quotesSocket(symbols: string[]): WebSocket {
-  const proto = location.protocol === "https:" ? "wss" : "ws";
-  return new WebSocket(
-    `${proto}://${location.host}/ws/quotes?symbols=${encodeURIComponent(symbols.join(","))}`,
+export const getQuotes = (symbols: string[]) =>
+  getJSON<{ quotes: Quote[] }>(
+    `/api/quotes?symbols=${encodeURIComponent(symbols.join(","))}`,
   );
-}
