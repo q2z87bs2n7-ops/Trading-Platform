@@ -71,6 +71,29 @@ export const useAssetSearch = (search: string) =>
     enabled: search.trim().length > 0,
   });
 
+export const useWatchlist = () =>
+  useQuery({
+    queryKey: qk.watchlist,
+    queryFn: api.getWatchlist,
+    staleTime: Infinity,
+  });
+
+export function useAddToWatchlist() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (symbol: string) => api.addToWatchlist(symbol),
+    onSuccess: (data) => qc.setQueryData(qk.watchlist, data),
+  });
+}
+
+export function useRemoveFromWatchlist() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (symbol: string) => api.removeFromWatchlist(symbol),
+    onSuccess: (data) => qc.setQueryData(qk.watchlist, data),
+  });
+}
+
 // --- Writes: invalidate everything a trade can move ----------------------
 
 function useTradeInvalidation() {

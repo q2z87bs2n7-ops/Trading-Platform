@@ -4,9 +4,10 @@ import { useAssetSearch } from "../data/hooks";
 
 interface Props {
   onSelect: (symbol: string) => void;
+  onAdd: (symbol: string) => void;
 }
 
-export default function AssetSearch({ onSelect }: Props) {
+export default function AssetSearch({ onSelect, onAdd }: Props) {
   const [input, setInput] = useState("");
   const [query, setQuery] = useState("");
 
@@ -44,6 +45,16 @@ export default function AssetSearch({ onSelect }: Props) {
             <span className="label">
               {a.name} · {a.exchange}
             </span>
+            <button
+              className="watch-add"
+              title="Add to watchlist"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAdd(a.symbol);
+              }}
+            >
+              +
+            </button>
           </div>
         ))}
       </div>

@@ -13,6 +13,7 @@ from .schemas import (
     OrderOut,
     ReplaceOrderRequest,
     SubmitOrderRequest,
+    WatchlistSymbol,
 )
 
 app = FastAPI(title="Trading Platform API", version="0.1.0")
@@ -203,6 +204,25 @@ def close_position(symbol: str) -> dict:
 @app.delete("/api/positions", dependencies=_WRITE_DEPS)
 def close_all_positions() -> dict:
     return alpaca.close_all_positions()
+
+
+# --- Watchlist (server-side, persisted on the Alpaca paper account). The
+# mutating routes carry the write-auth seam like the trade routes. ----------
+
+
+@app.get("/api/watchlist", dependencies=[Depends(require_configured)])
+def watchlist() -> dict:
+    return alpaca.get_watchlist()
+
+
+@app.post("/api/watchlist", dependencies=_WRITE_DEPS)
+def watchlist_add(req: WatchlistSymbol) -> dict:
+    return alpaca.add_to_watchlist(req.symbol)
+
+
+@app.delete("/api/watchlist/{symbol}", dependencies=_WRITE_DEPS)
+def watchlist_remove(symbol: str) -> dict:
+    return alpaca.remove_from_watchlist(symbol)
 
 
 @app.get("/api/stream")

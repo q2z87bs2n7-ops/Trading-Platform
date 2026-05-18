@@ -26,4 +26,5 @@ export const qk = {
   portfolioHistory: (period: string, timeframe: string) =>
     ["portfolioHistory", period, timeframe] as const,
   assets: (search: string) => ["assets", search] as const,
+  watchlist: ["watchlist"] as const,
 };

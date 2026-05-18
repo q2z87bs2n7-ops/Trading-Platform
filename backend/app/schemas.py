@@ -106,3 +106,7 @@ class AssetOut(BaseModel):
 
 class CancelledOrders(BaseModel):
     cancelled: list[str]
+
+
+class WatchlistSymbol(BaseModel):
+    symbol: str = Field(min_length=1)

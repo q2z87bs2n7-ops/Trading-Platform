@@ -113,6 +113,18 @@ export const searchAssets = (search: string, limit = 25) =>
     `/api/assets?search=${encodeURIComponent(search)}&limit=${limit}`,
   );
 
+export const getWatchlist = () =>
+  getJSON<{ symbols: string[] }>("/api/watchlist");
+
+export const addToWatchlist = (symbol: string) =>
+  sendJSON<{ symbols: string[] }>("POST", "/api/watchlist", { symbol });
+
+export const removeFromWatchlist = (symbol: string) =>
+  sendJSON<{ symbols: string[] }>(
+    "DELETE",
+    `/api/watchlist/${encodeURIComponent(symbol)}`,
+  );
+
 // --- Write path (Stage 2 backend). ---------------------------------------
 
 export const submitOrder = (input: SubmitOrderInput) =>

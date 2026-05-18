@@ -19,6 +19,11 @@ from .client import (
     trading_client,
 )
 from .market_data import get_bars, get_latest_quotes
+from .watchlist import (
+    add_to_watchlist,
+    get_watchlist,
+    remove_from_watchlist,
+)
 from .trading import (
     cancel_all_orders,
     cancel_order,
@@ -32,6 +37,7 @@ from .trading import (
 )
 
 __all__ = [
+    "add_to_watchlist",
     "cancel_all_orders",
     "cancel_order",
     "close_all_positions",
@@ -48,6 +54,8 @@ __all__ = [
     "get_portfolio_history",
     "get_position",
     "get_positions",
+    "get_watchlist",
+    "remove_from_watchlist",
     "replace_order",
     "search_assets",
     "submit_order",

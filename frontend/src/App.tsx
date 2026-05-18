@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import { useConfig } from "./data/hooks";
+import {
+  useAddToWatchlist,
+  useConfig,
+  useRemoveFromWatchlist,
+  useWatchlist,
+} from "./data/hooks";
 import AccountSummary from "./components/AccountSummary";
 import AssetSearch from "./components/AssetSearch";
 import OrderTicket from "./components/OrderTicket";
@@ -12,10 +17,12 @@ import Activities from "./components/Activities";
 import MarketClock from "./components/MarketClock";
 
 export default function App() {
-  const { data: cfg, isError } = useConfig();
-  const symbols =
-    cfg?.symbols ?? (isError ? ["AAPL", "MSFT", "TSLA", "SPY"] : []);
+  const { data: cfg } = useConfig();
+  const { data: wl } = useWatchlist();
+  const symbols = wl?.symbols ?? [];
   const meta = cfg ? { feed: cfg.feed, paper: cfg.paper } : null;
+  const addToWatchlist = useAddToWatchlist();
+  const removeFromWatchlist = useRemoveFromWatchlist();
   const [selected, setSelected] = useState<string>("");
 
   useEffect(() => {
@@ -34,11 +41,15 @@ export default function App() {
       <div className="grid">
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <AccountSummary />
-          <AssetSearch onSelect={setSelected} />
+          <AssetSearch
+            onSelect={setSelected}
+            onAdd={(s) => addToWatchlist.mutate(s)}
+          />
           <Watchlist
             symbols={symbols}
             selected={selected}
             onSelect={setSelected}
+            onRemove={(s) => removeFromWatchlist.mutate(s)}
           />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>

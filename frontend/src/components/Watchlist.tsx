@@ -4,9 +4,15 @@ interface Props {
   symbols: string[];
   selected: string;
   onSelect: (symbol: string) => void;
+  onRemove: (symbol: string) => void;
 }
 
-export default function Watchlist({ symbols, selected, onSelect }: Props) {
+export default function Watchlist({
+  symbols,
+  selected,
+  onSelect,
+  onRemove,
+}: Props) {
   const { quotes, error } = useLiveQuotes(
     Array.from(new Set([...symbols, selected].filter(Boolean))),
   );
@@ -27,6 +33,16 @@ export default function Watchlist({ symbols, selected, onSelect }: Props) {
             <span className="price">
               {q ? `$${q.mid.toFixed(2)}` : "—"}
             </span>
+            <button
+              className="watch-remove"
+              title="Remove from watchlist"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove(sym);
+              }}
+            >
+              ×
+            </button>
           </div>
         );
       })}
