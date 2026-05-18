@@ -45,12 +45,44 @@ export interface Order {
   symbol: string;
   side: string;
   type: string;
+  order_class: string | null;
   qty: number | null;
   filled_qty: number;
   filled_avg_price: number | null;
   limit_price: number | null;
+  stop_price: number | null;
+  time_in_force: string | null;
   status: string;
   submitted_at: number | null;
+}
+
+// Mirrors backend/app/schemas.py SubmitOrderRequest.
+export interface SubmitOrderInput {
+  symbol: string;
+  side: "buy" | "sell";
+  type: "market" | "limit" | "stop" | "stop_limit" | "trailing_stop";
+  time_in_force?: "day" | "gtc" | "opg" | "cls" | "ioc" | "fok";
+  qty?: number;
+  notional?: number;
+  limit_price?: number;
+  stop_price?: number;
+  trail_price?: number;
+  trail_percent?: number;
+  extended_hours?: boolean;
+  client_order_id?: string;
+  order_class?: "simple" | "bracket" | "oco" | "oto";
+  take_profit_limit_price?: number;
+  stop_loss_stop_price?: number;
+  stop_loss_limit_price?: number;
+}
+
+// Mirrors backend/app/schemas.py ReplaceOrderRequest.
+export interface ReplaceOrderInput {
+  qty?: number;
+  limit_price?: number;
+  stop_price?: number;
+  trail?: number;
+  time_in_force?: "day" | "gtc" | "opg" | "cls" | "ioc" | "fok";
 }
 
 // Account activities are heterogeneous (fills, dividends, fees…); the

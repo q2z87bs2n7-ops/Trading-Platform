@@ -9,6 +9,8 @@ import type {
   PortfolioHistory,
   Position,
   Quote,
+  ReplaceOrderInput,
+  SubmitOrderInput,
 } from "./types";
 
 // Empty for local dev (Vite proxy) and Vercel prod (same origin). Set to
@@ -26,11 +28,40 @@ const STREAM_BASE = (
   ""
 ).replace(/\/$/, "");
 
+// FastAPI returns `detail` as a string (HTTPException) or an array of
+// validation errors (422). Flatten both to a readable message.
+function formatDetail(detail: unknown, status: number): string {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((d: { msg?: string }) => d?.msg ?? JSON.stringify(d))
+      .join("; ");
+  }
+  return `Request failed: ${status}`;
+}
+
 async function getJSON<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`);
   if (!res.ok) {
-    const detail = await res.json().catch(() => ({}));
-    throw new Error(detail.detail || `Request failed: ${res.status}`);
+    const body = await res.json().catch(() => ({}));
+    throw new Error(formatDetail(body.detail, res.status));
+  }
+  return res.json() as Promise<T>;
+}
+
+async function sendJSON<T>(
+  method: "POST" | "PATCH" | "DELETE",
+  path: string,
+  body?: unknown,
+): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}));
+    throw new Error(formatDetail(errBody.detail, res.status));
   }
   return res.json() as Promise<T>;
 }
@@ -76,6 +107,34 @@ export const getCalendar = (start?: string, end?: string) =>
 
 export const getAsset = (symbol: string) =>
   getJSON<Asset>(`/api/assets/${encodeURIComponent(symbol)}`);
+
+export const searchAssets = (search: string, limit = 25) =>
+  getJSON<Asset[]>(
+    `/api/assets?search=${encodeURIComponent(search)}&limit=${limit}`,
+  );
+
+// --- Write path (Stage 2 backend). ---------------------------------------
+
+export const submitOrder = (input: SubmitOrderInput) =>
+  sendJSON<Order>("POST", "/api/orders", input);
+
+export const replaceOrder = (id: string, input: ReplaceOrderInput) =>
+  sendJSON<Order>("PATCH", `/api/orders/${encodeURIComponent(id)}`, input);
+
+export const cancelOrder = (id: string) =>
+  sendJSON<{ cancelled: string[] }>(
+    "DELETE",
+    `/api/orders/${encodeURIComponent(id)}`,
+  );
+
+export const cancelAllOrders = () =>
+  sendJSON<{ cancelled: string[] }>("DELETE", "/api/orders");
+
+export const closePosition = (symbol: string) =>
+  sendJSON<Order>("DELETE", `/api/positions/${encodeURIComponent(symbol)}`);
+
+export const closeAllPositions = () =>
+  sendJSON<{ closed: string[] }>("DELETE", "/api/positions");
 
 // Subscribe to the real-time quote stream. Calls onQuote per tick and
 // onError once if the stream can't be established (caller should then fall
