@@ -72,9 +72,11 @@ persisted watchlists, asset search, and real-time streaming.
    host that can hold the Alpaca WebSocket open for `/api/stream`. Vercel
    serverless cannot. Never run >1 instance: `QuoteHub` keeps one shared
    upstream stream per process with no external pub/sub.
-3. **GitHub Pages — dev previews**, from `claude/**` pushes via
-   `preview-pages.yml`. Static frontend only; talks to the Vercel prod
-   backend.
+3. **GitHub Pages — dev previews**, via `preview-pages.yml`. Static
+   frontend only; talks to the Vercel prod backend. **Manual-only
+   (`workflow_dispatch`)** — dev/`claude/**` pushes intentionally do
+   **not** auto-deploy; only `main` triggers a deployment. Run it by hand
+   from the Actions tab when a branch preview is actually wanted.
 
 ## Streaming design (don't regress)
 
