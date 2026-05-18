@@ -1,6 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
+  "git": {
+    "deploymentEnabled": false
+  },
   "build": {
     "env": {
       "PYO3_USE_ABI3_FORWARD_COMPATIBILITY": "1"
