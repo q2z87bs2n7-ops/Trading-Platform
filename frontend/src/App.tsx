@@ -26,11 +26,10 @@ export default function App() {
     <div className="app">
       <header>
         <h1>Trading Platform</h1>
-        {meta && (
-          <span className="tag">
-            {meta.paper ? "PAPER" : "LIVE"} · {meta.feed.toUpperCase()} feed
-          </span>
-        )}
+        <span className="tag">
+          v{__APP_VERSION__}
+          {meta && ` · ${meta.paper ? "PAPER" : "LIVE"} · ${meta.feed.toUpperCase()} feed`}
+        </span>
       </header>
       <div className="grid">
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
