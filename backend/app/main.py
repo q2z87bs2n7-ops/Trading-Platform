@@ -1,7 +1,11 @@
-from fastapi import FastAPI, HTTPException, Query
+import asyncio
+
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 
 from . import alpaca
+from . import stream as quote_stream
 from .config import get_settings
 
 app = FastAPI(title="Trading Platform API", version="0.1.0")
@@ -53,9 +57,9 @@ def bars(
 def quotes(symbols: str = Query("")) -> dict:
     """Latest quotes for the given comma-separated symbols.
 
-    The frontend polls this on an interval. A plain REST endpoint (rather
-    than a WebSocket) keeps the backend deployable to serverless platforms
-    like Vercel, which do not support long-lived socket connections.
+    This is the polling fallback used when the SSE stream (``/api/stream``)
+    is unavailable -- e.g. on serverless platforms like Vercel, which cannot
+    hold the long-lived connection that real-time streaming requires.
     """
     if not get_settings().configured:
         raise HTTPException(503, "Alpaca API keys not configured. See backend/.env.example")
@@ -66,3 +70,36 @@ def quotes(symbols: str = Query("")) -> dict:
         return {"quotes": alpaca.get_latest_quotes(syms)}
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(502, f"Alpaca error: {exc}") from exc
+
+
+@app.get("/api/stream")
+async def stream(request: Request) -> StreamingResponse:
+    """Real-time quote stream (Server-Sent Events).
+
+    Backed by a single shared Alpaca WebSocket; requires a persistent host.
+    On serverless this connection is dropped and the frontend falls back to
+    polling ``/api/quotes`` automatically.
+    """
+    if not get_settings().configured:
+        raise HTTPException(503, "Alpaca API keys not configured. See backend/.env.example")
+    queue = await quote_stream.hub.subscribe()
+
+    async def events():
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    payload = await asyncio.wait_for(queue.get(), timeout=15)
+                    yield f"data: {payload}\n\n"
+                except asyncio.TimeoutError:
+                    # Comment line keeps proxies from closing an idle stream.
+                    yield ": keepalive\n\n"
+        finally:
+            quote_stream.hub.unsubscribe(queue)
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

@@ -7,8 +7,8 @@ No order placement yet — it is read-only against your **paper** account.
 
 ## Stack
 
-- **Backend:** FastAPI + `alpaca-py` (REST reads + a WebSocket that polls
-  latest quotes every couple of seconds).
+- **Backend:** FastAPI + `alpaca-py` (REST reads + a real-time quote stream
+  over Server-Sent Events, with REST polling as automatic fallback).
 - **Frontend:** React + TypeScript (Vite), charts via TradingView
   `lightweight-charts`.
 
@@ -42,8 +42,8 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173. Vite proxies `/api` and `/ws` to the backend
-on port 8000.
+Open http://localhost:5173. Vite proxies `/api` to the backend on port
+8000, so the real-time stream works locally with no extra config.
 
 ## Deployment
 
@@ -82,10 +82,33 @@ Caveat: every dev preview hits the *same* production backend. UI changes
 preview perfectly; backend API changes only take effect once merged to
 `main` and Vercel redeploys.
 
+### Real-time streaming (persistent relay)
+
+`/api/stream` is a Server-Sent Events endpoint backed by a single shared
+Alpaca WebSocket (`backend/app/stream.py`). It needs an **always-on**
+process, which Vercel's serverless functions are not — so the stream runs
+as a separate deployment and the frontend falls back to polling whenever it
+is unreachable (which is what happens on Vercel/Pages until a relay exists).
+
+1. **Deploy the relay.** Any container host works (Render, Fly, Railway, a
+   VM). Build `backend/Dockerfile` and set the same Alpaca env vars used in
+   Vercel (`ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `ALPACA_PAPER=true`,
+   `ALPACA_DATA_FEED=iex`). Run a **single** instance — the hub keeps one
+   shared upstream stream per process.
+2. **Point the frontend at it.** Set the GitHub repo variable
+   `VITE_STREAM_BASE` to the relay's public URL (e.g.
+   `https://trading-relay.onrender.com`). It is baked into Pages/Vercel
+   builds; if unset, the app simply polls and nothing breaks.
+
+The free `iex` feed streams in real time but only covers IEX volume
+(~2–3% of consolidated tape). `sip` (set `ALPACA_DATA_FEED=sip`) needs a
+paid Alpaca data plan for the full consolidated tape.
+
 ## Notes
 
-- Quotes update on a ~2s poll (see `QUOTE_POLL_INTERVAL` in
-  `backend/app/main.py`). To get true tick-by-tick streaming later, swap the
-  poll loop for `alpaca.data.live.StockDataStream`.
+- Quotes stream in real time via `/api/stream` when a relay is reachable,
+  otherwise the watchlist polls `/api/quotes` (~2s, `POLL_MS` in
+  `frontend/src/components/Watchlist.tsx`). Charts still load a bar snapshot
+  per symbol/timeframe change.
 - Keys live only in `backend/.env`, which is gitignored. Never commit it.
 - Default watchlist symbols are configurable via `DEFAULT_SYMBOLS` in `.env`.

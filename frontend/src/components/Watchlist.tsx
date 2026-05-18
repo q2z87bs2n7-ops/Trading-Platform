@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getQuotes } from "../api";
+import { getQuotes, streamQuotes } from "../api";
 import type { Quote } from "../types";
 
 interface Props {
@@ -17,23 +17,45 @@ export default function Watchlist({ symbols, selected, onSelect }: Props) {
   useEffect(() => {
     if (symbols.length === 0) return;
     let alive = true;
-    const tick = () =>
-      getQuotes(symbols)
-        .then((data) => {
-          if (!alive) return;
-          setErr(null);
-          setQuotes((prev) => {
-            const next = { ...prev };
-            for (const q of data.quotes) next[q.symbol] = q;
-            return next;
-          });
-        })
-        .catch((e) => alive && setErr(e.message));
-    tick();
-    const id = setInterval(tick, POLL_MS);
+    let pollId: number | undefined;
+
+    const apply = (qs: Quote[]) =>
+      setQuotes((prev) => {
+        const next = { ...prev };
+        for (const q of qs) next[q.symbol] = q;
+        return next;
+      });
+
+    const startPolling = () => {
+      if (pollId !== undefined) return;
+      const tick = () =>
+        getQuotes(symbols)
+          .then((data) => {
+            if (!alive) return;
+            setErr(null);
+            apply(data.quotes);
+          })
+          .catch((e) => alive && setErr(e.message));
+      tick();
+      pollId = window.setInterval(tick, POLL_MS);
+    };
+
+    // Prefer the real-time stream; fall back to polling if it fails.
+    const stopStream = streamQuotes(
+      (q) => {
+        if (!alive) return;
+        setErr(null);
+        apply([q]);
+      },
+      () => {
+        if (alive) startPolling();
+      },
+    );
+
     return () => {
       alive = false;
-      clearInterval(id);
+      stopStream();
+      if (pollId !== undefined) clearInterval(pollId);
     };
   }, [symbols.join(",")]);
 
