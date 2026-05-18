@@ -7,6 +7,13 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from . import alpaca
 from . import stream as quote_stream
 from .config import get_settings
+from .schemas import (
+    AssetOut,
+    CancelledOrders,
+    OrderOut,
+    ReplaceOrderRequest,
+    SubmitOrderRequest,
+)
 
 app = FastAPI(title="Trading Platform API", version="0.1.0")
 
@@ -37,6 +44,16 @@ def require_configured() -> None:
         raise HTTPException(
             503, "Alpaca API keys not configured. See backend/.env.example"
         )
+
+
+def require_write_auth() -> None:
+    """Charter Hard Rule #3 — shared-token gate on every trade-mutating
+    route. Consciously a NO-OP for the early dev stages (paper account,
+    single dev). Enabling the gate later is a one-line change *inside this
+    function* (check a header/token against settings); no route signature
+    or wiring changes. Do not remove the dependency from the write routes.
+    """
+    return None
 
 
 @app.get("/api/health")
@@ -128,6 +145,64 @@ def quotes(symbols: str = Query("")) -> dict:
     if not syms:
         syms = get_settings().symbols
     return {"quotes": alpaca.get_latest_quotes(syms)}
+
+
+@app.get(
+    "/api/assets",
+    dependencies=[Depends(require_configured)],
+    response_model=list[AssetOut],
+)
+def assets_search(
+    search: str = Query("", description="symbol/name substring"),
+    limit: int = Query(25, ge=1, le=100),
+) -> list[dict]:
+    return alpaca.search_assets(search, limit)
+
+
+# --- Write path (Stage 2). Every route below carries the no-op write-auth
+# seam so the Charter shared-token gate drops in with no rewiring. -----------
+
+_WRITE_DEPS = [Depends(require_configured), Depends(require_write_auth)]
+
+
+@app.post("/api/orders", dependencies=_WRITE_DEPS, response_model=OrderOut)
+def submit_order(req: SubmitOrderRequest) -> dict:
+    return alpaca.submit_order(req)
+
+
+@app.patch(
+    "/api/orders/{order_id}", dependencies=_WRITE_DEPS, response_model=OrderOut
+)
+def replace_order(order_id: str, req: ReplaceOrderRequest) -> dict:
+    return alpaca.replace_order(order_id, req)
+
+
+@app.delete(
+    "/api/orders/{order_id}",
+    dependencies=_WRITE_DEPS,
+    response_model=CancelledOrders,
+)
+def cancel_order(order_id: str) -> dict:
+    return alpaca.cancel_order(order_id)
+
+
+@app.delete(
+    "/api/orders", dependencies=_WRITE_DEPS, response_model=CancelledOrders
+)
+def cancel_all_orders() -> dict:
+    return alpaca.cancel_all_orders()
+
+
+@app.delete(
+    "/api/positions/{symbol}", dependencies=_WRITE_DEPS, response_model=OrderOut
+)
+def close_position(symbol: str) -> dict:
+    return alpaca.close_position(symbol)
+
+
+@app.delete("/api/positions", dependencies=_WRITE_DEPS)
+def close_all_positions() -> dict:
+    return alpaca.close_all_positions()
 
 
 @app.get("/api/stream")

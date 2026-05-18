@@ -19,9 +19,23 @@ from .client import (
     trading_client,
 )
 from .market_data import get_bars, get_latest_quotes
-from .trading import get_asset, get_orders
+from .trading import (
+    cancel_all_orders,
+    cancel_order,
+    close_all_positions,
+    close_position,
+    get_asset,
+    get_orders,
+    replace_order,
+    search_assets,
+    submit_order,
+)
 
 __all__ = [
+    "cancel_all_orders",
+    "cancel_order",
+    "close_all_positions",
+    "close_position",
     "data_client",
     "get_account",
     "get_activities",
@@ -34,6 +48,9 @@ __all__ = [
     "get_portfolio_history",
     "get_position",
     "get_positions",
+    "replace_order",
+    "search_assets",
+    "submit_order",
     "timeframe_from_str",
     "trading_client",
 ]
