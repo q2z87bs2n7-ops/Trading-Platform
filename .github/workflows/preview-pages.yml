@@ -1,0 +1,41 @@
+name: Dev preview (GitHub Pages)
+
+# Every dev branch gets a static frontend preview at
+#   https://<owner>.github.io/<repo>/<branch>/
+# Each preview talks to the Vercel production backend (set the repo
+# variable VERCEL_PROD_URL to e.g. https://your-app.vercel.app).
+on:
+  push:
+    branches: ["claude/**"]
+
+concurrency:
+  group: pages-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          VITE_API_BASE: ${{ vars.VERCEL_PROD_URL }}
+        run: |
+          npm ci
+          npm run build
+      - name: Slugify branch name
+        id: slug
+        run: echo "dir=${GITHUB_REF_NAME//\//-}" >> "$GITHUB_OUTPUT"
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: frontend/dist
+          destination_dir: ${{ steps.slug.outputs.dir }}
+          keep_files: true

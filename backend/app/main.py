@@ -8,7 +8,7 @@ app = FastAPI(title="Trading Platform API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=get_settings().origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )

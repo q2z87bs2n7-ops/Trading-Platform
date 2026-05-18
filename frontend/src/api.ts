@@ -1,7 +1,12 @@
 import type { Account, Bar, Quote } from "./types";
 
-async function getJSON<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+// Empty for local dev (Vite proxy) and Vercel prod (same origin). Set to
+// the Vercel prod URL at build time for the GitHub Pages dev previews,
+// which have no backend of their own.
+const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
+
+async function getJSON<T>(path: string): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`);
   if (!res.ok) {
     const detail = await res.json().catch(() => ({}));
     throw new Error(detail.detail || `Request failed: ${res.status}`);

@@ -45,6 +45,36 @@ npm run dev
 Open http://localhost:5173. Vite proxies `/api` and `/ws` to the backend
 on port 8000.
 
+## Deployment
+
+Two targets, wired via GitHub Actions:
+
+- **Production → Vercel.** Pushing to `main` runs `.github/workflows/deploy-prod.yml`,
+  which does a `vercel deploy --prod`. Vercel hosts the prod frontend **and**
+  the FastAPI backend (`api/index.py`). No Vercel Git integration, so dev
+  branches never create Vercel preview deployments.
+- **Dev previews → GitHub Pages.** Pushing to any `claude/**` branch runs
+  `.github/workflows/preview-pages.yml`, which builds the frontend and
+  publishes it to `gh-pages/<branch>/`. Each preview is static and calls the
+  Vercel **production** backend for data.
+
+### One-time setup
+
+1. **Vercel project:** create a project from this repo (or `vercel link`),
+   add the Alpaca env vars (`ALPACA_API_KEY`, `ALPACA_SECRET_KEY`,
+   `ALPACA_PAPER=true`, `ALPACA_DATA_FEED=iex`) in the Vercel dashboard.
+2. **GitHub repo secrets:** `VERCEL_TOKEN`, `VERCEL_ORG_ID`,
+   `VERCEL_PROJECT_ID` (from `.vercel/project.json` after linking).
+3. **GitHub repo variable:** `VERCEL_PROD_URL` = your Vercel prod URL
+   (e.g. `https://your-app.vercel.app`). Baked into Pages builds so previews
+   know where the backend is.
+4. **Enable GitHub Pages:** repo Settings → Pages → source = `gh-pages`
+   branch, root.
+
+Caveat: every dev preview hits the *same* production backend. UI changes
+preview perfectly; backend API changes only take effect once merged to
+`main` and Vercel redeploys.
+
 ## Notes
 
 - Quotes update on a ~2s poll (see `QUOTE_POLL_INTERVAL` in
