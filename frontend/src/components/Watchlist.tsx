@@ -7,7 +7,9 @@ interface Props {
 }
 
 export default function Watchlist({ symbols, selected, onSelect }: Props) {
-  const { quotes, error } = useLiveQuotes(symbols);
+  const { quotes, error } = useLiveQuotes(
+    Array.from(new Set([...symbols, selected].filter(Boolean))),
+  );
 
   return (
     <div className="panel">

@@ -206,15 +206,21 @@ def close_all_positions() -> dict:
 
 
 @app.get("/api/stream")
-async def stream(request: Request) -> StreamingResponse:
+async def stream(
+    request: Request, symbols: str = Query("")
+) -> StreamingResponse:
     """Real-time quote stream (Server-Sent Events).
 
     Backed by a single shared Alpaca WebSocket; requires a persistent host.
     On serverless this connection is dropped and the frontend falls back to
-    polling ``/api/quotes`` automatically.
+    polling ``/api/quotes`` automatically. ``symbols`` is the comma-separated
+    set this client wants; empty falls back to the configured defaults.
     """
     require_configured()
-    queue = await quote_stream.hub.subscribe()
+    syms = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+    if not syms:
+        syms = get_settings().symbols
+    queue = await quote_stream.hub.subscribe(syms)
 
     async def events():
         try:

@@ -58,6 +58,7 @@ export function useLiveQuotes(symbols: string[]) {
     };
 
     const stopStream = streamQuotes(
+      symbols,
       (q) => {
         if (!alive) return;
         setErr(null);

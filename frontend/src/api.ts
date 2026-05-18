@@ -136,14 +136,18 @@ export const closePosition = (symbol: string) =>
 export const closeAllPositions = () =>
   sendJSON<{ closed: string[] }>("DELETE", "/api/positions");
 
-// Subscribe to the real-time quote stream. Calls onQuote per tick and
-// onError once if the stream can't be established (caller should then fall
-// back to polling). Returns an unsubscribe function.
+// Subscribe to the real-time quote stream for the given symbols. Calls
+// onQuote per tick and onError once if the stream can't be established
+// (caller should then fall back to polling). Returns an unsubscribe
+// function. EventSource is receive-only, so a symbol-set change means
+// closing this stream and opening a new one.
 export function streamQuotes(
+  symbols: string[],
   onQuote: (q: Quote) => void,
   onError: () => void,
 ): () => void {
-  const es = new EventSource(`${STREAM_BASE}/api/stream`);
+  const qs = encodeURIComponent(symbols.join(","));
+  const es = new EventSource(`${STREAM_BASE}/api/stream?symbols=${qs}`);
   es.onmessage = (e) => {
     try {
       onQuote(JSON.parse(e.data) as Quote);
