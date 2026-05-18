@@ -2,15 +2,17 @@ name: Dev preview (GitHub Pages)
 
 # Every dev branch gets a static frontend preview at
 #   https://<owner>.github.io/<repo>/<branch>/
-# Each preview talks to the Vercel production backend (set the repo
-# variable VERCEL_PROD_URL to e.g. https://your-app.vercel.app).
+# and the root URL lists them all. Each preview talks to the Vercel
+# production backend (repo variable VERCEL_PROD_URL).
 on:
   push:
     branches: ["claude/**"]
 
+# Serialize publishes: every run rewrites the whole gh-pages tree, so
+# concurrent runs must not race. Queue them instead of cancelling.
 concurrency:
-  group: pages-${{ github.ref_name }}
-  cancel-in-progress: true
+  group: gh-pages-publish
+  cancel-in-progress: false
 
 jobs:
   build-and-publish:
@@ -22,6 +24,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+
       - name: Build frontend
         working-directory: frontend
         env:
@@ -29,27 +32,33 @@ jobs:
         run: |
           npm ci
           npm run build
+
       - name: Slugify branch name
         id: slug
         run: echo "dir=${GITHUB_REF_NAME//\//-}" >> "$GITHUB_OUTPUT"
-      - name: Publish to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: frontend/dist
-          destination_dir: ${{ steps.slug.outputs.dir }}
-          keep_files: true
 
-      - name: Check out updated gh-pages
+      # Bring the current gh-pages content so other branches' previews are
+      # preserved. continue-on-error covers the first-ever run.
+      - name: Check out existing gh-pages
         uses: actions/checkout@v4
+        continue-on-error: true
         with:
           ref: gh-pages
-          path: ghp
+          path: site
 
-      - name: Build preview index
+      - name: Assemble site
+        env:
+          SLUG: ${{ steps.slug.outputs.dir }}
         run: |
-          mkdir -p _root
-          cd ghp
+          set -euo pipefail
+          mkdir -p site
+          touch site/.nojekyll
+          # Replace only this branch's folder (clears stale hashed assets).
+          rm -rf "site/$SLUG"
+          mkdir -p "site/$SLUG"
+          cp -r frontend/dist/. "site/$SLUG/"
+          # Regenerate the root index from whatever branch folders exist.
+          cd site
           {
             echo '<!doctype html><html><head><meta charset="utf-8">'
             echo '<title>Trading Platform — branch previews</title>'
@@ -57,15 +66,15 @@ jobs:
             echo '</head><body><h1>Branch previews</h1>'
             for d in */; do
               n="${d%/}"
-              [ "$n" = "assets" ] && continue
               echo "<a href=\"./$n/\">$n</a>"
             done
             echo '</body></html>'
-          } > ../_root/index.html
+          } > index.html
 
-      - name: Publish preview index
+      - name: Publish
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: _root
-          keep_files: true
+          publish_dir: site
+          keep_files: false
+          force_orphan: true
