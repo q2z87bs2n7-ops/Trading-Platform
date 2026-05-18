@@ -1,8 +1,8 @@
 name: Deploy production (Vercel)
 
 # Vercel only ever builds on main, so dev branches never consume a Vercel
-# preview deployment. The project is created/linked here in CI and the
-# Alpaca keys are synced from GitHub secrets, so no local setup is needed.
+# preview deployment. The project is created/linked here in CI. The Alpaca
+# keys are NOT in GitHub — set them once in the Vercel project settings.
 on:
   push:
     branches: [main]
@@ -25,23 +25,6 @@ jobs:
 
       - name: Create / link Vercel project
         run: vercel link --yes --project trading-platform --token="${{ secrets.VERCEL_TOKEN }}"
-
-      - name: Sync Alpaca env vars into Vercel
-        env:
-          VT: ${{ secrets.VERCEL_TOKEN }}
-          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
-          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
-        run: |
-          set -euo pipefail
-          sync() {
-            vercel env rm "$1" production -y --token="$VT" >/dev/null 2>&1 || true
-            printf '%s' "$2" | vercel env add "$1" production --token="$VT" >/dev/null
-            echo "  set $1"
-          }
-          sync ALPACA_API_KEY    "$ALPACA_API_KEY"
-          sync ALPACA_SECRET_KEY "$ALPACA_SECRET_KEY"
-          sync ALPACA_PAPER      "true"
-          sync ALPACA_DATA_FEED  "iex"
 
       - name: Deploy to production
         run: |

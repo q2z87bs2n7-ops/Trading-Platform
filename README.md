@@ -60,18 +60,22 @@ Two targets, wired via GitHub Actions:
 
 ### One-time setup (all in the browser — no local commands)
 
-The Vercel project is created and the Alpaca keys are injected entirely
-inside the prod workflow, so you only set GitHub secrets/variables.
+The Vercel project is created by the prod workflow. The Alpaca keys live
+only in Vercel (never in GitHub).
 
-1. **GitHub repo secrets** (Settings → Secrets and variables → Actions →
-   *Secrets*): `VERCEL_TOKEN`, `ALPACA_API_KEY`, `ALPACA_SECRET_KEY`.
-2. **Trigger the prod deploy:** merge this branch to `main`, or run the
-   "Deploy production (Vercel)" workflow from the Actions tab. It creates
-   the Vercel project, sets the Alpaca env vars, and deploys.
-3. **GitHub repo variable** (same page → *Variables*): `VERCEL_PROD_URL` =
+1. **GitHub repo secret** (Settings → Secrets and variables → Actions →
+   *Secrets*): `VERCEL_TOKEN` only.
+2. **First prod deploy:** merge to `main` or run "Deploy production
+   (Vercel)" from the Actions tab. This creates the Vercel project (the
+   backend returns 503 until step 3).
+3. **Alpaca env in Vercel:** in the new Vercel project → Settings →
+   Environment Variables (Production), add `ALPACA_API_KEY`,
+   `ALPACA_SECRET_KEY`, `ALPACA_PAPER=true`, `ALPACA_DATA_FEED=iex`, then
+   re-run the prod workflow so it picks them up.
+4. **GitHub repo variable** (same page → *Variables*): `VERCEL_PROD_URL` =
    `https://trading-platform.vercel.app` (shown in the deploy job summary).
    Baked into Pages builds so previews know where the backend is.
-4. **Enable GitHub Pages:** Settings → Pages → source = `gh-pages` branch,
+5. **Enable GitHub Pages:** Settings → Pages → source = `gh-pages` branch,
    root.
 
 Caveat: every dev preview hits the *same* production backend. UI changes
