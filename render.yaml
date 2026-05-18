@@ -35,4 +35,4 @@ services:
       # wherever the frontend is served from (Vercel prod + GitHub Pages
       # previews + local dev). Edit to match your real Vercel domain.
       - key: CORS_ORIGINS
-        value: "http://localhost:5173,http://127.0.0.1:5173,https://q2z87bs2n7-ops.github.io,https://trading-platform.vercel.app"
+        value: "http://localhost:5173,http://127.0.0.1:5173,https://q2z87bs2n7-ops.github.io,https://trading-platform-five.vercel.app"
