@@ -5,10 +5,22 @@ dependencies, or the streaming path.
 
 ## What this is
 
-A read-only paper-trading dashboard on the [Alpaca](https://alpaca.markets/)
-API. **v1 scope:** account summary, live-quote watchlist, candlestick
-charts. **No order placement** — read-only against a paper account. Don't
-add write/trade endpoints without an explicit request.
+A serious hobby-grade, professionally-built **paper-trading platform** on
+the [Alpaca](https://alpaca.markets/) API. Full paper trading: read **and**
+write — order placement (market/limit/stop/stop-limit/trailing,
+bracket/OCO), cancel/replace, close positions — plus full portfolio & P/L,
+persisted watchlists, asset search, and real-time streaming.
+
+**Hard rules — do not cross without an explicit, deliberate decision:**
+
+1. **Paper account ONLY.** Never wire live-trading keys or endpoints. The
+   Alpaca client is always `paper=True`; there is no live path.
+2. **Single user; keys server-side only.** Alpaca credentials never reach
+   the browser.
+3. **Auth gate on writes.** Every trade-mutating endpoint (and ideally the
+   whole app) sits behind a single shared token/password. No
+   unauthenticated trade actions on public deploys.
+4. **Free / very-low-cost infra only.**
 
 ## Workflow rules (strict — these override default behavior)
 
@@ -38,6 +50,15 @@ add write/trade endpoints without an explicit request.
   `/api/quotes`, `/api/stream`.
 - **Data feed:** IEX (free, real-time but ~2-3% of volume). `sip` needs a
   paid Alpaca plan; switch via `ALPACA_DATA_FEED` env — no code change.
+- **Frontend stack:** Tailwind CSS + headless (shadcn-style) component
+  primitives; TradingView `lightweight-charts` retained. `index.css` is
+  migrated to Tailwind progressively — no new bespoke CSS files.
+- **Persistence:** Postgres (free tier, e.g. Supabase/Neon) is the
+  intended layer for trade journaling, server-side watchlists, and
+  analytics history — **backlogged** (see `BACKLOG.md`). For now Alpaca is
+  queried directly as source of truth; UI prefs live in browser
+  `localStorage`.
+- **Auth:** shared-token middleware guards write endpoints.
 
 ## Three deploy targets (do not conflate)
 
