@@ -18,8 +18,12 @@ add write/trade endpoints without an explicit request.
 3. **No changes to `main` without explicit user approval.**
 4. **Git branching** — all changes go to a `claude/` branch first; only
    merge to `main` when explicitly asked.
-5. **Version every change** — bump the version per commit on branches;
-   use `X.Y.Z` format.
+5. **Version every change** — the root `VERSION` file is the single
+   source of truth (`X.Y.Z`). Each commit on a `claude/` branch bumps
+   **Z** (patch). Each promotion to `main` bumps **Y** (minor) and resets
+   `Z` to 0, *unless the user explicitly asks for `Z` to stay*. `X` is
+   bumped manually only. `frontend/package.json` and the FastAPI
+   `version=` are **not** canonical — do not rely on them.
 6. **No rewrites** — never rewrite large sections; targeted edits only.
 
 ## Architecture
