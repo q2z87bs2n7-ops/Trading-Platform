@@ -10,6 +10,18 @@ API. **v1 scope:** account summary, live-quote watchlist, candlestick
 charts. **No order placement** — read-only against a paper account. Don't
 add write/trade endpoints without an explicit request.
 
+## Workflow rules (strict — these override default behavior)
+
+1. **Never assume** — always ask before proposing or touching any code.
+2. **Surgical edits only** — smallest possible change; do not reformat or
+   reorganise surrounding code.
+3. **No changes to `main` without explicit user approval.**
+4. **Git branching** — all changes go to a `claude/` branch first; only
+   merge to `main` when explicitly asked.
+5. **Version every change** — bump the version per commit on branches;
+   use `X.Y.Z` format.
+6. **No rewrites** — never rewrite large sections; targeted edits only.
+
 ## Architecture
 
 - **Frontend:** React 18 + TypeScript + Vite. Single-page (no router);
@@ -78,9 +90,10 @@ Vercel's serverless Python builder forces **Python 3.14** and ignores
 
 ## Dev workflow
 
-- Develop on the designated `claude/**` branch. Promote with a
-  **fast-forward** merge into `main` (no divergence so far — keep it that
-  way), then push **both** branches so the stop-hook git check is happy.
+- Develop on the designated `claude/**` branch. **Only when explicitly
+  asked**, promote with a **fast-forward** merge into `main` (no
+  divergence so far — keep it that way), then push **both** branches so
+  the stop-hook git check is happy. See Workflow rules #3 and #4.
 - Commits: short imperative subject + a body explaining the *why*. Don't
   put model identifiers in commits/PRs/code.
 - Don't open PRs unless explicitly asked.
