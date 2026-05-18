@@ -9,6 +9,9 @@ interface Props {
 }
 
 const POLL_MS = 2000;
+// Stream ticks are buffered and flushed to React state at most this often,
+// so a fast quote feed can't cause a render per tick.
+const STREAM_FLUSH_MS = 500;
 
 export default function Watchlist({ symbols, selected, onSelect }: Props) {
   const [quotes, setQuotes] = useState<Record<string, Quote>>({});
@@ -18,6 +21,7 @@ export default function Watchlist({ symbols, selected, onSelect }: Props) {
     if (symbols.length === 0) return;
     let alive = true;
     let pollId: number | undefined;
+    let pending: Record<string, Quote> = {};
 
     const apply = (qs: Quote[]) =>
       setQuotes((prev) => {
@@ -25,6 +29,15 @@ export default function Watchlist({ symbols, selected, onSelect }: Props) {
         for (const q of qs) next[q.symbol] = q;
         return next;
       });
+
+    // Coalesce buffered stream ticks into a single state update.
+    const flushId = window.setInterval(() => {
+      const keys = Object.keys(pending);
+      if (keys.length === 0) return;
+      const batch = Object.values(pending);
+      pending = {};
+      if (alive) apply(batch);
+    }, STREAM_FLUSH_MS);
 
     const startPolling = () => {
       if (pollId !== undefined) return;
@@ -45,7 +58,7 @@ export default function Watchlist({ symbols, selected, onSelect }: Props) {
       (q) => {
         if (!alive) return;
         setErr(null);
-        apply([q]);
+        pending[q.symbol] = q; // flushed on the interval above
       },
       () => {
         if (alive) startPolling();
@@ -55,6 +68,7 @@ export default function Watchlist({ symbols, selected, onSelect }: Props) {
     return () => {
       alive = false;
       stopStream();
+      clearInterval(flushId);
       if (pollId !== undefined) clearInterval(pollId);
     };
   }, [symbols.join(",")]);
