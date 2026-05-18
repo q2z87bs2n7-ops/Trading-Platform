@@ -26,6 +26,9 @@ jobs:
         working-directory: frontend
         env:
           VITE_API_BASE: ${{ vars.VERCEL_PROD_URL }}
+          # Persistent relay (Render) for the real-time SSE stream. If the
+          # repo variable is unset the app simply keeps polling.
+          VITE_STREAM_BASE: ${{ vars.VITE_STREAM_BASE }}
         run: |
           npm ci
           npm run build

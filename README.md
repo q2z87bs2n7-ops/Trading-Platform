@@ -95,10 +95,15 @@ is unreachable (which is what happens on Vercel/Pages until a relay exists).
    Vercel (`ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `ALPACA_PAPER=true`,
    `ALPACA_DATA_FEED=iex`). Run a **single** instance — the hub keeps one
    shared upstream stream per process.
-2. **Point the frontend at it.** Set the GitHub repo variable
-   `VITE_STREAM_BASE` to the relay's public URL (e.g.
-   `https://trading-relay.onrender.com`). It is baked into Pages/Vercel
-   builds; if unset, the app simply polls and nothing breaks.
+2. **Point the frontend at it** with the relay's public URL (e.g.
+   `https://trading-relay-xxxx.onrender.com`). It is read at build time, so
+   set it in **both** places that build the frontend:
+   - **Vercel prod:** project → Settings → Environment Variables →
+     `VITE_STREAM_BASE` (Production), then redeploy.
+   - **GitHub Pages previews:** repo → Settings → Secrets and variables →
+     Actions → *Variables* → `VITE_STREAM_BASE`.
+
+   If unset in a given build, that frontend just polls and nothing breaks.
 
 The free `iex` feed streams in real time but only covers IEX volume
 (~2–3% of consolidated tape). `sip` (set `ALPACA_DATA_FEED=sip`) needs a
