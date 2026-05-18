@@ -1,13 +1,16 @@
 name: Dev preview (GitHub Pages)
 
-# Manual-only. Dev/claude branch pushes intentionally do NOT auto-deploy
-# anything — only `main` triggers a deployment (deploy-prod.yml). Run this
-# by hand (Actions tab → "Run workflow") on a branch when a static preview
-# is actually wanted, at
+# Every dev/claude branch push auto-publishes a static frontend preview to
+# the gh-pages branch at
 #   https://<owner>.github.io/<repo>/<branch>/
-# Each preview talks to the Vercel production backend (set the repo
-# variable VERCEL_PROD_URL to e.g. https://your-app.vercel.app).
+# This is GitHub Pages ONLY — it runs no `vercel` command and cannot
+# trigger a Vercel deployment (Vercel git deploys are disabled repo-wide
+# via vercel.json git.deploymentEnabled=false; only main → deploy-prod.yml
+# reaches Vercel). Each preview talks to the Vercel production backend
+# (set the repo variable VERCEL_PROD_URL). Also runnable by hand.
 on:
+  push:
+    branches: ["claude/**"]
   workflow_dispatch:
 
 concurrency:

@@ -73,10 +73,12 @@ persisted watchlists, asset search, and real-time streaming.
    serverless cannot. Never run >1 instance: `QuoteHub` keeps one shared
    upstream stream per process with no external pub/sub.
 3. **GitHub Pages — dev previews**, via `preview-pages.yml`. Static
-   frontend only; talks to the Vercel prod backend. **Manual-only
-   (`workflow_dispatch`)** — dev/`claude/**` pushes intentionally do
-   **not** auto-deploy; only `main` triggers a deployment. Run it by hand
-   from the Actions tab when a branch preview is actually wanted.
+   frontend only; talks to the Vercel prod backend. Auto-publishes to
+   `gh-pages` on every `claude/**` push (also manually dispatchable).
+   This is **GitHub Pages only** — it runs no `vercel` command and
+   cannot trigger a Vercel deploy; Vercel git deploys stay disabled
+   repo-wide (`vercel.json` `git.deploymentEnabled=false`), so only
+   `main` → `deploy-prod.yml` ever reaches Vercel.
 
 ## Streaming design (don't regress)
 
