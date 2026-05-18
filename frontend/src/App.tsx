@@ -3,6 +3,11 @@ import { getConfig } from "./api";
 import AccountSummary from "./components/AccountSummary";
 import Watchlist from "./components/Watchlist";
 import PriceChart from "./components/PriceChart";
+import Positions from "./components/Positions";
+import PortfolioSummary from "./components/PortfolioSummary";
+import Orders from "./components/Orders";
+import Activities from "./components/Activities";
+import MarketClock from "./components/MarketClock";
 
 export default function App() {
   const [symbols, setSymbols] = useState<string[]>([]);
@@ -43,6 +48,13 @@ export default function App() {
           />
         </div>
         {selected && <PriceChart symbol={selected} />}
+      </div>
+      <div className="panels-extra">
+        <MarketClock />
+        <PortfolioSummary />
+        <Positions />
+        <Orders />
+        <Activities />
       </div>
     </div>
   );

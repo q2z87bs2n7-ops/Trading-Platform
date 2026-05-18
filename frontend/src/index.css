@@ -105,3 +105,10 @@ header h1 {
   width: 100%;
   height: 460px;
 }
+
+.panels-extra {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}

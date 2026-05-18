@@ -39,6 +39,95 @@ def account() -> dict:
         raise HTTPException(502, f"Alpaca error: {exc}") from exc
 
 
+def _require_configured() -> None:
+    if not get_settings().configured:
+        raise HTTPException(503, "Alpaca API keys not configured. See backend/.env.example")
+
+
+@app.get("/api/positions")
+def positions() -> dict:
+    _require_configured()
+    try:
+        return {"positions": alpaca.get_positions()}
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(502, f"Alpaca error: {exc}") from exc
+
+
+@app.get("/api/positions/{symbol}")
+def position(symbol: str) -> dict:
+    _require_configured()
+    try:
+        return alpaca.get_position(symbol)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(502, f"Alpaca error: {exc}") from exc
+
+
+@app.get("/api/portfolio/history")
+def portfolio_history(
+    period: str = Query("1M"),
+    timeframe: str = Query("1D"),
+) -> dict:
+    _require_configured()
+    try:
+        return alpaca.get_portfolio_history(period, timeframe)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(502, f"Alpaca error: {exc}") from exc
+
+
+@app.get("/api/orders")
+def orders(
+    status: str = Query("all"),
+    limit: int = Query(50, ge=1, le=500),
+) -> dict:
+    _require_configured()
+    try:
+        return {"orders": alpaca.get_orders(status, limit)}
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(502, f"Alpaca error: {exc}") from exc
+
+
+@app.get("/api/activities")
+def activities(
+    type: str = Query(""),
+    limit: int = Query(50, ge=1, le=100),
+) -> dict:
+    _require_configured()
+    try:
+        return {"activities": alpaca.get_activities(type or None, limit)}
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(502, f"Alpaca error: {exc}") from exc
+
+
+@app.get("/api/clock")
+def clock() -> dict:
+    _require_configured()
+    try:
+        return alpaca.get_clock()
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(502, f"Alpaca error: {exc}") from exc
+
+
+@app.get("/api/calendar")
+def calendar(
+    start: str = Query(""),
+    end: str = Query(""),
+) -> dict:
+    _require_configured()
+    try:
+        return {"calendar": alpaca.get_calendar(start or None, end or None)}
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(502, f"Alpaca error: {exc}") from exc
+
+
+@app.get("/api/assets/{symbol}")
+def asset(symbol: str) -> dict:
+    _require_configured()
+    try:
+        return alpaca.get_asset(symbol)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(502, f"Alpaca error: {exc}") from exc
+
+
 @app.get("/api/bars")
 def bars(
     symbol: str = Query(..., min_length=1),

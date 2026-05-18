@@ -26,3 +26,67 @@ export interface Quote {
   mid: number;
   time: number;
 }
+
+export interface Position {
+  symbol: string;
+  qty: number;
+  side: string;
+  avg_entry_price: number;
+  current_price: number;
+  market_value: number;
+  cost_basis: number;
+  unrealized_pl: number;
+  unrealized_plpc: number;
+  change_today: number;
+}
+
+export interface Order {
+  id: string;
+  symbol: string;
+  side: string;
+  type: string;
+  qty: number | null;
+  filled_qty: number;
+  filled_avg_price: number | null;
+  limit_price: number | null;
+  status: string;
+  submitted_at: number | null;
+}
+
+// Account activities are heterogeneous (fills, dividends, fees…); the
+// backend passes Alpaca's raw shape straight through.
+export type Activity = Record<string, unknown>;
+
+export interface MarketClock {
+  timestamp: number;
+  is_open: boolean;
+  next_open: number;
+  next_close: number;
+}
+
+export interface PortfolioHistory {
+  timestamp: number[];
+  equity: number[];
+  profit_loss: number[];
+  profit_loss_pct: number[];
+  base_value: number;
+  timeframe: string;
+}
+
+export interface CalendarDay {
+  date: string;
+  open: string;
+  close: string;
+}
+
+export interface Asset {
+  symbol: string;
+  name: string;
+  exchange: string;
+  asset_class: string;
+  status: string;
+  tradable: boolean;
+  marginable: boolean;
+  shortable: boolean;
+  fractionable: boolean;
+}

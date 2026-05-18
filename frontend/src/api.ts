@@ -1,4 +1,15 @@
-import type { Account, Bar, Quote } from "./types";
+import type {
+  Account,
+  Activity,
+  Asset,
+  Bar,
+  CalendarDay,
+  MarketClock,
+  Order,
+  PortfolioHistory,
+  Position,
+  Quote,
+} from "./types";
 
 // Empty for local dev (Vite proxy) and Vercel prod (same origin). Set to
 // the Vercel prod URL at build time for the GitHub Pages dev previews,
@@ -38,6 +49,33 @@ export const getQuotes = (symbols: string[]) =>
   getJSON<{ quotes: Quote[] }>(
     `/api/quotes?symbols=${encodeURIComponent(symbols.join(","))}`,
   );
+
+export const getPositions = () =>
+  getJSON<{ positions: Position[] }>("/api/positions");
+
+export const getPosition = (symbol: string) =>
+  getJSON<Position>(`/api/positions/${encodeURIComponent(symbol)}`);
+
+export const getOrders = (status = "all", limit = 50) =>
+  getJSON<{ orders: Order[] }>(`/api/orders?status=${status}&limit=${limit}`);
+
+export const getActivities = (limit = 50) =>
+  getJSON<{ activities: Activity[] }>(`/api/activities?limit=${limit}`);
+
+export const getClock = () => getJSON<MarketClock>("/api/clock");
+
+export const getPortfolioHistory = (period = "1M", timeframe = "1D") =>
+  getJSON<PortfolioHistory>(
+    `/api/portfolio/history?period=${period}&timeframe=${timeframe}`,
+  );
+
+export const getCalendar = (start?: string, end?: string) =>
+  getJSON<{ calendar: CalendarDay[] }>(
+    `/api/calendar?start=${start ?? ""}&end=${end ?? ""}`,
+  );
+
+export const getAsset = (symbol: string) =>
+  getJSON<Asset>(`/api/assets/${encodeURIComponent(symbol)}`);
 
 // Subscribe to the real-time quote stream. Calls onQuote per tick and
 // onError once if the stream can't be established (caller should then fall
