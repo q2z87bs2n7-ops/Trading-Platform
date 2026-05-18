@@ -1,0 +1,38 @@
+# Render Blueprint for the real-time quote relay.
+#
+# This service is the always-on host that holds the single shared Alpaca
+# WebSocket and relays quotes to browsers over SSE (/api/stream). Vercel
+# still serves the frontend + REST API; this only exists for streaming.
+#
+# Deploy: Render dashboard -> New -> Blueprint -> pick this repo. Render
+# reads this file and creates the service. Then set the two secret env
+# vars (ALPACA_API_KEY / ALPACA_SECRET_KEY) in the dashboard.
+services:
+  - type: web
+    name: trading-relay
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    # Free instances sleep after ~15 min idle, which drops the upstream
+    # Alpaca stream until the next request. Use "starter" for a genuinely
+    # always-on relay; switch to "free" to trial it.
+    plan: starter
+    # The QuoteHub keeps one shared Alpaca stream per process, so this
+    # service must never run more than a single instance.
+    numInstances: 1
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: ALPACA_API_KEY
+        sync: false # set in the Render dashboard (secret)
+      - key: ALPACA_SECRET_KEY
+        sync: false # set in the Render dashboard (secret)
+      - key: ALPACA_PAPER
+        value: "true"
+      - key: ALPACA_DATA_FEED
+        value: iex
+      # Browser origins allowed to open the SSE stream. Must include
+      # wherever the frontend is served from (Vercel prod + GitHub Pages
+      # previews + local dev). Edit to match your real Vercel domain.
+      - key: CORS_ORIGINS
+        value: "http://localhost:5173,http://127.0.0.1:5173,https://q2z87bs2n7-ops.github.io,https://trading-platform.vercel.app"
