@@ -1,0 +1,43 @@
+name: Deploy production (Vercel)
+
+# Vercel only ever builds on main, so dev branches never consume a Vercel
+# preview deployment. The project is created/linked here in CI. The Alpaca
+# keys are NOT in GitHub — set them once in the Vercel project settings.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: vercel-prod
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Create / link Vercel project
+        run: vercel link --yes --project trading-platform --token="${{ secrets.VERCEL_TOKEN }}"
+
+      - name: Deploy to production
+        run: |
+          set -euo pipefail
+          url="$(vercel deploy --prod --yes --token="${{ secrets.VERCEL_TOKEN }}")"
+          echo "Deployed: $url"
+          {
+            echo "### Production deployed"
+            echo ""
+            echo "Deployment URL: $url"
+            echo ""
+            echo "Stable prod domain: https://trading-platform.vercel.app"
+            echo ""
+            echo "Set the repo **variable** \`VERCEL_PROD_URL\` to the stable"
+            echo "domain above so the GitHub Pages dev previews can reach this backend."
+          } >> "$GITHUB_STEP_SUMMARY"
