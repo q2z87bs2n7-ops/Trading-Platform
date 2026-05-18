@@ -112,3 +112,131 @@ header h1 {
   gap: 16px;
   margin-top: 16px;
 }
+
+/* --- Phase A trading controls. Functional only; Phase B replaces this
+   with the Tailwind + shadcn-style design system. --- */
+
+input,
+select {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 14px;
+}
+
+.btn {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.btn:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-mini {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+.btn-danger {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.btn-buy.active,
+.btn-submit.buy {
+  background: rgba(38, 166, 154, 0.18);
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.btn-sell.active,
+.btn-submit.sell {
+  background: rgba(239, 83, 80, 0.18);
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.ticket {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.side-toggle {
+  display: flex;
+  gap: 8px;
+}
+
+.side-toggle .btn {
+  flex: 1;
+}
+
+.btn-submit {
+  margin-top: 4px;
+  font-weight: 600;
+}
+
+.search-input {
+  width: 100%;
+}
+
+.search-results {
+  margin-top: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.search-result {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.search-result:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.order-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.replace-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.replace-form input {
+  width: 70px;
+  padding: 2px 6px;
+}
+
+.panel-action {
+  float: right;
+  margin-top: -2px;
+}

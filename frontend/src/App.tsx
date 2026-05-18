@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useConfig } from "./data/hooks";
 import AccountSummary from "./components/AccountSummary";
+import AssetSearch from "./components/AssetSearch";
+import OrderTicket from "./components/OrderTicket";
 import Watchlist from "./components/Watchlist";
 import PriceChart from "./components/PriceChart";
 import Positions from "./components/Positions";
@@ -33,13 +35,17 @@ export default function App() {
       <div className="grid">
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <AccountSummary />
+          <AssetSearch onSelect={setSelected} />
           <Watchlist
             symbols={symbols}
             selected={selected}
             onSelect={setSelected}
           />
         </div>
-        {selected && <PriceChart symbol={selected} />}
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {selected && <PriceChart symbol={selected} />}
+          <OrderTicket symbol={selected} onSymbolChange={setSelected} />
+        </div>
       </div>
       <div className="panels-extra">
         <MarketClock />
