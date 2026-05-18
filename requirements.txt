@@ -1,8 +1,11 @@
 # Root requirements file consumed by Vercel's Python runtime for /api.
 # Keep in sync with backend/requirements.txt.
+# pydantic is left to float to >=2.11 so the resolver picks a
+# pydantic-core with prebuilt Python 3.14 wheels (Vercel forces 3.14;
+# older pinned pydantic-core has no 3.14 wheel and fails to compile).
 fastapi==0.115.5
 alpaca-py==0.33.1
 python-dotenv==1.0.1
-pydantic==2.10.3
-pydantic-settings==2.6.1
+pydantic>=2.11
+pydantic-settings>=2.7
 pytz==2024.2
