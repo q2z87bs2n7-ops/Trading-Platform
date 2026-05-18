@@ -1,16 +1,21 @@
 """Market-data reads: historical bars and latest quotes."""
 
+from alpaca.common.enums import Sort
 from alpaca.data.requests import StockBarsRequest, StockLatestQuoteRequest
 
 from .client import _feed, data_client, timeframe_from_str
 
 
 def get_bars(symbol: str, timeframe: str, limit: int) -> list[dict]:
+    # Sort.DESC so Alpaca returns the most recent `limit` bars. Without it the
+    # default ASC sort + no `start` makes Alpaca read forward from the start of
+    # the current day, yielding only today's data (one candle on 1Day).
     req = StockBarsRequest(
         symbol_or_symbols=symbol.upper(),
         timeframe=timeframe_from_str(timeframe),
         limit=limit,
         feed=_feed(),
+        sort=Sort.DESC,
     )
     bars = data_client().get_stock_bars(req)
     out: list[dict] = []
@@ -25,6 +30,7 @@ def get_bars(symbol: str, timeframe: str, limit: int) -> list[dict]:
                 "volume": bar.volume,
             }
         )
+    out.reverse()
     return out
 
 
