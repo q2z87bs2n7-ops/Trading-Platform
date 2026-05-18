@@ -39,3 +39,33 @@ jobs:
           publish_dir: frontend/dist
           destination_dir: ${{ steps.slug.outputs.dir }}
           keep_files: true
+
+      - name: Check out updated gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: ghp
+
+      - name: Build preview index
+        run: |
+          mkdir -p _root
+          cd ghp
+          {
+            echo '<!doctype html><html><head><meta charset="utf-8">'
+            echo '<title>Trading Platform — branch previews</title>'
+            echo '<style>body{font-family:system-ui,sans-serif;max-width:640px;margin:48px auto;padding:0 16px;color:#e6edf3;background:#0e1117}h1{font-size:20px}a{display:block;padding:12px 14px;border:1px solid #30363d;border-radius:8px;margin:10px 0;text-decoration:none;color:#58a6ff}a:hover{background:#161b22}</style>'
+            echo '</head><body><h1>Branch previews</h1>'
+            for d in */; do
+              n="${d%/}"
+              [ "$n" = "assets" ] && continue
+              echo "<a href=\"./$n/\">$n</a>"
+            done
+            echo '</body></html>'
+          } > ../_root/index.html
+
+      - name: Publish preview index
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: _root
+          keep_files: true
