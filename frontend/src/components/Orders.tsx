@@ -1,30 +1,14 @@
-import { useEffect, useState } from "react";
-import { getOrders } from "../api";
-import type { Order } from "../types";
+import { useOrders } from "../data/hooks";
 
 export default function Orders() {
-  const [rows, setRows] = useState<Order[] | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    const load = () =>
-      getOrders("all", 25)
-        .then((d) => alive && (setRows(d.orders), setErr(null)))
-        .catch((e) => alive && setErr(e.message));
-    load();
-    const id = setInterval(load, 20000);
-    return () => {
-      alive = false;
-      clearInterval(id);
-    };
-  }, []);
+  const { data, error, isPending } = useOrders("all", 25);
+  const rows = data?.orders;
 
   return (
     <div className="panel">
       <h2>Recent Orders</h2>
-      {err && <div className="error">{err}</div>}
-      {!rows && !err && <div className="tag">Loading…</div>}
+      {error && <div className="error">{error.message}</div>}
+      {!error && isPending && <div className="tag">Loading…</div>}
       {rows && rows.length === 0 && <div className="tag">No orders</div>}
       {rows &&
         rows.map((o) => (

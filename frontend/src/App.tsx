@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getConfig } from "./api";
+import { useConfig } from "./data/hooks";
 import AccountSummary from "./components/AccountSummary";
 import Watchlist from "./components/Watchlist";
 import PriceChart from "./components/PriceChart";
@@ -10,23 +10,15 @@ import Activities from "./components/Activities";
 import MarketClock from "./components/MarketClock";
 
 export default function App() {
-  const [symbols, setSymbols] = useState<string[]>([]);
+  const { data: cfg, isError } = useConfig();
+  const symbols =
+    cfg?.symbols ?? (isError ? ["AAPL", "MSFT", "TSLA", "SPY"] : []);
+  const meta = cfg ? { feed: cfg.feed, paper: cfg.paper } : null;
   const [selected, setSelected] = useState<string>("");
-  const [meta, setMeta] = useState<{ feed: string; paper: boolean } | null>(null);
 
   useEffect(() => {
-    getConfig()
-      .then((c) => {
-        setSymbols(c.symbols);
-        setSelected(c.symbols[0] ?? "");
-        setMeta({ feed: c.feed, paper: c.paper });
-      })
-      .catch(() => {
-        const fallback = ["AAPL", "MSFT", "TSLA", "SPY"];
-        setSymbols(fallback);
-        setSelected(fallback[0]);
-      });
-  }, []);
+    if (!selected && symbols.length) setSelected(symbols[0]);
+  }, [symbols.join(","), selected]);
 
   return (
     <div className="app">

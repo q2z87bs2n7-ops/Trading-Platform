@@ -1,34 +1,18 @@
-import { useEffect, useState } from "react";
-import { getPositions } from "../api";
-import type { Position } from "../types";
+import { usePositions } from "../data/hooks";
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD" });
 const pct = (n: number) => `${(n * 100).toFixed(2)}%`;
 
 export default function Positions() {
-  const [rows, setRows] = useState<Position[] | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    const load = () =>
-      getPositions()
-        .then((d) => alive && (setRows(d.positions), setErr(null)))
-        .catch((e) => alive && setErr(e.message));
-    load();
-    const id = setInterval(load, 15000);
-    return () => {
-      alive = false;
-      clearInterval(id);
-    };
-  }, []);
+  const { data, error, isPending } = usePositions();
+  const rows = data?.positions;
 
   return (
     <div className="panel">
       <h2>Open Positions</h2>
-      {err && <div className="error">{err}</div>}
-      {!rows && !err && <div className="tag">Loading…</div>}
+      {error && <div className="error">{error.message}</div>}
+      {!error && isPending && <div className="tag">Loading…</div>}
       {rows && rows.length === 0 && <div className="tag">No open positions</div>}
       {rows &&
         rows.map((p) => {

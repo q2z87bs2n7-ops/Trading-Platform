@@ -1,32 +1,15 @@
-import { useEffect, useState } from "react";
-import { getClock } from "../api";
-import type { MarketClock as Clock } from "../types";
+import { useClock } from "../data/hooks";
 
 const when = (ts: number) => new Date(ts * 1000).toLocaleString();
 
 export default function MarketClock() {
-  const [c, setC] = useState<Clock | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    const load = () =>
-      getClock()
-        .then((d) => alive && (setC(d), setErr(null)))
-        .catch((e) => alive && setErr(e.message));
-    load();
-    const id = setInterval(load, 30000);
-    return () => {
-      alive = false;
-      clearInterval(id);
-    };
-  }, []);
+  const { data: c, error, isPending } = useClock();
 
   return (
     <div className="panel">
       <h2>Market</h2>
-      {err && <div className="error">{err}</div>}
-      {!c && !err && <div className="tag">Loading…</div>}
+      {error && <div className="error">{error.message}</div>}
+      {!error && isPending && <div className="tag">Loading…</div>}
       {c && (
         <>
           <div className="row">

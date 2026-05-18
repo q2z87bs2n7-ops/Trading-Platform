@@ -5,7 +5,7 @@ import {
   type ISeriesApi,
   type UTCTimestamp,
 } from "lightweight-charts";
-import { getBars } from "../api";
+import { useBars } from "../data/hooks";
 
 const TIMEFRAMES = ["1Min", "5Min", "15Min", "1Hour", "1Day"];
 
@@ -14,7 +14,7 @@ export default function PriceChart({ symbol }: { symbol: string }) {
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const [timeframe, setTimeframe] = useState("1Day");
-  const [err, setErr] = useState<string | null>(null);
+  const { data, error } = useBars(symbol, timeframe);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -40,27 +40,18 @@ export default function PriceChart({ symbol }: { symbol: string }) {
   }, []);
 
   useEffect(() => {
-    let alive = true;
-    getBars(symbol, timeframe, 200)
-      .then((res) => {
-        if (!alive || !seriesRef.current) return;
-        setErr(null);
-        seriesRef.current.setData(
-          res.bars.map((b) => ({
-            time: b.time as UTCTimestamp,
-            open: b.open,
-            high: b.high,
-            low: b.low,
-            close: b.close,
-          })),
-        );
-        chartRef.current?.timeScale().fitContent();
-      })
-      .catch((e) => alive && setErr(e.message));
-    return () => {
-      alive = false;
-    };
-  }, [symbol, timeframe]);
+    if (!data || !seriesRef.current) return;
+    seriesRef.current.setData(
+      data.bars.map((b) => ({
+        time: b.time as UTCTimestamp,
+        open: b.open,
+        high: b.high,
+        low: b.low,
+        close: b.close,
+      })),
+    );
+    chartRef.current?.timeScale().fitContent();
+  }, [data]);
 
   return (
     <div className="panel">
@@ -83,7 +74,7 @@ export default function PriceChart({ symbol }: { symbol: string }) {
           ))}
         </select>
       </h2>
-      {err && <div className="error">{err}</div>}
+      {error && <div className="error">{error.message}</div>}
       <div className="chart-wrap" ref={containerRef} />
     </div>
   );

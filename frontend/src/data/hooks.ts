@@ -5,29 +5,63 @@ import type { ReplaceOrderInput, SubmitOrderInput } from "../types";
 import { qk } from "./queryClient";
 
 // --- Reads ---------------------------------------------------------------
+// `refetchInterval`s preserve each component's prior poll cadence so the
+// data-layer migration does not regress auto-refresh.
+
+export const useConfig = () =>
+  useQuery({
+    queryKey: qk.config,
+    queryFn: api.getConfig,
+    staleTime: Infinity,
+  });
 
 export const useAccount = () =>
-  useQuery({ queryKey: qk.account, queryFn: api.getAccount });
+  useQuery({
+    queryKey: qk.account,
+    queryFn: api.getAccount,
+    refetchInterval: 15000,
+  });
 
 export const usePositions = () =>
-  useQuery({ queryKey: qk.positions, queryFn: api.getPositions });
-
-export const useOrders = (status = "all") =>
   useQuery({
-    queryKey: qk.orders(status),
-    queryFn: () => api.getOrders(status),
+    queryKey: qk.positions,
+    queryFn: api.getPositions,
+    refetchInterval: 15000,
+  });
+
+export const useOrders = (status = "all", limit = 25) =>
+  useQuery({
+    queryKey: qk.orders(status, limit),
+    queryFn: () => api.getOrders(status, limit),
+    refetchInterval: 20000,
   });
 
 export const useClock = () =>
-  useQuery({ queryKey: qk.clock, queryFn: api.getClock });
+  useQuery({
+    queryKey: qk.clock,
+    queryFn: api.getClock,
+    refetchInterval: 30000,
+  });
 
-export const useActivities = () =>
-  useQuery({ queryKey: qk.activities, queryFn: () => api.getActivities() });
+export const useActivities = (limit = 25) =>
+  useQuery({
+    queryKey: qk.activities(limit),
+    queryFn: () => api.getActivities(limit),
+    refetchInterval: 30000,
+  });
+
+export const useBars = (symbol: string, timeframe: string, limit = 200) =>
+  useQuery({
+    queryKey: qk.bars(symbol, timeframe),
+    queryFn: () => api.getBars(symbol, timeframe, limit),
+    enabled: symbol.length > 0,
+  });
 
 export const usePortfolioHistory = (period = "1M", timeframe = "1D") =>
   useQuery({
     queryKey: qk.portfolioHistory(period, timeframe),
     queryFn: () => api.getPortfolioHistory(period, timeframe),
+    refetchInterval: 60000,
   });
 
 export const useAssetSearch = (search: string) =>

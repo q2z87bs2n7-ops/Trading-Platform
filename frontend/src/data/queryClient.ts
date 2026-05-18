@@ -13,12 +13,16 @@ export const queryClient = new QueryClient({
 });
 
 export const qk = {
+  config: ["config"] as const,
   account: ["account"] as const,
   positions: ["positions"] as const,
-  orders: (status: string) => ["orders", status] as const,
+  orders: (status: string, limit: number) =>
+    ["orders", status, limit] as const,
   quotes: ["quotes"] as const,
   clock: ["clock"] as const,
-  activities: ["activities"] as const,
+  activities: (limit: number) => ["activities", limit] as const,
+  bars: (symbol: string, timeframe: string) =>
+    ["bars", symbol, timeframe] as const,
   portfolioHistory: (period: string, timeframe: string) =>
     ["portfolioHistory", period, timeframe] as const,
   assets: (search: string) => ["assets", search] as const,

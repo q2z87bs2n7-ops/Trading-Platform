@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { getActivities } from "../api";
+import { useActivities } from "../data/hooks";
 import type { Activity } from "../types";
 
 // Activities are heterogeneous; show the type plus a best-effort summary
@@ -13,28 +12,14 @@ function summarize(a: Activity): string {
 }
 
 export default function Activities() {
-  const [rows, setRows] = useState<Activity[] | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    const load = () =>
-      getActivities(25)
-        .then((d) => alive && (setRows(d.activities), setErr(null)))
-        .catch((e) => alive && setErr(e.message));
-    load();
-    const id = setInterval(load, 30000);
-    return () => {
-      alive = false;
-      clearInterval(id);
-    };
-  }, []);
+  const { data, error, isPending } = useActivities(25);
+  const rows = data?.activities;
 
   return (
     <div className="panel">
       <h2>Account Activity</h2>
-      {err && <div className="error">{err}</div>}
-      {!rows && !err && <div className="tag">Loading…</div>}
+      {error && <div className="error">{error.message}</div>}
+      {!error && isPending && <div className="tag">Loading…</div>}
       {rows && rows.length === 0 && <div className="tag">No activity</div>}
       {rows &&
         rows.map((a, i) => (
