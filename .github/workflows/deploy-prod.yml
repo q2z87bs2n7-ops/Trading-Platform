@@ -1,11 +1,12 @@
 name: Deploy production (Vercel)
 
-# Only main triggers a Vercel build, so previews never count against the
-# Vercel deployment limit. All dev-branch previews go to GitHub Pages
-# (see preview-pages.yml).
+# Vercel only ever builds on main, so dev branches never consume a Vercel
+# preview deployment. The project is created/linked here in CI and the
+# Alpaca keys are synced from GitHub secrets, so no local setup is needed.
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: vercel-prod
@@ -14,9 +15,6 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    env:
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,9 +22,39 @@ jobs:
           node-version: 22
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
-      - name: Pull Vercel env
-        run: vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
-      - name: Build
-        run: vercel build --prod --token="${{ secrets.VERCEL_TOKEN }}"
-      - name: Deploy
-        run: vercel deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}"
+
+      - name: Create / link Vercel project
+        run: vercel link --yes --project trading-platform --token="${{ secrets.VERCEL_TOKEN }}"
+
+      - name: Sync Alpaca env vars into Vercel
+        env:
+          VT: ${{ secrets.VERCEL_TOKEN }}
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+          sync() {
+            vercel env rm "$1" production -y --token="$VT" >/dev/null 2>&1 || true
+            printf '%s' "$2" | vercel env add "$1" production --token="$VT" >/dev/null
+            echo "  set $1"
+          }
+          sync ALPACA_API_KEY    "$ALPACA_API_KEY"
+          sync ALPACA_SECRET_KEY "$ALPACA_SECRET_KEY"
+          sync ALPACA_PAPER      "true"
+          sync ALPACA_DATA_FEED  "iex"
+
+      - name: Deploy to production
+        run: |
+          set -euo pipefail
+          url="$(vercel deploy --prod --yes --token="${{ secrets.VERCEL_TOKEN }}")"
+          echo "Deployed: $url"
+          {
+            echo "### Production deployed"
+            echo ""
+            echo "Deployment URL: $url"
+            echo ""
+            echo "Stable prod domain: https://trading-platform.vercel.app"
+            echo ""
+            echo "Set the repo **variable** \`VERCEL_PROD_URL\` to the stable"
+            echo "domain above so the GitHub Pages dev previews can reach this backend."
+          } >> "$GITHUB_STEP_SUMMARY"
