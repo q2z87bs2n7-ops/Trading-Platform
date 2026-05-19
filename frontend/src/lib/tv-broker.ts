@@ -102,27 +102,27 @@ export function createBroker(onUpdate: () => void) {
       return {
         accountTitle: "Paper Account",
         summary: [
-          { label: "Equity", property: "equity", formatter: "default" },
-          { label: "Buying Power", property: "buyingPower", formatter: "default" },
+          { label: "Equity", property: "equity" },
+          { label: "Buying Power", property: "buyingPower" },
         ],
         orderColumns: [
-          { label: "Symbol", property: "symbol", formatter: "default" },
-          { label: "Side",   property: "side", formatter: "default" },
-          { label: "Type",   property: "type", formatter: "default" },
-          { label: "Qty",    property: "qty", formatter: "default" },
-          { label: "Status", property: "status", formatter: "default" },
+          { label: "Symbol", property: "symbol" },
+          { label: "Side",   property: "side"   },
+          { label: "Type",   property: "type"   },
+          { label: "Qty",    property: "qty"    },
+          { label: "Status", property: "status" },
         ],
         positionColumns: [
-          { label: "Symbol",     property: "symbol", formatter: "default" },
-          { label: "Qty",        property: "qty", formatter: "default" },
-          { label: "Avg Price",  property: "avgPrice", formatter: "default" },
-          { label: "Unreal P/L", property: "unrealizedPL", formatter: "default" },
+          { label: "Symbol",     property: "symbol"      },
+          { label: "Qty",        property: "qty"         },
+          { label: "Avg Price",  property: "avgPrice"    },
+          { label: "Unreal P/L", property: "unrealizedPL"},
         ],
         historyColumns: [
-          { label: "Symbol", property: "symbol", formatter: "default" },
-          { label: "Side",   property: "side", formatter: "default" },
-          { label: "Qty",    property: "qty", formatter: "default" },
-          { label: "Price",  property: "price", formatter: "default" },
+          { label: "Symbol", property: "symbol" },
+          { label: "Side",   property: "side"   },
+          { label: "Qty",    property: "qty"    },
+          { label: "Price",  property: "price"  },
         ],
         tradeColumns: [],
       };
@@ -158,21 +158,18 @@ export function createBroker(onUpdate: () => void) {
     async executions(_symbol: string) {
       try {
         const data = await apiFetch("/api/activities?type=FILL&limit=50");
-        return {
-          formatter: "price",
-          executions: (data.activities ?? [])
-            .filter((a: Record<string, unknown>) => !_symbol || a.symbol === _symbol)
-            .map((a: Record<string, unknown>) => ({
-              id: a.id,
-              symbol: a.symbol,
-              price: parseFloat((a.price as string) ?? "0"),
-              qty: parseFloat((a.qty as string) ?? "0"),
-              side: a.side === "buy" ? 1 : -1,
-              time: new Date(a.transaction_time as string).getTime(),
-            })),
-        };
+        return (data.activities ?? [])
+          .filter((a: Record<string, unknown>) => !_symbol || a.symbol === _symbol)
+          .map((a: Record<string, unknown>) => ({
+            id: a.id,
+            symbol: a.symbol,
+            price: parseFloat((a.price as string) ?? "0"),
+            qty: parseFloat((a.qty as string) ?? "0"),
+            side: a.side === "buy" ? 1 : -1,
+            time: new Date(a.transaction_time as string).getTime(),
+          }));
       } catch {
-        return { formatter: "price", executions: [] };
+        return [];
       }
     },
 
