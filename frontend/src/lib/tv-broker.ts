@@ -179,19 +179,13 @@ export function createBroker(onUpdate: () => void) {
     // --- Positions ---
     async positions() {
       const data = await apiFetch("/api/positions");
-      return {
-        formatter: "default",
-        positions: (data.positions ?? []).map(toTVPosition),
-      };
+      return (data.positions ?? []).map(toTVPosition);
     },
 
     // --- Orders ---
     async orders() {
       const data = await apiFetch("/api/orders?status=open");
-      return {
-        formatter: "default",
-        orders: (data.orders ?? []).map(toTVOrder),
-      };
+      return (data.orders ?? []).map(toTVOrder);
     },
 
     // --- Place order ---
