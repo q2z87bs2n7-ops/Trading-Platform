@@ -20,6 +20,7 @@ from .client import (
 )
 from .market_data import get_bars, get_latest_quotes
 from .news import get_news
+from .screener import get_most_actives, get_movers
 from .watchlist import (
     add_to_watchlist,
     get_watchlist,
@@ -51,6 +52,8 @@ __all__ = [
     "get_calendar",
     "get_clock",
     "get_latest_quotes",
+    "get_most_actives",
+    "get_movers",
     "get_news",
     "get_orders",
     "get_portfolio_history",

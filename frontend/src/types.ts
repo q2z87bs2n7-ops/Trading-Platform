@@ -123,6 +123,31 @@ export interface Asset {
   fractionable: boolean;
 }
 
+export interface Mover {
+  symbol: string;
+  price: number;
+  change: number;
+  percent_change: number;
+}
+
+export interface MoversResponse {
+  gainers: Mover[];
+  losers: Mover[];
+  last_updated: number;
+}
+
+export interface MostActiveStock {
+  symbol: string;
+  volume: number;
+  trade_count: number;
+}
+
+export interface MostActivesResponse {
+  most_actives: MostActiveStock[];
+  by: "volume" | "trades";
+  last_updated: number;
+}
+
 export interface NewsArticle {
   id: number;
   headline: string;

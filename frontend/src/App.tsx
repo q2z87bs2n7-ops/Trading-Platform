@@ -11,11 +11,12 @@ import Watchlist from "./components/Watchlist";
 import PriceChart from "./components/PriceChart";
 import Positions from "./components/Positions";
 import Orders from "./components/Orders";
-import BottomDrawer from "./components/BottomDrawer";
+import Activities from "./components/Activities";
 import TopBar from "./components/TopBar";
+import Tools from "./components/Tools";
 import TVPlatform from "./components/TVPlatform";
 
-type PlatformMode = "custom" | "tv";
+type PlatformMode = "custom" | "tv" | "tools";
 
 export default function App() {
   const { data: cfg } = useConfig();
@@ -68,6 +69,14 @@ export default function App() {
             >
               TradingView
             </button>
+            <button
+              className={`btn btn-mini${mode === "tools" ? " active" : ""}`}
+              style={{ opacity: mode === "tools" ? 1 : 0.5 }}
+              onClick={() => switchMode("tools")}
+              type="button"
+            >
+              Tools
+            </button>
           </div>
         </div>
         {/* Status ribbon — custom mode only (UI-04) */}
@@ -75,6 +84,9 @@ export default function App() {
       </header>
       {/* TradingView full terminal — shown when TV mode is active */}
       {mode === "tv" && <TVPlatform symbol={selected} />}
+
+      {/* Tools — movers, most-active, news. Hides TopBar like TV mode. */}
+      {mode === "tools" && <Tools selected={selected} onSelect={setSelected} />}
 
       {/* Custom UI — shown when Our Platform mode is active */}
       {mode === "custom" && (
@@ -107,10 +119,11 @@ export default function App() {
             <Orders />
           </div>
 
-          {/* Bottom drawer — tabbed News / Activities (UI-07). Calendar
-             moved to the TopBar chip+popover in UI-04, so it's no longer
-             in the drawer despite being mentioned in the original spec. */}
-          <BottomDrawer symbol={selected} />
+          {/* Account activity feed under the blotter. News was moved
+             out into the Tools tab. */}
+          <div className="mt-4">
+            <Activities />
+          </div>
         </>
       )}
     </div>

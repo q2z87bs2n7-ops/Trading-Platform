@@ -163,6 +163,19 @@ def news(
     return {"symbol": symbol.upper(), "news": alpaca.get_news(symbol, limit)}
 
 
+@app.get("/api/movers", dependencies=[Depends(require_configured)])
+def movers(top: int = Query(10, ge=1, le=50)) -> dict:
+    return alpaca.get_movers(top)
+
+
+@app.get("/api/most-active", dependencies=[Depends(require_configured)])
+def most_active(
+    top: int = Query(10, ge=1, le=50),
+    by: str = Query("volume", pattern="^(volume|trades)$"),
+) -> dict:
+    return alpaca.get_most_actives(top, by)
+
+
 @app.get("/api/quotes", dependencies=[Depends(require_configured)])
 def quotes(symbols: str = Query("")) -> dict:
     """Latest quotes for the given comma-separated symbols.

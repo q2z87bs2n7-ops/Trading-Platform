@@ -5,6 +5,8 @@ import type {
   Bar,
   CalendarDay,
   MarketClock,
+  MostActivesResponse,
+  MoversResponse,
   NewsArticle,
   Order,
   PortfolioHistory,
@@ -81,6 +83,12 @@ export const getNews = (symbol: string, limit = 10) =>
   getJSON<{ symbol: string; news: NewsArticle[] }>(
     `/api/news?symbol=${encodeURIComponent(symbol)}&limit=${limit}`,
   );
+
+export const getMovers = (top = 10) =>
+  getJSON<MoversResponse>(`/api/movers?top=${top}`);
+
+export const getMostActives = (top = 10, by: "volume" | "trades" = "volume") =>
+  getJSON<MostActivesResponse>(`/api/most-active?top=${top}&by=${by}`);
 
 export const getQuotes = (symbols: string[]) =>
   getJSON<{ quotes: Quote[] }>(

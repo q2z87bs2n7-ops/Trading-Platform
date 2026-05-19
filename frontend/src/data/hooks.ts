@@ -65,6 +65,23 @@ export const useNews = (symbol: string, limit = 10) =>
     refetchInterval: 60000,
   });
 
+export const useMovers = (top = 10) =>
+  useQuery({
+    queryKey: qk.movers(top),
+    queryFn: () => api.getMovers(top),
+    refetchInterval: 60000,
+  });
+
+export const useMostActives = (
+  top = 10,
+  by: "volume" | "trades" = "volume",
+) =>
+  useQuery({
+    queryKey: qk.mostActives(top, by),
+    queryFn: () => api.getMostActives(top, by),
+    refetchInterval: 60000,
+  });
+
 export const usePortfolioHistory = (period = "1M", timeframe = "1D") =>
   useQuery({
     queryKey: qk.portfolioHistory(period, timeframe),
