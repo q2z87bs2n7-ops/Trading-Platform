@@ -168,16 +168,21 @@ export const closePosition = (symbol: string) =>
 export const closeAllPositions = () =>
   sendJSON<{ closed: string[] }>("DELETE", "/api/positions");
 
-// Subscribe to the real-time quote stream for the given symbols. Calls
-// onQuote per tick and onError once if the stream can't be established
-// (caller should then fall back to polling). Returns an unsubscribe
-// function. EventSource is receive-only, so a symbol-set change means
-// closing this stream and opening a new one.
-export function streamQuotes(
-  symbols: string[],
-  onQuote: (q: Quote) => void,
-  onError: () => void,
-): () => void {
+// Backend stream events carry a `kind` discriminator. Bars include
+// canonical OHLCV from Alpaca's 1-minute aggregates (no bid/ask
+// approximation).
+export interface BarTick {
+  kind: "bar";
+  symbol: string;
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+function warnNoRelay() {
   if (STREAM_BASE === API_BASE) {
     // No dedicated relay configured (VITE_STREAM_BASE unset): the stream
     // hits the serverless API base, which cannot hold SSE open, so it
@@ -188,17 +193,63 @@ export function streamQuotes(
         "persistent relay host to enable real-time streaming.",
     );
   }
+}
+
+// Subscribe to the real-time quote stream for the given symbols. Calls
+// onQuote per tick and onError once if the stream can't be established
+// (caller should then fall back to polling). Returns an unsubscribe
+// function. EventSource is receive-only, so a symbol-set change means
+// closing this stream and opening a new one.
+export function streamQuotes(
+  symbols: string[],
+  onQuote: (q: Quote) => void,
+  onError: () => void,
+): () => void {
+  warnNoRelay();
   const qs = encodeURIComponent(symbols.join(","));
-  const es = new EventSource(`${STREAM_BASE}/api/stream?symbols=${qs}`);
+  const es = new EventSource(
+    `${STREAM_BASE}/api/stream?symbols=${qs}&kinds=quote`,
+  );
   es.onmessage = (e) => {
     try {
-      onQuote(JSON.parse(e.data) as Quote);
+      const ev = JSON.parse(e.data) as Quote & { kind?: string };
+      if (ev.kind && ev.kind !== "quote") return;
+      onQuote(ev as Quote);
     } catch {
       /* ignore keepalive / malformed frames */
     }
   };
   es.onerror = () => {
     // Disable EventSource's own reconnect; we fall back to polling instead.
+    es.close();
+    onError();
+  };
+  return () => es.close();
+}
+
+// Subscribe to real-time 1-minute bars (Alpaca's `subscribe_bars` on
+// the shared upstream). Each tick is a complete OHLCV bar, replacing
+// the bid/ask approximation the TV datafeed used to do.
+export function streamBars(
+  symbols: string[],
+  onBar: (b: BarTick) => void,
+  onError: () => void,
+): () => void {
+  warnNoRelay();
+  const qs = encodeURIComponent(symbols.join(","));
+  const es = new EventSource(
+    `${STREAM_BASE}/api/stream?symbols=${qs}&kinds=bar`,
+  );
+  es.onmessage = (e) => {
+    try {
+      const ev = JSON.parse(e.data) as BarTick;
+      if (ev.kind !== "bar") return;
+      onBar(ev);
+    } catch {
+      /* ignore keepalive / malformed frames */
+    }
+  };
+  es.onerror = () => {
     es.close();
     onError();
   };

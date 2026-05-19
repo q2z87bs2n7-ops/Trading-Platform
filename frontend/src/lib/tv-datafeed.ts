@@ -1,7 +1,9 @@
 /**
  * TradingView Datafeed adapter — bridges TV's data requests to our FastAPI backend.
- * TV calls these methods; we forward to /api/bars and /api/quotes.
+ * TV calls these methods; we forward to /api/bars (historical) and the
+ * shared SSE stream with `kinds=bar` for real-time 1-minute aggregates.
  */
+import { streamBars, type BarTick } from "../api";
 
 // Strip trailing slash — prevents double-slash when VITE_API_BASE ends with "/"
 const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
@@ -124,39 +126,37 @@ export function createDatafeed() {
       onTick: (bar: object) => void,
       subscriberUID: string,
     ) {
-      // Real-time ticks via SSE stream — forward latest quote as a bar update
-      const streamBase = import.meta.env.VITE_STREAM_BASE ?? API_BASE;
-      const es = new EventSource(
-        `${streamBase}/api/stream?symbols=${encodeURIComponent(symbolInfo.name)}`,
-      );
-
-      es.onmessage = (e) => {
-        try {
-          const q = JSON.parse(e.data);
-          if (q.symbol !== symbolInfo.name) return;
+      // Real-time OHLCV from Alpaca's `subscribe_bars` via the shared SSE
+      // stream (kinds=bar). One 1-minute bar per minute per symbol; TV
+      // happily merges that into whatever chart resolution it's showing.
+      const unsubscribe = streamBars(
+        [symbolInfo.name],
+        (b: BarTick) => {
+          if (b.symbol !== symbolInfo.name) return;
           onTick({
-            time: Date.now(),
-            open: q.ask ?? q.last,
-            high: q.ask ?? q.last,
-            low: q.bid ?? q.last,
-            close: q.ask ?? q.last,
-            volume: 0,
+            time: b.time * 1000, // TV expects milliseconds
+            open: b.open,
+            high: b.high,
+            low: b.low,
+            close: b.close,
+            volume: b.volume,
           });
-        } catch {
-          // ignore parse errors
-        }
-      };
-
-      // Store handle so unsubscribeBars can close it
-      (window as unknown as Record<string, unknown>)[`__tv_es_${subscriberUID}`] = es;
+        },
+        () => {
+          /* upstream closed; TV will keep its last-known bar until the
+             next getBars refresh. */
+        },
+      );
+      (window as unknown as Record<string, unknown>)[`__tv_bars_${subscriberUID}`] =
+        unsubscribe;
     },
 
     unsubscribeBars(subscriberUID: string) {
-      const key = `__tv_es_${subscriberUID}`;
+      const key = `__tv_bars_${subscriberUID}`;
       const store = window as unknown as Record<string, unknown>;
-      const es = store[key] as EventSource | undefined;
-      if (es) {
-        es.close();
+      const off = store[key] as (() => void) | undefined;
+      if (off) {
+        off();
         delete store[key];
       }
     },

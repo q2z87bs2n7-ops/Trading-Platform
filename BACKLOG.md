@@ -24,10 +24,6 @@
   natively; `tv-broker.ts` `placeOrder()` currently maps to simple
   market/limit/stop only. Wire `bracket` order type to Alpaca's
   `order_class=bracket` with `take_profit` / `stop_loss` legs.
-- **Real-time bar updates** — `subscribeBars()` in `tv-datafeed.ts`
-  forwards SSE quote ticks as bar updates; bar OHLC is approximated from
-  bid/ask. A proper implementation would maintain a rolling current-bar
-  accumulator keyed by resolution bucket.
 - **Replace / modify order** — TV calls `modifyOrder(orderId, data)` when
   a user drags a price line; `tv-broker.ts` has no `modifyOrder` method.
   Wire to `PATCH /api/orders/{id}`.

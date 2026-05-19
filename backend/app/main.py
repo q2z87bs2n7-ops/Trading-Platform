@@ -281,20 +281,27 @@ def watchlist_remove(symbol: str) -> dict:
 
 @app.get("/api/stream")
 async def stream(
-    request: Request, symbols: str = Query("")
+    request: Request,
+    symbols: str = Query(""),
+    kinds: str = Query("quote"),
 ) -> StreamingResponse:
-    """Real-time quote stream (Server-Sent Events).
+    """Real-time stream (Server-Sent Events) for quotes and/or 1-minute bars.
 
     Backed by a single shared Alpaca WebSocket; requires a persistent host.
     On serverless this connection is dropped and the frontend falls back to
     polling ``/api/quotes`` automatically. ``symbols`` is the comma-separated
     set this client wants; empty falls back to the configured defaults.
+    ``kinds`` is a comma-separated subset of ``quote,bar``; events arrive
+    JSON-encoded with a ``kind`` discriminator. Default ``quote`` keeps the
+    legacy ``useLiveQuotes`` contract unchanged.
     """
     require_configured()
     syms = [s.strip().upper() for s in symbols.split(",") if s.strip()]
     if not syms:
         syms = get_settings().symbols
-    queue = await quote_stream.hub.subscribe(syms)
+    ks = {k.strip().lower() for k in kinds.split(",") if k.strip()}
+    valid_ks = {k for k in ks if k in ("quote", "bar")}
+    queue = await quote_stream.hub.subscribe(syms, valid_ks)  # type: ignore[arg-type]
 
     async def events():
         try:

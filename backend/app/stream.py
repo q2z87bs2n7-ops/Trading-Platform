@@ -1,4 +1,4 @@
-"""One shared, supervised Alpaca quote stream, fanned out to SSE clients.
+"""One shared, supervised Alpaca stream, fanned out to SSE clients.
 
 Alpaca's market-data WebSocket allows only a single concurrent
 connection per account, so the backend keeps exactly one upstream
@@ -7,8 +7,15 @@ union of every connected client's symbols *before* starting the stream
 (the reliable alpaca-py path), rebuilds when that set changes, and
 isolates every failure with exponential backoff so a streaming error
 can never crash or restart the web process. Each client receives only
-the symbols it asked for. Requires a persistent host; on serverless the
-frontend falls back to polling ``/api/quotes``.
+the (kind, symbol) pairs it asked for. Requires a persistent host; on
+serverless the frontend falls back to polling ``/api/quotes``.
+
+Clients pick the event kinds they want: ``quote`` (live bid/ask) or
+``bar`` (real-time 1-minute OHLCV). Both kinds share the same upstream
+``StockDataStream`` -- a separate hub per kind would trip Alpaca's
+single-connection limit. Events carry a ``kind`` discriminator; the
+default endpoint behaviour stays quote-only so existing ``useLiveQuotes``
+clients are unaffected.
 """
 
 from __future__ import annotations
@@ -17,7 +24,7 @@ import asyncio
 import json
 import logging
 from contextlib import suppress
-from typing import Any
+from typing import Any, Literal
 
 from alpaca.data.live import StockDataStream
 
@@ -26,6 +33,9 @@ from .alpaca.market_data import normalize_quote
 from .config import get_settings
 
 log = logging.getLogger("quotehub")
+
+Kind = Literal["quote", "bar"]
+_KINDS: tuple[Kind, ...] = ("quote", "bar")
 
 _MAX_BACKOFF = 30.0
 # Clean-teardown budget: stop_ws() tells _consume to close the socket and
@@ -39,49 +49,64 @@ _RECONNECT_SETTLE = 1.0
 
 
 class QuoteHub:
-    """Single supervised upstream stream; per-client fan-out by symbol."""
+    """Single supervised upstream stream; per-client fan-out by (kind, symbol)."""
 
     def __init__(self) -> None:
-        self._clients: dict[asyncio.Queue[str], set[str]] = {}
-        self._counts: dict[str, int] = {}
-        self._latest: dict[str, dict] = {}
+        # Per-client subscription: (symbols, kinds).
+        self._clients: dict[asyncio.Queue[str], tuple[set[str], set[Kind]]] = {}
+        # Refcounts keyed by (kind, symbol) -- determines what we subscribe
+        # to upstream and when to drop a subscription.
+        self._counts: dict[tuple[Kind, str], int] = {}
+        # Most recent event per (kind, symbol) for replay on new subscribers.
+        self._latest: dict[tuple[Kind, str], dict] = {}
         self._supervisor: asyncio.Task | None = None
         self._changed = asyncio.Event()
 
     # --- client registration ------------------------------------------------
 
-    async def subscribe(self, symbols: list[str]) -> asyncio.Queue[str]:
+    async def subscribe(
+        self, symbols: list[str], kinds: set[Kind] | None = None
+    ) -> asyncio.Queue[str]:
         wanted = {s.strip().upper() for s in symbols if s and s.strip()}
+        ks: set[Kind] = {k for k in (kinds or set()) if k in _KINDS} or {"quote"}
         queue: asyncio.Queue[str] = asyncio.Queue(maxsize=100)
-        for sym in wanted:
-            self._counts[sym] = self._counts.get(sym, 0) + 1
-        self._clients[queue] = wanted
-        for sym in wanted:
-            q = self._latest.get(sym)
-            if q is not None:
-                with suppress(asyncio.QueueFull):
-                    queue.put_nowait(json.dumps(q))
+        for k in ks:
+            for sym in wanted:
+                self._counts[(k, sym)] = self._counts.get((k, sym), 0) + 1
+        self._clients[queue] = (wanted, ks)
+        # Replay last known event per (kind, sym) so the client doesn't wait
+        # a full bar interval (~60s) before seeing anything.
+        for k in ks:
+            for sym in wanted:
+                ev = self._latest.get((k, sym))
+                if ev is not None:
+                    with suppress(asyncio.QueueFull):
+                        queue.put_nowait(json.dumps(ev))
         if self._supervisor is None or self._supervisor.done():
             self._supervisor = asyncio.create_task(self._supervise())
         self._changed.set()
         return queue
 
     def unsubscribe(self, queue: asyncio.Queue[str]) -> None:
-        wanted = self._clients.pop(queue, None)
-        if not wanted:
+        client = self._clients.pop(queue, None)
+        if not client:
             return
-        for sym in wanted:
-            n = self._counts.get(sym, 0) - 1
-            if n <= 0:
-                self._counts.pop(sym, None)
-            else:
-                self._counts[sym] = n
+        wanted, ks = client
+        for k in ks:
+            for sym in wanted:
+                n = self._counts.get((k, sym), 0) - 1
+                if n <= 0:
+                    self._counts.pop((k, sym), None)
+                else:
+                    self._counts[(k, sym)] = n
         self._changed.set()
 
     # --- upstream supervision ----------------------------------------------
 
-    def _desired(self) -> set[str]:
-        return set(self._counts)
+    def _desired(self) -> tuple[set[str], set[str]]:
+        q_syms = {s for (k, s) in self._counts if k == "quote"}
+        b_syms = {s for (k, s) in self._counts if k == "bar"}
+        return q_syms, b_syms
 
     async def _supervise(self) -> None:
         """Owns the single upstream stream for the process lifetime. Every
@@ -90,12 +115,12 @@ class QuoteHub:
         backoff = 1.0
         while True:
             try:
-                symbols = self._desired()
-                if not symbols:
+                q_syms, b_syms = self._desired()
+                if not q_syms and not b_syms:
                     self._changed.clear()
                     await self._changed.wait()
                     continue
-                ok = await self._run_once(symbols)
+                ok = await self._run_once(q_syms, b_syms)
                 backoff = 1.0 if ok else min(backoff * 2, _MAX_BACKOFF)
                 if not ok:
                     log.warning("upstream stream ended; retrying in %.0fs", backoff)
@@ -106,17 +131,20 @@ class QuoteHub:
                 log.exception("supervisor iteration failed")
                 await asyncio.sleep(min(backoff, _MAX_BACKOFF))
 
-    async def _run_once(self, symbols: set[str]) -> bool:
-        """Build a fresh stream subscribed to ``symbols`` (before running --
-        the reliable alpaca-py path) and run it until the *desired* symbol
-        set actually changes or it fails. A new client wanting symbols we
-        already stream wakes ``_changed`` but must NOT rebuild -- needless
-        upstream reconnects trip Alpaca's single-connection limit. Returns
-        True on a real symbol-set change (rebuild), False on failure
-        (caller backs off)."""
+    async def _run_once(self, q_syms: set[str], b_syms: set[str]) -> bool:
+        """Build a fresh stream subscribed to the requested ``q_syms`` /
+        ``b_syms`` (before running -- the reliable alpaca-py path) and run
+        it until the *desired* sets actually change or it fails. A new
+        client wanting symbols we already stream wakes ``_changed`` but
+        must NOT rebuild -- needless upstream reconnects trip Alpaca's
+        single-connection limit. Returns True on a real set change
+        (rebuild), False on failure (caller backs off)."""
         s = get_settings()
         stream = StockDataStream(s.alpaca_api_key, s.alpaca_secret_key, feed=_feed())
-        stream.subscribe_quotes(self._on_quote, *symbols)
+        if q_syms:
+            stream.subscribe_quotes(self._on_quote, *q_syms)
+        if b_syms:
+            stream.subscribe_bars(self._on_bar, *b_syms)
         self._changed.clear()
         run_task = asyncio.create_task(stream._run_forever())
         clean = False
@@ -137,7 +165,7 @@ class QuoteHub:
                     break
                 # ``_changed`` fired: rebuild only on a real set change.
                 self._changed.clear()
-                if self._desired() != symbols:
+                if self._desired() != (q_syms, b_syms):
                     clean = True
                     break
         except asyncio.CancelledError:
@@ -167,19 +195,41 @@ class QuoteHub:
             await stream.close()
         await asyncio.sleep(_RECONNECT_SETTLE)
 
+    # --- upstream event handlers -------------------------------------------
+
+    def _broadcast(self, kind: Kind, symbol: str, payload: dict) -> None:
+        self._latest[(kind, symbol)] = payload
+        wire = json.dumps(payload)
+        for queue, (wanted, ks) in list(self._clients.items()):
+            if kind in ks and symbol in wanted:
+                with suppress(asyncio.QueueFull):
+                    queue.put_nowait(wire)
+
     async def _on_quote(self, q: Any) -> None:
         try:
             quote = normalize_quote(q.symbol, q)
         except Exception:
             log.exception("failed to normalize quote")
             return
-        sym = quote["symbol"]
-        self._latest[sym] = quote
-        payload = json.dumps(quote)
-        for queue, wanted in list(self._clients.items()):
-            if sym in wanted:
-                with suppress(asyncio.QueueFull):
-                    queue.put_nowait(payload)
+        quote["kind"] = "quote"
+        self._broadcast("quote", quote["symbol"], quote)
+
+    async def _on_bar(self, b: Any) -> None:
+        try:
+            bar = {
+                "kind": "bar",
+                "symbol": b.symbol,
+                "time": int(b.timestamp.timestamp()),
+                "open": float(b.open),
+                "high": float(b.high),
+                "low": float(b.low),
+                "close": float(b.close),
+                "volume": float(b.volume),
+            }
+        except Exception:
+            log.exception("failed to normalize bar")
+            return
+        self._broadcast("bar", bar["symbol"], bar)
 
 
 hub = QuoteHub()
