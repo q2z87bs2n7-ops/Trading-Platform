@@ -11,7 +11,7 @@ function Flag({ label, on }: { label: string; on: boolean }) {
       <span className="text-muted">{label}</span>
       <span
         className="text-xs text-muted"
-        style={{ color: on ? "var(--pos)" : "var(--neg)" }}
+        style={{ color: on ? "var(--green)" : "var(--red)" }}
       >
         {on ? "yes" : "no"}
       </span>
@@ -49,8 +49,8 @@ export default function InstrumentInfo({ symbol }: { symbol: string }) {
               style={{
                 color:
                   clean(a.status) === "active"
-                    ? "var(--pos)"
-                    : "var(--neg)",
+                    ? "var(--green)"
+                    : "var(--red)",
               }}
             >
               {clean(a.status)}

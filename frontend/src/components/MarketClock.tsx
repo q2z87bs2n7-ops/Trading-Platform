@@ -16,7 +16,7 @@ export default function MarketClock() {
             <span className="text-muted">Status</span>
             <span
               className="tabular-nums"
-              style={{ color: c.is_open ? "var(--pos)" : "var(--neg)" }}
+              style={{ color: c.is_open ? "var(--green)" : "var(--red)" }}
             >
               {c.is_open ? "OPEN" : "CLOSED"}
             </span>

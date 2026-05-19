@@ -29,7 +29,7 @@ export default function PortfolioSummary() {
             <span className="text-muted">Period P/L</span>
             <span
               className="tabular-nums"
-              style={{ color: up ? "var(--pos)" : "var(--neg)" }}
+              style={{ color: up ? "var(--green)" : "var(--red)" }}
             >
               {up ? "+" : ""}
               {money(pl)} ({(plpc * 100).toFixed(2)}%)
