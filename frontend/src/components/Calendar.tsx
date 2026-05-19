@@ -38,8 +38,8 @@ export default function Calendar() {
   const days = data?.calendar;
 
   return (
-    <div className="bg-panel border border-border rounded-lg p-4">
-      <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-3">
+    <div className="bg-panel border border-border rounded-lg p-3">
+      <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-2">
         Trading Calendar
       </h2>
       {error && <div className="text-red text-[13px]">{error.message}</div>}
@@ -64,7 +64,7 @@ export default function Calendar() {
           );
 
         return exceptions.map((ex) => (
-          <div className="flex justify-between py-1.5 text-sm" key={ex.date}>
+          <div className="flex justify-between py-1 text-[13px]" key={ex.date}>
             <span className={ex.date === START ? "text-green" : "text-muted"}>
               {label(ex.date)}
             </span>

@@ -12,8 +12,8 @@ export default function News({ symbol }: { symbol: string }) {
   const rows = data?.news;
 
   return (
-    <div className="bg-panel border border-border rounded-lg p-4">
-      <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-3">
+    <div className="bg-panel border border-border rounded-lg p-3">
+      <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-2">
         News{symbol && ` · ${symbol}`}
       </h2>
       {!symbol && <div className="text-xs text-muted">Select a symbol</div>}
@@ -29,7 +29,7 @@ export default function News({ symbol }: { symbol: string }) {
       {rows &&
         rows.map((n) => (
           <div
-            className="flex justify-between py-1.5 text-sm"
+            className="flex justify-between py-1 text-[13px]"
             key={n.id}
           >
             <span className="text-muted">

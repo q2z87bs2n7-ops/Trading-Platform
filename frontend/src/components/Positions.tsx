@@ -7,7 +7,7 @@ const pct = (n: number) => `${(n * 100).toFixed(2)}%`;
 const signed = (n: number) => (n >= 0 ? "var(--green)" : "var(--red)");
 
 const TH = "px-2 py-1 text-right font-medium text-[11px] uppercase tracking-wide text-muted border-b border-border whitespace-nowrap";
-const TD = "px-2 py-1.5 text-right border-b border-white/5 whitespace-nowrap";
+const TD = "px-2 py-1 text-right border-b border-white/5 whitespace-nowrap";
 
 export default function Positions() {
   const { data, error, isPending } = usePositions();
@@ -16,8 +16,8 @@ export default function Positions() {
   const rows = data?.positions;
 
   return (
-    <div className="bg-panel border border-border rounded-lg p-4">
-      <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-3">
+    <div className="bg-panel border border-border rounded-lg p-3">
+      <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-2">
         Open Positions
         {rows && rows.length > 0 && (
           <button

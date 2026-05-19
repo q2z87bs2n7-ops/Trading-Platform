@@ -21,8 +21,8 @@ export default function AssetSearch({ onSelect, onAdd }: Props) {
   const { data, isFetching, error } = useAssetSearch(query);
 
   return (
-    <div className="bg-panel border border-border rounded-lg p-4">
-      <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-3">Asset Search</h2>
+    <div className="bg-panel border border-border rounded-lg p-3">
+      <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-2">Asset Search</h2>
       <input
         className="search-input"
         placeholder="symbol or company name"

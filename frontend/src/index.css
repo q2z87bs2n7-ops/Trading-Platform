@@ -42,6 +42,13 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: 3px;
 }
 
 .app {

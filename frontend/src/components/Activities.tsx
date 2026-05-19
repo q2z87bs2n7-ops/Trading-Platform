@@ -16,8 +16,8 @@ export default function Activities() {
   const rows = data?.activities;
 
   return (
-    <div className="bg-panel border border-border rounded-lg p-4">
-      <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-3">
+    <div className="bg-panel border border-border rounded-lg p-3">
+      <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-2">
         Account Activity
       </h2>
       {error && <div className="text-red text-[13px]">{error.message}</div>}
@@ -28,7 +28,7 @@ export default function Activities() {
       {rows &&
         rows.map((a, i) => (
           <div
-            className="flex justify-between py-1.5 text-sm"
+            className="flex justify-between py-1 text-[13px]"
             key={String(a.id ?? i)}
           >
             <span className="text-muted">{String(a.activity_type ?? "—")}</span>

@@ -54,9 +54,9 @@ export default function PriceChart({ symbol }: { symbol: string }) {
   }, [data]);
 
   return (
-    <div className="bg-panel border border-border rounded-lg p-4">
+    <div className="bg-panel border border-border rounded-lg p-3">
       <h2
-        className="text-[13px] uppercase tracking-wide text-muted m-0 mb-3"
+        className="text-[13px] uppercase tracking-wide text-muted m-0 mb-2"
         style={{ display: "flex", justifyContent: "space-between" }}
       >
         <span>{symbol}</span>
