@@ -51,7 +51,7 @@ export default function Calendar() {
         const exceptions = weekdaysBetween(today, horizon).flatMap((date) => {
           const td = tradingMap.get(date);
           if (!td) return [{ date, closed: true, open: "", close: "" }];
-          if (td.open !== "09:30:00" || td.close !== "16:00:00")
+          if (!td.open.endsWith("09:30:00") || !td.close.endsWith("16:00:00"))
             return [{ date, closed: false, open: td.open, close: td.close }];
           return [];
         });
