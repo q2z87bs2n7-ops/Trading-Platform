@@ -101,7 +101,10 @@ export function createBroker(onUpdate: () => void) {
     accountManagerInfo() {
       return {
         accountTitle: "Paper Account",
-        summary: [],
+        summary: [
+          { label: "Equity", property: "equity" },
+          { label: "Buying Power", property: "buyingPower" },
+        ],
         orderColumns: [
           { label: "Symbol", property: "symbol" },
           { label: "Side",   property: "side"   },

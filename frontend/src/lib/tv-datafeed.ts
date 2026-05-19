@@ -82,6 +82,7 @@ export function createDatafeed() {
             supported_resolutions: ["1", "5", "15", "30", "60", "D", "W"],
             volume_precision: 0,
             data_status: "streaming",
+            formatter: "price",
           });
         })
         .catch(() => onError(`Symbol ${symbolName} not found`));
