@@ -3,7 +3,8 @@
  * TV calls these methods; we forward to /api/bars and /api/quotes.
  */
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? "";
+// Strip trailing slash — prevents double-slash when VITE_API_BASE ends with "/"
+const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
 
 // Map TradingView resolution strings → our backend timeframe strings
 const RESOLUTION_MAP: Record<string, string> = {

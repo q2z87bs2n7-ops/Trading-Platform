@@ -4,10 +4,12 @@
  * /api/orders, /api/positions endpoints.
  */
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? "";
+// Strip trailing slash so ${BASE}/api/... never produces a double-slash
+// when VITE_API_BASE is set with a trailing slash (e.g. "https://x.vercel.app/").
+const BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
 
 async function apiFetch(path: string, opts?: RequestInit) {
-  const r = await fetch(`${API_BASE}${path}`, {
+  const r = await fetch(`${BASE}${path}`, {
     headers: { "Content-Type": "application/json" },
     ...opts,
   });
@@ -47,11 +49,11 @@ function toTVOrder(o: Record<string, unknown>) {
   return {
     id: o.id,
     symbol: o.symbol,
-    side: o.side === "buy" ? 1 : -1, // TV: 1=buy, -1=sell
+    side: o.side === "buy" ? 1 : -1,
     type: o.type === "market" ? 1 : o.type === "limit" ? 2 : 3,
     status: toTVStatus(o.status as string),
-    qty: parseFloat(o.qty as string ?? "0"),
-    filledQty: parseFloat(o.filled_qty as string ?? "0"),
+    qty: parseFloat((o.qty as string) ?? "0"),
+    filledQty: parseFloat((o.filled_qty as string) ?? "0"),
     limitPrice: o.limit_price ? parseFloat(o.limit_price as string) : undefined,
     stopPrice: o.stop_price ? parseFloat(o.stop_price as string) : undefined,
   };
@@ -62,21 +64,19 @@ function toTVPosition(p: Record<string, unknown>) {
   return {
     id: p.symbol,
     symbol: p.symbol,
-    qty: parseFloat(p.qty as string ?? "0"),
-    side: parseFloat(p.qty as string ?? "0") > 0 ? 1 : -1,
-    avgPrice: parseFloat(p.avg_entry_price as string ?? "0"),
-    unrealizedPL: parseFloat(p.unrealized_pl as string ?? "0"),
+    qty: parseFloat((p.qty as string) ?? "0"),
+    side: parseFloat((p.qty as string) ?? "0") > 0 ? 1 : -1,
+    avgPrice: parseFloat((p.avg_entry_price as string) ?? "0"),
+    unrealizedPL: parseFloat((p.unrealized_pl as string) ?? "0"),
   };
 }
 
 export function createBroker(onUpdate: () => void) {
-  // Poll orders + positions every 5s so TV panel stays current
   let pollTimer: ReturnType<typeof setInterval> | null = null;
 
   function startPolling() {
     pollTimer = setInterval(onUpdate, 5000);
   }
-
   function stopPolling() {
     if (pollTimer) clearInterval(pollTimer);
   }
@@ -89,6 +89,40 @@ export function createBroker(onUpdate: () => void) {
     },
     disconnect() {
       stopPolling();
+    },
+
+    // --- Required by TV: can this symbol be traded? ---
+    // Alpaca supports all tradable assets; always true here.
+    async isTradable(_symbol: string): Promise<boolean> {
+      return true;
+    },
+
+    // --- Required by TV: describes the account manager bottom panel ---
+    accountManagerInfo() {
+      return {
+        accountTitle: "Paper Account",
+        summary: [],
+        orderColumns: [
+          { label: "Symbol", property: "symbol" },
+          { label: "Side",   property: "side"   },
+          { label: "Type",   property: "type"   },
+          { label: "Qty",    property: "qty"    },
+          { label: "Status", property: "status" },
+        ],
+        positionColumns: [
+          { label: "Symbol",     property: "symbol"      },
+          { label: "Qty",        property: "qty"         },
+          { label: "Avg Price",  property: "avgPrice"    },
+          { label: "Unreal P/L", property: "unrealizedPL"},
+        ],
+        historyColumns: [
+          { label: "Symbol", property: "symbol" },
+          { label: "Side",   property: "side"   },
+          { label: "Qty",    property: "qty"    },
+          { label: "Price",  property: "price"  },
+        ],
+        tradeColumns: [],
+      };
     },
 
     // --- Positions ---
@@ -128,7 +162,7 @@ export function createBroker(onUpdate: () => void) {
       return {};
     },
 
-    // --- Close position (TV calls this to flatten) ---
+    // --- Close position ---
     async closePosition(symbol: string) {
       await apiFetch(`/api/positions/${encodeURIComponent(symbol)}`, {
         method: "DELETE",
@@ -136,7 +170,7 @@ export function createBroker(onUpdate: () => void) {
       return {};
     },
 
-    // --- Account info shown in TV header ---
+    // --- Account summary shown in TV header ---
     async accountInfo() {
       const data = await apiFetch("/api/account");
       return {
