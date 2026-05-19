@@ -213,11 +213,15 @@ export default function OrderTicket({ symbol, onSymbolChange }: Props) {
           </button>
         </div>
 
-        {/* Type + TIF — 2-col grid (both selects, parallel inputs) */}
-        <div className="grid grid-cols-2 gap-2">
-          <label className="field">
+        {/* Type + TIF — 2-col flex (parallel inputs). Flex + min-w-0 lets
+           each column shrink past the native <select>'s intrinsic content
+           width (otherwise the longest option "trailing_stop" pushes the
+           grid wider than the 280px panel and spills out the right edge). */}
+        <div className="flex gap-2">
+          <label className="field flex-1 min-w-0">
             <span className="text-muted text-xs">Type</span>
             <select
+              className="w-full"
               value={type}
               onChange={(e) => setType(e.target.value as OType)}
             >
@@ -229,9 +233,10 @@ export default function OrderTicket({ symbol, onSymbolChange }: Props) {
             </select>
           </label>
 
-          <label className="field">
+          <label className="field flex-1 min-w-0">
             <span className="text-muted text-xs">TIF</span>
             <select
+              className="w-full"
               value={tif}
               onChange={(e) => setTif(e.target.value as TIF)}
             >
