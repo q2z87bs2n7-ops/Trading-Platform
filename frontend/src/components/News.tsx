@@ -7,15 +7,18 @@ function when(ts: number): string {
   return `${Math.floor(d / 86400)}d ago`;
 }
 
-export default function News({ symbol }: { symbol: string }) {
+export default function News({
+  symbol,
+  bare = false,
+}: {
+  symbol: string;
+  bare?: boolean;
+}) {
   const { data, error, isPending } = useNews(symbol, 10);
   const rows = data?.news;
 
-  return (
-    <div className="bg-panel border border-border rounded-lg p-3">
-      <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-2">
-        News{symbol && ` · ${symbol}`}
-      </h2>
+  const body = (
+    <>
       {!symbol && <div className="text-xs text-muted">Select a symbol</div>}
       {symbol && error && (
         <div className="text-red text-[13px]">{error.message}</div>
@@ -34,7 +37,12 @@ export default function News({ symbol }: { symbol: string }) {
           >
             <span className="text-muted">
               {n.url ? (
-                <a href={n.url} target="_blank" rel="noopener noreferrer" className="text-text hover:text-green underline">
+                <a
+                  href={n.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-text hover:text-green underline"
+                >
                   {n.headline}
                 </a>
               ) : (
@@ -46,6 +54,17 @@ export default function News({ symbol }: { symbol: string }) {
             </span>
           </div>
         ))}
+    </>
+  );
+
+  if (bare) return body;
+
+  return (
+    <div className="bg-panel border border-border rounded-lg p-3">
+      <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-2">
+        News{symbol && ` · ${symbol}`}
+      </h2>
+      {body}
     </div>
   );
 }

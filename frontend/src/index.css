@@ -125,13 +125,6 @@ header h1 {
   font-size: 13px;
 }
 
-.panels-extra {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 16px;
-  margin-top: 16px;
-}
-
 /* --- Phase A trading controls. Functional only; Phase B replaces this
    with the Tailwind + shadcn-style design system. --- */
 

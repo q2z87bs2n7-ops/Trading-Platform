@@ -11,8 +11,7 @@ import Watchlist from "./components/Watchlist";
 import PriceChart from "./components/PriceChart";
 import Positions from "./components/Positions";
 import Orders from "./components/Orders";
-import Activities from "./components/Activities";
-import News from "./components/News";
+import BottomDrawer from "./components/BottomDrawer";
 import TopBar from "./components/TopBar";
 import TVPlatform from "./components/TVPlatform";
 
@@ -108,11 +107,10 @@ export default function App() {
             <Orders />
           </div>
 
-          {/* Supporting panels: news + activity log. */}
-          <div className="panels-extra">
-            <News symbol={selected} />
-            <Activities />
-          </div>
+          {/* Bottom drawer — tabbed News / Activities (UI-07). Calendar
+             moved to the TopBar chip+popover in UI-04, so it's no longer
+             in the drawer despite being mentioned in the original spec. */}
+          <BottomDrawer symbol={selected} />
         </>
       )}
     </div>
