@@ -2,8 +2,6 @@
 
 ## Existing
 
-- **Calendar UI tile** — `/api/calendar` exists and is wired in
-  `api.ts`/`types.ts`; no UI surface yet.
 - **Postgres persistence layer** — trade journal, server-side watchlists,
   analytics history. Replaces direct-Alpaca-only reads + `localStorage`
   prefs. Free tier (Supabase/Neon).
@@ -11,6 +9,20 @@
   `backend/app/main.py` is an intentional no-op seam; flip it to a
   shared-token check before any non-paper / non-private exposure.
   Deferred by decision (paper account).
+- **Orphaned component cleanup (post UI-playground sprint)** — five
+  component files are no longer imported anywhere but are kept in the
+  tree for a clean revert path: `MarketClock.tsx`, `Calendar.tsx`,
+  `AccountSummary.tsx`, `PortfolioSummary.tsx`, `InstrumentInfo.tsx`.
+  Their data hooks (`useClock`, `useCalendar`, `useAccount`,
+  `usePortfolioHistory`, `useAsset`) are now consumed directly by
+  `TopBar.tsx` and `PriceChart.tsx`. Delete the five files once the
+  UI sprint is confirmed sticky.
+- **Watchlist day-delta data path** — UI-08 fires N parallel
+  `useBars(sym,"1Day")` requests on watchlist mount, one per row.
+  Works (1Day bars cache indefinitely so it's a one-time burst) but
+  a `/api/quotes` extension that returns daily-open alongside
+  bid/ask/mid would collapse N calls to 1. Backend change deferred
+  per the playground "no backend changes" rule.
 
 ## TradingView mode
 
