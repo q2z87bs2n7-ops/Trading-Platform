@@ -134,6 +134,14 @@ def bars(
     return {"symbol": symbol.upper(), "bars": alpaca.get_bars(symbol, timeframe, limit)}
 
 
+@app.get("/api/news", dependencies=[Depends(require_configured)])
+def news(
+    symbol: str = Query(..., min_length=1),
+    limit: int = Query(10, ge=1, le=50),
+) -> dict:
+    return {"symbol": symbol.upper(), "news": alpaca.get_news(symbol, limit)}
+
+
 @app.get("/api/quotes", dependencies=[Depends(require_configured)])
 def quotes(symbols: str = Query("")) -> dict:
     """Latest quotes for the given comma-separated symbols.

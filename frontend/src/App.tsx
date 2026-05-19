@@ -16,6 +16,7 @@ import PortfolioSummary from "./components/PortfolioSummary";
 import Orders from "./components/Orders";
 import Activities from "./components/Activities";
 import MarketClock from "./components/MarketClock";
+import News from "./components/News";
 
 export default function App() {
   const { data: cfg } = useConfig();
@@ -69,6 +70,7 @@ export default function App() {
 
       {/* Blotter: holdings, orders and history — reviewed after the fact. */}
       <div className="panels-extra">
+        <News symbol={selected} />
         <Positions />
         <Orders />
         <Activities />

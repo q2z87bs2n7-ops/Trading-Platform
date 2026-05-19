@@ -122,3 +122,14 @@ export interface Asset {
   shortable: boolean;
   fractionable: boolean;
 }
+
+export interface NewsArticle {
+  id: number;
+  headline: string;
+  summary: string;
+  author: string;
+  source: string;
+  url: string | null;
+  symbols: string[];
+  time: number;
+}

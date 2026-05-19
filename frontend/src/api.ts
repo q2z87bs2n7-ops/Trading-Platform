@@ -5,6 +5,7 @@ import type {
   Bar,
   CalendarDay,
   MarketClock,
+  NewsArticle,
   Order,
   PortfolioHistory,
   Position,
@@ -74,6 +75,11 @@ export const getAccount = () => getJSON<Account>("/api/account");
 export const getBars = (symbol: string, timeframe = "1Day", limit = 120) =>
   getJSON<{ symbol: string; bars: Bar[] }>(
     `/api/bars?symbol=${encodeURIComponent(symbol)}&timeframe=${timeframe}&limit=${limit}`,
+  );
+
+export const getNews = (symbol: string, limit = 10) =>
+  getJSON<{ symbol: string; news: NewsArticle[] }>(
+    `/api/news?symbol=${encodeURIComponent(symbol)}&limit=${limit}`,
   );
 
 export const getQuotes = (symbols: string[]) =>

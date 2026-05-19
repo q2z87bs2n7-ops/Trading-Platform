@@ -57,6 +57,14 @@ export const useBars = (symbol: string, timeframe: string, limit = 200) =>
     enabled: symbol.length > 0,
   });
 
+export const useNews = (symbol: string, limit = 10) =>
+  useQuery({
+    queryKey: qk.news(symbol),
+    queryFn: () => api.getNews(symbol, limit),
+    enabled: symbol.length > 0,
+    refetchInterval: 60000,
+  });
+
 export const usePortfolioHistory = (period = "1M", timeframe = "1D") =>
   useQuery({
     queryKey: qk.portfolioHistory(period, timeframe),

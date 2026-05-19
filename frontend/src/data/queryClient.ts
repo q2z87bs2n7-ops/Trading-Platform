@@ -23,6 +23,7 @@ export const qk = {
   activities: (limit: number) => ["activities", limit] as const,
   bars: (symbol: string, timeframe: string) =>
     ["bars", symbol, timeframe] as const,
+  news: (symbol: string) => ["news", symbol] as const,
   portfolioHistory: (period: string, timeframe: string) =>
     ["portfolioHistory", period, timeframe] as const,
   assets: (search: string) => ["assets", search] as const,
