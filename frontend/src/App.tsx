@@ -38,9 +38,16 @@ export default function App() {
           {meta && ` · ${meta.paper ? "PAPER" : "LIVE"} · ${meta.feed.toUpperCase()} feed`}
         </span>
       </header>
-      <div className="grid">
+      {/* Context strip: market + account status, glanceable. */}
+      <div className="panels-extra">
+        <MarketClock />
+        <AccountSummary />
+        <PortfolioSummary />
+      </div>
+
+      {/* Workspace: pick instruments on the left, analyse + trade centre. */}
+      <div className="grid" style={{ marginTop: 16 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <AccountSummary />
           <AssetSearch
             onSelect={setSelected}
             onAdd={(s) => addToWatchlist.mutate(s)}
@@ -57,9 +64,9 @@ export default function App() {
           <OrderTicket symbol={selected} onSymbolChange={setSelected} />
         </div>
       </div>
+
+      {/* Blotter: holdings, orders and history — reviewed after the fact. */}
       <div className="panels-extra">
-        <MarketClock />
-        <PortfolioSummary />
         <Positions />
         <Orders />
         <Activities />
