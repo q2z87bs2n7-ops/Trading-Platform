@@ -93,9 +93,12 @@ export function createDatafeed() {
       onError: (err: string) => void,
     ) {
       const tf = toBackendTf(resolution);
+      // Backend uses ?symbol=&timeframe=&limit= — no path param, no start/end.
+      // Use countBack as the limit when provided; fall back to 300.
+      const limit = periodParams.countBack ?? 300;
       const url =
-        `${API_BASE}/api/bars/${encodeURIComponent(symbolInfo.name)}` +
-        `?timeframe=${tf}&start=${periodParams.from}&end=${periodParams.to}`;
+        `${API_BASE}/api/bars` +
+        `?symbol=${encodeURIComponent(symbolInfo.name)}&timeframe=${tf}&limit=${limit}`;
 
       fetch(url)
         .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))

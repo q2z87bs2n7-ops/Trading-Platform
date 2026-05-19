@@ -125,6 +125,46 @@ export function createBroker(onUpdate: () => void) {
       };
     },
 
+    // --- Required by TV: list of accounts (single paper account) ---
+    async accountsMetainfo() {
+      return [{ id: "paper", name: "Paper Account", currency: "USD" }];
+    },
+
+    // --- Required by TV: per-symbol trading constraints ---
+    async symbolInfo(_symbol: string) {
+      return {
+        qty: { min: 0.01, max: 10000, step: 0.01, default: 1 },
+        pipSize: 0.01,
+        pipValue: 0.01,
+        minTick: 0.01,
+        lotSize: 1,
+        description: _symbol,
+        type: "stock",
+        currency: "USD",
+      };
+    },
+
+    // --- Required by TV: trade executions / fills ---
+    // Map Alpaca fill activities; returns empty array on error so the panel
+    // still loads even when activities are unavailable.
+    async executions(_symbol: string) {
+      try {
+        const data = await apiFetch("/api/activities?type=FILL&limit=50");
+        return (data.activities ?? [])
+          .filter((a: Record<string, unknown>) => !_symbol || a.symbol === _symbol)
+          .map((a: Record<string, unknown>) => ({
+            id: a.id,
+            symbol: a.symbol,
+            price: parseFloat((a.price as string) ?? "0"),
+            qty: parseFloat((a.qty as string) ?? "0"),
+            side: a.side === "buy" ? 1 : -1,
+            time: new Date(a.transaction_time as string).getTime(),
+          }));
+      } catch {
+        return [];
+      }
+    },
+
     // --- Positions ---
     async positions() {
       const data = await apiFetch("/api/positions");
