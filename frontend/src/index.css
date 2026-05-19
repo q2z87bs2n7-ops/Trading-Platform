@@ -59,9 +59,9 @@ body {
 
 header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 20px;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
 header h1 {

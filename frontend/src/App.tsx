@@ -5,19 +5,16 @@ import {
   useRemoveFromWatchlist,
   useWatchlist,
 } from "./data/hooks";
-import AccountSummary from "./components/AccountSummary";
 import AssetSearch from "./components/AssetSearch";
 import OrderTicket from "./components/OrderTicket";
 import Watchlist from "./components/Watchlist";
 import PriceChart from "./components/PriceChart";
 import InstrumentInfo from "./components/InstrumentInfo";
 import Positions from "./components/Positions";
-import PortfolioSummary from "./components/PortfolioSummary";
 import Orders from "./components/Orders";
 import Activities from "./components/Activities";
-import MarketClock from "./components/MarketClock";
-import Calendar from "./components/Calendar";
 import News from "./components/News";
+import TopBar from "./components/TopBar";
 import TVPlatform from "./components/TVPlatform";
 
 type PlatformMode = "custom" | "tv";
@@ -47,30 +44,36 @@ export default function App() {
   return (
     <div className="app">
       <header>
-        <h1>Trading Platform</h1>
-        <span className="text-xs text-muted">
-          v{__APP_VERSION__}
-          {meta && ` · ${meta.paper ? "PAPER" : "LIVE"} · ${meta.feed.toUpperCase()} feed`}
-        </span>
-        {/* Platform mode toggle */}
-        <div style={{ display: "flex", gap: 4, marginLeft: "auto" }}>
-          <button
-            className={`btn btn-mini${mode === "custom" ? " active" : ""}`}
-            style={{ opacity: mode === "custom" ? 1 : 0.5 }}
-            onClick={() => switchMode("custom")}
-            type="button"
-          >
-            Our Platform
-          </button>
-          <button
-            className={`btn btn-mini${mode === "tv" ? " active" : ""}`}
-            style={{ opacity: mode === "tv" ? 1 : 0.5 }}
-            onClick={() => switchMode("tv")}
-            type="button"
-          >
-            TradingView
-          </button>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <h1>Trading Platform</h1>
+            <span className="text-xs text-muted">
+              v{__APP_VERSION__}
+              {meta && ` · ${meta.paper ? "PAPER" : "LIVE"} · ${meta.feed.toUpperCase()} feed`}
+            </span>
+          </div>
+          {/* Platform mode toggle */}
+          <div style={{ display: "flex", gap: 4 }}>
+            <button
+              className={`btn btn-mini${mode === "custom" ? " active" : ""}`}
+              style={{ opacity: mode === "custom" ? 1 : 0.5 }}
+              onClick={() => switchMode("custom")}
+              type="button"
+            >
+              Our Platform
+            </button>
+            <button
+              className={`btn btn-mini${mode === "tv" ? " active" : ""}`}
+              style={{ opacity: mode === "tv" ? 1 : 0.5 }}
+              onClick={() => switchMode("tv")}
+              type="button"
+            >
+              TradingView
+            </button>
+          </div>
         </div>
+        {/* Status ribbon — custom mode only (UI-04) */}
+        {mode === "custom" && <TopBar />}
       </header>
       {/* TradingView full terminal — shown when TV mode is active */}
       {mode === "tv" && <TVPlatform symbol={selected} />}
@@ -78,16 +81,8 @@ export default function App() {
       {/* Custom UI — shown when Our Platform mode is active */}
       {mode === "custom" && (
         <>
-          {/* Context strip: market + account status, glanceable. */}
-          <div className="panels-extra">
-            <MarketClock />
-            <Calendar />
-            <AccountSummary />
-            <PortfolioSummary />
-          </div>
-
           {/* Workspace: watchlist left, chart centre, order ticket right. */}
-          <div className="grid" style={{ marginTop: 16 }}>
+          <div className="grid">
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <AssetSearch
                 onSelect={setSelected}
