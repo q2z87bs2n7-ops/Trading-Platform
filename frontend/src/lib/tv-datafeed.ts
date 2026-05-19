@@ -42,7 +42,7 @@ export function createDatafeed() {
       _symbolType: string,
       onResult: (results: object[]) => void,
     ) {
-      fetch(`${API_BASE}/api/search?q=${encodeURIComponent(userInput)}`)
+      fetch(`${API_BASE}/api/assets?search=${encodeURIComponent(userInput)}`)
         .then((r) => r.json())
         .then((data) => {
           const results = (data.assets ?? []).map((a: { symbol: string; name: string; exchange: string }) => ({
@@ -62,7 +62,7 @@ export function createDatafeed() {
       onResolve: (info: object) => void,
       onError: (err: string) => void,
     ) {
-      fetch(`${API_BASE}/api/asset/${encodeURIComponent(symbolName)}`)
+      fetch(`${API_BASE}/api/assets/${encodeURIComponent(symbolName)}`)
         .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
         .then((data) => {
           onResolve({
