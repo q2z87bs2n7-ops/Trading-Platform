@@ -104,6 +104,10 @@ class AssetOut(BaseModel):
     fractionable: bool = False
 
 
+class PositionsOut(BaseModel):
+    positions: list[PositionOut]
+
+
 class CancelledOrders(BaseModel):
     cancelled: list[str]
 

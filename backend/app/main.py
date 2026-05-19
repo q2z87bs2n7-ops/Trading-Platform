@@ -1,5 +1,6 @@
 import asyncio
 
+from alpaca.common.exceptions import APIError
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -11,6 +12,8 @@ from .schemas import (
     AssetOut,
     CancelledOrders,
     OrderOut,
+    PositionOut,
+    PositionsOut,
     ReplaceOrderRequest,
     SubmitOrderRequest,
     WatchlistSymbol,
@@ -26,16 +29,26 @@ app.add_middleware(
 )
 
 
-# --- Single error boundary -------------------------------------------------
-# Every data route below just calls into ``alpaca`` and returns. Alpaca/
-# network failures bubble up here and become a clean 502 with the same
-# ``{"detail": ...}`` shape the frontend already parses, so one bad symbol
-# or an Alpaca outage degrades a single tile -- never the process.
+# --- Error boundary --------------------------------------------------------
+# Every data route just calls into ``alpaca`` and returns. Failures bubble
+# up here as a clean ``{"detail": ...}`` (the shape the frontend parses) so
+# one bad symbol or an Alpaca outage degrades a single tile, never the
+# process. Alpaca's own HTTP status is passed through (a bad symbol is a
+# 404, not a 502); only connection-level / non-Alpaca failures collapse to
+# 502. ``HTTPException`` / ``RequestValidationError`` keep their dedicated
+# FastAPI handlers (most-specific wins), so the 503 keys-not-configured and
+# 422 validation contracts are unaffected.
+
+
+@app.exception_handler(APIError)
+async def _alpaca_api_error(_: Request, exc: APIError) -> JSONResponse:
+    status = getattr(exc, "status_code", None) or 502
+    return JSONResponse(status_code=status, content={"detail": f"Alpaca error: {exc}"})
 
 
 @app.exception_handler(Exception)
-async def _alpaca_error_boundary(_: Request, exc: Exception) -> JSONResponse:
-    return JSONResponse(status_code=502, content={"detail": f"Alpaca error: {exc}"})
+async def _unexpected_error(_: Request, exc: Exception) -> JSONResponse:
+    return JSONResponse(status_code=502, content={"detail": f"Upstream error: {exc}"})
 
 
 def require_configured() -> None:
@@ -73,12 +86,20 @@ def account() -> dict:
     return alpaca.get_account()
 
 
-@app.get("/api/positions", dependencies=[Depends(require_configured)])
+@app.get(
+    "/api/positions",
+    dependencies=[Depends(require_configured)],
+    response_model=PositionsOut,
+)
 def positions() -> dict:
     return {"positions": alpaca.get_positions()}
 
 
-@app.get("/api/positions/{symbol}", dependencies=[Depends(require_configured)])
+@app.get(
+    "/api/positions/{symbol}",
+    dependencies=[Depends(require_configured)],
+    response_model=PositionOut,
+)
 def position(symbol: str) -> dict:
     return alpaca.get_position(symbol)
 

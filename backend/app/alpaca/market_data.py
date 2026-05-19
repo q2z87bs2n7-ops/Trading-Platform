@@ -38,23 +38,25 @@ def get_bars(symbol: str, timeframe: str, limit: int) -> list[dict]:
     return out
 
 
+def normalize_quote(symbol: str, q) -> dict:
+    """Shared quote shape for both the poll path (here) and the SSE
+    stream (``stream.py``). Single-sourced so the load-bearing
+    stream/poll fallback can never drift on the mid formula."""
+    bid = float(q.bid_price or 0)
+    ask = float(q.ask_price or 0)
+    mid = round((bid + ask) / 2, 4) if bid and ask else (ask or bid)
+    return {
+        "symbol": symbol,
+        "bid": bid,
+        "ask": ask,
+        "mid": mid,
+        "time": int(q.timestamp.timestamp()),
+    }
+
+
 def get_latest_quotes(symbols: list[str]) -> list[dict]:
     if not symbols:
         return []
     req = StockLatestQuoteRequest(symbol_or_symbols=symbols, feed=_feed())
     quotes = data_client().get_stock_latest_quote(req)
-    out: list[dict] = []
-    for sym, q in quotes.items():
-        bid = float(q.bid_price or 0)
-        ask = float(q.ask_price or 0)
-        mid = round((bid + ask) / 2, 4) if bid and ask else (ask or bid)
-        out.append(
-            {
-                "symbol": sym,
-                "bid": bid,
-                "ask": ask,
-                "mid": mid,
-                "time": int(q.timestamp.timestamp()),
-            }
-        )
-    return out
+    return [normalize_quote(sym, q) for sym, q in quotes.items()]

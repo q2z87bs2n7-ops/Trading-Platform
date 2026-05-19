@@ -19,31 +19,15 @@ import logging
 from contextlib import suppress
 from typing import Any
 
-from alpaca.data.enums import DataFeed
 from alpaca.data.live import StockDataStream
 
+from .alpaca.client import _feed
+from .alpaca.market_data import normalize_quote
 from .config import get_settings
 
 log = logging.getLogger("quotehub")
 
 _MAX_BACKOFF = 30.0
-
-
-def _feed() -> DataFeed:
-    return DataFeed.SIP if get_settings().alpaca_data_feed.lower() == "sip" else DataFeed.IEX
-
-
-def _normalize(q: Any) -> dict:
-    bid = float(q.bid_price or 0)
-    ask = float(q.ask_price or 0)
-    mid = round((bid + ask) / 2, 4) if bid and ask else (ask or bid)
-    return {
-        "symbol": q.symbol,
-        "bid": bid,
-        "ask": ask,
-        "mid": mid,
-        "time": int(q.timestamp.timestamp()),
-    }
 
 
 class QuoteHub:
@@ -152,7 +136,7 @@ class QuoteHub:
 
     async def _on_quote(self, q: Any) -> None:
         try:
-            quote = _normalize(q)
+            quote = normalize_quote(q.symbol, q)
         except Exception:
             log.exception("failed to normalize quote")
             return
