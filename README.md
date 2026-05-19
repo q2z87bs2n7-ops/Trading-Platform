@@ -8,12 +8,19 @@ order path (market/limit/stop/stop-limit/trailing, bracket/OCO, replace,
 cancel, close positions) with a positions/orders/activities blotter.
 Paper account only — there is no live-trading path.
 
+A header toggle switches between two UI modes:
+- **Our Platform** — custom React dashboard (default)
+- **TradingView** — full TradingView Charting Library terminal with
+  built-in drawing tools, 100+ indicators, and an integrated order/position
+  panel wired to the same Alpaca backend
+
 ## Stack
 
 - **Backend:** FastAPI + `alpaca-py` (REST reads + a real-time quote stream
   over Server-Sent Events, with REST polling as automatic fallback).
-- **Frontend:** React + TypeScript (Vite), charts via TradingView
-  `lightweight-charts`.
+- **Frontend:** React + TypeScript (Vite). Two chart modes — custom UI uses
+  TradingView `lightweight-charts`; TradingView mode uses the full
+  TradingView Charting Library (`frontend/public/charting_library/`).
 
 ## Setup
 
@@ -47,6 +54,11 @@ npm run dev
 
 Open http://localhost:5173. Vite proxies `/api` to the backend on port
 8000, so the real-time stream works locally with no extra config.
+
+> **TradingView Charting Library** — the library is committed to the repo
+> at `frontend/public/charting_library/` (this is a private repo; the
+> licensed files are never exposed publicly). No extra setup needed — it
+> is included in the standard `git clone`.
 
 ## Deployment
 
@@ -120,3 +132,5 @@ paid Alpaca data plan for the full consolidated tape.
   per symbol/timeframe change.
 - Keys live only in `backend/.env`, which is gitignored. Never commit it.
 - Default watchlist symbols are configurable via `DEFAULT_SYMBOLS` in `.env`.
+- Platform mode preference (`Our Platform` / `TradingView`) is persisted to
+  `localStorage` under the key `platform_mode`.

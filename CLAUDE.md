@@ -40,23 +40,32 @@ persisted watchlists, asset search, and real-time streaming.
 
 ## Architecture
 
-- **Frontend:** React 18 + TypeScript + Vite. Single-page (no router);
-  `App.tsx` lays the modules out in three zones — a glanceable status
-  strip (`MarketClock`, `AccountSummary`, `PortfolioSummary`), a
-  pick/analyse/trade workspace (`AssetSearch`, `Watchlist`, `PriceChart`,
-  `OrderTicket`), and a review blotter (`Positions`, `Orders`,
-  `Activities`). Charts use TradingView `lightweight-charts` (the npm
-  lib, *not* the embed widget — data comes from our backend, not
-  TradingView).
+- **Frontend:** React 18 + TypeScript + Vite. Single-page (no router).
+  A header toggle switches between two platform modes (persisted to
+  `localStorage('platform_mode')`):
+  - **Our Platform (default):** `App.tsx` lays out three zones — a
+    glanceable status strip (`MarketClock`, `AccountSummary`,
+    `PortfolioSummary`), a pick/analyse/trade workspace (`AssetSearch`,
+    `Watchlist`, `PriceChart`, `OrderTicket`), and a review blotter
+    (`Positions`, `Orders`, `Activities`). Charts use TradingView
+    `lightweight-charts` (npm lib — data from our backend).
+  - **TradingView mode:** `TVPlatform.tsx` mounts the full TradingView
+    Charting Library terminal (`frontend/public/charting_library/`,
+    committed to repo — private repo only). Data and broker wired via
+    `frontend/src/lib/tv-datafeed.ts` (→ `/api/bars`, `/api/stream`) and
+    `frontend/src/lib/tv-broker.ts` (→ `/api/orders`, `/api/positions`,
+    `/api/activities`). No backend changes — same FastAPI endpoints.
 - **Backend:** FastAPI + `alpaca-py`. `backend/app/` is the real code;
   `api/index.py` is a thin shim that puts it on Vercel's import path.
   Endpoints: `/api/health`, `/api/config`, `/api/account`, `/api/bars`,
-  `/api/quotes`, `/api/stream`.
+  `/api/quotes`, `/api/stream`, `/api/orders`, `/api/positions`,
+  `/api/activities`, `/api/assets`, `/api/news`, `/api/calendar`.
 - **Data feed:** IEX (free, real-time but ~2-3% of volume). `sip` needs a
   paid Alpaca plan; switch via `ALPACA_DATA_FEED` env — no code change.
 - **Frontend stack:** Tailwind CSS + headless (shadcn-style) component
-  primitives; TradingView `lightweight-charts` retained. `index.css` is
-  migrated to Tailwind progressively — no new bespoke CSS files.
+  primitives; TradingView `lightweight-charts` retained for custom mode.
+  `index.css` is migrated to Tailwind progressively — no new bespoke CSS
+  files.
 - **Persistence:** Postgres (free tier, e.g. Supabase/Neon) is the
   intended layer for trade journaling, server-side watchlists, and
   analytics history — **backlogged** (see `BACKLOG.md`). For now Alpaca is
