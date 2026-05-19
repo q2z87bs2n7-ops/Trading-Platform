@@ -10,9 +10,22 @@ export default {
     extend: {
       colors: {
         bg: "var(--bg)",
+        "bg-elev": "var(--bg-elev)",
         panel: "var(--panel)",
+        "panel-2": "var(--panel-2)",
         border: "var(--border)",
+        "border-strong": "var(--border-strong)",
         text: "var(--text)",
+        "text-2": "var(--text-2)",
+        "text-3": "var(--text-3)",
+        pos: "var(--pos)",
+        "pos-bg": "var(--pos-bg)",
+        neg: "var(--neg)",
+        "neg-bg": "var(--neg-bg)",
+        accent: "var(--accent)",
+        "accent-bg": "var(--accent-bg)",
+        warn: "var(--warn)",
+        // legacy aliases (zero-diff during migration)
         muted: "var(--muted)",
         green: "var(--green)",
         red: "var(--red)",

@@ -3,13 +3,34 @@
 @tailwind utilities;
 
 :root {
+  /* === Canonical role tokens (UI-01) === */
+  /* Backgrounds */
   --bg: #0e1117;
+  --bg-elev: oklch(20% 0.01 250);          /* hover/dropdown layer above bg */
   --panel: #161b22;
+  --panel-2: oklch(24% 0.01 250);          /* nested panels, table rows */
+  /* Borders */
   --border: #30363d;
+  --border-strong: oklch(40% 0.01 250);
+  /* Text */
   --text: #e6edf3;
-  --muted: #8b949e;
-  --green: #26a69a;
-  --red: #ef5350;
+  --text-2: oklch(80% 0.01 250);
+  --text-3: #8b949e;                       /* tertiary / matches legacy --muted */
+  /* Semantic — kept at legacy hex for zero visual diff in legacy components */
+  --pos: #26a69a;
+  --pos-bg: rgba(38, 166, 154, 0.15);
+  --neg: #ef5350;
+  --neg-bg: rgba(239, 83, 80, 0.15);
+  /* Semantic — new, oklch sibling family at L=65% C=0.13 */
+  --accent: oklch(65% 0.13 240);
+  --accent-bg: oklch(65% 0.13 240 / 0.15);
+  --warn: oklch(70% 0.13 75);
+
+  /* === Aliases for zero-diff in legacy components === */
+  --green: var(--pos);
+  --red: var(--neg);
+  --muted: var(--text-3);
+
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
