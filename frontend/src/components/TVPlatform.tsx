@@ -40,7 +40,7 @@ export default function TVPlatform({ symbol }: Props) {
     const widget = new TradingView.widget({
       // Container
       container: containerRef.current,
-      library_path: "/charting_library/",
+      library_path: `${import.meta.env.BASE_URL}charting_library/`,
 
       // Symbol + interval
       symbol: symbol || "AAPL",
