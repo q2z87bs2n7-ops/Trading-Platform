@@ -162,8 +162,11 @@ export function createBroker(onUpdate: () => void) {
         const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error("Executions fetch timeout")), 5000)
         );
-        const data = await Promise.race([fetchPromise, timeoutPromise]);
-        return ((data as Record<string, unknown>).activities ?? [])
+        const data = (await Promise.race([fetchPromise, timeoutPromise])) as Record<
+          string,
+          unknown
+        >;
+        return ((data.activities as Record<string, unknown>[]) ?? [])
           .filter((a: Record<string, unknown>) => !_symbol || a.symbol === _symbol)
           .map((a: Record<string, unknown>) => ({
             id: a.id,
