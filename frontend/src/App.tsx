@@ -10,6 +10,7 @@ import AssetSearch from "./components/AssetSearch";
 import OrderTicket from "./components/OrderTicket";
 import Watchlist from "./components/Watchlist";
 import PriceChart from "./components/PriceChart";
+import InstrumentInfo from "./components/InstrumentInfo";
 import Positions from "./components/Positions";
 import PortfolioSummary from "./components/PortfolioSummary";
 import Orders from "./components/Orders";
@@ -60,6 +61,7 @@ export default function App() {
           />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <InstrumentInfo symbol={selected} />
           {selected && <PriceChart symbol={selected} />}
           <OrderTicket symbol={selected} onSymbolChange={setSelected} />
         </div>
