@@ -86,7 +86,7 @@ export default function App() {
             <PortfolioSummary />
           </div>
 
-          {/* Workspace: pick instruments on the left, analyse + trade centre. */}
+          {/* Workspace: watchlist left, chart centre, order ticket right. */}
           <div className="grid" style={{ marginTop: 16 }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <AssetSearch
@@ -103,15 +103,21 @@ export default function App() {
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <InstrumentInfo symbol={selected} />
               {selected && <PriceChart symbol={selected} />}
+            </div>
+            <div>
               <OrderTicket symbol={selected} onSymbolChange={setSelected} />
             </div>
           </div>
 
-          {/* Blotter: holdings, orders and history — reviewed after the fact. */}
-          <div className="panels-extra">
-            <News symbol={selected} />
+          {/* Blotter: full-width tables so columns have room to breathe. */}
+          <div className="blotter">
             <Positions />
             <Orders />
+          </div>
+
+          {/* Supporting panels: news + activity log. */}
+          <div className="panels-extra">
+            <News symbol={selected} />
             <Activities />
           </div>
         </>

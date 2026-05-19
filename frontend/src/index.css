@@ -24,14 +24,14 @@ body {
 }
 
 .app {
-  max-width: 1200px;
+  max-width: 1600px;
   margin: 0 auto;
   padding: 24px;
 }
 
 header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   margin-bottom: 20px;
 }
@@ -48,8 +48,15 @@ header h1 {
 
 .grid {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 260px 1fr 280px;
   gap: 16px;
+}
+
+.blotter {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
 }
 
 .panel {
@@ -94,6 +101,22 @@ header h1 {
 
 .watch-item.active {
   background: rgba(38, 166, 154, 0.15);
+}
+
+.watch-remove {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 4px;
+  opacity: 0.5;
+}
+
+.watch-remove:hover {
+  color: var(--red);
+  opacity: 1;
 }
 
 .price {

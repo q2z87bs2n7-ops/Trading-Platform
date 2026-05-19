@@ -34,7 +34,7 @@ export default function News({ symbol }: { symbol: string }) {
           >
             <span className="text-muted">
               {n.url ? (
-                <a href={n.url} target="_blank" rel="noopener noreferrer">
+                <a href={n.url} target="_blank" rel="noopener noreferrer" className="text-text hover:text-green underline">
                   {n.headline}
                 </a>
               ) : (
