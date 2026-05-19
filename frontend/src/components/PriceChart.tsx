@@ -8,14 +8,10 @@ import {
 
 import { useAsset, useBars } from "../data/hooks";
 import { useLiveQuotes } from "../data/useLiveQuotes";
+import Pill from "./Pill";
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD" });
-
-// Alpaca passes enums through as strings like "AssetClass.US_EQUITY" —
-// strip the prefix and underscores for display.
-const clean = (s: string) =>
-  s.split(".").pop()!.replace(/_/g, " ").toLowerCase();
 
 const TIMEFRAMES = [
   { value: "1Min", label: "1m" },
@@ -163,8 +159,7 @@ export default function PriceChart({ symbol }: { symbol: string }) {
       {asset && (
         <div className="flex items-center gap-2 text-xs text-muted mb-2 flex-wrap">
           <span>{asset.exchange}</span>
-          <span>·</span>
-          <span>{clean(asset.asset_class)}</span>
+          <Pill status={asset.asset_class} tone="neutral" />
           {asset.tradable && (
             <>
               <span>·</span>

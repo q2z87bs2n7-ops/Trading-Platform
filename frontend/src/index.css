@@ -25,6 +25,7 @@
   --accent: oklch(65% 0.13 240);
   --accent-bg: oklch(65% 0.13 240 / 0.15);
   --warn: oklch(70% 0.13 75);
+  --warn-bg: oklch(70% 0.13 75 / 0.15);
 
   /* === Aliases for zero-diff in legacy components === */
   --green: var(--pos);

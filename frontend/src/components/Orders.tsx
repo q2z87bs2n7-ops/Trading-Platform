@@ -7,6 +7,7 @@ import {
   useReplaceOrder,
 } from "../data/hooks";
 import type { Order } from "../types";
+import Pill from "./Pill";
 
 // Statuses past which an order can no longer be cancelled/replaced.
 const TERMINAL = new Set([
@@ -219,7 +220,9 @@ export default function Orders() {
                     <td className={TD}>
                       {val != null ? money(val) : <span className="text-muted">—</span>}
                     </td>
-                    <td className={TD}>{o.status}</td>
+                    <td className={TD}>
+                      <Pill status={o.status} />
+                    </td>
                     <td className={`${TD} text-muted`}>
                       {o.submitted_at
                         ? new Date(o.submitted_at * 1000).toLocaleString()

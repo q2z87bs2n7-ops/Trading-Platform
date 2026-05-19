@@ -1,5 +1,6 @@
 import { useActivities } from "../data/hooks";
 import type { Activity } from "../types";
+import Pill from "./Pill";
 
 // Activities are heterogeneous; show the type plus a best-effort summary
 // of whichever fields Alpaca returned for that activity kind.
@@ -30,7 +31,7 @@ export default function Activities({ bare = false }: { bare?: boolean }) {
             className="flex justify-between py-1 text-[13px]"
             key={String(a.id ?? i)}
           >
-            <span className="text-muted">{String(a.activity_type ?? "—")}</span>
+            <Pill status={a.activity_type as string | undefined} tone="neutral" />
             <span className="tabular-nums">{summarize(a)}</span>
           </div>
         ))}

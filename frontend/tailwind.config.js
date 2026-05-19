@@ -25,6 +25,7 @@ export default {
         accent: "var(--accent)",
         "accent-bg": "var(--accent-bg)",
         warn: "var(--warn)",
+        "warn-bg": "var(--warn-bg)",
         // legacy aliases (zero-diff during migration)
         muted: "var(--muted)",
         green: "var(--green)",
