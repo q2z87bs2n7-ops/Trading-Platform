@@ -53,8 +53,13 @@ export default function PriceChart({ symbol }: { symbol: string }) {
       : null;
   const dayUp = dayPct !== null && dayPct >= 0;
 
+  // Init runs when the chart-panel JSX mounts the container div. On the
+  // initial app load `selected` is "" so PriceChart returns the empty-state
+  // branch and containerRef is null; once the watchlist resolves and a
+  // symbol is selected, this effect re-runs against the now-attached div
+  // and creates the chart exactly once.
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!symbol || !containerRef.current || chartRef.current) return;
     const chart = createChart(containerRef.current, {
       layout: { background: { color: "#161b22" }, textColor: "#8b949e" },
       grid: {
@@ -73,7 +78,17 @@ export default function PriceChart({ symbol }: { symbol: string }) {
     });
     chartRef.current = chart;
     seriesRef.current = series;
-    return () => chart.remove();
+  }, [symbol]);
+
+  // Teardown only on component unmount, not on every symbol change —
+  // symbol switches reuse the same chart instance (data is swapped via
+  // the [data] effect below).
+  useEffect(() => {
+    return () => {
+      chartRef.current?.remove();
+      chartRef.current = null;
+      seriesRef.current = null;
+    };
   }, []);
 
   useEffect(() => {
