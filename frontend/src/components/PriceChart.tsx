@@ -54,8 +54,11 @@ export default function PriceChart({ symbol }: { symbol: string }) {
   }, [data]);
 
   return (
-    <div className="panel">
-      <h2 style={{ display: "flex", justifyContent: "space-between" }}>
+    <div className="bg-panel border border-border rounded-lg p-4">
+      <h2
+        className="text-[13px] uppercase tracking-wide text-muted m-0 mb-3"
+        style={{ display: "flex", justifyContent: "space-between" }}
+      >
         <span>{symbol}</span>
         <select
           value={timeframe}
@@ -74,7 +77,7 @@ export default function PriceChart({ symbol }: { symbol: string }) {
           ))}
         </select>
       </h2>
-      {error && <div className="error">{error.message}</div>}
+      {error && <div className="text-red text-[13px]">{error.message}</div>}
       <div className="chart-wrap" ref={containerRef} />
     </div>
   );

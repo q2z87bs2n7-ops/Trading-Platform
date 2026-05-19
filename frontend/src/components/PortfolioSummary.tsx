@@ -15,29 +15,29 @@ export default function PortfolioSummary() {
   const up = pl >= 0;
 
   return (
-    <div className="panel">
-      <h2>Portfolio (1M)</h2>
-      {error && <div className="error">{error.message}</div>}
-      {!error && isPending && <div className="tag">Loading…</div>}
+    <div className="bg-panel border border-border rounded-lg p-4">
+      <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-3">Portfolio (1M)</h2>
+      {error && <div className="text-red text-[13px]">{error.message}</div>}
+      {!error && isPending && <div className="text-xs text-muted">Loading…</div>}
       {h && (
         <>
-          <div className="row">
-            <span className="label">Equity</span>
-            <span className="price">{money(equity)}</span>
+          <div className="flex justify-between py-1.5 text-[14px]">
+            <span className="text-muted">Equity</span>
+            <span className="tabular-nums">{money(equity)}</span>
           </div>
-          <div className="row">
-            <span className="label">Period P/L</span>
+          <div className="flex justify-between py-1.5 text-[14px]">
+            <span className="text-muted">Period P/L</span>
             <span
-              className="price"
-              style={{ color: up ? "var(--green)" : "var(--red)" }}
+              className="tabular-nums"
+              style={{ color: up ? "var(--pos)" : "var(--neg)" }}
             >
               {up ? "+" : ""}
               {money(pl)} ({(plpc * 100).toFixed(2)}%)
             </span>
           </div>
-          <div className="row">
-            <span className="label">Base Value</span>
-            <span className="price">{money(h.base_value)}</span>
+          <div className="flex justify-between py-1.5 text-[14px]">
+            <span className="text-muted">Base Value</span>
+            <span className="tabular-nums">{money(h.base_value)}</span>
           </div>
         </>
       )}

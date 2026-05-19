@@ -48,7 +48,7 @@ export default function App() {
     <div className="app">
       <header>
         <h1>Trading Platform</h1>
-        <span className="tag">
+        <span className="text-xs text-muted">
           v{__APP_VERSION__}
           {meta && ` · ${meta.paper ? "PAPER" : "LIVE"} · ${meta.feed.toUpperCase()} feed`}
         </span>

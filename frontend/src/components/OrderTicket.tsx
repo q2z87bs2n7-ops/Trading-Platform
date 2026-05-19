@@ -114,8 +114,8 @@ export default function OrderTicket({ symbol, onSymbolChange }: Props) {
   const needsTrail = type === "trailing_stop";
 
   return (
-    <div className="panel">
-      <h2>Order Ticket</h2>
+    <div className="bg-panel border border-border rounded-lg p-4">
+      <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-3">Order Ticket</h2>
       <div className="ticket">
         <label className="field">
           <span className="label">Symbol</span>
@@ -130,7 +130,7 @@ export default function OrderTicket({ symbol, onSymbolChange }: Props) {
         </label>
 
         {asset && (
-          <div className="tag">
+          <div className="text-xs text-muted">
             {asset.name} · {asset.exchange}
             {!asset.tradable && " · not tradable"}
             {asset.tradable && asset.fractionable && " · fractional ok"}
@@ -261,13 +261,13 @@ export default function OrderTicket({ symbol, onSymbolChange }: Props) {
             : `${side.toUpperCase()} ${sym || "—"}`}
         </button>
 
-        {clientError && <div className="tag">{clientError}</div>}
-        {!clientError && shortNote && <div className="tag">{shortNote}</div>}
+        {clientError && <div className="text-xs text-muted">{clientError}</div>}
+        {!clientError && shortNote && <div className="text-xs text-muted">{shortNote}</div>}
         {submit.error && (
-          <div className="error">{(submit.error as Error).message}</div>
+          <div className="text-red text-[13px]">{(submit.error as Error).message}</div>
         )}
         {submit.isSuccess && submit.data && (
-          <div className="tag">
+          <div className="text-xs text-muted">
             Submitted · {submit.data.status} · id {submit.data.id.slice(0, 8)}
           </div>
         )}

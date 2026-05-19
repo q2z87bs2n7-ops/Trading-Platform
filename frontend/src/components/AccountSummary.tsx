@@ -7,31 +7,31 @@ export default function AccountSummary() {
   const { data: acct, error, isPending } = useAccount();
 
   return (
-    <div className="panel">
-      <h2>Account</h2>
-      {error && <div className="error">{error.message}</div>}
-      {!error && isPending && <div className="tag">Loading…</div>}
+    <div className="bg-panel border border-border rounded-lg p-4">
+      <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-3">Account</h2>
+      {error && <div className="text-red text-[13px]">{error.message}</div>}
+      {!error && isPending && <div className="text-xs text-muted">Loading…</div>}
       {acct && (
         <>
-          <div className="row">
-            <span className="label">Equity</span>
-            <span className="price">{money(acct.equity)}</span>
+          <div className="flex justify-between py-1.5 text-[14px]">
+            <span className="text-muted">Equity</span>
+            <span className="tabular-nums">{money(acct.equity)}</span>
           </div>
-          <div className="row">
-            <span className="label">Cash</span>
-            <span className="price">{money(acct.cash)}</span>
+          <div className="flex justify-between py-1.5 text-[14px]">
+            <span className="text-muted">Cash</span>
+            <span className="tabular-nums">{money(acct.cash)}</span>
           </div>
-          <div className="row">
-            <span className="label">Buying Power</span>
-            <span className="price">{money(acct.buying_power)}</span>
+          <div className="flex justify-between py-1.5 text-[14px]">
+            <span className="text-muted">Buying Power</span>
+            <span className="tabular-nums">{money(acct.buying_power)}</span>
           </div>
-          <div className="row">
-            <span className="label">Portfolio Value</span>
-            <span className="price">{money(acct.portfolio_value)}</span>
+          <div className="flex justify-between py-1.5 text-[14px]">
+            <span className="text-muted">Portfolio Value</span>
+            <span className="tabular-nums">{money(acct.portfolio_value)}</span>
           </div>
-          <div className="row">
-            <span className="label">Status</span>
-            <span className="tag">{acct.status}</span>
+          <div className="flex justify-between py-1.5 text-[14px]">
+            <span className="text-muted">Status</span>
+            <span className="text-xs text-muted">{acct.status}</span>
           </div>
         </>
       )}

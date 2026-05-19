@@ -18,9 +18,9 @@ export default function Watchlist({
   );
 
   return (
-    <div className="panel">
-      <h2>Watchlist</h2>
-      {error && <div className="error">{error}</div>}
+    <div className="bg-panel border border-border rounded-lg p-4">
+      <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-3">Watchlist</h2>
+      {error && <div className="text-red text-[13px]">{error}</div>}
       {symbols.map((sym) => {
         const q = quotes[sym];
         return (
@@ -30,7 +30,7 @@ export default function Watchlist({
             onClick={() => onSelect(sym)}
           >
             <strong>{sym}</strong>
-            <span className="price">
+            <span className="tabular-nums">
               {q ? `$${q.mid.toFixed(2)}` : "—"}
             </span>
             <button
