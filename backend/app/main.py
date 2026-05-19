@@ -273,6 +273,9 @@ async def stream(
 
     async def events():
         try:
+            # Flush a first byte immediately so a slow upstream can't let an
+            # intermediary cut the connection before the first quote/keepalive.
+            yield ": connected\n\n"
             while True:
                 if await request.is_disconnected():
                     break

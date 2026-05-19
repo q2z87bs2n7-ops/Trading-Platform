@@ -164,6 +164,16 @@ export function streamQuotes(
   onQuote: (q: Quote) => void,
   onError: () => void,
 ): () => void {
+  if (STREAM_BASE === API_BASE) {
+    // No dedicated relay configured (VITE_STREAM_BASE unset): the stream
+    // hits the serverless API base, which cannot hold SSE open, so it
+    // will connect then drop straight to polling. Surface why.
+    console.warn(
+      "[stream] VITE_STREAM_BASE not set; /api/stream points at the " +
+        "serverless API base and will fall back to polling. Set it to the " +
+        "persistent relay host to enable real-time streaming.",
+    );
+  }
   const qs = encodeURIComponent(symbols.join(","));
   const es = new EventSource(`${STREAM_BASE}/api/stream?symbols=${qs}`);
   es.onmessage = (e) => {

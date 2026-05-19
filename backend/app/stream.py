@@ -28,6 +28,14 @@ from .config import get_settings
 log = logging.getLogger("quotehub")
 
 _MAX_BACKOFF = 30.0
+# Clean-teardown budget: stop_ws() tells _consume to close the socket and
+# _run_forever to return; _consume only polls the stop queue every recv
+# timeout (~5s), so wait a little longer before forcing a cancel.
+_STOP_TIMEOUT = 8.0
+# Give Alpaca a moment to release its single per-account market-data socket
+# before opening the next one, else the rebuild hits "connection limit
+# exceeded" and the stream never recovers.
+_RECONNECT_SETTLE = 1.0
 
 
 class QuoteHub:
@@ -100,39 +108,64 @@ class QuoteHub:
 
     async def _run_once(self, symbols: set[str]) -> bool:
         """Build a fresh stream subscribed to ``symbols`` (before running --
-        the reliable alpaca-py path), run it until the symbol set changes or
-        it fails. Returns True on a clean symbol-change rebuild, False on
-        failure (caller backs off)."""
+        the reliable alpaca-py path) and run it until the *desired* symbol
+        set actually changes or it fails. A new client wanting symbols we
+        already stream wakes ``_changed`` but must NOT rebuild -- needless
+        upstream reconnects trip Alpaca's single-connection limit. Returns
+        True on a real symbol-set change (rebuild), False on failure
+        (caller backs off)."""
         s = get_settings()
         stream = StockDataStream(s.alpaca_api_key, s.alpaca_secret_key, feed=_feed())
         stream.subscribe_quotes(self._on_quote, *symbols)
         self._changed.clear()
         run_task = asyncio.create_task(stream._run_forever())
-        change_task = asyncio.create_task(self._changed.wait())
         clean = False
         try:
-            done, _ = await asyncio.wait(
-                {run_task, change_task}, return_when=asyncio.FIRST_COMPLETED
-            )
-            if change_task in done and run_task not in done:
-                clean = True  # symbols changed -> rebuild, not a failure
-            else:
-                exc = run_task.exception() if not run_task.cancelled() else None
-                if exc is not None:
-                    log.error("alpaca stream stopped: %r", exc)
+            while True:
+                change_task = asyncio.create_task(self._changed.wait())
+                done, _ = await asyncio.wait(
+                    {run_task, change_task}, return_when=asyncio.FIRST_COMPLETED
+                )
+                if not change_task.done():
+                    change_task.cancel()
+                    with suppress(BaseException):
+                        await change_task
+                if run_task in done:
+                    exc = run_task.exception() if not run_task.cancelled() else None
+                    if exc is not None:
+                        log.error("alpaca stream stopped: %r", exc)
+                    break
+                # ``_changed`` fired: rebuild only on a real set change.
+                self._changed.clear()
+                if self._desired() != symbols:
+                    clean = True
+                    break
         except asyncio.CancelledError:
             raise
         except BaseException:
             log.exception("stream run failed")
         finally:
-            for t in (run_task, change_task):
-                if not t.done():
-                    t.cancel()
-                    with suppress(BaseException):
-                        await t
-            with suppress(BaseException):
-                stream.stop()
+            await self._shutdown(stream, run_task)
         return clean
+
+    async def _shutdown(self, stream: StockDataStream, run_task: asyncio.Task) -> None:
+        """Tear the upstream down cleanly: ``stop_ws`` signals ``_consume``
+        to close the socket and ``_run_forever`` to return, so Alpaca frees
+        the per-account connection slot. Only force-cancel if it overruns,
+        then ensure the socket is closed and let Alpaca settle before the
+        next build."""
+        with suppress(BaseException):
+            await stream.stop_ws()
+        if not run_task.done():
+            with suppress(BaseException):
+                await asyncio.wait({run_task}, timeout=_STOP_TIMEOUT)
+        if not run_task.done():
+            run_task.cancel()
+        with suppress(BaseException):
+            await run_task
+        with suppress(BaseException):
+            await stream.close()
+        await asyncio.sleep(_RECONNECT_SETTLE)
 
     async def _on_quote(self, q: Any) -> None:
         try:
