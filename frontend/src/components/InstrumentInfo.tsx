@@ -1,20 +1,11 @@
 import { useAsset } from "../data/hooks";
-
-// Alpaca passes enums through as strings like "AssetClass.US_EQUITY";
-// show just the readable tail.
-const clean = (s: string) =>
-  s.split(".").pop()!.replace(/_/g, " ").toLowerCase();
+import Pill from "./Pill";
 
 function Flag({ label, on }: { label: string; on: boolean }) {
   return (
     <div className="flex justify-between py-1 text-[13px]">
       <span className="text-muted">{label}</span>
-      <span
-        className="text-xs text-muted"
-        style={{ color: on ? "var(--green)" : "var(--red)" }}
-      >
-        {on ? "yes" : "no"}
-      </span>
+      <span className="text-xs text-muted">{on ? "✓" : "—"}</span>
     </div>
   );
 }
@@ -40,21 +31,11 @@ export default function InstrumentInfo({ symbol }: { symbol: string }) {
           </div>
           <div className="flex justify-between py-1 text-[13px]">
             <span className="text-muted">Class</span>
-            <span className="text-xs text-muted">{clean(a.asset_class)}</span>
+            <Pill status={a.asset_class} tone="neutral" />
           </div>
           <div className="flex justify-between py-1 text-[13px]">
             <span className="text-muted">Status</span>
-            <span
-              className="text-xs text-muted"
-              style={{
-                color:
-                  clean(a.status) === "active"
-                    ? "var(--green)"
-                    : "var(--red)",
-              }}
-            >
-              {clean(a.status)}
-            </span>
+            <Pill status={a.status} tone="neutral" />
           </div>
           <Flag label="Tradable" on={a.tradable} />
           <Flag label="Marginable" on={a.marginable} />

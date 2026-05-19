@@ -41,7 +41,7 @@ export default function News({
                   href={n.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-text hover:text-green underline"
+                  className="text-text hover:text-accent underline"
                 >
                   {n.headline}
                 </a>

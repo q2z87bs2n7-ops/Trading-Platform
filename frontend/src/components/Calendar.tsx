@@ -65,7 +65,7 @@ export default function Calendar() {
 
         return exceptions.map((ex) => (
           <div className="flex justify-between py-1 text-[13px]" key={ex.date}>
-            <span className={ex.date === START ? "text-green" : "text-muted"}>
+            <span className={ex.date === START ? "text-accent" : "text-muted"}>
               {label(ex.date)}
             </span>
             {ex.closed ? (
