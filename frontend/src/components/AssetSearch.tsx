@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { useAssetSearch } from "../data/hooks";
+import ErrorBanner from "./ErrorBanner";
 
 interface Props {
   onSelect: (symbol: string) => void;
@@ -29,7 +30,7 @@ export default function AssetSearch({ onSelect, onAdd }: Props) {
         value={input}
         onChange={(e) => setInput(e.target.value)}
       />
-      {error && <div className="text-red text-[13px]">{(error as Error).message}</div>}
+      {error && <ErrorBanner message={(error as Error).message} />}
       {isFetching && <div className="text-xs text-muted">Searching…</div>}
       {query && !isFetching && data && data.length === 0 && (
         <div className="text-xs text-muted">No matches</div>

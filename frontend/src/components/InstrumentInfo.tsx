@@ -1,4 +1,5 @@
 import { useAsset } from "../data/hooks";
+import ErrorBanner from "./ErrorBanner";
 import Pill from "./Pill";
 
 function Flag({ label, on }: { label: string; on: boolean }) {
@@ -17,7 +18,7 @@ export default function InstrumentInfo({ symbol }: { symbol: string }) {
     <div className="bg-panel border border-border rounded-lg p-3">
       <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-2">Instrument</h2>
       {!symbol && <div className="text-xs text-muted">Select a symbol</div>}
-      {symbol && error && <div className="text-red text-[13px]">{error.message}</div>}
+      {symbol && error && <ErrorBanner message={error.message} />}
       {symbol && !error && isPending && <div className="text-xs text-muted">Loading…</div>}
       {a && (
         <>

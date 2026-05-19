@@ -1,4 +1,5 @@
 import { useCalendar } from "../data/hooks";
+import ErrorBanner from "./ErrorBanner";
 
 // Local YYYY-MM-DD (Alpaca calendar dates are calendar days, not instants;
 // using the local date avoids a UTC off-by-one near midnight).
@@ -42,7 +43,7 @@ export default function Calendar() {
       <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-2">
         Trading Calendar
       </h2>
-      {error && <div className="text-red text-[13px]">{error.message}</div>}
+      {error && <ErrorBanner message={error.message} />}
       {!error && isPending && (
         <div className="text-xs text-muted">Loading…</div>
       )}

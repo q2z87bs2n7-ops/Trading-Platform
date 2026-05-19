@@ -1,4 +1,5 @@
 import { useClosePosition, useCloseAllPositions, usePositions } from "../data/hooks";
+import ErrorBanner from "./ErrorBanner";
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD" });
@@ -8,6 +9,25 @@ const signed = (n: number) => (n >= 0 ? "var(--green)" : "var(--red)");
 
 const TH = "px-2 py-1 text-right font-medium text-[11px] uppercase tracking-wide text-muted border-b border-border whitespace-nowrap";
 const TD = "px-2 py-1 text-right border-b border-white/5 whitespace-nowrap";
+const TD_SKEL = "px-2 py-1 border-b border-white/5";
+
+// Dim placeholder row that keeps the table laid out while data loads.
+// `cols` matches the column count so the columns don't reflow when real
+// rows arrive.
+function SkeletonRow({ cols }: { cols: number }) {
+  return (
+    <tr>
+      {Array.from({ length: cols }).map((_, i) => (
+        <td key={i} className={TD_SKEL}>
+          <div
+            className="h-3 rounded animate-pulse"
+            style={{ backgroundColor: "rgba(255, 255, 255, 0.06)" }}
+          />
+        </td>
+      ))}
+    </tr>
+  );
+}
 
 export default function Positions() {
   const { data, error, isPending } = usePositions();
@@ -32,17 +52,18 @@ export default function Positions() {
           </button>
         )}
       </h2>
-      {error && <div className="text-red text-[13px]">{error.message}</div>}
-      {!error && isPending && <div className="text-xs text-muted">Loading…</div>}
-      {rows && rows.length === 0 && (
-        <div className="text-xs text-muted">No open positions</div>
-      )}
+      {error && <ErrorBanner message={error.message} />}
       {(close.error || closeAll.error) && (
-        <div className="text-red text-[13px]">
-          {((close.error || closeAll.error) as Error).message}
+        <ErrorBanner
+          message={((close.error || closeAll.error) as Error).message}
+        />
+      )}
+      {!isPending && rows && rows.length === 0 && (
+        <div className="text-xs text-muted">
+          No open positions — use the order ticket to enter one.
         </div>
       )}
-      {rows && rows.length > 0 && (
+      {(isPending || (rows && rows.length > 0)) && (
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-[13px] tabular-nums">
             <thead>
@@ -58,7 +79,14 @@ export default function Positions() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((p) => {
+              {isPending && (
+                <>
+                  <SkeletonRow cols={8} />
+                  <SkeletonRow cols={8} />
+                  <SkeletonRow cols={8} />
+                </>
+              )}
+              {!isPending && rows && rows.map((p) => {
                 const short = p.side?.toLowerCase().includes("short");
                 return (
                   <tr key={p.symbol} className="hover:bg-white/[0.03]">

@@ -7,6 +7,7 @@ import {
   useReplaceOrder,
 } from "../data/hooks";
 import type { Order } from "../types";
+import ErrorBanner from "./ErrorBanner";
 import Pill from "./Pill";
 
 // Statuses past which an order can no longer be cancelled/replaced.
@@ -41,6 +42,22 @@ function orderValue(o: Order): number | null {
 
 const TH = "px-2 py-1 text-right font-medium text-[11px] uppercase tracking-wide text-muted border-b border-border whitespace-nowrap";
 const TD = "px-2 py-1 text-right border-b border-white/5 whitespace-nowrap";
+const TD_SKEL = "px-2 py-1 border-b border-white/5";
+
+function SkeletonRow({ cols }: { cols: number }) {
+  return (
+    <tr>
+      {Array.from({ length: cols }).map((_, i) => (
+        <td key={i} className={TD_SKEL}>
+          <div
+            className="h-3 rounded animate-pulse"
+            style={{ backgroundColor: "rgba(255, 255, 255, 0.06)" }}
+          />
+        </td>
+      ))}
+    </tr>
+  );
+}
 
 function ReplaceRow({ order }: { order: Order }) {
   const replace = useReplaceOrder();
@@ -138,17 +155,22 @@ export default function Orders() {
           </button>
         )}
       </h2>
-      {error && <div className="text-red text-[13px]">{error.message}</div>}
-      {!error && isPending && <div className="text-xs text-muted">Loading…</div>}
-      {rows && rows.length === 0 && (
-        <div className="text-xs text-muted">No orders</div>
-      )}
+      {error && <ErrorBanner message={error.message} />}
       {(cancel.error || cancelAll.error) && (
-        <div className="text-red text-[13px]">
-          {((cancel.error || cancelAll.error) as Error).message}
+        <ErrorBanner
+          message={((cancel.error || cancelAll.error) as Error).message}
+        />
+      )}
+      {!isPending && rows && rows.length === 0 && (
+        <div className="text-xs text-muted">
+          {status === "open"
+            ? "No working orders. Recent fills appear under closed."
+            : status === "closed"
+              ? "No closed orders yet."
+              : "No orders yet."}
         </div>
       )}
-      {rows && rows.length > 0 && (
+      {(isPending || (rows && rows.length > 0)) && (
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-[13px] tabular-nums">
             <thead>
@@ -168,7 +190,14 @@ export default function Orders() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((o) => {
+              {isPending && (
+                <>
+                  <SkeletonRow cols={12} />
+                  <SkeletonRow cols={12} />
+                  <SkeletonRow cols={12} />
+                </>
+              )}
+              {!isPending && rows && rows.map((o) => {
                 const val = orderValue(o);
                 const filled =
                   o.filled_qty > 0

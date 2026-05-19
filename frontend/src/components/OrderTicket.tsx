@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useAsset, useSubmitOrder } from "../data/hooks";
 import { useLiveQuotes } from "../data/useLiveQuotes";
 import type { Asset, SubmitOrderInput } from "../types";
+import ErrorBanner from "./ErrorBanner";
 
 type OType = SubmitOrderInput["type"];
 type TIF = NonNullable<SubmitOrderInput["time_in_force"]>;
@@ -348,9 +349,7 @@ export default function OrderTicket({ symbol, onSymbolChange }: Props) {
           <div className="text-xs text-muted">{shortNote}</div>
         )}
         {submit.error && (
-          <div className="text-red text-[13px]">
-            {(submit.error as Error).message}
-          </div>
+          <ErrorBanner message={(submit.error as Error).message} />
         )}
         {submit.isSuccess && submit.data && (
           <div className="text-xs text-muted">

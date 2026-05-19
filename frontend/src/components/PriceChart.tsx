@@ -8,6 +8,7 @@ import {
 
 import { useAsset, useBars } from "../data/hooks";
 import { useLiveQuotes } from "../data/useLiveQuotes";
+import ErrorBanner from "./ErrorBanner";
 import Pill from "./Pill";
 
 const money = (n: number) =>
@@ -181,7 +182,7 @@ export default function PriceChart({ symbol }: { symbol: string }) {
         </div>
       )}
 
-      {error && <div className="text-red text-[13px]">{error.message}</div>}
+      {error && <ErrorBanner message={error.message} />}
 
       {/* Chart fills the visible viewport below the chrome. The 280px
          constant is approx (header + ribbon + chart-panel-chrome +

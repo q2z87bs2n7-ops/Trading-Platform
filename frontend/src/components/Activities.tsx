@@ -1,5 +1,6 @@
 import { useActivities } from "../data/hooks";
 import type { Activity } from "../types";
+import ErrorBanner from "./ErrorBanner";
 import Pill from "./Pill";
 
 // Activities are heterogeneous; show the type plus a best-effort summary
@@ -18,7 +19,7 @@ export default function Activities({ bare = false }: { bare?: boolean }) {
 
   const body = (
     <>
-      {error && <div className="text-red text-[13px]">{error.message}</div>}
+      {error && <ErrorBanner message={error.message} />}
       {!error && isPending && (
         <div className="text-xs text-muted">Loading…</div>
       )}

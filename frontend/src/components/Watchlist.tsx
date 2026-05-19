@@ -1,6 +1,7 @@
 import { useBars } from "../data/hooks";
 import { useLiveQuotes } from "../data/useLiveQuotes";
 import type { Quote } from "../types";
+import ErrorBanner from "./ErrorBanner";
 
 interface Props {
   symbols: string[];
@@ -24,7 +25,7 @@ export default function Watchlist({
       <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-2">
         Watchlist
       </h2>
-      {error && <div className="text-red text-[13px]">{error}</div>}
+      {error && <ErrorBanner message={error} />}
       {symbols.length === 0 && (
         <div className="text-xs text-muted">
           Search a symbol above to start watching.

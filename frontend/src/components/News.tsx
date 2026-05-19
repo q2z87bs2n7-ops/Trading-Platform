@@ -1,4 +1,5 @@
 import { useNews } from "../data/hooks";
+import ErrorBanner from "./ErrorBanner";
 
 function when(ts: number): string {
   const d = Math.max(0, Math.floor(Date.now() / 1000) - ts);
@@ -20,9 +21,7 @@ export default function News({
   const body = (
     <>
       {!symbol && <div className="text-xs text-muted">Select a symbol</div>}
-      {symbol && error && (
-        <div className="text-red text-[13px]">{error.message}</div>
-      )}
+      {symbol && error && <ErrorBanner message={error.message} />}
       {symbol && !error && isPending && (
         <div className="text-xs text-muted">Loading…</div>
       )}
