@@ -38,10 +38,21 @@ export default function Positions() {
       {rows &&
         rows.map((p) => {
           const up = p.unrealized_pl >= 0;
+          const short = p.side?.toLowerCase().includes("short");
+          const dayUp = p.change_today >= 0;
           return (
             <div className="row" key={p.symbol}>
-              <span className="label">
-                {p.symbol} · {p.qty} @ {money(p.avg_entry_price)}
+              <span
+                style={{ display: "flex", flexDirection: "column", gap: 2 }}
+              >
+                <span className="label">
+                  {short ? "SHORT " : ""}
+                  {p.symbol} · {p.qty} @ {money(p.avg_entry_price)}
+                </span>
+                <span className="tag">
+                  mark {money(p.current_price)} · day {dayUp ? "+" : ""}
+                  {pct(p.change_today)} · basis {money(p.cost_basis)}
+                </span>
               </span>
               <span className="order-actions">
                 <span

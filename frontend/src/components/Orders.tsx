@@ -27,6 +27,17 @@ type StatusFilter = (typeof STATUSES)[number];
 // keep only the tail and normalise case.
 const enumTail = (s: string) => s.split(".").pop()!.toLowerCase();
 
+const money = (n: number) =>
+  n.toLocaleString("en-US", { style: "currency", currency: "USD" });
+
+// Best available per-share price to value the order: actual fill, else
+// the limit, else the stop. Returns null for a pure market order with no
+// fill yet (no meaningful number to show).
+function orderValue(o: Order): number | null {
+  const px = o.filled_avg_price ?? o.limit_price ?? o.stop_price;
+  return px != null && o.qty != null ? px * o.qty : null;
+}
+
 // Second line: fill progress, prices, TIF, non-simple order class and the
 // submit time. All fields the backend already returns; only `status` and
 // the main line were shown before.
@@ -35,8 +46,11 @@ function detail(o: Order): string {
   if (o.filled_qty > 0)
     parts.push(
       `filled ${o.filled_qty}${o.qty ? `/${o.qty}` : ""}` +
+        (o.qty ? ` (${Math.round((o.filled_qty / o.qty) * 100)}%)` : "") +
         (o.filled_avg_price != null ? ` @ ${o.filled_avg_price}` : ""),
     );
+  const val = orderValue(o);
+  if (val != null) parts.push(`val ${money(val)}`);
   if (o.limit_price != null) parts.push(`lmt ${o.limit_price}`);
   if (o.stop_price != null) parts.push(`stp ${o.stop_price}`);
   if (o.time_in_force) parts.push(enumTail(o.time_in_force).toUpperCase());
