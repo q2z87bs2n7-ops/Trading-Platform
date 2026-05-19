@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { useAsset, useSubmitOrder } from "../data/hooks";
+import { useLiveQuotes } from "../data/useLiveQuotes";
 import type { Asset, SubmitOrderInput } from "../types";
 
 type OType = SubmitOrderInput["type"];
@@ -8,6 +9,9 @@ type TIF = NonNullable<SubmitOrderInput["time_in_force"]>;
 
 const TYPES: OType[] = ["market", "limit", "stop", "stop_limit", "trailing_stop"];
 const TIFS: TIF[] = ["day", "gtc", "opg", "cls", "ioc", "fok"];
+
+const money = (n: number) =>
+  n.toLocaleString("en-US", { style: "currency", currency: "USD" });
 
 interface Props {
   symbol: string;
@@ -69,6 +73,24 @@ export default function OrderTicket({ symbol, onSymbolChange }: Props) {
       ? assetData
       : undefined;
 
+  // Live last/bid/ask for the symbol being ordered. Subscribes the ticker
+  // to the stream/poll path the watchlist already uses; React Query dedupes
+  // the subscription if the symbol is already in the watchlist.
+  const symUpper = sym.trim().toUpperCase();
+  const { quotes } = useLiveQuotes(symUpper ? [symUpper] : []);
+  const quote = quotes[symUpper];
+
+  // Estimated notional: limit/stop_limit use limit price; stop uses stop
+  // price; market/trailing use the live mid. Null when qty or price are
+  // missing so the submit button label drops the "· ~$X" tail gracefully.
+  const priceForEst =
+    type === "limit" || type === "stop_limit"
+      ? limitPrice
+      : type === "stop"
+        ? stopPrice
+        : quote?.mid;
+  const estNotional = qty > 0 && priceForEst ? qty * priceForEst : null;
+
   const form: SubmitOrderInput = {
     symbol: sym,
     side,
@@ -113,12 +135,20 @@ export default function OrderTicket({ symbol, onSymbolChange }: Props) {
   const needsStop = type === "stop" || type === "stop_limit";
   const needsTrail = type === "trailing_stop";
 
+  const submitLabel = submit.isPending
+    ? "Submitting…"
+    : `${side.toUpperCase()} ${qty || "—"} ${sym || "—"}` +
+      (estNotional ? ` · ~${money(estNotional)}` : "");
+
   return (
     <div className="bg-panel border border-border rounded-lg p-3">
-      <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-2">Order Ticket</h2>
+      <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-2">
+        Order Ticket
+      </h2>
       <div className="ticket">
+        {/* Symbol */}
         <label className="field">
-          <span className="label">Symbol</span>
+          <span className="text-muted text-xs">Symbol</span>
           <input
             value={sym}
             onChange={(e) => {
@@ -129,6 +159,7 @@ export default function OrderTicket({ symbol, onSymbolChange }: Props) {
           />
         </label>
 
+        {/* Asset info chip */}
         {asset && (
           <div className="text-xs text-muted">
             {asset.name} · {asset.exchange}
@@ -138,9 +169,35 @@ export default function OrderTicket({ symbol, onSymbolChange }: Props) {
           </div>
         )}
 
+        {/* Live context strip — Last / Bid / Ask */}
+        {quote && (
+          <div className="flex justify-between gap-2 bg-bg-elev rounded p-2 tabular-nums">
+            <div className="flex flex-col">
+              <span className="text-muted text-[10px] uppercase tracking-wider">
+                Last
+              </span>
+              <span className="text-[13px]">{money(quote.mid)}</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-muted text-[10px] uppercase tracking-wider">
+                Bid
+              </span>
+              <span className="text-[13px]">{money(quote.bid)}</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-muted text-[10px] uppercase tracking-wider">
+                Ask
+              </span>
+              <span className="text-[13px]">{money(quote.ask)}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Big BUY/SELL segment */}
         <div className="side-toggle">
           <button
             className={`btn ${side === "buy" ? "btn-buy active" : ""}`}
+            style={{ padding: "10px 12px", fontWeight: 600 }}
             onClick={() => setSide("buy")}
             type="button"
           >
@@ -148,6 +205,7 @@ export default function OrderTicket({ symbol, onSymbolChange }: Props) {
           </button>
           <button
             className={`btn ${side === "sell" ? "btn-sell active" : ""}`}
+            style={{ padding: "10px 12px", fontWeight: 600 }}
             onClick={() => setSide("sell")}
             type="button"
           >
@@ -155,34 +213,63 @@ export default function OrderTicket({ symbol, onSymbolChange }: Props) {
           </button>
         </div>
 
+        {/* Type + TIF — 2-col grid (both selects, parallel inputs) */}
+        <div className="grid grid-cols-2 gap-2">
+          <label className="field">
+            <span className="text-muted text-xs">Type</span>
+            <select
+              value={type}
+              onChange={(e) => setType(e.target.value as OType)}
+            >
+              {TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field">
+            <span className="text-muted text-xs">TIF</span>
+            <select
+              value={tif}
+              onChange={(e) => setTif(e.target.value as TIF)}
+            >
+              {TIFS.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        {/* Qty — own row; Est notional as inline subtext (NOT paired) */}
         <label className="field">
-          <span className="label">Type</span>
-          <select
-            value={type}
-            onChange={(e) => setType(e.target.value as OType)}
-          >
-            {TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
+          <span className="text-muted text-xs">Qty</span>
+          <div className="flex items-center gap-2">
+            <input
+              className="flex-1"
+              type="number"
+              min={0}
+              step="any"
+              value={qty}
+              onChange={(e) => setQty(Number(e.target.value))}
+            />
+            {estNotional != null && (
+              <span className="text-xs text-muted tabular-nums whitespace-nowrap">
+                ≈ {money(estNotional)}
+              </span>
+            )}
+          </div>
         </label>
 
-        <label className="field">
-          <span className="label">Qty</span>
-          <input
-            type="number"
-            min={0}
-            step="any"
-            value={qty}
-            onChange={(e) => setQty(Number(e.target.value))}
-          />
-        </label>
-
+        {/* Conditional price rows — each gets its own full-width row since
+           limit and stop are mutually conditional based on order type
+           (stop_limit is the only combo that requires both) */}
         {needsLimit && (
           <label className="field">
-            <span className="label">Limit price</span>
+            <span className="text-muted text-xs">Limit price</span>
             <input
               type="number"
               min={0}
@@ -196,7 +283,7 @@ export default function OrderTicket({ symbol, onSymbolChange }: Props) {
         )}
         {needsStop && (
           <label className="field">
-            <span className="label">Stop price</span>
+            <span className="text-muted text-xs">Stop price</span>
             <input
               type="number"
               min={0}
@@ -210,7 +297,7 @@ export default function OrderTicket({ symbol, onSymbolChange }: Props) {
         )}
         {needsTrail && (
           <label className="field">
-            <span className="label">Trail %</span>
+            <span className="text-muted text-xs">Trail %</span>
             <input
               type="number"
               min={0}
@@ -223,17 +310,7 @@ export default function OrderTicket({ symbol, onSymbolChange }: Props) {
           </label>
         )}
 
-        <label className="field">
-          <span className="label">Time in force</span>
-          <select value={tif} onChange={(e) => setTif(e.target.value as TIF)}>
-            {TIFS.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </label>
-
+        {/* Extended hours */}
         <label
           className="field"
           style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
@@ -244,27 +321,31 @@ export default function OrderTicket({ symbol, onSymbolChange }: Props) {
             disabled={!extHoursEligible}
             onChange={(e) => setExtHours(e.target.checked)}
           />
-          <span className="label">
+          <span className="text-muted text-xs">
             Extended hours
             {!extHoursEligible && " — limit + day only"}
           </span>
         </label>
 
+        {/* Full-width submit with estimated notional in the label */}
         <button
           className={`btn btn-submit ${side}`}
+          style={{ padding: "12px", fontWeight: 600 }}
           onClick={onSubmit}
           disabled={!!clientError || submit.isPending}
           type="button"
         >
-          {submit.isPending
-            ? "Submitting…"
-            : `${side.toUpperCase()} ${sym || "—"}`}
+          {submitLabel}
         </button>
 
         {clientError && <div className="text-xs text-muted">{clientError}</div>}
-        {!clientError && shortNote && <div className="text-xs text-muted">{shortNote}</div>}
+        {!clientError && shortNote && (
+          <div className="text-xs text-muted">{shortNote}</div>
+        )}
         {submit.error && (
-          <div className="text-red text-[13px]">{(submit.error as Error).message}</div>
+          <div className="text-red text-[13px]">
+            {(submit.error as Error).message}
+          </div>
         )}
         {submit.isSuccess && submit.data && (
           <div className="text-xs text-muted">
