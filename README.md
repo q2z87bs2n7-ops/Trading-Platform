@@ -2,8 +2,11 @@
 
 A paper-trading dashboard built on the [Alpaca](https://alpaca.markets/) API.
 
-**v1 scope:** account summary, a live-quote watchlist, and candlestick charts.
-No order placement yet — it is read-only against your **paper** account.
+**Scope:** full **paper** trading — account/portfolio summary, a live-quote
+watchlist, candlestick charts, asset search, market clock, and the full
+order path (market/limit/stop/stop-limit/trailing, bracket/OCO, replace,
+cancel, close positions) with a positions/orders/activities blotter.
+Paper account only — there is no live-trading path.
 
 ## Stack
 

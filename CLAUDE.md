@@ -41,9 +41,13 @@ persisted watchlists, asset search, and real-time streaming.
 ## Architecture
 
 - **Frontend:** React 18 + TypeScript + Vite. Single-page (no router);
-  `App.tsx` composes `AccountSummary`, `Watchlist`, `PriceChart`. Charts
-  use TradingView `lightweight-charts` (the npm lib, *not* the embed
-  widget — data comes from our backend, not TradingView).
+  `App.tsx` lays the modules out in three zones — a glanceable status
+  strip (`MarketClock`, `AccountSummary`, `PortfolioSummary`), a
+  pick/analyse/trade workspace (`AssetSearch`, `Watchlist`, `PriceChart`,
+  `OrderTicket`), and a review blotter (`Positions`, `Orders`,
+  `Activities`). Charts use TradingView `lightweight-charts` (the npm
+  lib, *not* the embed widget — data comes from our backend, not
+  TradingView).
 - **Backend:** FastAPI + `alpaca-py`. `backend/app/` is the real code;
   `api/index.py` is a thin shim that puts it on Vercel's import path.
   Endpoints: `/api/health`, `/api/config`, `/api/account`, `/api/bars`,
