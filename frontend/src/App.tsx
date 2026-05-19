@@ -9,7 +9,6 @@ import AssetSearch from "./components/AssetSearch";
 import OrderTicket from "./components/OrderTicket";
 import Watchlist from "./components/Watchlist";
 import PriceChart from "./components/PriceChart";
-import InstrumentInfo from "./components/InstrumentInfo";
 import Positions from "./components/Positions";
 import Orders from "./components/Orders";
 import Activities from "./components/Activities";
@@ -95,9 +94,8 @@ export default function App() {
                 onRemove={(s) => removeFromWatchlist.mutate(s)}
               />
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <InstrumentInfo symbol={selected} />
-              {selected && <PriceChart symbol={selected} />}
+            <div>
+              <PriceChart symbol={selected} />
             </div>
             <div>
               <OrderTicket symbol={selected} onSymbolChange={setSelected} />

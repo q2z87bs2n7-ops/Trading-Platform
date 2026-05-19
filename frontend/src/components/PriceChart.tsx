@@ -5,16 +5,53 @@ import {
   type ISeriesApi,
   type UTCTimestamp,
 } from "lightweight-charts";
-import { useBars } from "../data/hooks";
 
-const TIMEFRAMES = ["1Min", "5Min", "15Min", "1Hour", "1Day"];
+import { useAsset, useBars } from "../data/hooks";
+import { useLiveQuotes } from "../data/useLiveQuotes";
+
+const money = (n: number) =>
+  n.toLocaleString("en-US", { style: "currency", currency: "USD" });
+
+// Alpaca passes enums through as strings like "AssetClass.US_EQUITY" —
+// strip the prefix and underscores for display.
+const clean = (s: string) =>
+  s.split(".").pop()!.replace(/_/g, " ").toLowerCase();
+
+const TIMEFRAMES = [
+  { value: "1Min", label: "1m" },
+  { value: "5Min", label: "5m" },
+  { value: "15Min", label: "15m" },
+  { value: "1Hour", label: "1H" },
+  { value: "1Day", label: "1D" },
+];
 
 export default function PriceChart({ symbol }: { symbol: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const [timeframe, setTimeframe] = useState("1Day");
+
   const { data, error } = useBars(symbol, timeframe);
+  // Day Δ% always derives from 1Day bars so it works regardless of the
+  // user's chart timeframe selection. React Query dedupes when the chart
+  // is already on 1Day (same query key).
+  const { data: dailyBars } = useBars(symbol, "1Day");
+  const { data: asset } = useAsset(symbol);
+  const { quotes } = useLiveQuotes(symbol ? [symbol] : []);
+
+  // Last price prefers the live quote; falls back to the most recent bar
+  // close if the stream/polling hasn't resolved yet.
+  const lastPrice =
+    quotes[symbol]?.mid ?? data?.bars[data.bars.length - 1]?.close;
+  const prevDailyClose =
+    dailyBars?.bars && dailyBars.bars.length >= 2
+      ? dailyBars.bars[dailyBars.bars.length - 2].close
+      : undefined;
+  const dayPct =
+    lastPrice != null && prevDailyClose != null
+      ? (lastPrice - prevDailyClose) / prevDailyClose
+      : null;
+  const dayUp = dayPct !== null && dayPct >= 0;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -53,32 +90,96 @@ export default function PriceChart({ symbol }: { symbol: string }) {
     chartRef.current?.timeScale().fitContent();
   }, [data]);
 
+  // Empty state — workspace shows a placeholder so the layout doesn't
+  // collapse before the user picks a symbol.
+  if (!symbol) {
+    return (
+      <div
+        className="bg-panel border border-border rounded-lg p-3 flex items-center justify-center text-xs text-muted"
+        style={{ minHeight: 480 }}
+      >
+        Select a symbol from the watchlist
+      </div>
+    );
+  }
+
   return (
     <div className="bg-panel border border-border rounded-lg p-3">
-      <h2
-        className="text-[13px] uppercase tracking-wide text-muted m-0 mb-2"
-        style={{ display: "flex", justifyContent: "space-between" }}
-      >
-        <span>{symbol}</span>
-        <select
-          value={timeframe}
-          onChange={(e) => setTimeframe(e.target.value)}
-          style={{
-            background: "#0e1117",
-            color: "#e6edf3",
-            border: "1px solid #30363d",
-            borderRadius: 4,
-          }}
-        >
+      {/* Header row 1: symbol/name/last/Δ% on the left, timeframe pills on the right */}
+      <div className="flex items-baseline justify-between gap-3 mb-1 flex-wrap">
+        <div className="flex items-baseline gap-3 flex-wrap">
+          <strong className="text-[16px]">{symbol}</strong>
+          {asset && (
+            <span className="text-muted text-[13px]">{asset.name}</span>
+          )}
+          {lastPrice != null && (
+            <span className="text-[16px] font-semibold tabular-nums">
+              {money(lastPrice)}
+            </span>
+          )}
+          {dayPct !== null && (
+            <span
+              className="text-[13px] tabular-nums"
+              style={{ color: dayUp ? "var(--green)" : "var(--red)" }}
+            >
+              {dayUp ? "+" : ""}
+              {(dayPct * 100).toFixed(2)}%
+            </span>
+          )}
+        </div>
+        <div className="flex gap-1" role="tablist" aria-label="Chart timeframe">
           {TIMEFRAMES.map((tf) => (
-            <option key={tf} value={tf}>
-              {tf}
-            </option>
+            <button
+              key={tf.value}
+              type="button"
+              role="tab"
+              aria-selected={timeframe === tf.value}
+              onClick={() => setTimeframe(tf.value)}
+              className={`btn btn-mini${timeframe === tf.value ? " active" : ""}`}
+              style={{ opacity: timeframe === tf.value ? 1 : 0.5 }}
+            >
+              {tf.label}
+            </button>
           ))}
-        </select>
-      </h2>
+        </div>
+      </div>
+
+      {/* Attribute chips (replaces standalone InstrumentInfo card) */}
+      {asset && (
+        <div className="flex items-center gap-2 text-xs text-muted mb-2 flex-wrap">
+          <span>{asset.exchange}</span>
+          <span>·</span>
+          <span>{clean(asset.asset_class)}</span>
+          {asset.tradable && (
+            <>
+              <span>·</span>
+              <span>tradable</span>
+            </>
+          )}
+          {asset.shortable && (
+            <>
+              <span>·</span>
+              <span>shortable</span>
+            </>
+          )}
+          {asset.fractionable && (
+            <>
+              <span>·</span>
+              <span>fractional</span>
+            </>
+          )}
+        </div>
+      )}
+
       {error && <div className="text-red text-[13px]">{error.message}</div>}
-      <div className="chart-wrap" ref={containerRef} />
+
+      {/* Chart fills the visible viewport below the chrome. The 280px
+         constant is approx (header + ribbon + chart-panel-chrome +
+         below-fold-buffer); revisit when UI-07 adds the bottom drawer. */}
+      <div
+        ref={containerRef}
+        style={{ height: "calc(100vh - 280px)", minHeight: 480 }}
+      />
     </div>
   );
 }
