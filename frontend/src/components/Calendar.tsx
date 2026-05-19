@@ -8,6 +8,18 @@ function ymd(d: Date): string {
   return `${d.getFullYear()}-${m}-${day}`;
 }
 
+// Returns every Mon–Fri date string in [start, end] inclusive.
+function weekdaysBetween(start: Date, end: Date): string[] {
+  const days: string[] = [];
+  const cur = new Date(start);
+  while (ymd(cur) <= ymd(end)) {
+    const dow = cur.getDay();
+    if (dow !== 0 && dow !== 6) days.push(ymd(cur));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return days;
+}
+
 const today = new Date();
 const horizon = new Date(today);
 horizon.setDate(horizon.getDate() + 21);
@@ -34,27 +46,36 @@ export default function Calendar() {
       {!error && isPending && (
         <div className="text-xs text-muted">Loading…</div>
       )}
-      {days && days.length === 0 && (
-        <div className="text-xs text-muted">No upcoming sessions</div>
-      )}
-      {days &&
-        days.map((d) => (
-          <div
-            className="flex justify-between py-1.5 text-sm"
-            key={d.date}
-          >
-            <span
-              className={
-                d.date === START ? "text-green" : "text-muted"
-              }
-            >
-              {label(d.date)}
+      {days && (() => {
+        const tradingMap = new Map(days.map((d) => [d.date, d]));
+        const exceptions = weekdaysBetween(today, horizon).flatMap((date) => {
+          const td = tradingMap.get(date);
+          if (!td) return [{ date, closed: true, open: "", close: "" }];
+          if (td.open !== "09:30:00" || td.close !== "16:00:00")
+            return [{ date, closed: false, open: td.open, close: td.close }];
+          return [];
+        });
+
+        if (exceptions.length === 0)
+          return (
+            <div className="text-xs text-muted">
+              No exceptions — standard hours all week
+            </div>
+          );
+
+        return exceptions.map((ex) => (
+          <div className="flex justify-between py-1.5 text-sm" key={ex.date}>
+            <span className={ex.date === START ? "text-green" : "text-muted"}>
+              {label(ex.date)}
             </span>
-            <span className="tabular-nums">
-              {d.open}–{d.close}
-            </span>
+            {ex.closed ? (
+              <span className="text-xs text-muted italic">Market Closed</span>
+            ) : (
+              <span className="tabular-nums">{ex.open}–{ex.close}</span>
+            )}
           </div>
-        ))}
+        ));
+      })()}
     </div>
   );
 }
