@@ -16,16 +16,23 @@ export default function Activities() {
   const rows = data?.activities;
 
   return (
-    <div className="panel">
-      <h2>Account Activity</h2>
-      {error && <div className="error">{error.message}</div>}
-      {!error && isPending && <div className="tag">Loading…</div>}
-      {rows && rows.length === 0 && <div className="tag">No activity</div>}
+    <div className="bg-panel border border-border rounded-lg p-4">
+      <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-3">
+        Account Activity
+      </h2>
+      {error && <div className="text-red text-[13px]">{error.message}</div>}
+      {!error && isPending && <div className="text-xs text-muted">Loading…</div>}
+      {rows && rows.length === 0 && (
+        <div className="text-xs text-muted">No activity</div>
+      )}
       {rows &&
         rows.map((a, i) => (
-          <div className="row" key={String(a.id ?? i)}>
-            <span className="label">{String(a.activity_type ?? "—")}</span>
-            <span className="price">{summarize(a)}</span>
+          <div
+            className="flex justify-between py-1.5 text-sm"
+            key={String(a.id ?? i)}
+          >
+            <span className="text-muted">{String(a.activity_type ?? "—")}</span>
+            <span className="tabular-nums">{summarize(a)}</span>
           </div>
         ))}
     </div>

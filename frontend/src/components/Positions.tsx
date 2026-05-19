@@ -6,6 +6,9 @@ const pct = (n: number) => `${(n * 100).toFixed(2)}%`;
 
 const signed = (n: number) => (n >= 0 ? "var(--green)" : "var(--red)");
 
+const TH = "px-2 py-1 text-right font-medium text-[11px] uppercase tracking-wide text-muted border-b border-border whitespace-nowrap";
+const TD = "px-2 py-1.5 text-right border-b border-white/5 whitespace-nowrap";
+
 export default function Positions() {
   const { data, error, isPending } = usePositions();
   const close = useClosePosition();
@@ -13,12 +16,12 @@ export default function Positions() {
   const rows = data?.positions;
 
   return (
-    <div className="panel">
-      <h2>
+    <div className="bg-panel border border-border rounded-lg p-4">
+      <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-3">
         Open Positions
         {rows && rows.length > 0 && (
           <button
-            className="btn btn-mini btn-danger panel-action"
+            className="btn btn-mini btn-danger float-right -mt-0.5"
             type="button"
             disabled={closeAll.isPending}
             onClick={() =>
@@ -29,51 +32,53 @@ export default function Positions() {
           </button>
         )}
       </h2>
-      {error && <div className="error">{error.message}</div>}
-      {!error && isPending && <div className="tag">Loading…</div>}
-      {rows && rows.length === 0 && <div className="tag">No open positions</div>}
+      {error && <div className="text-red text-[13px]">{error.message}</div>}
+      {!error && isPending && <div className="text-xs text-muted">Loading…</div>}
+      {rows && rows.length === 0 && (
+        <div className="text-xs text-muted">No open positions</div>
+      )}
       {(close.error || closeAll.error) && (
-        <div className="error">
+        <div className="text-red text-[13px]">
           {((close.error || closeAll.error) as Error).message}
         </div>
       )}
       {rows && rows.length > 0 && (
-        <div className="table-wrap">
-          <table className="data-table">
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-[13px] tabular-nums">
             <thead>
               <tr>
-                <th>Symbol</th>
-                <th>Qty</th>
-                <th>Avg</th>
-                <th>Mark</th>
-                <th>Day</th>
-                <th>Value</th>
-                <th>Unreal P/L</th>
-                <th></th>
+                <th className={`${TH} text-left`}>Symbol</th>
+                <th className={TH}>Qty</th>
+                <th className={TH}>Avg</th>
+                <th className={TH}>Mark</th>
+                <th className={TH}>Day</th>
+                <th className={TH}>Value</th>
+                <th className={TH}>Unreal P/L</th>
+                <th className={`${TH} text-center`}></th>
               </tr>
             </thead>
             <tbody>
               {rows.map((p) => {
                 const short = p.side?.toLowerCase().includes("short");
                 return (
-                  <tr key={p.symbol}>
-                    <td>
-                      <span className="sym">{p.symbol}</span>
-                      {short && <span className="muted"> SHORT</span>}
+                  <tr key={p.symbol} className="hover:bg-white/[0.03]">
+                    <td className={`${TD} text-left`}>
+                      <span className="text-text font-semibold">{p.symbol}</span>
+                      {short && <span className="text-muted"> SHORT</span>}
                     </td>
-                    <td>{p.qty}</td>
-                    <td>{money(p.avg_entry_price)}</td>
-                    <td>{money(p.current_price)}</td>
-                    <td style={{ color: signed(p.change_today) }}>
+                    <td className={TD}>{p.qty}</td>
+                    <td className={TD}>{money(p.avg_entry_price)}</td>
+                    <td className={TD}>{money(p.current_price)}</td>
+                    <td className={TD} style={{ color: signed(p.change_today) }}>
                       {p.change_today >= 0 ? "+" : ""}
                       {pct(p.change_today)}
                     </td>
-                    <td>{money(p.market_value)}</td>
-                    <td style={{ color: signed(p.unrealized_pl) }}>
+                    <td className={TD}>{money(p.market_value)}</td>
+                    <td className={TD} style={{ color: signed(p.unrealized_pl) }}>
                       {p.unrealized_pl >= 0 ? "+" : ""}
                       {money(p.unrealized_pl)} ({pct(p.unrealized_plpc)})
                     </td>
-                    <td>
+                    <td className={`${TD} text-center`}>
                       <button
                         className="btn btn-mini btn-danger"
                         type="button"

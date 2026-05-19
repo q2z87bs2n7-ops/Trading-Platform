@@ -12,16 +12,27 @@ export default function News({ symbol }: { symbol: string }) {
   const rows = data?.news;
 
   return (
-    <div className="panel">
-      <h2>News{symbol && ` · ${symbol}`}</h2>
-      {!symbol && <div className="tag">Select a symbol</div>}
-      {symbol && error && <div className="error">{error.message}</div>}
-      {symbol && !error && isPending && <div className="tag">Loading…</div>}
-      {rows && rows.length === 0 && <div className="tag">No recent news</div>}
+    <div className="bg-panel border border-border rounded-lg p-4">
+      <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-3">
+        News{symbol && ` · ${symbol}`}
+      </h2>
+      {!symbol && <div className="text-xs text-muted">Select a symbol</div>}
+      {symbol && error && (
+        <div className="text-red text-[13px]">{error.message}</div>
+      )}
+      {symbol && !error && isPending && (
+        <div className="text-xs text-muted">Loading…</div>
+      )}
+      {rows && rows.length === 0 && (
+        <div className="text-xs text-muted">No recent news</div>
+      )}
       {rows &&
         rows.map((n) => (
-          <div className="row" key={n.id}>
-            <span className="label">
+          <div
+            className="flex justify-between py-1.5 text-sm"
+            key={n.id}
+          >
+            <span className="text-muted">
               {n.url ? (
                 <a href={n.url} target="_blank" rel="noopener noreferrer">
                   {n.headline}
@@ -30,7 +41,7 @@ export default function News({ symbol }: { symbol: string }) {
                 n.headline
               )}
             </span>
-            <span className="price">
+            <span className="tabular-nums">
               {n.source} · {when(n.time)}
             </span>
           </div>

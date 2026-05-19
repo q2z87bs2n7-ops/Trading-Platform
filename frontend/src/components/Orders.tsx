@@ -38,6 +38,9 @@ function orderValue(o: Order): number | null {
   return px != null && o.qty != null ? px * o.qty : null;
 }
 
+const TH = "px-2 py-1 text-right font-medium text-[11px] uppercase tracking-wide text-muted border-b border-border whitespace-nowrap";
+const TD = "px-2 py-1.5 text-right border-b border-white/5 whitespace-nowrap";
+
 function ReplaceRow({ order }: { order: Order }) {
   const replace = useReplaceOrder();
   const [open, setOpen] = useState(false);
@@ -54,8 +57,9 @@ function ReplaceRow({ order }: { order: Order }) {
     );
 
   return (
-    <span className="replace-form">
+    <span className="inline-flex items-center gap-1">
       <input
+        className="w-[70px] px-1.5 py-0.5"
         type="number"
         step="any"
         min={0}
@@ -64,6 +68,7 @@ function ReplaceRow({ order }: { order: Order }) {
         onChange={(e) => setQty(e.target.value ? Number(e.target.value) : undefined)}
       />
       <input
+        className="w-[70px] px-1.5 py-0.5"
         type="number"
         step="any"
         min={0}
@@ -94,7 +99,7 @@ function ReplaceRow({ order }: { order: Order }) {
 }
 
 const dash = (s: string | number | null | undefined) =>
-  s == null || s === "" ? <span className="muted">—</span> : s;
+  s == null || s === "" ? <span className="text-muted">—</span> : s;
 
 export default function Orders() {
   const [status, setStatus] = useState<StatusFilter>("all");
@@ -105,11 +110,11 @@ export default function Orders() {
   const hasLive = !!rows?.some(live);
 
   return (
-    <div className="panel">
-      <h2>
+    <div className="bg-panel border border-border rounded-lg p-4">
+      <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-3">
         Recent Orders
         <select
-          className="panel-action"
+          className="float-right -mt-0.5"
           value={status}
           onChange={(e) => setStatus(e.target.value as StatusFilter)}
         >
@@ -121,7 +126,7 @@ export default function Orders() {
         </select>
         {hasLive && (
           <button
-            className="btn btn-mini btn-danger panel-action"
+            className="btn btn-mini btn-danger float-right -mt-0.5"
             type="button"
             disabled={cancelAll.isPending}
             onClick={() =>
@@ -132,31 +137,33 @@ export default function Orders() {
           </button>
         )}
       </h2>
-      {error && <div className="error">{error.message}</div>}
-      {!error && isPending && <div className="tag">Loading…</div>}
-      {rows && rows.length === 0 && <div className="tag">No orders</div>}
+      {error && <div className="text-red text-[13px]">{error.message}</div>}
+      {!error && isPending && <div className="text-xs text-muted">Loading…</div>}
+      {rows && rows.length === 0 && (
+        <div className="text-xs text-muted">No orders</div>
+      )}
       {(cancel.error || cancelAll.error) && (
-        <div className="error">
+        <div className="text-red text-[13px]">
           {((cancel.error || cancelAll.error) as Error).message}
         </div>
       )}
       {rows && rows.length > 0 && (
-        <div className="table-wrap">
-          <table className="data-table">
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-[13px] tabular-nums">
             <thead>
               <tr>
-                <th>Symbol</th>
-                <th>Side</th>
-                <th>Type</th>
-                <th>Qty</th>
-                <th>Filled</th>
-                <th>Limit</th>
-                <th>Stop</th>
-                <th>TIF</th>
-                <th>Value</th>
-                <th>Status</th>
-                <th>Submitted</th>
-                <th></th>
+                <th className={`${TH} text-left`}>Symbol</th>
+                <th className={TH}>Side</th>
+                <th className={TH}>Type</th>
+                <th className={TH}>Qty</th>
+                <th className={TH}>Filled</th>
+                <th className={TH}>Limit</th>
+                <th className={TH}>Stop</th>
+                <th className={TH}>TIF</th>
+                <th className={TH}>Value</th>
+                <th className={TH}>Status</th>
+                <th className={TH}>Submitted</th>
+                <th className={`${TH} text-center`}></th>
               </tr>
             </thead>
             <tbody>
@@ -177,11 +184,12 @@ export default function Orders() {
                     ? ` (${enumTail(o.order_class)})`
                     : "";
                 return (
-                  <tr key={o.id}>
-                    <td>
-                      <span className="sym">{o.symbol}</span>
+                  <tr key={o.id} className="hover:bg-white/[0.03]">
+                    <td className={`${TD} text-left`}>
+                      <span className="text-text font-semibold">{o.symbol}</span>
                     </td>
                     <td
+                      className={TD}
                       style={{
                         color:
                           o.side.toLowerCase() === "buy"
@@ -191,31 +199,35 @@ export default function Orders() {
                     >
                       {o.side.toUpperCase()}
                     </td>
-                    <td>
+                    <td className={TD}>
                       {o.type}
-                      {cls && <span className="muted">{cls}</span>}
+                      {cls && <span className="text-muted">{cls}</span>}
                     </td>
-                    <td>{dash(o.qty)}</td>
-                    <td>{filled ?? <span className="muted">—</span>}</td>
-                    <td>{dash(o.limit_price)}</td>
-                    <td>{dash(o.stop_price)}</td>
-                    <td>
+                    <td className={TD}>{dash(o.qty)}</td>
+                    <td className={TD}>
+                      {filled ?? <span className="text-muted">—</span>}
+                    </td>
+                    <td className={TD}>{dash(o.limit_price)}</td>
+                    <td className={TD}>{dash(o.stop_price)}</td>
+                    <td className={TD}>
                       {o.time_in_force ? (
                         enumTail(o.time_in_force).toUpperCase()
                       ) : (
-                        <span className="muted">—</span>
+                        <span className="text-muted">—</span>
                       )}
                     </td>
-                    <td>{val != null ? money(val) : <span className="muted">—</span>}</td>
-                    <td>{o.status}</td>
-                    <td className="muted">
+                    <td className={TD}>
+                      {val != null ? money(val) : <span className="text-muted">—</span>}
+                    </td>
+                    <td className={TD}>{o.status}</td>
+                    <td className={`${TD} text-muted`}>
                       {o.submitted_at
                         ? new Date(o.submitted_at * 1000).toLocaleString()
                         : "—"}
                     </td>
-                    <td>
+                    <td className={`${TD} text-center`}>
                       {live(o) && (
-                        <span className="order-actions">
+                        <span className="inline-flex items-center gap-2">
                           <ReplaceRow order={o} />
                           <button
                             className="btn btn-mini btn-danger"
