@@ -44,6 +44,11 @@ export default function OrderTicket({ symbol, onSymbolChange }: Props) {
   const [stopPrice, setStopPrice] = useState<number | undefined>();
   const [trailPct, setTrailPct] = useState<number | undefined>();
   const [tif, setTif] = useState<TIF>("day");
+  const [extHours, setExtHours] = useState(false);
+  // Alpaca only accepts extended-hours orders that are limit + day TIF;
+  // anything else is rejected upstream, so gate the toggle to that combo.
+  const extHoursEligible = type === "limit" && tif === "day";
+  const extHoursOn = extHoursEligible && extHours;
 
   // Stay in sync with the symbol selected elsewhere (watchlist / search).
   const [sym, setSym] = useState(symbol);
@@ -77,6 +82,7 @@ export default function OrderTicket({ symbol, onSymbolChange }: Props) {
       ? { stop_price: stopPrice }
       : {}),
     ...(type === "trailing_stop" ? { trail_percent: trailPct } : {}),
+    ...(extHoursOn ? { extended_hours: true } : {}),
   };
   const clientError = validate(form, asset);
   // Non-blocking: selling a non-shortable name is fine if it closes a
@@ -95,6 +101,7 @@ export default function OrderTicket({ symbol, onSymbolChange }: Props) {
           (limitPrice ? ` @ ${limitPrice}` : "") +
           (stopPrice ? ` stop ${stopPrice}` : "") +
           (trailPct ? ` trail ${trailPct}%` : "") +
+          (extHoursOn ? ` · ext-hours` : "") +
           `\n\nPaper account. Submit this order?`,
       )
     )
@@ -225,6 +232,22 @@ export default function OrderTicket({ symbol, onSymbolChange }: Props) {
               </option>
             ))}
           </select>
+        </label>
+
+        <label
+          className="field"
+          style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+        >
+          <input
+            type="checkbox"
+            checked={extHoursOn}
+            disabled={!extHoursEligible}
+            onChange={(e) => setExtHours(e.target.checked)}
+          />
+          <span className="label">
+            Extended hours
+            {!extHoursEligible && " — limit + day only"}
+          </span>
         </label>
 
         <button
