@@ -13,6 +13,7 @@ import type {
   Position,
   Quote,
   ReplaceOrderInput,
+  Snapshot,
   SubmitOrderInput,
 } from "./types";
 
@@ -93,6 +94,11 @@ export const getMostActives = (top = 10, by: "volume" | "trades" = "volume") =>
 export const getQuotes = (symbols: string[]) =>
   getJSON<{ quotes: Quote[] }>(
     `/api/quotes?symbols=${encodeURIComponent(symbols.join(","))}`,
+  );
+
+export const getSnapshots = (symbols: string[]) =>
+  getJSON<{ snapshots: Snapshot[] }>(
+    `/api/snapshots?symbols=${encodeURIComponent(symbols.join(","))}`,
   );
 
 export const getPositions = () =>

@@ -65,6 +65,18 @@ export const useNews = (symbol: string, limit = 10) =>
     refetchInterval: 60000,
   });
 
+// Single-call replacement for the watchlist's N parallel useBars(sym,
+// "1Day") mount burst. Snapshots are slower-moving than quotes (daily
+// bar + prev close stay stable), so 60s refetch is plenty.
+export const useSnapshots = (symbols: string[]) =>
+  useQuery({
+    queryKey: qk.snapshots(symbols),
+    queryFn: () => api.getSnapshots(symbols),
+    enabled: symbols.length > 0,
+    refetchInterval: 60000,
+    staleTime: 30000,
+  });
+
 export const useMovers = (top = 10) =>
   useQuery({
     queryKey: qk.movers(top),

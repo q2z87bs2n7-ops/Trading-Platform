@@ -1,4 +1,4 @@
-import { useBars } from "../data/hooks";
+import { useSnapshots } from "../data/hooks";
 import { useLiveQuotes } from "../data/useLiveQuotes";
 import type { Quote } from "../types";
 import ErrorBanner from "./ErrorBanner";
@@ -16,9 +16,17 @@ export default function Watchlist({
   onSelect,
   onRemove,
 }: Props) {
-  const { quotes, error } = useLiveQuotes(
-    Array.from(new Set([...symbols, selected].filter(Boolean))),
+  const allSymbols = Array.from(
+    new Set([...symbols, selected].filter(Boolean)),
   );
+  const { quotes, error } = useLiveQuotes(allSymbols);
+  // One round-trip for prev-close across all rows (was N parallel
+  // useBars(sym,"1Day") — closes the BACKLOG "Watchlist day-delta" item).
+  const { data: snapData } = useSnapshots(allSymbols);
+  const prevCloseBySymbol: Record<string, number | null> = {};
+  for (const s of snapData?.snapshots ?? []) {
+    prevCloseBySymbol[s.symbol] = s.prev_close;
+  }
 
   return (
     <div className="bg-panel border border-border rounded-lg p-3">
@@ -36,6 +44,7 @@ export default function Watchlist({
           key={sym}
           sym={sym}
           quote={quotes[sym]}
+          prevClose={prevCloseBySymbol[sym] ?? null}
           selected={sym === selected}
           onSelect={() => onSelect(sym)}
           onRemove={() => onRemove(sym)}
@@ -45,31 +54,24 @@ export default function Watchlist({
   );
 }
 
-// Per-row component so each symbol gets its own useBars subscription for
-// day-delta. 1Day bars are cached indefinitely by React Query (no
-// refetchInterval on useBars), so this is N one-time fetches on watchlist
-// mount — not N-per-poll.
 function WatchlistRow({
   sym,
   quote,
+  prevClose,
   selected,
   onSelect,
   onRemove,
 }: {
   sym: string;
   quote: Quote | undefined;
+  prevClose: number | null;
   selected: boolean;
   onSelect: () => void;
   onRemove: () => void;
 }) {
-  const { data: dailyBars } = useBars(sym, "1Day");
-  const prevClose =
-    dailyBars?.bars && dailyBars.bars.length >= 2
-      ? dailyBars.bars[dailyBars.bars.length - 2].close
-      : undefined;
   const lastPrice = quote?.mid;
   const dayPct =
-    lastPrice != null && prevClose != null
+    lastPrice != null && prevClose != null && prevClose > 0
       ? (lastPrice - prevClose) / prevClose
       : null;
   const dayUp = dayPct !== null && dayPct >= 0;

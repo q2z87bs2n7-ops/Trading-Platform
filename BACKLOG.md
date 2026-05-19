@@ -17,12 +17,6 @@
   `usePortfolioHistory`, `useAsset`) are now consumed directly by
   `TopBar.tsx` and `PriceChart.tsx`. Delete the five files once the
   UI sprint is confirmed sticky.
-- **Watchlist day-delta data path** — UI-08 fires N parallel
-  `useBars(sym,"1Day")` requests on watchlist mount, one per row.
-  Works (1Day bars cache indefinitely so it's a one-time burst) but
-  a `/api/quotes` extension that returns daily-open alongside
-  bid/ask/mid would collapse N calls to 1. Backend change deferred
-  per the playground "no backend changes" rule.
 
 ## TradingView mode
 

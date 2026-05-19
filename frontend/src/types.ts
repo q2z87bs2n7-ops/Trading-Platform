@@ -123,6 +123,18 @@ export interface Asset {
   fractionable: boolean;
 }
 
+export interface Snapshot {
+  symbol: string;
+  prev_close: number | null;
+  day_open: number | null;
+  day_high: number | null;
+  day_low: number | null;
+  day_close: number | null;
+  day_volume: number | null;
+  last_price: number | null;
+  last_time: number | null;
+}
+
 export interface Mover {
   symbol: string;
   price: number;

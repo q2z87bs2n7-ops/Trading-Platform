@@ -19,6 +19,8 @@ export const qk = {
   orders: (status: string, limit: number) =>
     ["orders", status, limit] as const,
   quotes: ["quotes"] as const,
+  snapshots: (symbols: string[]) =>
+    ["snapshots", symbols.join(",")] as const,
   clock: ["clock"] as const,
   activities: (limit: number) => ["activities", limit] as const,
   bars: (symbol: string, timeframe: string) =>

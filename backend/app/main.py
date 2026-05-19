@@ -190,6 +190,18 @@ def quotes(symbols: str = Query("")) -> dict:
     return {"quotes": alpaca.get_latest_quotes(syms)}
 
 
+@app.get("/api/snapshots", dependencies=[Depends(require_configured)])
+def snapshots(symbols: str = Query("")) -> dict:
+    """One-call snapshot per symbol: prev close + day OHLC + last price.
+
+    Replaces the watchlist's N parallel ``/api/bars?timeframe=1Day`` mount
+    burst with a single round-trip."""
+    syms = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+    if not syms:
+        syms = get_settings().symbols
+    return {"snapshots": alpaca.get_snapshots(syms)}
+
+
 @app.get(
     "/api/assets",
     dependencies=[Depends(require_configured)],

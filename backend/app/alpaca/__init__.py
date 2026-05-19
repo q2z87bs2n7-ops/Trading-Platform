@@ -18,7 +18,7 @@ from .client import (
     timeframe_from_str,
     trading_client,
 )
-from .market_data import get_bars, get_latest_quotes
+from .market_data import get_bars, get_latest_quotes, get_snapshots
 from .news import get_news
 from .screener import get_most_actives, get_movers
 from .watchlist import (
@@ -59,6 +59,7 @@ __all__ = [
     "get_portfolio_history",
     "get_position",
     "get_positions",
+    "get_snapshots",
     "get_watchlist",
     "remove_from_watchlist",
     "replace_order",
