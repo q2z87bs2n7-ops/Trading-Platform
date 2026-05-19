@@ -116,7 +116,7 @@ export function createDatafeed() {
 
     subscribeBars(
       symbolInfo: { name: string },
-      resolution: string,
+      _resolution: string,
       onTick: (bar: object) => void,
       subscriberUID: string,
     ) {
@@ -144,15 +144,16 @@ export function createDatafeed() {
       };
 
       // Store handle so unsubscribeBars can close it
-      (window as Record<string, unknown>)[`__tv_es_${subscriberUID}`] = es;
+      (window as unknown as Record<string, unknown>)[`__tv_es_${subscriberUID}`] = es;
     },
 
     unsubscribeBars(subscriberUID: string) {
       const key = `__tv_es_${subscriberUID}`;
-      const es = (window as Record<string, unknown>)[key] as EventSource | undefined;
+      const store = window as unknown as Record<string, unknown>;
+      const es = store[key] as EventSource | undefined;
       if (es) {
         es.close();
-        delete (window as Record<string, unknown>)[key];
+        delete store[key];
       }
     },
   };

@@ -9,11 +9,13 @@ import { createDatafeed } from "../lib/tv-datafeed";
 import { createBroker } from "../lib/tv-broker";
 
 // TradingView widget is injected by charting_library.standalone.js in index.html
+interface TVWidgetInstance {
+  onChartReady: (cb: () => void) => void;
+  remove: () => void;
+  activeChart: () => { setSymbol: (s: string) => void };
+}
 declare const TradingView: {
-  widget: new (config: Record<string, unknown>) => {
-    onChartReady: (cb: () => void) => void;
-    remove: () => void;
-  };
+  widget: new (config: Record<string, unknown>) => TVWidgetInstance;
 };
 
 interface Props {
@@ -22,7 +24,7 @@ interface Props {
 
 export default function TVPlatform({ symbol }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const widgetRef = useRef<ReturnType<typeof TradingView.widget> | null>(null);
+  const widgetRef = useRef<TVWidgetInstance | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -101,9 +103,7 @@ export default function TVPlatform({ symbol }: Props) {
     if (!widgetRef.current || !symbol) return;
     // TV widget exposes activeChart() after onChartReady; safe to call after mount
     try {
-      (widgetRef.current as unknown as {
-        activeChart: () => { setSymbol: (s: string) => void };
-      }).activeChart().setSymbol(symbol);
+      widgetRef.current.activeChart().setSymbol(symbol);
     } catch {
       // widget not ready yet — symbol passed as default above, ignore
     }
