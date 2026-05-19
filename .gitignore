@@ -15,6 +15,10 @@ frontend/dist/
 *.tsbuildinfo
 npm-debug.log*
 
+# TradingView Charting Library — licensed, not for public commit
+frontend/public/charting_library/
+frontend/public/datafeeds/
+
 # Editor / OS
 .DS_Store
 .vscode/
