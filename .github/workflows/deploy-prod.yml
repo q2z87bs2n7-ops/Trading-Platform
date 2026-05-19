@@ -21,7 +21,12 @@ jobs:
         with:
           node-version: 22
       - name: Install Vercel CLI
-        run: npm install -g vercel@latest
+        # Pinned, not @latest: a broken vercel@latest release crashed at
+        # "Loading teams…" with `TypeError: Cannot read properties of
+        # undefined (reading 'value')`, failing every prod deploy before
+        # anything reached Vercel. 53.3.2 is the last version known to
+        # deploy this project. Bump deliberately, never float.
+        run: npm install -g vercel@53.3.2
 
       - name: Deploy to production
         run: |
