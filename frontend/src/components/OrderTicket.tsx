@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
-import { useSubmitOrder } from "../data/hooks";
-import type { SubmitOrderInput } from "../types";
+import { useAsset, useSubmitOrder } from "../data/hooks";
+import type { Asset, SubmitOrderInput } from "../types";
 
 type OType = SubmitOrderInput["type"];
 type TIF = NonNullable<SubmitOrderInput["time_in_force"]>;
@@ -14,9 +14,11 @@ interface Props {
   onSymbolChange: (s: string) => void;
 }
 
-// Client-side mirror of backend/app/schemas.py SubmitOrderRequest._check.
-// The backend re-validates; this just gives instant feedback.
-function validate(f: SubmitOrderInput): string | null {
+// Client-side mirror of backend/app/schemas.py SubmitOrderRequest._check,
+// plus asset-capability gating (Alpaca rejects these too, but blocking
+// pre-submit saves a round trip and a confusing 502). `asset` is only
+// passed once it has resolved for the symbol being ordered.
+function validate(f: SubmitOrderInput, asset?: Asset): string | null {
   if (!f.symbol.trim()) return "symbol is required";
   if (!f.qty || f.qty <= 0) return "qty must be > 0";
   if ((f.type === "limit" || f.type === "stop_limit") && !f.limit_price)
@@ -25,6 +27,11 @@ function validate(f: SubmitOrderInput): string | null {
     return `${f.type} order requires a stop price`;
   if (f.type === "trailing_stop" && !f.trail_percent)
     return "trailing_stop requires a trail %";
+  if (asset) {
+    if (!asset.tradable) return `${asset.symbol} is not tradable`;
+    if (!asset.fractionable && !Number.isInteger(f.qty))
+      return `${asset.symbol} trades in whole shares only`;
+  }
   return null;
 }
 
@@ -42,6 +49,21 @@ export default function OrderTicket({ symbol, onSymbolChange }: Props) {
   const [sym, setSym] = useState(symbol);
   useEffect(() => setSym(symbol), [symbol]);
 
+  // Debounce the symbol used for the asset lookup so typing "AAPL" is one
+  // request, not four (intermediate symbols 404 -> noisy 502s otherwise).
+  const [assetSym, setAssetSym] = useState(symbol);
+  useEffect(() => {
+    const t = setTimeout(() => setAssetSym(sym.trim().toUpperCase()), 400);
+    return () => clearTimeout(t);
+  }, [sym]);
+  const { data: assetData } = useAsset(assetSym);
+  // Only gate on the asset once it matches the symbol in the form, so a
+  // stale result from the previous symbol never blocks a new one.
+  const asset =
+    assetData && assetData.symbol === sym.trim().toUpperCase()
+      ? assetData
+      : undefined;
+
   const form: SubmitOrderInput = {
     symbol: sym,
     side,
@@ -56,7 +78,13 @@ export default function OrderTicket({ symbol, onSymbolChange }: Props) {
       : {}),
     ...(type === "trailing_stop" ? { trail_percent: trailPct } : {}),
   };
-  const clientError = validate(form);
+  const clientError = validate(form, asset);
+  // Non-blocking: selling a non-shortable name is fine if it closes a
+  // long, so warn rather than disable.
+  const shortNote =
+    side === "sell" && asset && !asset.shortable
+      ? `${asset.symbol} is not shortable — sell only closes an existing long`
+      : null;
 
   const onSubmit = () => {
     if (clientError) return;
@@ -93,6 +121,15 @@ export default function OrderTicket({ symbol, onSymbolChange }: Props) {
             }}
           />
         </label>
+
+        {asset && (
+          <div className="tag">
+            {asset.name} · {asset.exchange}
+            {!asset.tradable && " · not tradable"}
+            {asset.tradable && asset.fractionable && " · fractional ok"}
+            {asset.tradable && !asset.shortable && " · no short"}
+          </div>
+        )}
 
         <div className="side-toggle">
           <button
@@ -202,6 +239,7 @@ export default function OrderTicket({ symbol, onSymbolChange }: Props) {
         </button>
 
         {clientError && <div className="tag">{clientError}</div>}
+        {!clientError && shortNote && <div className="tag">{shortNote}</div>}
         {submit.error && (
           <div className="error">{(submit.error as Error).message}</div>
         )}

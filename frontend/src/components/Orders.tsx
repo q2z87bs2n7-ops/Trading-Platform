@@ -20,6 +20,33 @@ const TERMINAL = new Set([
 ]);
 const live = (o: Order) => !TERMINAL.has(o.status.toLowerCase());
 
+const STATUSES = ["all", "open", "closed"] as const;
+type StatusFilter = (typeof STATUSES)[number];
+
+// Alpaca enum strings can arrive as either "gtc" or "TimeInForce.GTC";
+// keep only the tail and normalise case.
+const enumTail = (s: string) => s.split(".").pop()!.toLowerCase();
+
+// Second line: fill progress, prices, TIF, non-simple order class and the
+// submit time. All fields the backend already returns; only `status` and
+// the main line were shown before.
+function detail(o: Order): string {
+  const parts: string[] = [];
+  if (o.filled_qty > 0)
+    parts.push(
+      `filled ${o.filled_qty}${o.qty ? `/${o.qty}` : ""}` +
+        (o.filled_avg_price != null ? ` @ ${o.filled_avg_price}` : ""),
+    );
+  if (o.limit_price != null) parts.push(`lmt ${o.limit_price}`);
+  if (o.stop_price != null) parts.push(`stp ${o.stop_price}`);
+  if (o.time_in_force) parts.push(enumTail(o.time_in_force).toUpperCase());
+  if (o.order_class && !/simple/i.test(o.order_class))
+    parts.push(enumTail(o.order_class));
+  if (o.submitted_at)
+    parts.push(new Date(o.submitted_at * 1000).toLocaleString());
+  return parts.join(" · ");
+}
+
 function ReplaceRow({ order }: { order: Order }) {
   const replace = useReplaceOrder();
   const [open, setOpen] = useState(false);
@@ -76,7 +103,8 @@ function ReplaceRow({ order }: { order: Order }) {
 }
 
 export default function Orders() {
-  const { data, error, isPending } = useOrders("all", 25);
+  const [status, setStatus] = useState<StatusFilter>("all");
+  const { data, error, isPending } = useOrders(status, 25);
   const cancel = useCancelOrder();
   const cancelAll = useCancelAllOrders();
   const rows = data?.orders;
@@ -86,6 +114,17 @@ export default function Orders() {
     <div className="panel">
       <h2>
         Recent Orders
+        <select
+          className="panel-action"
+          value={status}
+          onChange={(e) => setStatus(e.target.value as StatusFilter)}
+        >
+          {STATUSES.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
         {hasLive && (
           <button
             className="btn btn-mini btn-danger panel-action"
@@ -110,8 +149,13 @@ export default function Orders() {
       {rows &&
         rows.map((o) => (
           <div className="row" key={o.id}>
-            <span className="label">
-              {o.side.toUpperCase()} {o.qty ?? ""} {o.symbol} · {o.type}
+            <span
+              style={{ display: "flex", flexDirection: "column", gap: 2 }}
+            >
+              <span className="label">
+                {o.side.toUpperCase()} {o.qty ?? ""} {o.symbol} · {o.type}
+              </span>
+              {detail(o) && <span className="tag">{detail(o)}</span>}
             </span>
             <span className="order-actions">
               <span className="tag">{o.status}</span>

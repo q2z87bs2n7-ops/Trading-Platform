@@ -71,6 +71,18 @@ export const useAssetSearch = (search: string) =>
     enabled: search.trim().length > 0,
   });
 
+// Single-asset metadata (tradable/fractionable/shortable). Effectively
+// static, so cache hard and skip auto-refetch; OrderTicket debounces the
+// symbol it passes in to avoid a lookup per keystroke.
+export const useAsset = (symbol: string) =>
+  useQuery({
+    queryKey: qk.asset(symbol),
+    queryFn: () => api.getAsset(symbol),
+    enabled: symbol.trim().length > 0,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
 export const useWatchlist = () =>
   useQuery({
     queryKey: qk.watchlist,
