@@ -91,6 +91,15 @@ export const useAsset = (symbol: string) =>
     retry: false,
   });
 
+// Market calendar for a fixed [start, end] window. Sessions only change
+// with holiday schedules, so cache hard and skip auto-refetch.
+export const useCalendar = (start: string, end: string) =>
+  useQuery({
+    queryKey: qk.calendar(start, end),
+    queryFn: () => api.getCalendar(start, end),
+    staleTime: 60 * 60_000,
+  });
+
 export const useWatchlist = () =>
   useQuery({
     queryKey: qk.watchlist,

@@ -16,6 +16,7 @@ import PortfolioSummary from "./components/PortfolioSummary";
 import Orders from "./components/Orders";
 import Activities from "./components/Activities";
 import MarketClock from "./components/MarketClock";
+import Calendar from "./components/Calendar";
 import News from "./components/News";
 
 export default function App() {
@@ -43,6 +44,7 @@ export default function App() {
       {/* Context strip: market + account status, glanceable. */}
       <div className="panels-extra">
         <MarketClock />
+        <Calendar />
         <AccountSummary />
         <PortfolioSummary />
       </div>
