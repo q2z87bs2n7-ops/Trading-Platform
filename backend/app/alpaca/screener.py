@@ -21,6 +21,10 @@ def _screener_client() -> ScreenerClient:
 
 
 def get_movers(top: int) -> dict:
+    # Alpaca returns percent_change in percent units (e.g. 135.05 for
+    # +135.05%); the rest of the codebase carries percentages as ratios
+    # and multiplies by 100 at render. Normalise here so consumers stay
+    # uniform.
     req = MarketMoversRequest(top=top, market_type=MarketType.STOCKS)
     res = _screener_client().get_market_movers(req)
     return {
@@ -29,7 +33,7 @@ def get_movers(top: int) -> dict:
                 "symbol": m.symbol,
                 "price": m.price,
                 "change": m.change,
-                "percent_change": m.percent_change,
+                "percent_change": m.percent_change / 100,
             }
             for m in res.gainers
         ],
@@ -38,7 +42,7 @@ def get_movers(top: int) -> dict:
                 "symbol": m.symbol,
                 "price": m.price,
                 "change": m.change,
-                "percent_change": m.percent_change,
+                "percent_change": m.percent_change / 100,
             }
             for m in res.losers
         ],
