@@ -38,29 +38,6 @@ function orderValue(o: Order): number | null {
   return px != null && o.qty != null ? px * o.qty : null;
 }
 
-// Second line: fill progress, prices, TIF, non-simple order class and the
-// submit time. All fields the backend already returns; only `status` and
-// the main line were shown before.
-function detail(o: Order): string {
-  const parts: string[] = [];
-  if (o.filled_qty > 0)
-    parts.push(
-      `filled ${o.filled_qty}${o.qty ? `/${o.qty}` : ""}` +
-        (o.qty ? ` (${Math.round((o.filled_qty / o.qty) * 100)}%)` : "") +
-        (o.filled_avg_price != null ? ` @ ${o.filled_avg_price}` : ""),
-    );
-  const val = orderValue(o);
-  if (val != null) parts.push(`val ${money(val)}`);
-  if (o.limit_price != null) parts.push(`lmt ${o.limit_price}`);
-  if (o.stop_price != null) parts.push(`stp ${o.stop_price}`);
-  if (o.time_in_force) parts.push(enumTail(o.time_in_force).toUpperCase());
-  if (o.order_class && !/simple/i.test(o.order_class))
-    parts.push(enumTail(o.order_class));
-  if (o.submitted_at)
-    parts.push(new Date(o.submitted_at * 1000).toLocaleString());
-  return parts.join(" · ");
-}
-
 function ReplaceRow({ order }: { order: Order }) {
   const replace = useReplaceOrder();
   const [open, setOpen] = useState(false);
@@ -116,6 +93,9 @@ function ReplaceRow({ order }: { order: Order }) {
   );
 }
 
+const dash = (s: string | number | null | undefined) =>
+  s == null || s === "" ? <span className="muted">—</span> : s;
+
 export default function Orders() {
   const [status, setStatus] = useState<StatusFilter>("all");
   const { data, error, isPending } = useOrders(status, 25);
@@ -160,35 +140,101 @@ export default function Orders() {
           {((cancel.error || cancelAll.error) as Error).message}
         </div>
       )}
-      {rows &&
-        rows.map((o) => (
-          <div className="row" key={o.id}>
-            <span
-              style={{ display: "flex", flexDirection: "column", gap: 2 }}
-            >
-              <span className="label">
-                {o.side.toUpperCase()} {o.qty ?? ""} {o.symbol} · {o.type}
-              </span>
-              {detail(o) && <span className="tag">{detail(o)}</span>}
-            </span>
-            <span className="order-actions">
-              <span className="tag">{o.status}</span>
-              {live(o) && (
-                <>
-                  <ReplaceRow order={o} />
-                  <button
-                    className="btn btn-mini btn-danger"
-                    type="button"
-                    disabled={cancel.isPending}
-                    onClick={() => cancel.mutate(o.id)}
-                  >
-                    ✕
-                  </button>
-                </>
-              )}
-            </span>
-          </div>
-        ))}
+      {rows && rows.length > 0 && (
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>Side</th>
+                <th>Type</th>
+                <th>Qty</th>
+                <th>Filled</th>
+                <th>Limit</th>
+                <th>Stop</th>
+                <th>TIF</th>
+                <th>Value</th>
+                <th>Status</th>
+                <th>Submitted</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((o) => {
+                const val = orderValue(o);
+                const filled =
+                  o.filled_qty > 0
+                    ? `${o.filled_qty}${o.qty ? `/${o.qty}` : ""}` +
+                      (o.qty
+                        ? ` (${Math.round((o.filled_qty / o.qty) * 100)}%)`
+                        : "") +
+                      (o.filled_avg_price != null
+                        ? ` @ ${o.filled_avg_price}`
+                        : "")
+                    : null;
+                const cls =
+                  o.order_class && !/simple/i.test(o.order_class)
+                    ? ` (${enumTail(o.order_class)})`
+                    : "";
+                return (
+                  <tr key={o.id}>
+                    <td>
+                      <span className="sym">{o.symbol}</span>
+                    </td>
+                    <td
+                      style={{
+                        color:
+                          o.side.toLowerCase() === "buy"
+                            ? "var(--green)"
+                            : "var(--red)",
+                      }}
+                    >
+                      {o.side.toUpperCase()}
+                    </td>
+                    <td>
+                      {o.type}
+                      {cls && <span className="muted">{cls}</span>}
+                    </td>
+                    <td>{dash(o.qty)}</td>
+                    <td>{filled ?? <span className="muted">—</span>}</td>
+                    <td>{dash(o.limit_price)}</td>
+                    <td>{dash(o.stop_price)}</td>
+                    <td>
+                      {o.time_in_force ? (
+                        enumTail(o.time_in_force).toUpperCase()
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
+                    <td>{val != null ? money(val) : <span className="muted">—</span>}</td>
+                    <td>{o.status}</td>
+                    <td className="muted">
+                      {o.submitted_at
+                        ? new Date(o.submitted_at * 1000).toLocaleString()
+                        : "—"}
+                    </td>
+                    <td>
+                      {live(o) && (
+                        <span className="order-actions">
+                          <ReplaceRow order={o} />
+                          <button
+                            className="btn btn-mini btn-danger"
+                            type="button"
+                            disabled={cancel.isPending}
+                            onClick={() => cancel.mutate(o.id)}
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

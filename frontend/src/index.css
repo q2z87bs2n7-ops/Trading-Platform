@@ -240,3 +240,59 @@ select {
   float: right;
   margin-top: -2px;
 }
+
+/* Tabular blotter (Positions / Orders). Phase A styling on the existing
+   tokens; Phase B re-does this in Tailwind. Wrapper scrolls so a dense
+   table survives the narrow panels-extra columns. */
+.table-wrap {
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.data-table th {
+  text-align: right;
+  font-weight: 500;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.data-table td {
+  text-align: right;
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  white-space: nowrap;
+}
+
+.data-table th:first-child,
+.data-table td:first-child {
+  text-align: left;
+}
+
+.data-table th:last-child,
+.data-table td:last-child {
+  text-align: center;
+}
+
+.data-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.data-table .sym {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.data-table .muted {
+  color: var(--muted);
+}
