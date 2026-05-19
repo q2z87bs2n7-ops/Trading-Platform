@@ -125,6 +125,11 @@ export function createBroker(onUpdate: () => void) {
       };
     },
 
+    // --- Required by TV: which account is currently active ---
+    currentAccount() {
+      return "paper";
+    },
+
     // --- Required by TV: list of accounts (single paper account) ---
     async accountsMetainfo() {
       return [{ id: "paper", name: "Paper Account", currency: "USD" }];
