@@ -16,11 +16,12 @@ function loadInitialTab(symbol: string): Tab {
 // Cheap change-stamp for unread tracking: data length + first-item id.
 // React Query gives a new reference per fetch, but length + first id is
 // stable across re-renders that didn't actually receive new content.
-function stamp(
-  rows: Array<{ id?: string | number | null }> | undefined,
-): string | null {
+// `unknown` row type covers both NewsArticle (id: number) and Activity
+// (Record<string, unknown> — id field is unknown statically).
+function stamp(rows: ReadonlyArray<unknown> | undefined): string | null {
   if (!rows) return null;
-  return `${rows.length}:${rows[0]?.id ?? ""}`;
+  const first = rows[0] as { id?: unknown } | undefined;
+  return `${rows.length}:${String(first?.id ?? "")}`;
 }
 
 export default function BottomDrawer({ symbol }: { symbol: string }) {
