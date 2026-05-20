@@ -98,7 +98,7 @@ export default function TopBar() {
       : `Cal · ${exceptions.length} exception${exceptions.length === 1 ? "" : "s"}`;
 
   return (
-    <div className="flex items-center gap-6 text-[13px] flex-wrap">
+    <div className="flex items-center gap-6 text-[13px] flex-wrap text-text">
       {/* Market status + next session edge */}
       {clk && (
         <div className="flex items-center gap-2">
