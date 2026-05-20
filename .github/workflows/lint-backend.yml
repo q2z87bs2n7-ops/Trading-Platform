@@ -1,0 +1,38 @@
+name: Lint backend deps
+
+# Catches the trap that broke prod once already: this repo carries two
+# requirements.txt files (root for Vercel's /api function, backend/ for
+# local dev), and adding a dependency to only one of them silently breaks
+# Vercel at import time. uvicorn is the only legitimate divergence — it's
+# in backend only because Vercel provides its own ASGI runtime.
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  check-requirements-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: requirements.txt sync check
+        run: |
+          set -euo pipefail
+          normalize() {
+            grep -v '^[[:space:]]*#' "$1" \
+              | grep -v '^[[:space:]]*$' \
+              | grep -v '^uvicorn' \
+              | sort
+          }
+          ROOT=$(normalize requirements.txt)
+          BACKEND=$(normalize backend/requirements.txt)
+          if [ "$ROOT" != "$BACKEND" ]; then
+            echo "ERROR: root and backend/requirements.txt have drifted"
+            echo "(excluding uvicorn, which is backend-only by design)."
+            echo "----- diff -----"
+            diff <(echo "$ROOT") <(echo "$BACKEND") || true
+            exit 1
+          fi
+          echo "ok: requirements files are in sync"

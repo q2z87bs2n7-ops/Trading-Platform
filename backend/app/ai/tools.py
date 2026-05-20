@@ -63,7 +63,7 @@ TOOLS: list[dict[str, Any]] = [
                 "symbol": {"type": "string", "description": "Ticker, e.g. AAPL."},
                 "timeframe": {
                     "type": "string",
-                    "enum": ["1Min", "5Min", "15Min", "1Hour", "1Day", "1Week"],
+                    "enum": ["1Min", "5Min", "15Min", "1Hour", "1Day"],
                     "description": "Bar interval.",
                 },
                 "limit": {
