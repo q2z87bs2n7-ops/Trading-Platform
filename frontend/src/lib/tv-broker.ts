@@ -76,7 +76,9 @@ function toTVPosition(p: Record<string, unknown>) {
 }
 
 // Host is IBrokerConnectionAdapterHost — provides factory.createWatchedValue
-// for the summary fields TV expects to be reactive.
+// for the summary fields TV expects to be reactive, plus push-update
+// methods we must call when orders/positions/executions change. TV does
+// NOT re-poll orders()/positions() after the initial call.
 interface TVWatchedValue<T> {
   setValue(value: T, forceUpdate?: boolean): void;
 }
@@ -84,6 +86,9 @@ interface TVHost {
   factory: {
     createWatchedValue<T>(value?: T): TVWatchedValue<T>;
   };
+  orderUpdate(order: Record<string, unknown>): void;
+  positionUpdate(position: Record<string, unknown>): void;
+  executionUpdate(execution: Record<string, unknown>): void;
 }
 
 export function createBroker(host: TVHost, onUpdate: () => void) {
@@ -105,10 +110,29 @@ export function createBroker(host: TVHost, onUpdate: () => void) {
     }
   }
 
+  // Push the current orders/positions to TV. TV's panels only re-render
+  // when we call these host methods — they don't re-poll our broker.
+  async function pushOrdersAndPositions() {
+    try {
+      const data = await apiFetch("/api/orders?status=all");
+      for (const o of data.orders ?? []) {
+        host.orderUpdate(toTVOrder(o));
+      }
+    } catch { /* ignore */ }
+    try {
+      const data = await apiFetch("/api/positions");
+      for (const p of data.positions ?? []) {
+        host.positionUpdate(toTVPosition(p));
+      }
+    } catch { /* ignore */ }
+  }
+
   function startPolling() {
     refreshAccount();
+    pushOrdersAndPositions();
     pollTimer = setInterval(() => {
       refreshAccount();
+      pushOrdersAndPositions();
       onUpdate();
     }, 5000);
   }
@@ -247,12 +271,17 @@ export function createBroker(host: TVHost, onUpdate: () => void) {
         method: "POST",
         body: JSON.stringify(body),
       });
+      // Push immediately so the order/position tabs reflect the new
+      // state without waiting for the next 5s poll.
+      refreshAccount();
+      pushOrdersAndPositions();
       return { orderId: data.id };
     },
 
     // --- Cancel order ---
     async cancelOrder(orderId: string) {
       await apiFetch(`/api/orders/${orderId}`, { method: "DELETE" });
+      pushOrdersAndPositions();
       return {};
     },
 
@@ -261,6 +290,8 @@ export function createBroker(host: TVHost, onUpdate: () => void) {
       await apiFetch(`/api/positions/${encodeURIComponent(symbol)}`, {
         method: "DELETE",
       });
+      refreshAccount();
+      pushOrdersAndPositions();
       return {};
     },
 
