@@ -41,15 +41,16 @@ persisted watchlists, asset search, and real-time streaming.
 ## Architecture
 
 - **Frontend:** React 18 + TypeScript + Vite. Single-page (no router).
-  A header toggle switches between two platform modes (persisted to
+  A header toggle switches between three platform modes (persisted to
   `localStorage('platform_mode')`):
-  - **Our Platform (default):** `App.tsx` lays out three zones — a
-    glanceable status strip (`MarketClock`, `AccountSummary`,
-    `PortfolioSummary`), a pick/analyse/trade workspace (`AssetSearch`,
-    `Watchlist`, `PriceChart`, `OrderTicket`), and a review blotter
-    (`Positions`, `Orders`, `Activities`). Charts use TradingView
+  - **Discover (default):** `Tools.tsx` — indices ticker (Yahoo Finance
+    direct HTTP, 13 indices), holdings donut chart (daily % change),
+    top gainers/losers/most-active, market news (Yahoo Finance RSS).
+  - **Trading:** `App.tsx` — `TopBar` status strip, workspace
+    (`AssetSearch`, `Watchlist`, `PriceChart`, `OrderTicket`, `News`),
+    blotter (`Positions`, `Orders`, `Activities`). Charts use TradingView
     `lightweight-charts` (npm lib — data from our backend).
-  - **TradingView mode:** `TVPlatform.tsx` mounts the full TradingView
+  - **TradingView:** `TVPlatform.tsx` mounts the full TradingView
     Charting Library terminal (`frontend/public/charting_library/`,
     committed to repo — private repo only). Data and broker wired via
     `frontend/src/lib/tv-datafeed.ts` (→ `/api/bars`, `/api/stream`,
@@ -60,8 +61,13 @@ persisted watchlists, asset search, and real-time streaming.
 - **Backend:** FastAPI + `alpaca-py`. `backend/app/` is the real code;
   `api/index.py` is a thin shim that puts it on Vercel's import path.
   Endpoints: `/api/health`, `/api/config`, `/api/account`, `/api/bars`,
-  `/api/quotes`, `/api/stream`, `/api/orders`, `/api/positions`,
-  `/api/activities`, `/api/assets`, `/api/news`, `/api/calendar`.
+  `/api/quotes`, `/api/snapshots`, `/api/stream`, `/api/orders`,
+  `/api/positions`, `/api/activities`, `/api/assets`, `/api/news`,
+  `/api/calendar`, `/api/watchlist`, `/api/movers`, `/api/most-active`,
+  `/api/indices`, `/api/market-news`.
+  `/api/indices` and `/api/market-news` use direct Yahoo Finance HTTP
+  (`requests`, a transitive dep) — no yfinance, no C extensions, safe
+  on Vercel Python 3.14.
 - **Data feed:** IEX (free, real-time but ~2-3% of volume). `sip` needs a
   paid Alpaca plan; switch via `ALPACA_DATA_FEED` env — no code change.
 - **Frontend stack:** Tailwind CSS + headless (shadcn-style) component
@@ -108,8 +114,9 @@ persisted watchlists, asset search, and real-time streaming.
   auto-reconnect is deliberately disabled so failure → polling, not a
   silent reconnect loop.
 - Stream ticks are buffered and flushed at most every `STREAM_FLUSH_MS`
-  (500ms) in `Watchlist.tsx` to cap re-renders. Tune the constant, don't
-  remove the buffer.
+  (500ms) to cap re-renders. The buffer lives in two places — tune both,
+  remove neither: `frontend/src/data/useLiveQuotes.ts` (watchlist) and
+  `frontend/src/lib/tv-datafeed.ts` `subscribeQuotes` (TV order ticket).
 - `VITE_STREAM_BASE` is read at **build time** and must be set in **both**
   build paths or that frontend silently polls:
   - Vercel prod: Vercel project env var (Production).
@@ -164,6 +171,12 @@ places TV interface. Specifics that took several iterations to land:
   `getQuotes` / `subscribeQuotes` / `unsubscribeQuotes` and
   `supports_quotes: true` in `onReady`, the ticket aborts with
   "quotesSnapshot / formatter / spreadFormatter not received".
+- **`charting_library.standalone.js` loads async chunks.** The standalone
+  script is a loader — it kicks off further async chunk fetches before
+  `TradingView.widget` becomes callable. If TV mode is the persisted
+  default, `TVPlatform` mounts before those chunks resolve and the chart
+  stays blank. The fix: poll `typeof TradingView.widget === "function"`
+  at 100ms intervals before constructing the widget (see `TVPlatform.tsx`).
 
 ## Dev workflow
 
