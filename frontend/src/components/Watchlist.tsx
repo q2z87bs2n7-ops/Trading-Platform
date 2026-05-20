@@ -1,8 +1,12 @@
+import { useEffect, useState } from "react";
 import { useSnapshots } from "../data/hooks";
 import { useLiveQuotes } from "../data/useLiveQuotes";
 import type { Quote } from "../types";
 import AssetSearch from "./AssetSearch";
 import ErrorBanner from "./ErrorBanner";
+
+const PAGE_SIZE = 5;
+const AUTO_ROTATE_MS = 20_000;
 
 interface Props {
   symbols: string[];
@@ -31,6 +35,26 @@ export default function Watchlist({
     prevCloseBySymbol[s.symbol] = s.prev_close;
   }
 
+  const totalPages = Math.max(1, Math.ceil(symbols.length / PAGE_SIZE));
+  const [page, setPage] = useState(0);
+
+  // Clamp page when symbols list shrinks
+  const clampedPage = Math.min(page, totalPages - 1);
+
+  // Auto-rotate pages every 20 seconds when there's more than one page
+  useEffect(() => {
+    if (totalPages <= 1) return;
+    const id = setInterval(() => {
+      setPage((p) => (p + 1) % totalPages);
+    }, AUTO_ROTATE_MS);
+    return () => clearInterval(id);
+  }, [totalPages]);
+
+  const pageSymbols = symbols.slice(
+    clampedPage * PAGE_SIZE,
+    clampedPage * PAGE_SIZE + PAGE_SIZE,
+  );
+
   return (
     <div className="bg-panel border border-border rounded-lg p-3">
       <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-2">
@@ -44,7 +68,7 @@ export default function Watchlist({
         </div>
       )}
       <div className="mt-1">
-        {symbols.map((sym) => (
+        {pageSymbols.map((sym) => (
           <WatchlistRow
             key={sym}
             sym={sym}
@@ -56,6 +80,31 @@ export default function Watchlist({
           />
         ))}
       </div>
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
+          <button
+            type="button"
+            className="watch-remove"
+            style={{ fontSize: 14, opacity: clampedPage === 0 ? 0.3 : 0.7 }}
+            disabled={clampedPage === 0}
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+          >
+            ‹
+          </button>
+          <span className="text-[11px] text-muted tabular-nums">
+            {clampedPage + 1} / {totalPages}
+          </span>
+          <button
+            type="button"
+            className="watch-remove"
+            style={{ fontSize: 14, opacity: clampedPage === totalPages - 1 ? 0.3 : 0.7 }}
+            disabled={clampedPage === totalPages - 1}
+            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+          >
+            ›
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -14,7 +14,6 @@ import Activities from "./components/Activities";
 import TopBar from "./components/TopBar";
 import Tools from "./components/Tools";
 import TVPlatform from "./components/TVPlatform";
-import News from "./components/News";
 
 type PlatformMode = "trading" | "tv" | "discover";
 
@@ -91,11 +90,12 @@ export default function App() {
       {/* Trading UI — shown when Trading mode is active */}
       {mode === "trading" && (
         <>
-          {/* Workspace: watchlist + per-symbol news on the left, chart in
-             the middle, order ticket on the right. Each panel sizes to its
-             own content; the grid no longer stretches the chart/news to
-             fill, keeping the workspace compact. */}
+          {/* Workspace: chart on the left (1fr), right sidebar with
+             watchlist on top and order ticket below. */}
           <div className="grid items-start">
+            <div className="min-w-0">
+              <PriceChart symbol={selected} />
+            </div>
             <div className="flex flex-col gap-4 min-w-0">
               <Watchlist
                 symbols={symbols}
@@ -104,12 +104,6 @@ export default function App() {
                 onAdd={(s) => addToWatchlist.mutate(s)}
                 onRemove={(s) => removeFromWatchlist.mutate(s)}
               />
-              <News symbol={selected} />
-            </div>
-            <div className="min-w-0">
-              <PriceChart symbol={selected} />
-            </div>
-            <div className="min-w-0">
               <OrderTicket symbol={selected} onSymbolChange={setSelected} />
             </div>
           </div>

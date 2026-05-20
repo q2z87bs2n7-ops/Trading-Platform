@@ -345,9 +345,9 @@ export default function Tools({
         ))}
       </Panel>
 
-      {/* Row 3 cols 2–3 — Market News */}
+      {/* Row 3 cols 2–3 — Market News (with instrument news toggle) */}
       <div style={{ gridColumn: "2 / 4" }}>
-        <MarketNews />
+        <MarketNews symbol={selected || undefined} />
       </div>
 
     </div>
