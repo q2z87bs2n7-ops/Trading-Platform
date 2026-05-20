@@ -5,7 +5,6 @@ import {
   useRemoveFromWatchlist,
   useWatchlist,
 } from "./data/hooks";
-import AssetSearch from "./components/AssetSearch";
 import OrderTicket from "./components/OrderTicket";
 import Watchlist from "./components/Watchlist";
 import PriceChart from "./components/PriceChart";
@@ -92,26 +91,27 @@ export default function App() {
       {/* Trading UI — shown when Trading mode is active */}
       {mode === "trading" && (
         <>
-          {/* Workspace: watchlist left, chart centre, order ticket right. */}
+          {/* Workspace: watchlist+news left, chart centre, order ticket right.
+             Each column is a flex-col so the chart and news can grow to fill
+             the row height set by the tallest sibling (no dead space). */}
           <div className="grid">
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <AssetSearch
-                onSelect={setSelected}
-                onAdd={(s) => addToWatchlist.mutate(s)}
-              />
+            <div className="flex flex-col gap-4 min-w-0">
               <Watchlist
                 symbols={symbols}
                 selected={selected}
                 onSelect={setSelected}
+                onAdd={(s) => addToWatchlist.mutate(s)}
                 onRemove={(s) => removeFromWatchlist.mutate(s)}
               />
+              <div className="flex-1 min-h-0">
+                <News symbol={selected} />
+              </div>
             </div>
-            <div>
+            <div className="min-w-0">
               <PriceChart symbol={selected} />
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div className="min-w-0">
               <OrderTicket symbol={selected} onSymbolChange={setSelected} />
-              <News symbol={selected} />
             </div>
           </div>
 
@@ -121,8 +121,7 @@ export default function App() {
             <Orders />
           </div>
 
-          {/* Account activity feed under the blotter. News was moved
-             out into the Tools tab. */}
+          {/* Account activity feed under the blotter. */}
           <div className="mt-4">
             <Activities />
           </div>

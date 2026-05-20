@@ -6,9 +6,10 @@ import ErrorBanner from "./ErrorBanner";
 interface Props {
   onSelect: (symbol: string) => void;
   onAdd: (symbol: string) => void;
+  bare?: boolean;
 }
 
-export default function AssetSearch({ onSelect, onAdd }: Props) {
+export default function AssetSearch({ onSelect, onAdd, bare = false }: Props) {
   const [input, setInput] = useState("");
   const [query, setQuery] = useState("");
 
@@ -21,9 +22,8 @@ export default function AssetSearch({ onSelect, onAdd }: Props) {
 
   const { data, isFetching, error } = useAssetSearch(query);
 
-  return (
-    <div className="bg-panel border border-border rounded-lg p-3">
-      <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-2">Asset Search</h2>
+  const body = (
+    <>
       <input
         className="search-input"
         placeholder="symbol or company name"
@@ -31,9 +31,9 @@ export default function AssetSearch({ onSelect, onAdd }: Props) {
         onChange={(e) => setInput(e.target.value)}
       />
       {error && <ErrorBanner message={(error as Error).message} />}
-      {isFetching && <div className="text-xs text-muted">Searching…</div>}
+      {isFetching && <div className="text-xs text-muted mt-1">Searching…</div>}
       {query && !isFetching && data && data.length === 0 && (
-        <div className="text-xs text-muted">No matches</div>
+        <div className="text-xs text-muted mt-1">No matches</div>
       )}
       <div className="search-results">
         {data?.map((a) => (
@@ -59,6 +59,15 @@ export default function AssetSearch({ onSelect, onAdd }: Props) {
           </div>
         ))}
       </div>
+    </>
+  );
+
+  if (bare) return body;
+
+  return (
+    <div className="bg-panel border border-border rounded-lg p-3">
+      <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-2">Asset Search</h2>
+      {body}
     </div>
   );
 }

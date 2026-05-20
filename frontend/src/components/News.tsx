@@ -94,11 +94,11 @@ export default function News({
   if (bare) return body;
 
   return (
-    <div className="bg-panel border border-border rounded-lg p-3">
+    <div className="bg-panel border border-border rounded-lg p-3 h-full flex flex-col min-h-0">
       <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-2">
         News{symbol && ` · ${symbol}`}
       </h2>
-      {body}
+      <div className="flex-1 min-h-0 overflow-y-auto">{body}</div>
     </div>
   );
 }

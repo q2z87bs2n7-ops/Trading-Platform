@@ -1,12 +1,14 @@
 import { useSnapshots } from "../data/hooks";
 import { useLiveQuotes } from "../data/useLiveQuotes";
 import type { Quote } from "../types";
+import AssetSearch from "./AssetSearch";
 import ErrorBanner from "./ErrorBanner";
 
 interface Props {
   symbols: string[];
   selected: string;
   onSelect: (symbol: string) => void;
+  onAdd: (symbol: string) => void;
   onRemove: (symbol: string) => void;
 }
 
@@ -14,6 +16,7 @@ export default function Watchlist({
   symbols,
   selected,
   onSelect,
+  onAdd,
   onRemove,
 }: Props) {
   const allSymbols = Array.from(
@@ -33,23 +36,26 @@ export default function Watchlist({
       <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-2">
         Watchlist
       </h2>
+      <AssetSearch onSelect={onSelect} onAdd={onAdd} bare />
       {error && <ErrorBanner message={error} />}
       {symbols.length === 0 && (
-        <div className="text-xs text-muted">
+        <div className="text-xs text-muted mt-2">
           Search a symbol above to start watching.
         </div>
       )}
-      {symbols.map((sym) => (
-        <WatchlistRow
-          key={sym}
-          sym={sym}
-          quote={quotes[sym]}
-          prevClose={prevCloseBySymbol[sym] ?? null}
-          selected={sym === selected}
-          onSelect={() => onSelect(sym)}
-          onRemove={() => onRemove(sym)}
-        />
-      ))}
+      <div className="mt-1">
+        {symbols.map((sym) => (
+          <WatchlistRow
+            key={sym}
+            sym={sym}
+            quote={quotes[sym]}
+            prevClose={prevCloseBySymbol[sym] ?? null}
+            selected={sym === selected}
+            onSelect={() => onSelect(sym)}
+            onRemove={() => onRemove(sym)}
+          />
+        ))}
+      </div>
     </div>
   );
 }
