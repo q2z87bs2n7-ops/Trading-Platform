@@ -34,8 +34,10 @@ persisted watchlists, asset search, and real-time streaming.
    source of truth (`X.Y.Z`). Each commit on a `claude/` branch bumps
    **Z** (patch). Each promotion to `main` bumps **Y** (minor) and resets
    `Z` to 0, *unless the user explicitly asks for `Z` to stay*. `X` is
-   bumped manually only. `frontend/package.json` and the FastAPI
-   `version=` are **not** canonical — do not rely on them.
+   bumped manually only. Version is automatically synced to all targets:
+   - Backend reads `VERSION` at startup for FastAPI metadata.
+   - Frontend syncs `VERSION` to `package.json` via `npm run sync-version`
+     (called automatically before each build).
 6. **No rewrites** — never rewrite large sections; targeted edits only.
 
 ## Architecture
@@ -75,6 +77,11 @@ persisted watchlists, asset search, and real-time streaming.
   primitives; TradingView `lightweight-charts` retained for custom mode.
   `index.css` is migrated to Tailwind progressively — no new bespoke CSS
   files.
+- **PWA:** Progressive Web App via `vite-plugin-pwa`. Service worker
+  auto-registers on load with smart caching: API calls use NetworkFirst
+  (network with cache fallback), charting library uses CacheFirst (5MB
+  max precache, excludes charting_library to avoid size bloat). Enables
+  offline access and installation on mobile/desktop.
 - **Persistence:** Postgres (free tier, e.g. Supabase/Neon) is the
   intended layer for trade journaling, server-side watchlists, and
   analytics history — **backlogged** (see `BACKLOG.md`). For now Alpaca is

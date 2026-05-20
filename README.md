@@ -21,6 +21,9 @@ A header toggle switches between two UI modes:
 - **Frontend:** React + TypeScript (Vite). Two chart modes — custom UI uses
   TradingView `lightweight-charts`; TradingView mode uses the full
   TradingView Charting Library (`frontend/public/charting_library/`).
+- **PWA:** Progressive Web App with service worker, offline support, and
+  install capabilities. Smart caching strategies for API calls and charting
+  library.
 
 ## Setup
 
