@@ -105,13 +105,15 @@ def _execute_read_tool(name: str, args: dict[str, Any]) -> str:
 
     if name == "get_quote":
         symbol = str(args["symbol"]).upper()
-        q = alpaca.get_latest_quotes([symbol])
-        return json.dumps(q.get(symbol, {}), default=str)
+        quotes = alpaca.get_latest_quotes([symbol])
+        match = next((q for q in quotes if q.get("symbol") == symbol), {})
+        return json.dumps(match, default=str)
 
     if name == "get_snapshot":
         symbol = str(args["symbol"]).upper()
-        s = alpaca.get_snapshots([symbol])
-        return json.dumps(s.get(symbol, {}), default=str)
+        snaps = alpaca.get_snapshots([symbol])
+        match = next((s for s in snaps if s.get("symbol") == symbol), {})
+        return json.dumps(match, default=str)
 
     raise ValueError(f"unknown read tool: {name}")
 
