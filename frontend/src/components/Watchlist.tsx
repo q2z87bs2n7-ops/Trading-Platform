@@ -55,6 +55,9 @@ export default function Watchlist({
     clampedPage * PAGE_SIZE + PAGE_SIZE,
   );
 
+  // Always render exactly PAGE_SIZE slots so the box never resizes.
+  const emptySlots = PAGE_SIZE - pageSymbols.length;
+
   return (
     <div className="bg-panel border border-border rounded-lg p-3">
       <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-2">
@@ -62,11 +65,6 @@ export default function Watchlist({
       </h2>
       <AssetSearch onSelect={onSelect} onAdd={onAdd} bare />
       {error && <ErrorBanner message={error} />}
-      {symbols.length === 0 && (
-        <div className="text-xs text-muted mt-2">
-          Search a symbol above to start watching.
-        </div>
-      )}
       <div className="mt-1">
         {pageSymbols.map((sym) => (
           <WatchlistRow
@@ -79,32 +77,41 @@ export default function Watchlist({
             onRemove={() => onRemove(sym)}
           />
         ))}
+        {/* Placeholder rows keep the box at a fixed 5-row height */}
+        {Array.from({ length: emptySlots }).map((_, i) =>
+          symbols.length === 0 && i === 0 ? (
+            <div key={`empty-${i}`} className="watch-item" style={{ cursor: "default" }}>
+              <span className="text-xs text-muted">Search above to add symbols</span>
+            </div>
+          ) : (
+            <div key={`empty-${i}`} className="watch-item" style={{ cursor: "default" }} />
+          )
+        )}
       </div>
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
-          <button
-            type="button"
-            className="watch-remove"
-            style={{ fontSize: 14, opacity: clampedPage === 0 ? 0.3 : 0.7 }}
-            disabled={clampedPage === 0}
-            onClick={() => setPage((p) => Math.max(0, p - 1))}
-          >
-            ‹
-          </button>
-          <span className="text-[11px] text-muted tabular-nums">
-            {clampedPage + 1} / {totalPages}
-          </span>
-          <button
-            type="button"
-            className="watch-remove"
-            style={{ fontSize: 14, opacity: clampedPage === totalPages - 1 ? 0.3 : 0.7 }}
-            disabled={clampedPage === totalPages - 1}
-            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-          >
-            ›
-          </button>
-        </div>
-      )}
+      {/* Pagination bar always rendered so the box height stays constant */}
+      <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
+        <button
+          type="button"
+          className="watch-remove"
+          style={{ fontSize: 14, opacity: clampedPage === 0 || totalPages <= 1 ? 0.2 : 0.7 }}
+          disabled={clampedPage === 0 || totalPages <= 1}
+          onClick={() => setPage((p) => Math.max(0, p - 1))}
+        >
+          ‹
+        </button>
+        <span className="text-[11px] text-muted tabular-nums">
+          {totalPages > 1 ? `${clampedPage + 1} / ${totalPages}` : "—"}
+        </span>
+        <button
+          type="button"
+          className="watch-remove"
+          style={{ fontSize: 14, opacity: clampedPage === totalPages - 1 || totalPages <= 1 ? 0.2 : 0.7 }}
+          disabled={clampedPage === totalPages - 1 || totalPages <= 1}
+          onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+        >
+          ›
+        </button>
+      </div>
     </div>
   );
 }
