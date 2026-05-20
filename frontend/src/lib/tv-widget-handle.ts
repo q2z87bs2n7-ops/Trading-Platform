@@ -23,8 +23,37 @@ export interface TVSubscription {
   unsubscribe: (obj: unknown, cb: () => void) => void;
 }
 
+// Minimal slice of IOrderLineAdapter / IPositionLineAdapter — we only
+// use a handful of setters and the cancel/modify callbacks. Full types
+// live in /public/charting_library/charting_library.d.ts.
+export interface TVOrderLine {
+  setPrice: (v: number) => TVOrderLine;
+  setQuantity: (v: string) => TVOrderLine;
+  setText: (v: string) => TVOrderLine;
+  setTooltip: (v: string) => TVOrderLine;
+  setEditable: (v: boolean) => TVOrderLine;
+  setCancellable: (v: boolean) => TVOrderLine;
+  onModify: (cb: () => void) => TVOrderLine;
+  onMove: (cb: () => void) => TVOrderLine;
+  onCancel: (cb: () => void) => TVOrderLine;
+  getPrice: () => number;
+  getQuantity: () => string;
+  remove: () => void;
+}
+
+export interface TVPositionLine {
+  setPrice: (v: number) => TVPositionLine;
+  setQuantity: (v: string) => TVPositionLine;
+  setText: (v: string) => TVPositionLine;
+  setTooltip: (v: string) => TVPositionLine;
+  remove: () => void;
+}
+
 export interface TVChartApi {
   setSymbol: (symbol: string) => void;
+  setResolution: (resolution: string) => Promise<boolean>;
+  setChartType: (type: number) => void;
+  setVisibleRange: (range: { from: number; to: number }) => Promise<void>;
   symbol: () => string;
   resolution: () => string;
   onSymbolChanged: () => TVSubscription;
@@ -42,7 +71,19 @@ export interface TVChartApi {
     lock?: boolean,
     inputs?: Record<string, unknown>,
   ) => Promise<string | null>;
+  createOrderLine: () => Promise<TVOrderLine>;
+  createPositionLine: () => Promise<TVPositionLine>;
   removeEntity: (id: string) => void;
+}
+
+// Subset of IBrokerConnectionAdapterHost we use from the AI dispatcher.
+// The broker captures this on first call and exposes it via
+// setTVBrokerHost so `propose_order` can open the order ticket prefilled.
+export interface TVBrokerHost {
+  showOrderDialog?: (
+    order: Record<string, unknown>,
+    focus?: number,
+  ) => Promise<boolean>;
 }
 
 export interface TVWidgetInstance {
@@ -68,4 +109,17 @@ export function getTVWidget(): TVWidgetInstance | null {
 export function subscribeTVWidget(l: Listener): () => void {
   listeners.add(l);
   return () => listeners.delete(l);
+}
+
+// Broker host singleton. tv-broker.ts captures it from createBroker so
+// the AI dispatcher can call host.showOrderDialog() without threading
+// the host through the widget tree.
+let brokerHost: TVBrokerHost | null = null;
+
+export function setTVBrokerHost(h: TVBrokerHost | null): void {
+  brokerHost = h;
+}
+
+export function getTVBrokerHost(): TVBrokerHost | null {
+  return brokerHost;
 }

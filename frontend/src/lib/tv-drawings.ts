@@ -16,7 +16,12 @@
  *   - remove: removeDrawing() calls removeEntity() and drops the record.
  */
 
-import { getTVWidget, type TVShapePoint } from "./tv-widget-handle";
+import {
+  getTVBrokerHost,
+  getTVWidget,
+  type TVPositionLine,
+  type TVShapePoint,
+} from "./tv-widget-handle";
 
 const STORAGE_KEY = "ai_drawings_v1";
 const SCHEMA_VERSION = 1;
@@ -30,6 +35,7 @@ export type DrawingKind =
   | "text"
   | "arrow_up"
   | "arrow_down"
+  | "mark"
   | "study";
 
 export interface DrawingRecord {
@@ -324,7 +330,8 @@ export async function modifyDrawing(
   } else if (
     rec.kind === "text" ||
     rec.kind === "arrow_up" ||
-    rec.kind === "arrow_down"
+    rec.kind === "arrow_down" ||
+    rec.kind === "mark"
   ) {
     newPoints.push(updates.point ?? rec.points[0]);
   } else {
@@ -454,4 +461,210 @@ export async function recreateDrawingsForChart(): Promise<void> {
 export function clearEntityIds(): void {
   hydrate();
   for (const rec of liveMap.values()) rec.entityId = null;
+}
+
+// --- Event marker (persistent, single-point icon-style shape) ---------------
+
+export function markBar(
+  time: number,
+  text: string,
+  opts: { color?: string; symbol?: string } = {},
+): Promise<QueuedRecord> {
+  const chart = requireChart();
+  const point: TVShapePoint = { time };
+  // Use TV's "flag" shape — small bar-axis marker with a text label.
+  // Lighter-weight than vertical_line and the canonical bar-event mark
+  // (earnings, news, dividends). Caller-provided emoji renders inline.
+  const options: Record<string, unknown> = {
+    shape: "flag",
+    text,
+    overrides: opts.color ? { color: opts.color } : undefined,
+  };
+  return persistShape("mark", [point], options, opts.symbol, () =>
+    chart.createShape(point, options),
+  );
+}
+
+// --- Chart navigation (no persistence; affects active chart only) -----------
+
+export function setChartSymbol(symbol: string): void {
+  requireChart().setSymbol(normalize(symbol));
+}
+
+export function setChartResolution(resolution: string): Promise<boolean> {
+  return requireChart().setResolution(resolution);
+}
+
+// Map our string enum to TradingView's SeriesType integer enum. Values
+// taken from charting_library.d.ts SeriesType.
+const CHART_TYPE_MAP: Record<string, number> = {
+  bars: 0,
+  candles: 1,
+  line: 2,
+  area: 3,
+  renko: 4,
+  heikin_ashi: 8,
+  hollow_candles: 9,
+  baseline: 10,
+};
+
+export function setChartType(type: string): void {
+  const code = CHART_TYPE_MAP[type];
+  if (code === undefined) throw new Error(`unknown chart type: ${type}`);
+  requireChart().setChartType(code);
+}
+
+export function setChartVisibleRange(from: number, to: number): Promise<void> {
+  return requireChart().setVisibleRange({ from, to });
+}
+
+// --- Trading visualization (session-only; not persisted) --------------------
+
+// Position lines are keyed by symbol so a second call for the same symbol
+// replaces the prior line instead of stacking duplicates. Order-line
+// proposals are fire-and-forget — they own their own cleanup via onCancel.
+const activePositionLines = new Map<string, TVPositionLine>();
+
+export interface ProposeOrderOpts {
+  side: "buy" | "sell";
+  type: "market" | "limit" | "stop" | "stop_limit";
+  quantity: number;
+  limit_price?: number;
+  stop_price?: number;
+  symbol?: string;
+}
+
+export interface ProposeOrderResult {
+  symbol: string;
+  staged: boolean;
+  line_price: number;
+}
+
+export async function proposeOrder(opts: ProposeOrderOpts): Promise<ProposeOrderResult> {
+  const chart = requireChart();
+  const symbol = normalize(opts.symbol ?? chart.symbol());
+  // Pick the price the visible line sits at: limit_price for limit/stop_limit,
+  // stop_price for stop, otherwise fall back to 0 (market — TV will refresh
+  // when the dialog opens).
+  const linePrice =
+    opts.limit_price ??
+    opts.stop_price ??
+    0;
+
+  const line = await chart.createOrderLine();
+  line
+    .setPrice(linePrice)
+    .setQuantity(String(opts.quantity))
+    .setText(
+      `${opts.side.toUpperCase()} ${opts.quantity} ${symbol} (${opts.type})`,
+    )
+    .setTooltip("AI proposal — drag to adjust, click ✎ to open ticket, ✕ to dismiss")
+    .setEditable(true)
+    .setCancellable(true);
+
+  line.onCancel(() => {
+    try {
+      line.remove();
+    } catch {
+      /* already gone */
+    }
+  });
+  line.onModify(() => {
+    // Stage the (possibly user-adjusted) values into the order ticket.
+    void openOrderTicket(symbol, opts, line.getPrice());
+  });
+
+  // Open the ticket immediately so the user sees the proposal both as a
+  // chart line AND as a ready-to-confirm ticket. They can dismiss either.
+  const staged = await openOrderTicket(symbol, opts, linePrice);
+
+  return { symbol, staged, line_price: linePrice };
+}
+
+// TV OrderType enum: Limit=1, Market=2, Stop=3, StopLimit=4. Keep aligned
+// with tv-broker.ts:toTVOrder — flipping these silently mis-routes orders.
+const ORDER_TYPE_CODE: Record<ProposeOrderOpts["type"], number> = {
+  limit: 1,
+  market: 2,
+  stop: 3,
+  stop_limit: 4,
+};
+
+async function openOrderTicket(
+  symbol: string,
+  opts: ProposeOrderOpts,
+  price: number,
+): Promise<boolean> {
+  const host = getTVBrokerHost();
+  if (!host?.showOrderDialog) return false;
+  const order: Record<string, unknown> = {
+    symbol,
+    side: opts.side === "buy" ? 1 : -1,
+    type: ORDER_TYPE_CODE[opts.type],
+    qty: opts.quantity,
+  };
+  if (opts.limit_price != null) order.limitPrice = opts.limit_price;
+  else if (opts.type === "limit") order.limitPrice = price;
+  if (opts.stop_price != null) order.stopPrice = opts.stop_price;
+  else if (opts.type === "stop") order.stopPrice = price;
+  try {
+    return await host.showOrderDialog(order);
+  } catch {
+    return false;
+  }
+}
+
+export interface ShowPositionLineResult {
+  shown: Array<{ symbol: string; qty: number; avg_price: number }>;
+}
+
+// Fetch positions and render one position line per matching symbol on the
+// current chart. Lines for symbols that don't match the chart are skipped
+// (TV's position-line API renders against the active series).
+export async function showPositionLine(
+  filterSymbol?: string,
+): Promise<ShowPositionLineResult> {
+  const chart = requireChart();
+  const chartSymbol = normalize(chart.symbol());
+  const apiBase = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
+  const res = await fetch(`${apiBase}/api/positions`);
+  if (!res.ok) throw new Error(`failed to fetch positions: ${res.status}`);
+  const data = (await res.json()) as {
+    positions?: Array<Record<string, unknown>>;
+  };
+  const all = data.positions ?? [];
+  const wanted = filterSymbol
+    ? all.filter(
+        (p) => String(p.symbol).toUpperCase() === normalize(filterSymbol),
+      )
+    : all;
+
+  const shown: ShowPositionLineResult["shown"] = [];
+  for (const p of wanted) {
+    const sym = String(p.symbol).toUpperCase();
+    if (sym !== chartSymbol) continue;
+    const qty = parseFloat(String(p.qty ?? "0"));
+    const avg = parseFloat(String(p.avg_entry_price ?? "0"));
+    const pl = parseFloat(String(p.unrealized_pl ?? "0"));
+
+    // Replace any prior line for this symbol.
+    const prior = activePositionLines.get(sym);
+    if (prior) {
+      try {
+        prior.remove();
+      } catch {
+        /* already gone */
+      }
+    }
+
+    const line = await chart.createPositionLine();
+    line
+      .setPrice(avg)
+      .setQuantity(String(qty))
+      .setText(`${qty > 0 ? "LONG" : "SHORT"} ${Math.abs(qty)} @ ${avg.toFixed(2)}`)
+      .setTooltip(`Unrealized P/L: ${pl >= 0 ? "+" : ""}${pl.toFixed(2)}`);
+    activePositionLines.set(sym, line);
+    shown.push({ symbol: sym, qty, avg_price: avg });
+  }
+  return { shown };
 }

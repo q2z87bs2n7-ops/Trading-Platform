@@ -19,8 +19,15 @@ import {
   drawTrendLine,
   drawVerticalLine,
   listDrawings,
+  markBar,
   modifyDrawing,
+  proposeOrder,
   removeDrawing,
+  setChartResolution,
+  setChartSymbol,
+  setChartType,
+  setChartVisibleRange,
+  showPositionLine,
   type QueuedRecord,
 } from "./tv-drawings";
 
@@ -201,6 +208,58 @@ async function executeDrawTool(
           JSON.stringify({ drawing_id: r.id }),
           `modified ${r.kind} (id: ${r.id})`,
         );
+      }
+      case "set_symbol": {
+        const sym = (input.symbol as string).toUpperCase();
+        setChartSymbol(sym);
+        return ok(JSON.stringify({ symbol: sym }), `chart → ${sym}`);
+      }
+      case "set_resolution": {
+        const res = input.resolution as string;
+        await setChartResolution(res);
+        return ok(JSON.stringify({ resolution: res }), `timeframe → ${res}`);
+      }
+      case "set_chart_type": {
+        const t = input.type as string;
+        setChartType(t);
+        return ok(JSON.stringify({ type: t }), `chart type → ${t}`);
+      }
+      case "set_visible_range": {
+        const from = input.from as number;
+        const to = input.to as number;
+        await setChartVisibleRange(from, to);
+        return ok(
+          JSON.stringify({ from, to }),
+          `zoomed to range (${from}–${to})`,
+        );
+      }
+      case "propose_order": {
+        const r = await proposeOrder({
+          side: input.side as "buy" | "sell",
+          type: input.type as "market" | "limit" | "stop" | "stop_limit",
+          quantity: input.quantity as number,
+          limit_price: input.limit_price as number | undefined,
+          stop_price: input.stop_price as number | undefined,
+          symbol: input.symbol as string | undefined,
+        });
+        const summary = r.staged
+          ? `proposed ${input.side} ${input.quantity} ${r.symbol} — ticket opened`
+          : `proposed ${input.side} ${input.quantity} ${r.symbol} — line drawn (ticket unavailable)`;
+        return ok(JSON.stringify(r), summary);
+      }
+      case "show_position_line": {
+        const r = await showPositionLine(input.symbol as string | undefined);
+        const verb = r.shown.length
+          ? `shown position line${r.shown.length > 1 ? "s" : ""} for ${r.shown.map((s) => s.symbol).join(", ")}`
+          : "no matching open position on this chart";
+        return ok(JSON.stringify(r), verb);
+      }
+      case "mark_bar": {
+        const r = await markBar(input.time as number, input.text as string, {
+          color: input.color as string | undefined,
+          symbol: input.symbol as string | undefined,
+        });
+        return ok(queuedToolResult(r), summarizeResult("event marker", r));
       }
       default:
         return err(`unknown draw tool: ${name}`, `unknown tool ${name}`);

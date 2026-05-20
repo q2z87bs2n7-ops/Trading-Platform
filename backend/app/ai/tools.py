@@ -17,10 +17,17 @@ READ_TOOL_NAMES = {
     "get_account",
     "get_quote",
     "get_snapshot",
+    "get_news",
+    "get_movers",
+    "find_symbol",
 }
 
-# Drawing tools — backend declares, frontend executes
+# Frontend-executed tools (backend declares, frontend dispatches on the
+# TradingView widget). Drawing primitives, chart navigation, and trading
+# visualization all live here because the dispatcher only distinguishes
+# read vs not-read.
 DRAW_TOOL_NAMES = {
+    # Drawing primitives
     "draw_horizontal_line",
     "draw_vertical_line",
     "draw_trend_line",
@@ -32,6 +39,15 @@ DRAW_TOOL_NAMES = {
     "list_drawings",
     "remove_drawing",
     "modify_drawing",
+    # Chart navigation
+    "set_symbol",
+    "set_resolution",
+    "set_chart_type",
+    "set_visible_range",
+    # Trading visualization
+    "propose_order",
+    "show_position_line",
+    "mark_bar",
 }
 
 
@@ -145,6 +161,71 @@ TOOLS: list[dict[str, Any]] = [
             "type": "object",
             "properties": {"symbol": {"type": "string"}},
             "required": ["symbol"],
+        },
+    },
+    {
+        "name": "get_news",
+        "description": (
+            "Fetch recent news headlines. Pass `symbol` for per-ticker news "
+            "(via Alpaca/Benzinga); omit it for the market-wide top-stories "
+            "feed (via Yahoo Finance RSS, 5-minute cached)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symbol": {
+                    "type": "string",
+                    "description": "Optional ticker. Omit for market-wide news.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 50,
+                    "description": "Max headlines to return (default 10).",
+                },
+            },
+        },
+    },
+    {
+        "name": "get_movers",
+        "description": (
+            "Top market gainers and losers by percent change for the current "
+            "session. Useful for 'what's moving today' questions."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "top": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 25,
+                    "description": "How many of each (gainers, losers) to return (default 10).",
+                },
+            },
+        },
+    },
+    {
+        "name": "find_symbol",
+        "description": (
+            "Search for tradable assets by ticker or company-name fragment. "
+            "Use when the user describes an instrument without giving an "
+            "exact ticker (e.g. 'oil ETFs', 'taiwan semi')."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Ticker fragment or company-name keyword.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 25,
+                    "description": "Max matches (default 10).",
+                },
+            },
+            "required": ["query"],
         },
     },
     # --- DRAWING TOOLS (frontend executes) ------------------------------------
@@ -322,6 +403,147 @@ TOOLS: list[dict[str, Any]] = [
                 "color": {"type": "string"},
             },
             "required": ["drawing_id"],
+        },
+    },
+    # --- CHART NAVIGATION (frontend executes) ---------------------------------
+    {
+        "name": "set_symbol",
+        "description": (
+            "Switch the active chart to a different instrument. Only call "
+            "this when the user explicitly asks to look at another symbol — "
+            "do not change the chart out from under them unprompted."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Ticker to load, e.g. NVDA."},
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "set_resolution",
+        "description": (
+            "Change the chart's timeframe (e.g. switch from daily to hourly). "
+            "Explicit-request only — same caveat as set_symbol."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "resolution": {
+                    "type": "string",
+                    "description": (
+                        "TradingView resolution string: '1', '5', '15', '60' "
+                        "(intraday minutes); 'D', 'W', 'M' (daily/weekly/monthly)."
+                    ),
+                },
+            },
+            "required": ["resolution"],
+        },
+    },
+    {
+        "name": "set_chart_type",
+        "description": (
+            "Change the chart's series style. Explicit-request only."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "candles",
+                        "bars",
+                        "line",
+                        "area",
+                        "heikin_ashi",
+                        "hollow_candles",
+                        "baseline",
+                        "renko",
+                    ],
+                },
+            },
+            "required": ["type"],
+        },
+    },
+    {
+        "name": "set_visible_range",
+        "description": (
+            "Zoom the chart's time axis to a specific window — e.g. 'frame "
+            "the March–May breakout' or 'show me the last 6 months'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "from": {"type": "integer", "description": "Start time, UNIX seconds."},
+                "to": {"type": "integer", "description": "End time, UNIX seconds."},
+            },
+            "required": ["from", "to"],
+        },
+    },
+    # --- TRADING VISUALIZATION (frontend executes) ----------------------------
+    {
+        "name": "propose_order",
+        "description": (
+            "Suggest a trade by drawing a draggable order line on the chart "
+            "and opening the order ticket prefilled with the same parameters. "
+            "You DO NOT place the order — the user reviews the ticket and "
+            "decides. Use this for 'I'd consider a long entry at $185' style "
+            "suggestions; for purely informational levels use draw_horizontal_line."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "side": {"type": "string", "enum": ["buy", "sell"]},
+                "type": {
+                    "type": "string",
+                    "enum": ["market", "limit", "stop", "stop_limit"],
+                    "description": "Order type. Use 'limit' or 'stop' for level-based proposals.",
+                },
+                "quantity": {"type": "number", "minimum": 0.01},
+                "limit_price": {"type": "number"},
+                "stop_price": {"type": "number"},
+                "symbol": {
+                    "type": "string",
+                    "description": "Optional override. Defaults to the chart's current symbol.",
+                },
+            },
+            "required": ["side", "type", "quantity"],
+        },
+    },
+    {
+        "name": "show_position_line",
+        "description": (
+            "Overlay an open position as a draggable line on the chart "
+            "(entry price + qty + P/L). Pass a symbol for one position, or "
+            "omit to show every open position. Session-only; not persisted."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symbol": {
+                    "type": "string",
+                    "description": "Optional ticker. Omit to show all positions.",
+                },
+            },
+        },
+    },
+    {
+        "name": "mark_bar",
+        "description": (
+            "Drop a small icon marker on a specific bar — useful for "
+            "earnings dates, news events, dividends, fills. Persisted like "
+            "other drawings."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "time": {"type": "integer", "description": "UNIX seconds."},
+                "text": {"type": "string", "description": "Short label / emoji (e.g. '📊 Q2 earnings')."},
+                "color": {"type": "string"},
+                "symbol": _SYMBOL_FIELD,
+            },
+            "required": ["time", "text"],
         },
     },
 ]

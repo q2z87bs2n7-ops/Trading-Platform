@@ -4,6 +4,8 @@
  * /api/orders, /api/positions endpoints.
  */
 
+import { setTVBrokerHost } from "./tv-widget-handle";
+
 // Strip trailing slash so ${BASE}/api/... never produces a double-slash
 // when VITE_API_BASE is set with a trailing slash (e.g. "https://x.vercel.app/").
 const BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
@@ -89,9 +91,17 @@ interface TVHost {
   orderUpdate(order: Record<string, unknown>): void;
   positionUpdate(position: Record<string, unknown>): void;
   executionUpdate(execution: Record<string, unknown>): void;
+  showOrderDialog?(
+    order: Record<string, unknown>,
+    focus?: number,
+  ): Promise<boolean>;
 }
 
 export function createBroker(host: TVHost, onUpdate: () => void) {
+  // Expose host to the AI dispatcher (propose_order calls
+  // host.showOrderDialog to stage trades into the order ticket).
+  setTVBrokerHost(host);
+
   let pollTimer: ReturnType<typeof setInterval> | null = null;
 
   // Reactive values surfaced in the Account Manager summary row.
@@ -169,6 +179,7 @@ export function createBroker(host: TVHost, onUpdate: () => void) {
     },
     disconnect() {
       stopPolling();
+      setTVBrokerHost(null);
     },
 
     // --- Required by TV: can this symbol be traded? ---

@@ -17,7 +17,7 @@ from anthropic import APIError as AnthropicAPIError
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from .. import alpaca
+from .. import alpaca, market_news
 from ..config import get_settings
 from . import prompt, tools
 
@@ -114,6 +114,24 @@ def _execute_read_tool(name: str, args: dict[str, Any]) -> str:
         snaps = alpaca.get_snapshots([symbol])
         match = next((s for s in snaps if s.get("symbol") == symbol), {})
         return json.dumps(match, default=str)
+
+    if name == "get_news":
+        limit = min(int(args.get("limit", 10)), 50)
+        sym = args.get("symbol")
+        if sym:
+            items = alpaca.get_news(str(sym).upper(), limit)
+            return json.dumps({"symbol": str(sym).upper(), "news": items}, default=str)
+        items = market_news.get_market_news(limit)
+        return json.dumps({"news": items}, default=str)
+
+    if name == "get_movers":
+        top = min(int(args.get("top", 10)), 25)
+        return json.dumps(alpaca.get_movers(top), default=str)
+
+    if name == "find_symbol":
+        query = str(args["query"])
+        limit = min(int(args.get("limit", 10)), 25)
+        return json.dumps({"matches": alpaca.search_assets(query, limit)}, default=str)
 
     raise ValueError(f"unknown read tool: {name}")
 
