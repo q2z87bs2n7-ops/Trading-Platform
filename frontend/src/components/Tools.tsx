@@ -79,6 +79,8 @@ function IndexChip({ idx }: { idx: IndexData }) {
   const up = idx.change >= 0;
   const color = up ? "var(--pos)" : "var(--neg)";
   const arrow = up ? "▲" : "▼";
+  const hasExt = idx.session && idx.session !== "regular" && idx.ext_price != null && idx.ext_change_pct != null;
+  const extUp = hasExt && idx.ext_change_pct! >= 0;
   return (
     <span className="flex items-center gap-2 px-4 border-r border-border whitespace-nowrap">
       <span className="text-muted text-[11px] font-medium">{idx.name}</span>
@@ -86,6 +88,14 @@ function IndexChip({ idx }: { idx: IndexData }) {
       <span className="text-[12px] tabular-nums font-medium" style={{ color }}>
         {arrow} {pct(idx.change_pct)}
       </span>
+      {hasExt && (
+        <span className="flex items-center gap-1 pl-1 border-l border-border">
+          <span className="text-[10px] uppercase tracking-wide text-muted">{idx.session}</span>
+          <span className="text-[11px] tabular-nums font-medium" style={{ color: extUp ? "var(--pos)" : "var(--neg)" }}>
+            {fmtPrice(idx.ext_price!)} ({pct(idx.ext_change_pct!)})
+          </span>
+        </span>
+      )}
     </span>
   );
 }

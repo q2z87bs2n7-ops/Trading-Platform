@@ -44,7 +44,7 @@ def _fetch_one(entry: tuple[str, str, str]) -> dict | None:
         url = f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}"
         r = requests.get(
             url,
-            params={"interval": "1d", "range": "5d", "includePrePost": "false"},
+            params={"interval": "1d", "range": "5d", "includePrePost": "true"},
             headers=_HEADERS,
             timeout=10,
         )
@@ -60,6 +60,20 @@ def _fetch_one(entry: tuple[str, str, str]) -> dict | None:
             return None
         change = price - prev
         change_pct = change / prev
+
+        market_state = meta.get("marketState", "REGULAR")
+        ext_price: float | None = None
+        ext_change_pct: float | None = None
+        session = "regular"
+        if market_state in ("PRE", "PREPRE") and meta.get("preMarketPrice"):
+            session = "pre"
+            ext_price = round(float(meta["preMarketPrice"]), 2)
+            ext_change_pct = round(float(meta.get("preMarketChangePercent", 0)), 6)
+        elif market_state in ("POST", "POSTPOST") and meta.get("postMarketPrice"):
+            session = "post"
+            ext_price = round(float(meta["postMarketPrice"]), 2)
+            ext_change_pct = round(float(meta.get("postMarketChangePercent", 0)), 6)
+
         return {
             "name": name,
             "symbol": symbol,
@@ -68,6 +82,9 @@ def _fetch_one(entry: tuple[str, str, str]) -> dict | None:
             "prev_close": round(prev, 2),
             "change": round(change, 2),
             "change_pct": round(change_pct, 6),
+            "session": session,
+            "ext_price": ext_price,
+            "ext_change_pct": ext_change_pct,
         }
     except Exception:
         return None

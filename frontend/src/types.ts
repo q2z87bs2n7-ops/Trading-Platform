@@ -181,6 +181,9 @@ export interface IndexData {
   prev_close: number;
   change: number;
   change_pct: number;
+  session?: "regular" | "pre" | "post";
+  ext_price?: number;
+  ext_change_pct?: number;
 }
 
 export interface IndicesResponse {
