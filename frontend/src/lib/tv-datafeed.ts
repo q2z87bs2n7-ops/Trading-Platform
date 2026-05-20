@@ -8,6 +8,10 @@
 import { streamBars, streamQuotes, type BarTick } from "../api";
 import type { Quote } from "../types";
 
+// Matches the flush interval in useLiveQuotes — caps TV order-ticket
+// re-renders to at most one per 500ms regardless of tick rate.
+const STREAM_FLUSH_MS = 500;
+
 // Strip trailing slash — prevents double-slash when VITE_API_BASE ends with "/"
 const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
 
@@ -231,30 +235,35 @@ export function createDatafeed() {
       listenerGUID: string,
     ) {
       const all = Array.from(new Set([...symbols, ..._fastSymbols]));
-      const last: Record<string, { bid: number; ask: number; mid: number }> = {};
+      let pending: Record<string, Quote> = {};
+
+      const flushId = window.setInterval(() => {
+        const batch = Object.values(pending);
+        if (batch.length === 0) return;
+        pending = {};
+        onRealtimeCallback(
+          batch.map((q) => ({
+            s: "ok",
+            n: q.symbol,
+            v: {
+              lp: q.mid,
+              ask: q.ask,
+              bid: q.bid,
+              spread: q.ask && q.bid ? q.ask - q.bid : 0,
+            },
+          })),
+        );
+      }, STREAM_FLUSH_MS);
+
       const unsubscribe = streamQuotes(
         all,
-        (q: Quote) => {
-          last[q.symbol] = { bid: q.bid, ask: q.ask, mid: q.mid };
-          onRealtimeCallback([
-            {
-              s: "ok",
-              n: q.symbol,
-              v: {
-                lp: q.mid,
-                ask: q.ask,
-                bid: q.bid,
-                spread: q.ask && q.bid ? q.ask - q.bid : 0,
-              },
-            },
-          ]);
-        },
-        () => {
-          /* stream closed; ticket will keep last-known values */
-        },
+        (q: Quote) => { pending[q.symbol] = q; },
+        () => { /* stream closed; ticket keeps last-known values */ },
       );
+
+      // Store a combined teardown so unsubscribeQuotes clears both.
       (window as unknown as Record<string, unknown>)[`__tv_quotes_${listenerGUID}`] =
-        unsubscribe;
+        () => { unsubscribe(); clearInterval(flushId); };
     },
 
     unsubscribeQuotes(listenerGUID: string) {
