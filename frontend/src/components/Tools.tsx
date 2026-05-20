@@ -32,7 +32,7 @@ function MoverRow({
         selected === m.symbol ? " text-accent" : ""
       }`}
     >
-      <span className="font-semibold">{m.symbol}</span>
+      <span className="text-text font-semibold">{m.symbol}</span>
       <span className="flex gap-3 tabular-nums">
         <span className="text-muted">{money(m.price)}</span>
         <span
@@ -63,7 +63,7 @@ function ActiveRow({
         selected === a.symbol ? " text-accent" : ""
       }`}
     >
-      <span className="font-semibold">{a.symbol}</span>
+      <span className="text-text font-semibold">{a.symbol}</span>
       <span className="flex gap-3 tabular-nums text-muted">
         <span>vol {compactNum(a.volume)}</span>
         <span>{compactNum(a.trade_count)} trades</span>

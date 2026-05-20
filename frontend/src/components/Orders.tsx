@@ -144,7 +144,7 @@ export default function Orders() {
         </select>
         {hasLive && (
           <button
-            className="btn btn-mini btn-danger float-right -mt-0.5"
+            className="btn btn-mini float-right -mt-0.5"
             type="button"
             disabled={cancelAll.isPending}
             onClick={() =>
@@ -218,15 +218,7 @@ export default function Orders() {
                     <td className={`${TD} text-left`}>
                       <span className="text-text font-semibold">{o.symbol}</span>
                     </td>
-                    <td
-                      className={TD}
-                      style={{
-                        color:
-                          o.side.toLowerCase() === "buy"
-                            ? "var(--green)"
-                            : "var(--red)",
-                      }}
-                    >
+                    <td className={TD}>
                       {o.side.toUpperCase()}
                     </td>
                     <td className={TD}>
@@ -262,7 +254,7 @@ export default function Orders() {
                         <span className="inline-flex items-center gap-2">
                           <ReplaceRow order={o} />
                           <button
-                            className="btn btn-mini btn-danger"
+                            className="btn btn-mini"
                             type="button"
                             disabled={cancel.isPending}
                             onClick={() => cancel.mutate(o.id)}

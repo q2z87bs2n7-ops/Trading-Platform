@@ -41,7 +41,7 @@ export default function Positions() {
         Open Positions
         {rows && rows.length > 0 && (
           <button
-            className="btn btn-mini btn-danger float-right -mt-0.5"
+            className="btn btn-mini float-right -mt-0.5"
             type="button"
             disabled={closeAll.isPending}
             onClick={() =>
@@ -108,7 +108,7 @@ export default function Positions() {
                     </td>
                     <td className={`${TD} text-center`}>
                       <button
-                        className="btn btn-mini btn-danger"
+                        className="btn btn-mini"
                         type="button"
                         disabled={close.isPending}
                         onClick={() =>

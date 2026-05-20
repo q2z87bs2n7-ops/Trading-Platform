@@ -32,8 +32,8 @@ export default function Activities({ bare = false }: { bare?: boolean }) {
             className="flex justify-between py-1 text-[13px]"
             key={String(a.id ?? i)}
           >
+            <span>{summarize(a)}</span>
             <Pill status={a.activity_type as string | undefined} tone="neutral" />
-            <span className="tabular-nums">{summarize(a)}</span>
           </div>
         ))}
     </>
