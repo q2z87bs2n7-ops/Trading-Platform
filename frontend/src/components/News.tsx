@@ -25,7 +25,14 @@ function ArticleOverlay({
         onClick={onClose}
       />
       <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
-        <div className="bg-panel border border-border rounded-lg max-w-2xl w-full max-h-[80vh] overflow-y-auto p-4">
+        <div className="relative bg-panel border border-border rounded-lg max-w-2xl w-full max-h-[80vh] overflow-y-auto p-4">
+          <button
+            onClick={onClose}
+            className="absolute top-3 right-3 text-muted hover:text-text"
+            type="button"
+          >
+            ✕
+          </button>
           <h2 className="text-base font-semibold mb-3">{article.headline}</h2>
           <div className="text-sm text-muted mb-4">{article.summary}</div>
           {article.url && (
@@ -38,13 +45,6 @@ function ArticleOverlay({
               Read full article →
             </a>
           )}
-          <button
-            onClick={onClose}
-            className="absolute top-3 right-3 text-muted hover:text-text"
-            type="button"
-          >
-            ✕
-          </button>
         </div>
       </div>
     </>

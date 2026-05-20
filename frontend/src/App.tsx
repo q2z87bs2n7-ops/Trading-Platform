@@ -16,7 +16,7 @@ import TopBar from "./components/TopBar";
 import Tools from "./components/Tools";
 import TVPlatform from "./components/TVPlatform";
 
-type PlatformMode = "custom" | "tv" | "tools";
+type PlatformMode = "trading" | "tv" | "discover";
 
 export default function App() {
   const { data: cfg } = useConfig();
@@ -27,8 +27,8 @@ export default function App() {
   const removeFromWatchlist = useRemoveFromWatchlist();
   const [selected, setSelected] = useState<string>("");
   const [mode, setMode] = useState<PlatformMode>(
-    // Persist the user's last choice across page reloads
-    () => (localStorage.getItem("platform_mode") as PlatformMode) ?? "custom",
+    // Persist the user's last choice across page reloads; default to discover
+    () => (localStorage.getItem("platform_mode") as PlatformMode) ?? "discover",
   );
 
   useEffect(() => {
@@ -54,12 +54,20 @@ export default function App() {
           {/* Platform mode toggle */}
           <div style={{ display: "flex", gap: 4 }}>
             <button
-              className={`btn btn-mini${mode === "custom" ? " active" : ""}`}
-              style={{ opacity: mode === "custom" ? 1 : 0.5 }}
-              onClick={() => switchMode("custom")}
+              className={`btn btn-mini${mode === "discover" ? " active" : ""}`}
+              style={{ opacity: mode === "discover" ? 1 : 0.5 }}
+              onClick={() => switchMode("discover")}
               type="button"
             >
-              Our Platform
+              Discover
+            </button>
+            <button
+              className={`btn btn-mini${mode === "trading" ? " active" : ""}`}
+              style={{ opacity: mode === "trading" ? 1 : 0.5 }}
+              onClick={() => switchMode("trading")}
+              type="button"
+            >
+              Trading
             </button>
             <button
               className={`btn btn-mini${mode === "tv" ? " active" : ""}`}
@@ -69,27 +77,19 @@ export default function App() {
             >
               TradingView
             </button>
-            <button
-              className={`btn btn-mini${mode === "tools" ? " active" : ""}`}
-              style={{ opacity: mode === "tools" ? 1 : 0.5 }}
-              onClick={() => switchMode("tools")}
-              type="button"
-            >
-              Tools
-            </button>
           </div>
         </div>
-        {/* Status ribbon — custom mode only (UI-04) */}
-        {mode === "custom" && <TopBar />}
+        {/* Status ribbon — trading mode only (UI-04) */}
+        {mode === "trading" && <TopBar />}
       </header>
+      {/* Discover — movers, most-active, news. Hides TopBar like TV mode. */}
+      {mode === "discover" && <Tools selected={selected} onSelect={setSelected} />}
+
       {/* TradingView full terminal — shown when TV mode is active */}
       {mode === "tv" && <TVPlatform symbol={selected} />}
 
-      {/* Tools — movers, most-active, news. Hides TopBar like TV mode. */}
-      {mode === "tools" && <Tools selected={selected} onSelect={setSelected} />}
-
-      {/* Custom UI — shown when Our Platform mode is active */}
-      {mode === "custom" && (
+      {/* Trading UI — shown when Trading mode is active */}
+      {mode === "trading" && (
         <>
           {/* Workspace: watchlist left, chart centre, order ticket right. */}
           <div className="grid">
