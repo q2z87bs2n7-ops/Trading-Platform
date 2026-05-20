@@ -11,6 +11,7 @@ from . import alpaca
 from . import indices as market_indices
 from . import market_news
 from . import stream as quote_stream
+from .ai import router as ai_router
 from .config import get_settings
 from .schemas import (
     AssetOut,
@@ -32,6 +33,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(ai_router.router)
 
 
 # --- Error boundary --------------------------------------------------------
