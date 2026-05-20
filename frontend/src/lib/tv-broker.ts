@@ -316,6 +316,15 @@ export function createBroker(host: TVHost, onUpdate: () => void) {
       return {};
     },
 
+    // --- Optional: chart right-click context menu actions ---
+    // TV calls this when rendering the chart context menu. Return empty to
+    // suppress the error without adding custom menu items.
+    async chartContextMenuActions(
+      _context: Record<string, unknown>,
+    ): Promise<unknown[]> {
+      return [];
+    },
+
     // --- Account summary shown in TV header ---
     async accountInfo() {
       const data = await apiFetch("/api/account");
