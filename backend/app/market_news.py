@@ -59,7 +59,7 @@ def get_market_news(limit: int = 20) -> list[dict]:
                 "source":   (source_el.text if source_el is not None else "Yahoo Finance").strip(),
                 "pub_time": _to_ts(item.findtext("pubDate") or ""),
             })
-        _CACHE = result
+        _CACHE = sorted(result, key=lambda x: x["pub_time"], reverse=True)
         _CACHE_TS = now
     except Exception:
         pass  # serve stale cache on error rather than crashing
