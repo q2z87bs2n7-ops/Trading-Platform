@@ -220,15 +220,21 @@ export function createBroker(host: TVHost, onUpdate: () => void) {
 
     // --- Place order ---
     async placeOrder(order: Record<string, unknown>) {
+      const qty = parseFloat(String(order.qty ?? 0));
+      // TV maps non-market/non-limit types to 3; if both prices are present
+      // it's a stop_limit, otherwise treat as a plain stop.
+      let type = order.type === 1 ? "market" : order.type === 2 ? "limit" : "stop";
+      if (order.limitPrice && order.stopPrice) type = "stop_limit";
+
       const body: Record<string, unknown> = {
         symbol: order.symbol,
         side: order.side === 1 ? "buy" : "sell",
-        type: order.type === 1 ? "market" : order.type === 2 ? "limit" : "stop",
-        qty: order.qty,
+        type,
+        qty,
         time_in_force: "day",
       };
-      if (order.limitPrice) body.limit_price = order.limitPrice;
-      if (order.stopPrice) body.stop_price = order.stopPrice;
+      if (order.limitPrice) body.limit_price = parseFloat(String(order.limitPrice));
+      if (order.stopPrice) body.stop_price = parseFloat(String(order.stopPrice));
 
       const data = await apiFetch("/api/orders", {
         method: "POST",
