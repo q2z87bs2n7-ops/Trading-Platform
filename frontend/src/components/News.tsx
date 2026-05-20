@@ -1,3 +1,6 @@
+import { useState } from "react";
+
+import type { NewsArticle } from "../types";
 import { useNews } from "../data/hooks";
 import ErrorBanner from "./ErrorBanner";
 
@@ -6,6 +9,46 @@ function when(ts: number): string {
   if (d < 3600) return `${Math.floor(d / 60)}m ago`;
   if (d < 86400) return `${Math.floor(d / 3600)}h ago`;
   return `${Math.floor(d / 86400)}d ago`;
+}
+
+function ArticleOverlay({
+  article,
+  onClose,
+}: {
+  article: NewsArticle;
+  onClose: () => void;
+}) {
+  return (
+    <>
+      <div
+        className="fixed inset-0 bg-black/50 z-40"
+        onClick={onClose}
+      />
+      <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+        <div className="bg-panel border border-border rounded-lg max-w-2xl w-full max-h-[80vh] overflow-y-auto p-4">
+          <h2 className="text-base font-semibold mb-3">{article.headline}</h2>
+          <div className="text-sm text-muted mb-4">{article.summary}</div>
+          {article.url && (
+            <a
+              href={article.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-accent hover:underline text-sm"
+            >
+              Read full article →
+            </a>
+          )}
+          <button
+            onClick={onClose}
+            className="absolute top-3 right-3 text-muted hover:text-text"
+            type="button"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+    </>
+  );
 }
 
 export default function News({
@@ -17,6 +60,7 @@ export default function News({
 }) {
   const { data, error, isPending } = useNews(symbol, 10);
   const rows = data?.news;
+  const [selected, setSelected] = useState<NewsArticle | null>(null);
 
   const body = (
     <>
@@ -30,29 +74,20 @@ export default function News({
       )}
       {rows &&
         rows.map((n) => (
-          <div
-            className="flex justify-between py-1 text-[13px]"
+          <button
             key={n.id}
+            onClick={() => setSelected(n)}
+            className="w-full flex justify-between py-1 text-[13px] bg-transparent border-0 p-0 cursor-pointer text-left hover:text-accent"
           >
-            <span className="text-muted">
-              {n.url ? (
-                <a
-                  href={n.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-text hover:text-accent underline"
-                >
-                  {n.headline}
-                </a>
-              ) : (
-                n.headline
-              )}
+            <span className="text-text">{n.headline}</span>
+            <span className="tabular-nums text-muted ml-2 flex-shrink-0">
+              {when(n.time)}
             </span>
-            <span className="tabular-nums">
-              {n.source} · {when(n.time)}
-            </span>
-          </div>
+          </button>
         ))}
+      {selected && (
+        <ArticleOverlay article={selected} onClose={() => setSelected(null)} />
+      )}
     </>
   );
 
