@@ -891,15 +891,17 @@ export async function exportChartData(opts: {
   const fields = exported.schema.map((d) =>
     fieldKey(d as unknown as Record<string, unknown>),
   );
-  // TV returns one Float64Array per field, all the same length. Pivot
-  // to row-oriented records so the AI can read them straightforwardly.
-  const colCount = exported.data.length;
-  const rowCount = colCount > 0 ? exported.data[0].length : 0;
+  // TV's d.ts annotates `data: Float64Array[]` ambiguously, but at runtime
+  // it's row-major: `data[i]` is bar i, `data[i][c]` is field c of bar i.
+  // (Previously read as column-major, which transposed the output and
+  // surfaced a stray "undefined" key when bar count > field count.)
+  const barCount = exported.data.length;
+  const fieldCount = Math.min(fields.length, barCount > 0 ? exported.data[0].length : 0);
   const bars: Array<Record<string, number>> = [];
-  for (let i = 0; i < rowCount; i++) {
+  for (let i = 0; i < barCount; i++) {
     const row: Record<string, number> = {};
-    for (let c = 0; c < colCount; c++) {
-      row[fields[c]] = exported.data[c][i];
+    for (let c = 0; c < fieldCount; c++) {
+      row[fields[c]] = exported.data[i][c];
     }
     bars.push(row);
   }
