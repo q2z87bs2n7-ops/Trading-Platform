@@ -71,11 +71,42 @@ function toTVPosition(p: Record<string, unknown>) {
   };
 }
 
-export function createBroker(onUpdate: () => void) {
+// Host is IBrokerConnectionAdapterHost — provides factory.createWatchedValue
+// for the summary fields TV expects to be reactive.
+interface TVWatchedValue<T> {
+  setValue(value: T, forceUpdate?: boolean): void;
+}
+interface TVHost {
+  factory: {
+    createWatchedValue<T>(value?: T): TVWatchedValue<T>;
+  };
+}
+
+export function createBroker(host: TVHost, onUpdate: () => void) {
   let pollTimer: ReturnType<typeof setInterval> | null = null;
 
+  // Reactive values surfaced in the Account Manager summary row.
+  // TV reads these via subscribe() and re-renders on setValue() — they
+  // are NOT plain numbers, so creating them via factory is required.
+  const equityWV = host.factory.createWatchedValue<number>(0);
+  const buyingPowerWV = host.factory.createWatchedValue<number>(0);
+
+  async function refreshAccount() {
+    try {
+      const data = await apiFetch("/api/account");
+      equityWV.setValue(parseFloat(data.equity ?? "0"));
+      buyingPowerWV.setValue(parseFloat(data.buying_power ?? "0"));
+    } catch {
+      /* leave last-known values */
+    }
+  }
+
   function startPolling() {
-    pollTimer = setInterval(onUpdate, 5000);
+    refreshAccount();
+    pollTimer = setInterval(() => {
+      refreshAccount();
+      onUpdate();
+    }, 5000);
   }
   function stopPolling() {
     if (pollTimer) clearInterval(pollTimer);
@@ -98,33 +129,35 @@ export function createBroker(onUpdate: () => void) {
     },
 
     // --- Required by TV: describes the account manager bottom panel ---
+    // Per charting_library.d.ts AccountManagerInfo: summary uses `text`+`wValue`
+    // (not `label`+`property`); columns need an `id`; `pages` is required.
     accountManagerInfo() {
       return {
         accountTitle: "Paper Account",
         summary: [
-          { label: "Equity", formatter: "formatPrice", dataFields: ["equity"] },
-          { label: "Buying Power", formatter: "formatPrice", dataFields: ["buyingPower"] },
+          { text: "Equity", wValue: equityWV, formatter: "formatPrice" },
+          { text: "Buying Power", wValue: buyingPowerWV, formatter: "formatPrice" },
         ],
         orderColumns: [
-          { label: "Symbol", formatter: "symbol", dataFields: ["symbol"] },
-          { label: "Side",   formatter: "side", dataFields: ["side"] },
-          { label: "Type",   formatter: "type", dataFields: ["type"] },
-          { label: "Qty",    formatter: "formatQuantity", dataFields: ["qty"] },
-          { label: "Status", formatter: "status", dataFields: ["status"] },
+          { id: "symbol", label: "Symbol", formatter: "symbol", dataFields: ["symbol"] },
+          { id: "side", label: "Side", formatter: "side", dataFields: ["side"] },
+          { id: "type", label: "Type", formatter: "type", dataFields: ["type"] },
+          { id: "qty", label: "Qty", formatter: "formatQuantity", dataFields: ["qty"] },
+          { id: "status", label: "Status", formatter: "status", dataFields: ["status"] },
         ],
         positionColumns: [
-          { label: "Symbol",     formatter: "symbol", dataFields: ["symbol"] },
-          { label: "Qty",        formatter: "formatQuantity", dataFields: ["qty"] },
-          { label: "Avg Price",  formatter: "formatPrice", dataFields: ["avgPrice"] },
-          { label: "Unreal P/L", formatter: "profit", dataFields: ["unrealizedPL"] },
+          { id: "symbol", label: "Symbol", formatter: "symbol", dataFields: ["symbol"] },
+          { id: "qty", label: "Qty", formatter: "formatQuantity", dataFields: ["qty"] },
+          { id: "avgPrice", label: "Avg Price", formatter: "formatPrice", dataFields: ["avgPrice"] },
+          { id: "unrealizedPL", label: "Unreal P/L", formatter: "profit", dataFields: ["unrealizedPL"] },
         ],
         historyColumns: [
-          { label: "Symbol", formatter: "symbol", dataFields: ["symbol"] },
-          { label: "Side",   formatter: "side", dataFields: ["side"] },
-          { label: "Qty",    formatter: "formatQuantity", dataFields: ["qty"] },
-          { label: "Price",  formatter: "formatPrice", dataFields: ["price"] },
+          { id: "symbol", label: "Symbol", formatter: "symbol", dataFields: ["symbol"] },
+          { id: "side", label: "Side", formatter: "side", dataFields: ["side"] },
+          { id: "qty", label: "Qty", formatter: "formatQuantity", dataFields: ["qty"] },
+          { id: "price", label: "Price", formatter: "formatPrice", dataFields: ["price"] },
         ],
-        tradeColumns: [],
+        pages: [],
       };
     },
 

@@ -33,9 +33,7 @@ export default function TVPlatform({ symbol }: Props) {
       return;
     }
 
-    const broker = createBroker(() => {
-      // onUpdate callback — TV will call positions()/orders() again on next poll
-    });
+    let brokerRef: ReturnType<typeof createBroker> | null = null;
 
     const widget = new TradingView.widget({
       // Container
@@ -59,8 +57,15 @@ export default function TVPlatform({ symbol }: Props) {
       // Data
       datafeed: createDatafeed(),
 
-      // Trading panel wired to our broker
-      broker_factory: () => broker,
+      // Trading panel wired to our broker. TV passes a host with
+      // factory.createWatchedValue() that the broker needs to wire up the
+      // account summary WatchedValue fields.
+      broker_factory: (host: Parameters<typeof createBroker>[0]) => {
+        brokerRef = createBroker(host, () => {
+          // onUpdate — TV will refetch positions/orders on next poll
+        });
+        return brokerRef;
+      },
       broker_config: {
         configFlags: {
           supportOrderBrackets: false,
@@ -87,13 +92,13 @@ export default function TVPlatform({ symbol }: Props) {
     });
 
     widget.onChartReady(() => {
-      broker.connect();
+      brokerRef?.connect();
     });
 
     widgetRef.current = widget;
 
     return () => {
-      broker.disconnect();
+      brokerRef?.disconnect();
       widgetRef.current?.remove();
       widgetRef.current = null;
     };
