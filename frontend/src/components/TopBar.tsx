@@ -9,8 +9,6 @@ import {
 const money = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD" });
 
-const last = (a: number[] | undefined) => (a && a.length ? a[a.length - 1] : 0);
-
 const timeHM = (ts: number) =>
   new Date(ts * 1000).toLocaleTimeString(undefined, {
     hour: "2-digit",
