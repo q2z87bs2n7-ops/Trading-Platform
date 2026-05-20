@@ -44,13 +44,17 @@ function toTVStatus(status: string): number {
   return map[status] ?? 2;
 }
 
-// Map Alpaca order → TV order shape
+// Map Alpaca order → TV order shape.
+// TV's OrderType enum is Limit=1, Market=2, Stop=3, StopLimit=4 — do NOT
+// flip these or order placement will mismatch the user's selection.
 function toTVOrder(o: Record<string, unknown>) {
+  const t = o.type;
+  const tvType = t === "market" ? 2 : t === "limit" ? 1 : t === "stop_limit" ? 4 : 3;
   return {
     id: o.id,
     symbol: o.symbol,
     side: o.side === "buy" ? 1 : -1,
-    type: o.type === "market" ? 1 : o.type === "limit" ? 2 : 3,
+    type: tvType,
     status: toTVStatus(o.status as string),
     qty: parseFloat((o.qty as string) ?? "0"),
     filledQty: parseFloat((o.filled_qty as string) ?? "0"),
@@ -219,12 +223,15 @@ export function createBroker(host: TVHost, onUpdate: () => void) {
     },
 
     // --- Place order ---
+    // TV's OrderType enum: Limit=1, Market=2, Stop=3, StopLimit=4.
     async placeOrder(order: Record<string, unknown>) {
       const qty = parseFloat(String(order.qty ?? 0));
-      // TV maps non-market/non-limit types to 3; if both prices are present
-      // it's a stop_limit, otherwise treat as a plain stop.
-      let type = order.type === 1 ? "market" : order.type === 2 ? "limit" : "stop";
-      if (order.limitPrice && order.stopPrice) type = "stop_limit";
+      const t = order.type;
+      const type =
+        t === 2 ? "market" :
+        t === 1 ? "limit" :
+        t === 4 ? "stop_limit" :
+        "stop";
 
       const body: Record<string, unknown> = {
         symbol: order.symbol,
