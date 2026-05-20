@@ -221,8 +221,11 @@ select {
 
 .search-result {
   display: flex;
-  flex-direction: column;
-  padding: 6px 8px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px;
   border-radius: 6px;
   cursor: pointer;
   font-size: 13px;
@@ -230,6 +233,42 @@ select {
 
 .search-result:hover {
   background: rgba(255, 255, 255, 0.04);
+}
+
+.search-result-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.search-result-info span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.watch-add {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 1px 6px;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.search-result:hover .watch-add {
+  opacity: 1;
+}
+
+.watch-add:hover {
+  color: var(--pos);
+  border-color: var(--pos);
 }
 
 /* --- Discover: indices ticker --- */

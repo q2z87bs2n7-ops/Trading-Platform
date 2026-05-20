@@ -42,10 +42,12 @@ export default function AssetSearch({ onSelect, onAdd, bare = false }: Props) {
             className="search-result"
             onClick={() => onSelect(a.symbol)}
           >
-            <strong>{a.symbol}</strong>
-            <span className="text-muted">
-              {a.name} · {a.exchange}
-            </span>
+            <div className="search-result-info">
+              <strong>{a.symbol}</strong>
+              <span className="text-muted">
+                {a.name} · {a.exchange}
+              </span>
+            </div>
             <button
               className="watch-add"
               title="Add to watchlist"
