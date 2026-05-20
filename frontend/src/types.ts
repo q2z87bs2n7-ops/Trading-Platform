@@ -161,6 +161,21 @@ export interface MostActivesResponse {
   last_updated: number;
 }
 
+export interface IndexData {
+  name: string;
+  symbol: string;
+  region: "US" | "Europe" | "Asia";
+  price: number;
+  prev_close: number;
+  change: number;
+  change_pct: number;
+}
+
+export interface IndicesResponse {
+  indices: IndexData[];
+  as_of: number;
+}
+
 export interface NewsArticle {
   id: number;
   headline: string;

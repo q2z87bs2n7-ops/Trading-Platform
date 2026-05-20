@@ -36,4 +36,5 @@ export const qk = {
   calendar: (start: string, end: string) =>
     ["calendar", start, end] as const,
   watchlist: ["watchlist"] as const,
+  indices: ["indices"] as const,
 };

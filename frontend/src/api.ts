@@ -4,6 +4,7 @@ import type {
   Asset,
   Bar,
   CalendarDay,
+  IndicesResponse,
   MarketClock,
   MostActivesResponse,
   MoversResponse,
@@ -132,6 +133,8 @@ export const searchAssets = (search: string, limit = 25) =>
   getJSON<Asset[]>(
     `/api/assets?search=${encodeURIComponent(search)}&limit=${limit}`,
   );
+
+export const getIndices = () => getJSON<IndicesResponse>("/api/indices");
 
 export const getWatchlist = () =>
   getJSON<{ symbols: string[] }>("/api/watchlist");

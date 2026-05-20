@@ -94,6 +94,14 @@ export const useMostActives = (
     refetchInterval: 60000,
   });
 
+export const useIndices = () =>
+  useQuery({
+    queryKey: qk.indices,
+    queryFn: api.getIndices,
+    refetchInterval: 120_000,
+    staleTime: 60_000,
+  });
+
 export const usePortfolioHistory = (period = "1M", timeframe = "1D") =>
   useQuery({
     queryKey: qk.portfolioHistory(period, timeframe),

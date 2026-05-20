@@ -1,4 +1,5 @@
 import asyncio
+import time
 
 from alpaca.common.exceptions import APIError
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
@@ -6,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from . import alpaca
+from . import indices as market_indices
 from . import stream as quote_stream
 from .config import get_settings
 from .schemas import (
@@ -161,6 +163,12 @@ def news(
     limit: int = Query(10, ge=1, le=50),
 ) -> dict:
     return {"symbol": symbol.upper(), "news": alpaca.get_news(symbol, limit)}
+
+
+@app.get("/api/indices")
+def indices_snapshot() -> dict:
+    """Market index snapshots (Yahoo Finance). No Alpaca keys required."""
+    return {"indices": market_indices.get_indices(), "as_of": int(time.time())}
 
 
 @app.get("/api/movers", dependencies=[Depends(require_configured)])
