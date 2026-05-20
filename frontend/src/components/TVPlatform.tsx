@@ -64,7 +64,7 @@ export default function TVPlatform({ symbol }: Props) {
       broker_config: {
         configFlags: {
           supportOrderBrackets: false,
-          supportEditAmount: true,
+          supportEditAmount: false,
           supportClosePosition: true,
           supportPositions: true,
           supportExecutions: true,
