@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import time
 import xml.etree.ElementTree as ET
+from datetime import datetime
 from email.utils import parsedate_to_datetime
 
 import requests
@@ -23,10 +24,19 @@ _CACHE_TTL = 300  # 5 minutes
 
 
 def _to_ts(pub_date: str) -> int:
+    if not pub_date:
+        return int(time.time())
+    # RFC 2822 (standard RSS pubDate: "Mon, 19 May 2025 18:30:00 +0000")
     try:
         return int(parsedate_to_datetime(pub_date).timestamp())
     except Exception:
-        return int(time.time())
+        pass
+    # ISO 8601 (Yahoo sometimes uses "2025-05-19T18:30:00Z")
+    try:
+        return int(datetime.fromisoformat(pub_date.replace("Z", "+00:00")).timestamp())
+    except Exception:
+        pass
+    return int(time.time())
 
 
 def get_market_news(limit: int = 20) -> list[dict]:
