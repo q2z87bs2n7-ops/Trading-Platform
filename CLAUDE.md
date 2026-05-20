@@ -63,14 +63,18 @@ persisted watchlists, asset search, and real-time streaming.
     `/api/quotes`, `/api/snapshots`, `/api/assets`) and
     `frontend/src/lib/tv-broker.ts` (→ `/api/account`, `/api/orders`,
     `/api/positions`, `/api/activities`). No backend changes — same
-    FastAPI endpoints.
+    FastAPI endpoints. An **AI chat panel** (`AIChatPanel.tsx`) mounts
+    alongside the chart when `AI_CHAT_ENABLED=true`; it drives a
+    hybrid tool-use loop via `frontend/src/lib/ai-client.ts` and
+    `POST /api/ai/chat` (see *AI chat design* below).
 - **Backend:** FastAPI + `alpaca-py`. `backend/app/` is the real code;
   `api/index.py` is a thin shim that puts it on Vercel's import path.
   Endpoints: `/api/health`, `/api/config`, `/api/account`, `/api/bars`,
   `/api/quotes`, `/api/snapshots`, `/api/stream`, `/api/orders`,
   `/api/positions`, `/api/activities`, `/api/assets`, `/api/news`,
   `/api/calendar`, `/api/watchlist`, `/api/movers`, `/api/most-active`,
-  `/api/indices`, `/api/market-news`.
+  `/api/indices`, `/api/market-news`, `/api/ai/chat` (gated by
+  `AI_CHAT_ENABLED`; requires `ANTHROPIC_API_KEY`).
   `/api/indices` and `/api/market-news` use direct Yahoo Finance HTTP
   (`requests`, a transitive dep) — no yfinance, no C extensions, safe
   on Vercel Python 3.14.
@@ -136,6 +140,46 @@ persisted watchlists, asset search, and real-time streaming.
   Relay CORS (`CORS_ORIGINS`, defaulted in `render.yaml`) must list the
   exact frontend origin or the browser blocks the stream and falls back.
 
+## AI chat design (TradingView mode only)
+
+- **Gated by `AI_CHAT_ENABLED`.** Off by default — calls cost real
+  Anthropic credits. Set `AI_CHAT_ENABLED=true` and `ANTHROPIC_API_KEY`
+  in the Vercel env (and locally in `backend/.env`) to enable. Other
+  tunables: `ANTHROPIC_MODEL` (default `claude-sonnet-4-6`),
+  `AI_MAX_TOKENS` (default 2048), `AI_MAX_TOOL_ITERATIONS` (default 8).
+- **Hybrid tool-use loop.** The model sees one unified tool list split
+  into two halves:
+  - *Read tools* (`get_bars`, `get_quote`, `get_positions`, `get_orders`,
+    `get_account`) execute on the backend inside `POST /api/ai/chat`
+    (`backend/app/ai/router.py`). The loop runs up to
+    `AI_MAX_TOOL_ITERATIONS` rounds; once there are no more read-tool
+    calls, it returns.
+  - *Drawing tools* (`draw_horizontal_line`, `draw_vertical_line`,
+    `draw_trend_line`, `draw_rectangle`, `draw_fib_retracement`,
+    `draw_text`, `draw_arrow`, `list_drawings`, `remove_drawing`,
+    `modify_drawing`) are declared in the backend schema but execute
+    on the frontend. The backend yields back to the client with the
+    pending draw calls; `frontend/src/lib/ai-client.ts` dispatches
+    them via `frontend/src/lib/tv-drawings.ts`, folds the results into
+    the next message, and POSTs again (up to 5 outer rounds).
+- **Drawing persistence.** `tv-drawings.ts` tags each drawing with a
+  UUID and writes records to `ai_drawings_v1` in `localStorage`. On
+  symbol or resolution change `TVPlatform.tsx` calls
+  `recreateDrawingsForChart`, replaying only the drawings for that
+  symbol. Symbol-mismatch draws are saved with `entityId=null` and
+  replayed the next time that symbol is loaded.
+- **Widget singleton.** `frontend/src/lib/tv-widget-handle.ts` holds a
+  module-level reference to the TV widget so `AIChatPanel` can call
+  drawing APIs without being a child of `TVPlatform`.
+- **System prompt + tool schemas are cache-marked** so multi-turn
+  chats hit the Anthropic prefix cache on every turn — keep the
+  `cache_control` markers in `backend/app/ai/prompt.py` and
+  `backend/app/ai/tools.py`.
+- **`AIChatPanel.tsx`** is a 360 px collapsible right-edge panel.
+  Chat history is in-memory only (not persisted); history is trimmed
+  to a trailing 40 messages before each POST to stay within token caps.
+  Conversation does not survive a page reload — drawings do.
+
 ## Vercel Python runtime — landmines (commits #4–#8)
 
 Vercel's serverless Python builder forces **Python 3.14** and ignores
@@ -149,6 +193,13 @@ Vercel's serverless Python builder forces **Python 3.14** and ignores
 - Keep the `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1` build env in
   `vercel.json`.
 - Backend deps come from `requirements.txt` only.
+- **Dual requirements.txt trap.** `backend/requirements.txt` is for
+  local dev and Render. The **root** `requirements.txt` is what
+  Vercel's Python builder actually reads for `api/`. Any new dep must
+  land in **both** files or prod 500s on the first import. A CI check
+  (`check-requirements-sync` in `lint-backend.yml`) diffs the two
+  files and fails the build if they diverge (uvicorn is intentionally
+  backend-only and is excluded from the diff).
 
 ## TradingView mode — landmines (don't regress)
 

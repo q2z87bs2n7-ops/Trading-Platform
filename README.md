@@ -8,19 +8,23 @@ order path (market/limit/stop/stop-limit/trailing, bracket/OCO, replace,
 cancel, close positions) with a positions/orders/activities blotter.
 Paper account only — there is no live-trading path.
 
-A header toggle switches between two UI modes:
-- **Our Platform** — custom React dashboard (default)
+A header toggle switches between three UI modes:
+- **Discover** (default) — market overview: indices ticker, holdings pie
+  chart, top gainers/losers/most-active, and market/symbol news feed
+- **Trading** — custom React dashboard with live-quote watchlist,
+  candlestick charts, order ticket, and positions/orders/activities blotter
 - **TradingView** — full TradingView Charting Library terminal with
   built-in drawing tools, 100+ indicators, and an integrated order/position
-  panel wired to the same Alpaca backend
+  panel wired to the same Alpaca backend. Includes an optional **AI chat
+  panel** (see *AI chat* below)
 
 ## Stack
 
 - **Backend:** FastAPI + `alpaca-py` (REST reads + a real-time quote stream
   over Server-Sent Events, with REST polling as automatic fallback).
-- **Frontend:** React + TypeScript (Vite). Two chart modes — custom UI uses
-  TradingView `lightweight-charts`; TradingView mode uses the full
-  TradingView Charting Library (`frontend/public/charting_library/`).
+- **Frontend:** React + TypeScript (Vite). Three modes — Discover (market
+  overview), Trading (custom charts via `lightweight-charts`), and
+  TradingView (full Charting Library at `frontend/public/charting_library/`).
 - **PWA:** Progressive Web App with service worker, offline support, and
   install capabilities. Smart caching strategies for API calls and charting
   library.
@@ -37,6 +41,23 @@ cp backend/.env.example backend/.env
 ```
 
 The free `iex` data feed is the default. `sip` needs a paid Alpaca data plan.
+
+### 1b. AI chat (optional)
+
+The TradingView mode includes an AI chat panel powered by the Anthropic API.
+It is disabled by default — leave it off unless you want to spend Anthropic
+credits.
+
+To enable: get an API key at https://console.anthropic.com, then add to
+`backend/.env`:
+
+```
+AI_CHAT_ENABLED=true
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+The panel lets you ask questions about your positions, request price data,
+and draw annotations directly on the chart via natural language.
 
 ### 2. Backend
 
@@ -135,5 +156,8 @@ paid Alpaca data plan for the full consolidated tape.
   per symbol/timeframe change.
 - Keys live only in `backend/.env`, which is gitignored. Never commit it.
 - Default watchlist symbols are configurable via `DEFAULT_SYMBOLS` in `.env`.
-- Platform mode preference (`Our Platform` / `TradingView`) is persisted to
-  `localStorage` under the key `platform_mode`.
+- Platform mode preference is persisted to `localStorage` under the key
+  `platform_mode`.
+- AI chat drawings are persisted to `localStorage` (`ai_drawings_v1`) and
+  replayed per symbol on load. Conversation history is in-memory only and
+  does not survive a page reload.
