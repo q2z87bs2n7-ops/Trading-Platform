@@ -161,6 +161,18 @@ export interface MostActivesResponse {
   last_updated: number;
 }
 
+export interface MarketNewsArticle {
+  title: string;
+  link: string;
+  summary: string;
+  source: string;
+  pub_time: number;
+}
+
+export interface MarketNewsResponse {
+  articles: MarketNewsArticle[];
+}
+
 export interface IndexData {
   name: string;
   symbol: string;

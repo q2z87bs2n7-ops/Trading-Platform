@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useIndices, useMostActives, useMovers, usePositions } from "../data/hooks";
 import type { IndexData, Mover, MostActiveStock, Position } from "../types";
 import ErrorBanner from "./ErrorBanner";
-import News from "./News";
+import MarketNews from "./MarketNews";
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 
@@ -335,9 +335,9 @@ export default function Tools({
         ))}
       </Panel>
 
-      {/* Row 3 cols 2–3 — News */}
+      {/* Row 3 cols 2–3 — Market News */}
       <div style={{ gridColumn: "2 / 4" }}>
-        <News symbol={selected} />
+        <MarketNews />
       </div>
 
     </div>

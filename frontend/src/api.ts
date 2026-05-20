@@ -6,6 +6,7 @@ import type {
   CalendarDay,
   IndicesResponse,
   MarketClock,
+  MarketNewsResponse,
   MostActivesResponse,
   MoversResponse,
   NewsArticle,
@@ -135,6 +136,9 @@ export const searchAssets = (search: string, limit = 25) =>
   );
 
 export const getIndices = () => getJSON<IndicesResponse>("/api/indices");
+
+export const getMarketNews = (limit = 20) =>
+  getJSON<MarketNewsResponse>(`/api/market-news?limit=${limit}`);
 
 export const getWatchlist = () =>
   getJSON<{ symbols: string[] }>("/api/watchlist");

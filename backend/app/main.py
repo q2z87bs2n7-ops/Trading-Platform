@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from . import alpaca
 from . import indices as market_indices
+from . import market_news
 from . import stream as quote_stream
 from .config import get_settings
 from .schemas import (
@@ -163,6 +164,12 @@ def news(
     limit: int = Query(10, ge=1, le=50),
 ) -> dict:
     return {"symbol": symbol.upper(), "news": alpaca.get_news(symbol, limit)}
+
+
+@app.get("/api/market-news")
+def market_news_feed(limit: int = Query(20, ge=1, le=50)) -> dict:
+    """Yahoo Finance top-stories RSS. No Alpaca keys required."""
+    return {"articles": market_news.get_market_news(limit)}
 
 
 @app.get("/api/indices")

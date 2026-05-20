@@ -15,6 +15,7 @@ import Activities from "./components/Activities";
 import TopBar from "./components/TopBar";
 import Tools from "./components/Tools";
 import TVPlatform from "./components/TVPlatform";
+import News from "./components/News";
 
 type PlatformMode = "trading" | "tv" | "discover";
 
@@ -108,8 +109,9 @@ export default function App() {
             <div>
               <PriceChart symbol={selected} />
             </div>
-            <div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <OrderTicket symbol={selected} onSymbolChange={setSelected} />
+              <News symbol={selected} />
             </div>
           </div>
 

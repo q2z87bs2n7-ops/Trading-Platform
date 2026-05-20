@@ -94,6 +94,14 @@ export const useMostActives = (
     refetchInterval: 60000,
   });
 
+export const useMarketNews = (limit = 20) =>
+  useQuery({
+    queryKey: qk.marketNews,
+    queryFn: () => api.getMarketNews(limit),
+    refetchInterval: 300_000, // 5 min — matches backend cache TTL
+    staleTime: 120_000,
+  });
+
 export const useIndices = () =>
   useQuery({
     queryKey: qk.indices,
