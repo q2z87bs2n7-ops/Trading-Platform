@@ -14,6 +14,7 @@ import Activities from "./components/Activities";
 import TopBar from "./components/TopBar";
 import Tools from "./components/Tools";
 import TVPlatform from "./components/TVPlatform";
+import AIChatPanel from "./components/AIChatPanel";
 
 type PlatformMode = "trading" | "tv" | "discover";
 
@@ -84,8 +85,15 @@ export default function App() {
       {/* Discover — movers, most-active, news. Hides TopBar like TV mode. */}
       {mode === "discover" && <Tools selected={selected} onSelect={setSelected} />}
 
-      {/* TradingView full terminal — shown when TV mode is active */}
-      {mode === "tv" && <TVPlatform symbol={selected} />}
+      {/* TradingView full terminal + AI chat panel — TV mode only */}
+      {mode === "tv" && (
+        <div style={{ display: "flex" }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <TVPlatform symbol={selected} />
+          </div>
+          <AIChatPanel symbol={selected || "AAPL"} />
+        </div>
+      )}
 
       {/* Trading UI — shown when Trading mode is active */}
       {mode === "trading" && (
