@@ -67,6 +67,7 @@ export default function TVPlatform({ symbol }: Props) {
           supportEditAmount: true,
           supportClosePosition: true,
           supportPositions: true,
+          supportExecutions: true,
         },
       },
 
