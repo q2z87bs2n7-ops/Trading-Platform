@@ -50,9 +50,12 @@ export interface TVPositionLine {
 }
 
 export interface TVChartApi {
-  setSymbol: (symbol: string) => void;
-  setResolution: (resolution: string) => Promise<boolean>;
-  setChartType: (type: number) => void;
+  setSymbol: (symbol: string, callback?: () => void) => void;
+  setResolution: (
+    resolution: string,
+    callback?: () => void,
+  ) => Promise<boolean>;
+  setChartType: (type: number, callback?: () => void) => void;
   setVisibleRange: (range: { from: number; to: number }) => Promise<void>;
   symbol: () => string;
   resolution: () => string;

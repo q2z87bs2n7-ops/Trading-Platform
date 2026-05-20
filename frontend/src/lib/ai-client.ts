@@ -211,7 +211,10 @@ async function executeDrawTool(
       }
       case "set_symbol": {
         const sym = (input.symbol as string).toUpperCase();
-        setChartSymbol(sym);
+        // Await the data-loaded callback before returning — downstream
+        // tool calls (notably set_visible_range) race the data fetch
+        // otherwise and throw "Value is null" inside TV's time scale.
+        await setChartSymbol(sym);
         return ok(JSON.stringify({ symbol: sym }), `chart → ${sym}`);
       }
       case "set_resolution": {
@@ -242,10 +245,14 @@ async function executeDrawTool(
           stop_price: input.stop_price as number | undefined,
           symbol: input.symbol as string | undefined,
         });
-        const summary = r.staged
-          ? `proposed ${input.side} ${input.quantity} ${r.symbol} — ticket opened`
-          : `proposed ${input.side} ${input.quantity} ${r.symbol} — line drawn (ticket unavailable)`;
-        return ok(JSON.stringify(r), summary);
+        const bits: string[] = [];
+        if (r.line_drawn) bits.push("line drawn");
+        if (r.staged) bits.push("ticket opened");
+        const detail = bits.length ? bits.join(" + ") : "no chart action (ticket unavailable)";
+        return ok(
+          JSON.stringify(r),
+          `proposed ${input.side} ${input.quantity} ${r.symbol} — ${detail}`,
+        );
       }
       case "show_position_line": {
         const r = await showPositionLine(input.symbol as string | undefined);

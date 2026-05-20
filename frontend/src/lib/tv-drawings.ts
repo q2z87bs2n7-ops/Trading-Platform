@@ -472,11 +472,12 @@ export function markBar(
 ): Promise<QueuedRecord> {
   const chart = requireChart();
   const point: TVShapePoint = { time };
-  // Use TV's "flag" shape — small bar-axis marker with a text label.
-  // Lighter-weight than vertical_line and the canonical bar-event mark
-  // (earnings, news, dividends). Caller-provided emoji renders inline.
+  // TV's `SupportedLineTools` union lists "flag" but `createShape` rejects
+  // it at runtime ("Cannot create 'flag' shape"). Fall back to "text",
+  // which is universally accepted — the caller-supplied emoji + label
+  // renders inline at the bar's time and still reads as an event marker.
   const options: Record<string, unknown> = {
-    shape: "flag",
+    shape: "text",
     text,
     overrides: opts.color ? { color: opts.color } : undefined,
   };
@@ -487,12 +488,23 @@ export function markBar(
 
 // --- Chart navigation (no persistence; affects active chart only) -----------
 
-export function setChartSymbol(symbol: string): void {
-  requireChart().setSymbol(normalize(symbol));
+// TV resolves the Promise returned by setSymbol/setResolution as soon as
+// the change is *initiated*, not when the new data has loaded. Calls
+// that depend on the loaded time scale (notably `setVisibleRange`) race
+// the data fetch and throw "Value is null". The callback form, however,
+// fires after data is loaded — promisify against that.
+export function setChartSymbol(symbol: string): Promise<void> {
+  const chart = requireChart();
+  return new Promise<void>((resolve) => {
+    chart.setSymbol(normalize(symbol), () => resolve());
+  });
 }
 
-export function setChartResolution(resolution: string): Promise<boolean> {
-  return requireChart().setResolution(resolution);
+export function setChartResolution(resolution: string): Promise<void> {
+  const chart = requireChart();
+  return new Promise<void>((resolve) => {
+    chart.setResolution(resolution, () => resolve());
+  });
 }
 
 // Map our string enum to TradingView's SeriesType integer enum. Values
@@ -537,48 +549,69 @@ export interface ProposeOrderOpts {
 export interface ProposeOrderResult {
   symbol: string;
   staged: boolean;
+  line_drawn: boolean;
   line_price: number;
 }
 
 export async function proposeOrder(opts: ProposeOrderOpts): Promise<ProposeOrderResult> {
   const chart = requireChart();
-  const symbol = normalize(opts.symbol ?? chart.symbol());
-  // Pick the price the visible line sits at: limit_price for limit/stop_limit,
-  // stop_price for stop, otherwise fall back to 0 (market — TV will refresh
-  // when the dialog opens).
-  const linePrice =
-    opts.limit_price ??
-    opts.stop_price ??
-    0;
+  const chartSymbol = normalize(chart.symbol());
+  const symbol = normalize(opts.symbol ?? chartSymbol);
 
-  const line = await chart.createOrderLine();
-  line
-    .setPrice(linePrice)
-    .setQuantity(String(opts.quantity))
-    .setText(
-      `${opts.side.toUpperCase()} ${opts.quantity} ${symbol} (${opts.type})`,
-    )
-    .setTooltip("AI proposal — drag to adjust, click ✎ to open ticket, ✕ to dismiss")
-    .setEditable(true)
-    .setCancellable(true);
+  // The visible order line only makes sense when (a) we have a real price
+  // level (market orders don't — TV's order line throws "Value is null"
+  // on setPrice(0)) and (b) the chart is showing the proposal symbol.
+  // Otherwise just open the ticket; the chart line is purely cosmetic.
+  const linePrice = opts.limit_price ?? opts.stop_price;
+  const canDrawLine = linePrice != null && symbol === chartSymbol;
 
-  line.onCancel(() => {
+  let lineDrawn = false;
+  if (canDrawLine) {
     try {
-      line.remove();
+      const line = await chart.createOrderLine();
+      // TV occasionally resolves the promise with null when the chart
+      // isn't fully mounted; guard before chaining setters.
+      if (line) {
+        line
+          .setPrice(linePrice)
+          .setQuantity(String(opts.quantity))
+          .setText(
+            `${opts.side.toUpperCase()} ${opts.quantity} ${symbol} (${opts.type})`,
+          )
+          .setTooltip(
+            "AI proposal — drag to adjust, click ✎ to open ticket, ✕ to dismiss",
+          )
+          .setEditable(true)
+          .setCancellable(true);
+        line.onCancel(() => {
+          try {
+            line.remove();
+          } catch {
+            /* already gone */
+          }
+        });
+        line.onModify(() => {
+          void openOrderTicket(symbol, opts, line.getPrice());
+        });
+        lineDrawn = true;
+      }
     } catch {
-      /* already gone */
+      // TV refused to draw — fall through to ticket-only mode rather than
+      // throwing. The user still gets the proposal via the order ticket.
     }
-  });
-  line.onModify(() => {
-    // Stage the (possibly user-adjusted) values into the order ticket.
-    void openOrderTicket(symbol, opts, line.getPrice());
-  });
+  }
 
-  // Open the ticket immediately so the user sees the proposal both as a
-  // chart line AND as a ready-to-confirm ticket. They can dismiss either.
-  const staged = await openOrderTicket(symbol, opts, linePrice);
+  // Always try to open the ticket — that's the actionable half of the
+  // proposal. linePrice can be undefined (market order); openOrderTicket
+  // handles that.
+  const staged = await openOrderTicket(symbol, opts, linePrice ?? 0);
 
-  return { symbol, staged, line_price: linePrice };
+  return {
+    symbol,
+    staged,
+    line_drawn: lineDrawn,
+    line_price: linePrice ?? 0,
+  };
 }
 
 // TV OrderType enum: Limit=1, Market=2, Stop=3, StopLimit=4. Keep aligned
