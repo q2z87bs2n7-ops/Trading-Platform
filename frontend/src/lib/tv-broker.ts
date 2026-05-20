@@ -187,15 +187,28 @@ export function createBroker(onUpdate: () => void) {
 
     // --- Place order ---
     async placeOrder(order: Record<string, unknown>) {
+      const qty = parseFloat(String(order.qty ?? 0));
+      let type = order.type === 1 ? "market" : order.type === 2 ? "limit" : "stop";
+
+      // If both prices are provided, this is a stop_limit order
+      if (order.limitPrice && order.stopPrice) {
+        type = "stop_limit";
+      }
+
       const body: Record<string, unknown> = {
         symbol: order.symbol,
         side: order.side === 1 ? "buy" : "sell",
-        type: order.type === 1 ? "market" : order.type === 2 ? "limit" : "stop",
-        qty: order.qty,
+        type,
+        qty,
         time_in_force: "day",
       };
-      if (order.limitPrice) body.limit_price = order.limitPrice;
-      if (order.stopPrice) body.stop_price = order.stopPrice;
+
+      if (order.limitPrice) {
+        body.limit_price = parseFloat(String(order.limitPrice));
+      }
+      if (order.stopPrice) {
+        body.stop_price = parseFloat(String(order.stopPrice));
+      }
 
       const data = await apiFetch("/api/orders", {
         method: "POST",
