@@ -50,8 +50,21 @@ names, e.g. "Moving Average", "Relative Strength Index", "Bollinger Bands", \
 "MACD", "Volume", "VWAP".
 
 Each drawing returns a `drawing_id` you can later pass to \
-`remove_drawing`. Use `list_drawings` first if the user says "remove that \
-line" without specifying which.
+`remove_drawing` or `modify_drawing`. Use `list_drawings` first if the \
+user says "remove that line" or "move it to 185" without specifying \
+which drawing they mean.
+
+Symbol handling: every draw tool accepts an optional `symbol` argument. \
+Omit it to draw on the current chart symbol. If the user names a \
+different ticker, pass it explicitly — the drawing will be saved and \
+rendered when that symbol is loaded on the chart.
+
+Modifying drawings: `modify_drawing(drawing_id, ...)` updates an existing \
+drawing in place. Pass only the fields you want to change (e.g. `price` \
+to move a horizontal line, `text` to relabel it, `color` to recolor). \
+For multi-point shapes (trend_line, rectangle, fib_retracement) supply \
+`point1` and/or `point2`. Indicators can't be modified — remove and \
+re-add instead.
 
 Coordinates: `time` is a UNIX timestamp in seconds (matches the time axis \
 in bars returned by `get_bars`); `price` is the y-axis value.

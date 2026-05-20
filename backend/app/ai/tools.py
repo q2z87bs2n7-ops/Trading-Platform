@@ -31,6 +31,17 @@ DRAW_TOOL_NAMES = {
     "add_indicator",
     "list_drawings",
     "remove_drawing",
+    "modify_drawing",
+}
+
+
+_SYMBOL_FIELD = {
+    "type": "string",
+    "description": (
+        "Optional ticker the drawing belongs to. Defaults to the chart's "
+        "current symbol. If a different symbol is given, the drawing is "
+        "queued and rendered when that symbol is loaded on the chart."
+    ),
 }
 
 
@@ -153,6 +164,7 @@ TOOLS: list[dict[str, Any]] = [
                     "type": "string",
                     "description": "Optional hex color, e.g. #3b82f6.",
                 },
+                "symbol": _SYMBOL_FIELD,
             },
             "required": ["price"],
         },
@@ -166,6 +178,7 @@ TOOLS: list[dict[str, Any]] = [
                 "time": {"type": "integer", "description": "UNIX timestamp (seconds)."},
                 "text": {"type": "string"},
                 "color": {"type": "string"},
+                "symbol": _SYMBOL_FIELD,
             },
             "required": ["time"],
         },
@@ -180,6 +193,7 @@ TOOLS: list[dict[str, Any]] = [
                 "point2": _POINT_SCHEMA,
                 "text": {"type": "string"},
                 "color": {"type": "string"},
+                "symbol": _SYMBOL_FIELD,
             },
             "required": ["point1", "point2"],
         },
@@ -193,6 +207,7 @@ TOOLS: list[dict[str, Any]] = [
                 "point1": _POINT_SCHEMA,
                 "point2": _POINT_SCHEMA,
                 "color": {"type": "string"},
+                "symbol": _SYMBOL_FIELD,
             },
             "required": ["point1", "point2"],
         },
@@ -205,6 +220,7 @@ TOOLS: list[dict[str, Any]] = [
             "properties": {
                 "point1": _POINT_SCHEMA,
                 "point2": _POINT_SCHEMA,
+                "symbol": _SYMBOL_FIELD,
             },
             "required": ["point1", "point2"],
         },
@@ -218,6 +234,7 @@ TOOLS: list[dict[str, Any]] = [
                 "point": _POINT_SCHEMA,
                 "text": {"type": "string"},
                 "color": {"type": "string"},
+                "symbol": _SYMBOL_FIELD,
             },
             "required": ["point", "text"],
         },
@@ -232,6 +249,7 @@ TOOLS: list[dict[str, Any]] = [
                 "direction": {"type": "string", "enum": ["up", "down"]},
                 "text": {"type": "string"},
                 "color": {"type": "string"},
+                "symbol": _SYMBOL_FIELD,
             },
             "required": ["point", "direction"],
         },
@@ -254,6 +272,7 @@ TOOLS: list[dict[str, Any]] = [
                     "type": "object",
                     "description": "Indicator-specific input overrides (optional).",
                 },
+                "symbol": _SYMBOL_FIELD,
             },
             "required": ["name"],
         },
@@ -262,7 +281,8 @@ TOOLS: list[dict[str, Any]] = [
         "name": "list_drawings",
         "description": (
             "List drawings you've previously added on this chart (for the "
-            "current symbol+resolution). Use before remove_drawing."
+            "current symbol+resolution). Use before remove_drawing or "
+            "modify_drawing."
         ),
         "input_schema": {"type": "object", "properties": {}},
     },
@@ -273,6 +293,33 @@ TOOLS: list[dict[str, Any]] = [
             "type": "object",
             "properties": {
                 "drawing_id": {"type": "string", "description": "id from list_drawings."},
+            },
+            "required": ["drawing_id"],
+        },
+    },
+    {
+        "name": "modify_drawing",
+        "description": (
+            "Move or restyle an existing drawing in place. Look the id up "
+            "with list_drawings first. Provide only the fields you want to "
+            "change: price for a horizontal line, time for a vertical line, "
+            "point for single-point shapes (text/arrow), point1+point2 for "
+            "two-point shapes (trend_line/rectangle/fib_retracement). "
+            "text and color can be updated on any shape that supports them. "
+            "Indicators (studies) can't be modified — remove and re-add "
+            "instead."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "drawing_id": {"type": "string"},
+                "price": {"type": "number"},
+                "time": {"type": "integer"},
+                "point": _POINT_SCHEMA,
+                "point1": _POINT_SCHEMA,
+                "point2": _POINT_SCHEMA,
+                "text": {"type": "string"},
+                "color": {"type": "string"},
             },
             "required": ["drawing_id"],
         },

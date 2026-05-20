@@ -102,19 +102,31 @@ function currentContext(): { symbol: string; resolution: string } {
   return { symbol: chart.symbol(), resolution: chart.resolution() };
 }
 
+function normalize(s: string): string {
+  return s.toUpperCase();
+}
+
+// Persist a drawing record. If `targetSymbol` is given and doesn't match
+// the chart's current symbol, the record is saved but the actual
+// createShape call is skipped — recreateDrawingsForChart() will materialize
+// it the next time that symbol is loaded. Returns the record either way;
+// `queued` flag tells the caller whether it actually rendered.
 async function persistShape(
   kind: DrawingKind,
   points: TVShapePoint[],
   options: Record<string, unknown>,
-  createPromise: Promise<string>,
-): Promise<DrawingRecord> {
+  targetSymbol: string | undefined,
+  draw: () => Promise<string>,
+): Promise<DrawingRecord & { queued: boolean }> {
   hydrate();
   const ctx = currentContext();
-  const entityId = await createPromise;
+  const recordSymbol = normalize(targetSymbol ?? ctx.symbol);
+  const queued = recordSymbol !== normalize(ctx.symbol);
+  const entityId = queued ? null : await draw();
   const rec: DrawingRecord = {
     id: uuid(),
     entityId,
-    symbol: ctx.symbol,
+    symbol: recordSymbol,
     resolution: ctx.resolution,
     kind,
     points,
@@ -123,15 +135,18 @@ async function persistShape(
   };
   liveMap.set(rec.id, rec);
   flush();
-  return rec;
+  return { ...rec, queued };
 }
 
 // --- Single-point drawings ---------------------------------------------------
 
+type DrawOpts = { text?: string; color?: string; symbol?: string };
+export type QueuedRecord = DrawingRecord & { queued: boolean };
+
 export function drawHorizontalLine(
   price: number,
-  opts: { text?: string; color?: string } = {},
-): Promise<DrawingRecord> {
+  opts: DrawOpts = {},
+): Promise<QueuedRecord> {
   const chart = requireChart();
   const point: TVShapePoint = { time: nowSec(), price };
   const options: Record<string, unknown> = {
@@ -140,18 +155,15 @@ export function drawHorizontalLine(
     showLabel: !!opts.text,
     overrides: opts.color ? { linecolor: opts.color } : undefined,
   };
-  return persistShape(
-    "horizontal_line",
-    [point],
-    options,
+  return persistShape("horizontal_line", [point], options, opts.symbol, () =>
     chart.createShape(point, options),
   );
 }
 
 export function drawVerticalLine(
   time: number,
-  opts: { text?: string; color?: string } = {},
-): Promise<DrawingRecord> {
+  opts: DrawOpts = {},
+): Promise<QueuedRecord> {
   const chart = requireChart();
   const point: TVShapePoint = { time };
   const options: Record<string, unknown> = {
@@ -160,10 +172,7 @@ export function drawVerticalLine(
     showLabel: !!opts.text,
     overrides: opts.color ? { linecolor: opts.color } : undefined,
   };
-  return persistShape(
-    "vertical_line",
-    [point],
-    options,
+  return persistShape("vertical_line", [point], options, opts.symbol, () =>
     chart.createShape(point, options),
   );
 }
@@ -171,22 +180,24 @@ export function drawVerticalLine(
 export function drawText(
   point: TVShapePoint,
   text: string,
-  opts: { color?: string } = {},
-): Promise<DrawingRecord> {
+  opts: { color?: string; symbol?: string } = {},
+): Promise<QueuedRecord> {
   const chart = requireChart();
   const options: Record<string, unknown> = {
     shape: "text",
     text,
     overrides: opts.color ? { color: opts.color } : undefined,
   };
-  return persistShape("text", [point], options, chart.createShape(point, options));
+  return persistShape("text", [point], options, opts.symbol, () =>
+    chart.createShape(point, options),
+  );
 }
 
 export function drawArrow(
   point: TVShapePoint,
   direction: "up" | "down",
-  opts: { text?: string; color?: string } = {},
-): Promise<DrawingRecord> {
+  opts: DrawOpts = {},
+): Promise<QueuedRecord> {
   const chart = requireChart();
   const shape = direction === "up" ? "arrow_up" : "arrow_down";
   const options: Record<string, unknown> = {
@@ -194,7 +205,9 @@ export function drawArrow(
     text: opts.text,
     overrides: opts.color ? { color: opts.color } : undefined,
   };
-  return persistShape(shape, [point], options, chart.createShape(point, options));
+  return persistShape(shape, [point], options, opts.symbol, () =>
+    chart.createShape(point, options),
+  );
 }
 
 // --- Multi-point drawings ---------------------------------------------------
@@ -202,18 +215,15 @@ export function drawArrow(
 export function drawTrendLine(
   p1: TVShapePoint,
   p2: TVShapePoint,
-  opts: { text?: string; color?: string } = {},
-): Promise<DrawingRecord> {
+  opts: DrawOpts = {},
+): Promise<QueuedRecord> {
   const chart = requireChart();
   const options: Record<string, unknown> = {
     shape: "trend_line",
     text: opts.text,
     overrides: opts.color ? { linecolor: opts.color } : undefined,
   };
-  return persistShape(
-    "trend_line",
-    [p1, p2],
-    options,
+  return persistShape("trend_line", [p1, p2], options, opts.symbol, () =>
     chart.createMultipointShape([p1, p2], options),
   );
 }
@@ -221,17 +231,14 @@ export function drawTrendLine(
 export function drawRectangle(
   p1: TVShapePoint,
   p2: TVShapePoint,
-  opts: { color?: string } = {},
-): Promise<DrawingRecord> {
+  opts: { color?: string; symbol?: string } = {},
+): Promise<QueuedRecord> {
   const chart = requireChart();
   const options: Record<string, unknown> = {
     shape: "rectangle",
     overrides: opts.color ? { color: opts.color } : undefined,
   };
-  return persistShape(
-    "rectangle",
-    [p1, p2],
-    options,
+  return persistShape("rectangle", [p1, p2], options, opts.symbol, () =>
     chart.createMultipointShape([p1, p2], options),
   );
 }
@@ -239,13 +246,11 @@ export function drawRectangle(
 export function drawFibRetracement(
   p1: TVShapePoint,
   p2: TVShapePoint,
-): Promise<DrawingRecord> {
+  opts: { symbol?: string } = {},
+): Promise<QueuedRecord> {
   const chart = requireChart();
   const options: Record<string, unknown> = { shape: "fib_retracement" };
-  return persistShape(
-    "fib_retracement",
-    [p1, p2],
-    options,
+  return persistShape("fib_retracement", [p1, p2], options, opts.symbol, () =>
     chart.createMultipointShape([p1, p2], options),
   );
 }
@@ -255,16 +260,22 @@ export function drawFibRetracement(
 export async function addStudy(
   name: string,
   inputs?: Record<string, unknown>,
-): Promise<DrawingRecord> {
+  opts: { symbol?: string } = {},
+): Promise<QueuedRecord> {
   hydrate();
   const chart = requireChart();
   const ctx = currentContext();
-  const entityId = await chart.createStudy(name, false, false, inputs);
-  if (!entityId) throw new Error(`createStudy returned null for "${name}"`);
+  const recordSymbol = normalize(opts.symbol ?? ctx.symbol);
+  const queued = recordSymbol !== normalize(ctx.symbol);
+  let entityId: string | null = null;
+  if (!queued) {
+    entityId = await chart.createStudy(name, false, false, inputs);
+    if (!entityId) throw new Error(`createStudy returned null for "${name}"`);
+  }
   const rec: DrawingRecord = {
     id: uuid(),
     entityId,
-    symbol: ctx.symbol,
+    symbol: recordSymbol,
     resolution: ctx.resolution,
     kind: "study",
     points: [],
@@ -272,6 +283,98 @@ export async function addStudy(
     createdAt: Date.now(),
   };
   liveMap.set(rec.id, rec);
+  flush();
+  return { ...rec, queued };
+}
+
+// --- Modification -----------------------------------------------------------
+
+interface ModifyUpdates {
+  price?: number;
+  time?: number;
+  point?: TVShapePoint;
+  point1?: TVShapePoint;
+  point2?: TVShapePoint;
+  text?: string;
+  color?: string;
+}
+
+export async function modifyDrawing(
+  id: string,
+  updates: ModifyUpdates,
+): Promise<DrawingRecord> {
+  hydrate();
+  const rec = liveMap.get(id);
+  if (!rec) throw new Error(`drawing not found: ${id}`);
+  if (rec.kind === "study") {
+    throw new Error("indicators can't be modified; remove and re-add");
+  }
+
+  // Build new points by merging updates into the existing record.
+  const newPoints: TVShapePoint[] = [];
+  if (rec.kind === "horizontal_line") {
+    newPoints.push({
+      time: rec.points[0]?.time ?? nowSec(),
+      price: updates.price ?? rec.points[0]?.price,
+    });
+  } else if (rec.kind === "vertical_line") {
+    newPoints.push({
+      time: updates.time ?? rec.points[0]?.time ?? nowSec(),
+    });
+  } else if (
+    rec.kind === "text" ||
+    rec.kind === "arrow_up" ||
+    rec.kind === "arrow_down"
+  ) {
+    newPoints.push(updates.point ?? rec.points[0]);
+  } else {
+    // trend_line / rectangle / fib_retracement
+    newPoints.push(updates.point1 ?? rec.points[0]);
+    newPoints.push(updates.point2 ?? rec.points[1]);
+  }
+
+  // Merge text + color into options. Keep the color path aligned with the
+  // original create paths above: "text" shapes set `overrides.color`,
+  // everything else sets `overrides.linecolor`.
+  const newOptions: Record<string, unknown> = { ...rec.options };
+  if (updates.text !== undefined) {
+    newOptions.text = updates.text;
+    newOptions.showLabel = !!updates.text;
+  }
+  if (updates.color !== undefined) {
+    const existing = (newOptions.overrides as Record<string, unknown>) ?? {};
+    newOptions.overrides = {
+      ...existing,
+      ...(rec.kind === "text" ? { color: updates.color } : { linecolor: updates.color }),
+    };
+  }
+
+  // If the entity is currently on screen, remove it before recreating.
+  const w = getTVWidget();
+  if (w && rec.entityId) {
+    try {
+      w.activeChart().removeEntity(rec.entityId);
+    } catch {
+      // entity already gone — proceed with recreate
+    }
+  }
+
+  // Recreate only if we're looking at the record's symbol; otherwise queue.
+  let entityId: string | null = null;
+  if (w) {
+    const chart = w.activeChart();
+    if (normalize(chart.symbol()) === normalize(rec.symbol)) {
+      if (newPoints.length === 1) {
+        entityId = await chart.createShape(newPoints[0], newOptions);
+      } else {
+        entityId = await chart.createMultipointShape(newPoints, newOptions);
+      }
+    }
+  }
+
+  rec.entityId = entityId;
+  rec.points = newPoints;
+  rec.options = newOptions;
   flush();
   return rec;
 }

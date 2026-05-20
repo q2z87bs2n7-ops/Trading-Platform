@@ -19,8 +19,9 @@ import {
   drawTrendLine,
   drawVerticalLine,
   listDrawings,
+  modifyDrawing,
   removeDrawing,
-  type DrawingRecord,
+  type QueuedRecord,
 } from "./tv-drawings";
 
 const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
@@ -75,9 +76,21 @@ function err(message: string, summary: string): DrawResult {
   return { content: message, isError: true, summary };
 }
 
-function recSummary(verb: string, r: DrawingRecord): string {
-  return `${verb} (id: ${r.id})`;
+function summarizeResult(verb: string, r: QueuedRecord): string {
+  return r.queued
+    ? `${verb} queued for ${r.symbol} (id: ${r.id})`
+    : `${verb} (id: ${r.id})`;
 }
+
+function queuedToolResult(r: QueuedRecord): string {
+  return JSON.stringify(
+    r.queued
+      ? { drawing_id: r.id, queued: true, queued_for_symbol: r.symbol }
+      : { drawing_id: r.id },
+  );
+}
+
+type Point = { time: number; price: number };
 
 async function executeDrawTool(
   name: string,
@@ -89,67 +102,80 @@ async function executeDrawTool(
         const r = await drawHorizontalLine(input.price as number, {
           text: input.text as string | undefined,
           color: input.color as string | undefined,
+          symbol: input.symbol as string | undefined,
         });
-        return ok(JSON.stringify({ drawing_id: r.id }), recSummary("horizontal line", r));
+        return ok(queuedToolResult(r), summarizeResult("horizontal line", r));
       }
       case "draw_vertical_line": {
         const r = await drawVerticalLine(input.time as number, {
           text: input.text as string | undefined,
           color: input.color as string | undefined,
+          symbol: input.symbol as string | undefined,
         });
-        return ok(JSON.stringify({ drawing_id: r.id }), recSummary("vertical line", r));
+        return ok(queuedToolResult(r), summarizeResult("vertical line", r));
       }
       case "draw_trend_line": {
         const r = await drawTrendLine(
-          input.point1 as { time: number; price: number },
-          input.point2 as { time: number; price: number },
+          input.point1 as Point,
+          input.point2 as Point,
           {
             text: input.text as string | undefined,
             color: input.color as string | undefined,
+            symbol: input.symbol as string | undefined,
           },
         );
-        return ok(JSON.stringify({ drawing_id: r.id }), recSummary("trend line", r));
+        return ok(queuedToolResult(r), summarizeResult("trend line", r));
       }
       case "draw_rectangle": {
         const r = await drawRectangle(
-          input.point1 as { time: number; price: number },
-          input.point2 as { time: number; price: number },
-          { color: input.color as string | undefined },
+          input.point1 as Point,
+          input.point2 as Point,
+          {
+            color: input.color as string | undefined,
+            symbol: input.symbol as string | undefined,
+          },
         );
-        return ok(JSON.stringify({ drawing_id: r.id }), recSummary("rectangle", r));
+        return ok(queuedToolResult(r), summarizeResult("rectangle", r));
       }
       case "draw_fib_retracement": {
         const r = await drawFibRetracement(
-          input.point1 as { time: number; price: number },
-          input.point2 as { time: number; price: number },
+          input.point1 as Point,
+          input.point2 as Point,
+          { symbol: input.symbol as string | undefined },
         );
-        return ok(JSON.stringify({ drawing_id: r.id }), recSummary("fib retracement", r));
+        return ok(queuedToolResult(r), summarizeResult("fib retracement", r));
       }
       case "draw_text": {
         const r = await drawText(
-          input.point as { time: number; price: number },
+          input.point as Point,
           input.text as string,
-          { color: input.color as string | undefined },
+          {
+            color: input.color as string | undefined,
+            symbol: input.symbol as string | undefined,
+          },
         );
-        return ok(JSON.stringify({ drawing_id: r.id }), recSummary("text", r));
+        return ok(queuedToolResult(r), summarizeResult("text", r));
       }
       case "draw_arrow": {
         const r = await drawArrow(
-          input.point as { time: number; price: number },
+          input.point as Point,
           input.direction as "up" | "down",
           {
             text: input.text as string | undefined,
             color: input.color as string | undefined,
+            symbol: input.symbol as string | undefined,
           },
         );
-        return ok(JSON.stringify({ drawing_id: r.id }), recSummary("arrow", r));
+        return ok(queuedToolResult(r), summarizeResult("arrow", r));
       }
       case "add_indicator": {
         const r = await addStudy(
           input.name as string,
           input.inputs as Record<string, unknown> | undefined,
+          { symbol: input.symbol as string | undefined },
         );
-        return ok(JSON.stringify({ drawing_id: r.id }), `added "${input.name}" study`);
+        const verb = `added "${input.name}" study`;
+        return ok(queuedToolResult(r), summarizeResult(verb, r));
       }
       case "list_drawings": {
         const all = listDrawings();
@@ -159,6 +185,22 @@ async function executeDrawTool(
         const id = input.drawing_id as string;
         const removed = removeDrawing(id);
         return ok(JSON.stringify({ removed }), removed ? `removed ${id}` : `not found: ${id}`);
+      }
+      case "modify_drawing": {
+        const id = input.drawing_id as string;
+        const r = await modifyDrawing(id, {
+          price: input.price as number | undefined,
+          time: input.time as number | undefined,
+          point: input.point as Point | undefined,
+          point1: input.point1 as Point | undefined,
+          point2: input.point2 as Point | undefined,
+          text: input.text as string | undefined,
+          color: input.color as string | undefined,
+        });
+        return ok(
+          JSON.stringify({ drawing_id: r.id }),
+          `modified ${r.kind} (id: ${r.id})`,
+        );
       }
       default:
         return err(`unknown draw tool: ${name}`, `unknown tool ${name}`);

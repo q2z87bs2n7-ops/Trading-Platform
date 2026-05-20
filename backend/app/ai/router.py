@@ -144,7 +144,9 @@ def _validate_messages(messages: list[dict[str, Any]]) -> None:
 def ai_chat(req: ChatRequest) -> ChatResponse:
     _validate_messages(req.messages)
     s = get_settings()
-    client = anthropic.Anthropic(api_key=s.anthropic_api_key)
+    # 60s wall-clock cap per Anthropic call — wedged connections would
+    # otherwise tie up a Vercel function for the SDK default (10 min).
+    client = anthropic.Anthropic(api_key=s.anthropic_api_key, timeout=60.0)
 
     system = prompt.build_system(req.chart_context.symbol, req.chart_context.resolution)
     messages = list(req.messages)
@@ -161,6 +163,14 @@ def ai_chat(req: ChatRequest) -> ChatResponse:
                 # workloads; the model can still tool-chain via the loop.
                 thinking={"type": "disabled"},
                 messages=messages,
+            )
+        except anthropic.AuthenticationError as e:
+            # 401 from Anthropic = our key is invalid/revoked. Surface as
+            # 503 so it lines up with the "not configured" idiom the
+            # frontend already handles, with a clear pointer at the cause.
+            raise HTTPException(
+                503,
+                f"Anthropic API key invalid or revoked. Check ANTHROPIC_API_KEY: {e}",
             )
         except AnthropicAPIError as e:
             status = getattr(e, "status_code", None) or 502
