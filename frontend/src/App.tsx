@@ -91,10 +91,11 @@ export default function App() {
       {/* Trading UI — shown when Trading mode is active */}
       {mode === "trading" && (
         <>
-          {/* Workspace: watchlist+news left, chart centre, order ticket right.
-             Each column is a flex-col so the chart and news can grow to fill
-             the row height set by the tallest sibling (no dead space). */}
-          <div className="grid">
+          {/* Workspace: watchlist + per-symbol news on the left, chart in
+             the middle, order ticket on the right. Each panel sizes to its
+             own content; the grid no longer stretches the chart/news to
+             fill, keeping the workspace compact. */}
+          <div className="grid items-start">
             <div className="flex flex-col gap-4 min-w-0">
               <Watchlist
                 symbols={symbols}
@@ -103,9 +104,7 @@ export default function App() {
                 onAdd={(s) => addToWatchlist.mutate(s)}
                 onRemove={(s) => removeFromWatchlist.mutate(s)}
               />
-              <div className="flex-1 min-h-0">
-                <News symbol={selected} />
-              </div>
+              <News symbol={selected} />
             </div>
             <div className="min-w-0">
               <PriceChart symbol={selected} />

@@ -107,8 +107,8 @@ export default function PriceChart({ symbol }: { symbol: string }) {
   if (!symbol) {
     return (
       <div
-        className="bg-panel border border-border rounded-lg p-3 flex items-center justify-center text-xs text-muted h-full"
-        style={{ minHeight: 480 }}
+        className="bg-panel border border-border rounded-lg p-3 flex items-center justify-center text-xs text-muted"
+        style={{ minHeight: 360 }}
       >
         Select a symbol from the watchlist
       </div>
@@ -116,7 +116,7 @@ export default function PriceChart({ symbol }: { symbol: string }) {
   }
 
   return (
-    <div className="bg-panel border border-border rounded-lg p-3 h-full flex flex-col min-h-0">
+    <div className="bg-panel border border-border rounded-lg p-3">
       {/* Header row 1: symbol/name/last/Δ% on the left, timeframe pills on the right */}
       <div className="flex items-baseline justify-between gap-3 mb-1 flex-wrap">
         <div className="flex items-baseline gap-3 flex-wrap">
@@ -184,14 +184,9 @@ export default function PriceChart({ symbol }: { symbol: string }) {
 
       {error && <ErrorBanner message={error.message} />}
 
-      {/* Chart fills the remaining column height; the column itself is
-         sized by the grid row, which stretches to the tallest sibling
-         (watchlist + news on the left, order ticket on the right). */}
-      <div
-        ref={containerRef}
-        className="flex-1 min-h-0"
-        style={{ minHeight: 480 }}
-      />
+      {/* Fixed chart height keeps the workspace compact — chart no
+         longer stretches to fill viewport / column. */}
+      <div ref={containerRef} style={{ height: 360 }} />
     </div>
   );
 }
