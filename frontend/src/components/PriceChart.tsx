@@ -106,17 +106,14 @@ export default function PriceChart({ symbol }: { symbol: string }) {
   // collapse before the user picks a symbol.
   if (!symbol) {
     return (
-      <div
-        className="bg-panel border border-border rounded-lg p-3 flex items-center justify-center text-xs text-muted"
-        style={{ minHeight: 360 }}
-      >
+      <div className="bg-panel border border-border rounded-lg p-3 flex-1 flex items-center justify-center text-xs text-muted">
         Select a symbol from the watchlist
       </div>
     );
   }
 
   return (
-    <div className="bg-panel border border-border rounded-lg p-3">
+    <div className="bg-panel border border-border rounded-lg p-3 flex-1 flex flex-col">
       {/* Header row 1: symbol/name/last/Δ% on the left, timeframe pills on the right */}
       <div className="flex items-baseline justify-between gap-3 mb-1 flex-wrap">
         <div className="flex items-baseline gap-3 flex-wrap">
@@ -184,9 +181,8 @@ export default function PriceChart({ symbol }: { symbol: string }) {
 
       {error && <ErrorBanner message={error.message} />}
 
-      {/* Fixed chart height keeps the workspace compact — chart no
-         longer stretches to fill viewport / column. */}
-      <div ref={containerRef} style={{ height: 360 }} />
+      {/* Flex-1 so the canvas fills whatever height the sidebar sets. */}
+      <div ref={containerRef} className="flex-1 min-h-0" style={{ minHeight: 240 }} />
     </div>
   );
 }

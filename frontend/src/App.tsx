@@ -92,8 +92,8 @@ export default function App() {
         <>
           {/* Workspace: chart on the left (1fr), right sidebar with
              watchlist on top and order ticket below. */}
-          <div className="grid items-start">
-            <div className="min-w-0">
+          <div className="grid items-stretch">
+            <div className="min-w-0 flex flex-col">
               <PriceChart symbol={selected} />
             </div>
             <div className="flex flex-col gap-4 min-w-0">
