@@ -124,7 +124,7 @@ interface SliceData {
   symbol: string;
   value: number;
   color: string;
-  plpc: number;
+  change_today: number;
 }
 
 function buildPath(
@@ -159,7 +159,7 @@ function HoldingsPie({ positions }: { positions: Position[] }) {
     symbol: p.symbol,
     value: p.market_value,
     color: SLICE_COLORS[i % SLICE_COLORS.length],
-    plpc: p.unrealized_plpc,
+    change_today: p.change_today,
   }));
 
   const cx = 75, cy = 75, outerR = 66, innerR = 42;
@@ -206,9 +206,9 @@ function HoldingsPie({ positions }: { positions: Position[] }) {
               <span className="text-[10px] text-muted">{((hov.value / total) * 100).toFixed(1)}%</span>
               <span
                 className="text-[10px] font-semibold"
-                style={{ color: hov.plpc >= 0 ? "var(--pos)" : "var(--neg)" }}
+                style={{ color: hov.change_today >= 0 ? "var(--pos)" : "var(--neg)" }}
               >
-                {pct(hov.plpc)}
+                {pct(hov.change_today)}
               </span>
             </>
           ) : (
@@ -240,8 +240,8 @@ function HoldingsPie({ positions }: { positions: Position[] }) {
             </span>
             <span className="flex gap-2 tabular-nums">
               <span className="text-muted">{((s.value / total) * 100).toFixed(1)}%</span>
-              <span style={{ color: s.plpc >= 0 ? "var(--pos)" : "var(--neg)" }}>
-                {pct(s.plpc)}
+              <span style={{ color: s.change_today >= 0 ? "var(--pos)" : "var(--neg)" }}>
+                {pct(s.change_today)}
               </span>
             </span>
           </button>
