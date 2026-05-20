@@ -52,9 +52,11 @@ persisted watchlists, asset search, and real-time streaming.
   - **TradingView mode:** `TVPlatform.tsx` mounts the full TradingView
     Charting Library terminal (`frontend/public/charting_library/`,
     committed to repo — private repo only). Data and broker wired via
-    `frontend/src/lib/tv-datafeed.ts` (→ `/api/bars`, `/api/stream`) and
-    `frontend/src/lib/tv-broker.ts` (→ `/api/orders`, `/api/positions`,
-    `/api/activities`). No backend changes — same FastAPI endpoints.
+    `frontend/src/lib/tv-datafeed.ts` (→ `/api/bars`, `/api/stream`,
+    `/api/quotes`, `/api/snapshots`, `/api/assets`) and
+    `frontend/src/lib/tv-broker.ts` (→ `/api/account`, `/api/orders`,
+    `/api/positions`, `/api/activities`). No backend changes — same
+    FastAPI endpoints.
 - **Backend:** FastAPI + `alpaca-py`. `backend/app/` is the real code;
   `api/index.py` is a thin shim that puts it on Vercel's import path.
   Endpoints: `/api/health`, `/api/config`, `/api/account`, `/api/bars`,
@@ -129,6 +131,39 @@ Vercel's serverless Python builder forces **Python 3.14** and ignores
 - Keep the `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1` build env in
   `vercel.json`.
 - Backend deps come from `requirements.txt` only.
+
+## TradingView mode — landmines (don't regress)
+
+The broker adapter (`frontend/src/lib/tv-broker.ts`) and datafeed
+(`frontend/src/lib/tv-datafeed.ts`) bridge a strict, undocumented-in-
+places TV interface. Specifics that took several iterations to land:
+
+- **`OrderType` enum is `Limit=1, Market=2, Stop=3, StopLimit=4`.** TV's
+  order ticket sends the *integer*, not the string — flipping market and
+  limit silently sends limit orders without `limit_price` and the
+  backend rejects with 422. Same enum is used both ways (`toTVOrder` and
+  `placeOrder`).
+- **`AccountManagerInfo` shape is rigid.** Summary rows use
+  `{ text, wValue, formatter }` (not `label`+`property`); each column
+  needs `id`+`label`+`formatter`+`dataFields`; `pages: []` is required.
+  Wrong keys throw `Cannot read properties of undefined ('length')` deep
+  inside TV's template renderer.
+- **Reactive summary values must come from `host.factory.createWatchedValue()`.**
+  Plain numbers don't update the panel — TV subscribes to the
+  `WatchedValue` and only re-renders on `setValue()`.
+- **TV does NOT re-poll `orders()` / `positions()`.** After the initial
+  call it expects push updates via `host.orderUpdate()` /
+  `host.positionUpdate()` / `host.executionUpdate()`. Our broker polls
+  the REST endpoints every 5s and pushes diffs, plus an immediate push
+  after `placeOrder` / `cancelOrder` / `closePosition`.
+- **Diff before pushing.** Calling `host.orderUpdate` for every
+  historical order on every poll triggers a toast notification per
+  order. Keep the per-id signature cache and skip notifications on the
+  very first poll (TV's own `orders()` already populated the panel).
+- **Order ticket needs `IDatafeedQuotesApi`.** Without
+  `getQuotes` / `subscribeQuotes` / `unsubscribeQuotes` and
+  `supports_quotes: true` in `onReady`, the ticket aborts with
+  "quotesSnapshot / formatter / spreadFormatter not received".
 
 ## Dev workflow
 

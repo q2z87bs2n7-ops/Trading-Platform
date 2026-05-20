@@ -28,9 +28,10 @@
   a user drags a price line; `tv-broker.ts` has no `modifyOrder` method.
   Wire to `PATCH /api/orders/{id}`.
 - **Account equity in TV header** — `accountInfo()` returns buying power
-  and equity but TV's header display depends on `currentAccount()` +
-  `accountsMetainfo()` currency matching. Verify display once broker is
-  fully stable.
+  and equity, and the Account Manager summary row updates live via
+  `WatchedValue`s. TV's header strip (top-right of the chart) is a
+  separate surface that has not been verified — confirm it shows the
+  paper-account currency / equity correctly.
 - **TV watchlist sync** — TV mode starts on the symbol selected in the
   custom UI watchlist, but switching symbols inside TV does not update
   the shared `selected` state. Add a `onSymbolChange` callback via
