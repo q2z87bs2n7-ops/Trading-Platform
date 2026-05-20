@@ -153,10 +153,24 @@ export function createBroker(onUpdate: () => void) {
     },
 
     // --- Required by TV: trade executions / fills ---
-    // Return empty array synchronously for now. The formatter not received error
-    // appears to be triggered by any async call in executions during broker init.
-    executions(_symbol: string) {
-      return [];
+    // Map Alpaca fill activities; returns empty array on error so the panel
+    // still loads even when activities are unavailable.
+    async executions(_symbol: string) {
+      try {
+        const data = await apiFetch("/api/activities?type=FILL&limit=50");
+        return (data.activities ?? [])
+          .filter((a: Record<string, unknown>) => !_symbol || a.symbol === _symbol)
+          .map((a: Record<string, unknown>) => ({
+            id: a.id,
+            symbol: a.symbol,
+            price: parseFloat((a.price as string) ?? "0"),
+            qty: parseFloat((a.qty as string) ?? "0"),
+            side: a.side === "buy" ? 1 : -1,
+            time: new Date(a.transaction_time as string).getTime(),
+          }));
+      } catch {
+        return [];
+      }
     },
 
     // --- Positions ---
