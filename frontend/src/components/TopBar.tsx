@@ -4,7 +4,6 @@ import {
   useAccount,
   useCalendar,
   useClock,
-  usePortfolioHistory,
 } from "../data/hooks";
 
 const money = (n: number) =>
@@ -59,7 +58,6 @@ function useClickOutside(
 export default function TopBar() {
   const { data: clk } = useClock();
   const { data: acct } = useAccount();
-  const { data: pf } = usePortfolioHistory("1M", "1D");
 
   // Calendar horizon mirrors the prior Calendar component: today + 21 days.
   const today = new Date();
@@ -76,8 +74,9 @@ export default function TopBar() {
   useClickOutside(eqRef, () => setEqOpen(false));
   useClickOutside(calRef, () => setCalOpen(false));
 
-  const pl = last(pf?.profit_loss);
-  const plpc = last(pf?.profit_loss_pct);
+  // Day P/L: dynamic calculation from account equity
+  const pl = acct ? acct.equity - acct.equity_at_market_open : 0;
+  const plpc = acct && acct.equity_at_market_open > 0 ? pl / acct.equity_at_market_open : 0;
   const up = pl >= 0;
 
   // Compute non-standard sessions in the 21-day horizon (closed days or
@@ -154,8 +153,8 @@ export default function TopBar() {
         </div>
       )}
 
-      {/* Day P/L (period from useHistory; matches prior PortfolioSummary card) */}
-      {pf && (
+      {/* Day P/L (dynamic calculation from account equity) */}
+      {acct && (
         <div className="flex items-center gap-1">
           <span className="text-muted">Day P/L</span>
           <span

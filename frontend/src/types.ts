@@ -8,6 +8,7 @@ export interface Account {
   portfolio_value: number;
   long_market_value: number;
   pattern_day_trader: boolean;
+  equity_at_market_open: number;
 }
 
 export interface Bar {
