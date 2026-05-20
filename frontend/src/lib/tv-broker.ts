@@ -153,32 +153,10 @@ export function createBroker(onUpdate: () => void) {
     },
 
     // --- Required by TV: trade executions / fills ---
-    // Map Alpaca fill activities; returns empty array on error so the panel
-    // still loads even when activities are unavailable. 5s timeout prevents
-    // formatter timeout errors from blocking broker initialization.
-    async executions(_symbol: string) {
-      try {
-        const fetchPromise = apiFetch("/api/activities?type=FILL&limit=50");
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Executions fetch timeout")), 5000)
-        );
-        const data = (await Promise.race([fetchPromise, timeoutPromise])) as Record<
-          string,
-          unknown
-        >;
-        return ((data.activities as Record<string, unknown>[]) ?? [])
-          .filter((a: Record<string, unknown>) => !_symbol || a.symbol === _symbol)
-          .map((a: Record<string, unknown>) => ({
-            id: a.id,
-            symbol: a.symbol,
-            price: parseFloat((a.price as string) ?? "0"),
-            qty: parseFloat((a.qty as string) ?? "0"),
-            side: a.side === "buy" ? 1 : -1,
-            time: new Date(a.transaction_time as string).getTime(),
-          }));
-      } catch {
-        return [];
-      }
+    // Return empty array synchronously for now. The formatter not received error
+    // appears to be triggered by any async call in executions during broker init.
+    executions(_symbol: string) {
+      return [];
     },
 
     // --- Positions ---
