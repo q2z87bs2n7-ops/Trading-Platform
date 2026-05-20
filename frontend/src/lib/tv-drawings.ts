@@ -674,6 +674,161 @@ async function openOrderTicket(
   }
 }
 
+// --- Execution markers (session-only) ---------------------------------------
+
+export interface MarkExecutionOpts {
+  price: number;
+  time: number;
+  side: "buy" | "sell";
+  text?: string;
+  symbol?: string;
+}
+
+export async function markExecution(
+  opts: MarkExecutionOpts,
+): Promise<{ symbol: string; drawn: boolean }> {
+  const chart = requireChart();
+  const symbol = normalize(opts.symbol ?? chart.symbol());
+  if (symbol !== normalize(chart.symbol())) {
+    // Execution shapes render against the active series; skip rather than
+    // draw silently on the wrong chart.
+    return { symbol, drawn: false };
+  }
+  const exec = await chart.createExecutionShape();
+  if (!exec) return { symbol, drawn: false };
+  exec
+    .setPrice(opts.price)
+    .setTime(opts.time)
+    .setDirection(opts.side === "buy" ? 1 : -1)
+    .setText(opts.text ?? `${opts.side.toUpperCase()} @ ${opts.price}`);
+  return { symbol, drawn: true };
+}
+
+// --- Comparison overlay ----------------------------------------------------
+
+export async function compareSymbol(symbol: string): Promise<QueuedRecord> {
+  // Compare overlays are studies in TV; reuse the existing study path so
+  // persistence + symbol-queue + remove_drawing all work uniformly.
+  return addStudy("Compare", { symbol: normalize(symbol) });
+}
+
+// --- Chart inspection ------------------------------------------------------
+
+export interface ChartState {
+  symbol: string;
+  resolution: string;
+  timezone: string;
+}
+
+export function getChartState(): ChartState {
+  const chart = requireChart();
+  let tz = "";
+  try {
+    tz = chart.getTimezone().id;
+  } catch {
+    /* not all builds expose getTimezone */
+  }
+  return {
+    symbol: chart.symbol(),
+    resolution: chart.resolution(),
+    timezone: tz,
+  };
+}
+
+export interface ChartInspection {
+  shapes: Array<{ entity_id: string; name: string }>;
+  studies: Array<{ entity_id: string; name: string }>;
+}
+
+export function inspectChart(): ChartInspection {
+  const chart = requireChart();
+  const shapes = chart.getAllShapes().map((e) => ({ entity_id: e.id, name: e.name }));
+  const studies = chart.getAllStudies().map((e) => ({ entity_id: e.id, name: e.name }));
+  return { shapes, studies };
+}
+
+// Try shape first, then study. TV doesn't expose a unified "entityType"
+// lookup so we probe both.
+function entityAccessor(entityId: string) {
+  const chart = requireChart();
+  try {
+    return chart.getShapeById(entityId);
+  } catch {
+    /* fall through */
+  }
+  return chart.getStudyById(entityId);
+}
+
+export function getEntityProperties(entityId: string): Record<string, unknown> {
+  return entityAccessor(entityId).getProperties();
+}
+
+export function setEntityProperties(
+  entityId: string,
+  props: Record<string, unknown>,
+): void {
+  entityAccessor(entityId).setProperties(props);
+}
+
+// --- Timezone --------------------------------------------------------------
+
+export function setChartTimezone(tz: string): void {
+  requireChart().setTimezone(tz);
+}
+
+// --- Capture / export ------------------------------------------------------
+
+export interface ScreenshotResult {
+  data_url: string;
+  width: number;
+  height: number;
+}
+
+export async function takeScreenshot(): Promise<ScreenshotResult> {
+  const w = getTVWidget();
+  if (!w) throw new Error("Chart not ready");
+  const canvas = await w.takeClientScreenshot();
+  return {
+    data_url: canvas.toDataURL("image/png"),
+    width: canvas.width,
+    height: canvas.height,
+  };
+}
+
+export interface ExportedBars {
+  schema: string[];
+  bars: Array<Record<string, number>>;
+}
+
+export async function exportChartData(opts: {
+  from?: number;
+  to?: number;
+  include_studies?: boolean;
+}): Promise<ExportedBars> {
+  const chart = requireChart();
+  const exported = await chart.exportData({
+    from: opts.from,
+    to: opts.to,
+    includeTime: true,
+    includeSeries: true,
+    includedStudies: opts.include_studies ? "all" : [],
+  });
+  const fields = exported.schema.map((f) => f.id);
+  // TV returns one Float64Array per field, all the same length. Pivot
+  // to row-oriented records so the AI can read them straightforwardly.
+  const colCount = exported.data.length;
+  const rowCount = colCount > 0 ? exported.data[0].length : 0;
+  const bars: Array<Record<string, number>> = [];
+  for (let i = 0; i < rowCount; i++) {
+    const row: Record<string, number> = {};
+    for (let c = 0; c < colCount; c++) {
+      row[fields[c]] = exported.data[c][i];
+    }
+    bars.push(row);
+  }
+  return { schema: fields, bars };
+}
+
 export interface ShowPositionLineResult {
   shown: Array<{ symbol: string; qty: number; avg_price: number }>;
 }

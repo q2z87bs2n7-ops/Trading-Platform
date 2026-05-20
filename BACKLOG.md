@@ -36,3 +36,23 @@
   custom UI watchlist, but switching symbols inside TV does not update
   the shared `selected` state. Add a `onSymbolChange` callback via
   `widget.activeChart().onSymbolChanged()` to keep both modes in sync.
+
+## AI chart assistant — deferred
+
+- **Multi-pane chart layouts** — TV exposes `setLayout()` /
+  `chartsCount()` for 2×1 / 2×2 splits, but our broker, datafeed,
+  drawings replay, and AI `chart_context` all assume
+  `widget.activeChart()`. Doing it safely needs per-chart routing
+  through every one of those surfaces. Significant rework — worth a
+  dedicated branch when there's a real use case.
+- **AI saveChart / loadChart** — TV's `saveChart()` / `loadChart()` can
+  persist whole chart layouts (symbol, drawings, studies, view state).
+  Needs a storage layer; do this on top of the Postgres persistence
+  layer above. Naming convention TBD (per-user named views).
+- **Discover-mode AI** — the chat panel is TV-mode-only today. Extending
+  to Discover needs a mode-aware system prompt, a trimmed tool set
+  (no chart-only tools), and a new UI surface (cards over the
+  existing tiles, or a separate panel). Bigger than a tool addition.
+- **`createAlert` integration** — TV has a native alert API but no
+  notification path exists in this app; defer until alerts have
+  somewhere to go.

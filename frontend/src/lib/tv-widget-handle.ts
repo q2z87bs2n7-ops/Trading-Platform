@@ -49,6 +49,28 @@ export interface TVPositionLine {
   remove: () => void;
 }
 
+// Slice of IExecutionLineAdapter. Direction is TV's Side enum (Buy=1,
+// Sell=-1).
+export interface TVExecutionLine {
+  setPrice: (v: number) => TVExecutionLine;
+  setTime: (v: number) => TVExecutionLine;
+  setDirection: (v: number) => TVExecutionLine;
+  setText: (v: string) => TVExecutionLine;
+  setTooltip: (v: string) => TVExecutionLine;
+  remove: () => void;
+}
+
+export interface TVEntityInfo {
+  id: string;
+  name: string;
+}
+
+export interface TVExportedData {
+  schema: Array<{ type: string; title: string; id: string }>;
+  data: Float64Array[];
+  displayedData?: string[][];
+}
+
 export interface TVChartApi {
   setSymbol: (symbol: string, callback?: () => void) => void;
   setResolution: (
@@ -76,7 +98,27 @@ export interface TVChartApi {
   ) => Promise<string | null>;
   createOrderLine: () => Promise<TVOrderLine>;
   createPositionLine: () => Promise<TVPositionLine>;
+  createExecutionShape: () => Promise<TVExecutionLine>;
   removeEntity: (id: string) => void;
+  setTimezone: (tz: string) => void;
+  getTimezone: () => { id: string; description?: string };
+  getAllShapes: () => TVEntityInfo[];
+  getAllStudies: () => TVEntityInfo[];
+  getShapeById: (id: string) => {
+    getProperties: () => Record<string, unknown>;
+    setProperties: (props: Record<string, unknown>) => void;
+  };
+  getStudyById: (id: string) => {
+    getProperties: () => Record<string, unknown>;
+    setProperties: (props: Record<string, unknown>) => void;
+  };
+  exportData: (opts?: {
+    from?: number;
+    to?: number;
+    includeTime?: boolean;
+    includeSeries?: boolean;
+    includedStudies?: readonly string[] | "all";
+  }) => Promise<TVExportedData>;
 }
 
 // Subset of IBrokerConnectionAdapterHost we use from the AI dispatcher.
@@ -93,6 +135,9 @@ export interface TVWidgetInstance {
   onChartReady: (cb: () => void) => void;
   remove: () => void;
   activeChart: () => TVChartApi;
+  takeClientScreenshot: (
+    options?: { hideStudies?: boolean; hidePriceLine?: boolean },
+  ) => Promise<HTMLCanvasElement>;
 }
 
 type Listener = (w: TVWidgetInstance | null) => void;

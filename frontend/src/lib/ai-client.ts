@@ -11,6 +11,7 @@
 
 import {
   addStudy,
+  compareSymbol,
   drawArrow,
   drawFibRetracement,
   drawHorizontalLine,
@@ -18,16 +19,24 @@ import {
   drawText,
   drawTrendLine,
   drawVerticalLine,
+  exportChartData,
+  getChartState,
+  getEntityProperties,
+  inspectChart,
   listDrawings,
   markBar,
+  markExecution,
   modifyDrawing,
   proposeOrder,
   removeDrawing,
   setChartResolution,
   setChartSymbol,
+  setChartTimezone,
   setChartType,
   setChartVisibleRange,
+  setEntityProperties,
   showPositionLine,
+  takeScreenshot,
   type QueuedRecord,
 } from "./tv-drawings";
 
@@ -36,10 +45,32 @@ const MAX_OUTER_ITERATIONS = 5;
 
 // --- Wire types (match backend ChatRequest / ChatResponse) ------------------
 
+// tool_result.content can be a plain string OR a list of nested blocks
+// when the result includes an image (Anthropic's vision input shape).
+// take_screenshot is the only tool that uses the array form today.
+export type ToolResultContent =
+  | string
+  | Array<
+      | { type: "text"; text: string }
+      | {
+          type: "image";
+          source: {
+            type: "base64";
+            media_type: "image/png" | "image/jpeg" | "image/webp" | "image/gif";
+            data: string;
+          };
+        }
+    >;
+
 export type ContentBlock =
   | { type: "text"; text: string }
   | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
-  | { type: "tool_result"; tool_use_id: string; content: string; is_error?: boolean };
+  | {
+      type: "tool_result";
+      tool_use_id: string;
+      content: ToolResultContent;
+      is_error?: boolean;
+    };
 
 export interface APIMessage {
   role: "user" | "assistant";
@@ -74,9 +105,13 @@ export interface RunResult {
 
 // --- Drawing dispatcher (frontend-executes-draw) ----------------------------
 
-type DrawResult = { content: string; isError: boolean; summary: string };
+type DrawResult = {
+  content: ToolResultContent;
+  isError: boolean;
+  summary: string;
+};
 
-function ok(content: string, summary: string): DrawResult {
+function ok(content: ToolResultContent, summary: string): DrawResult {
   return { content, isError: false, summary };
 }
 function err(message: string, summary: string): DrawResult {
@@ -267,6 +302,82 @@ async function executeDrawTool(
           symbol: input.symbol as string | undefined,
         });
         return ok(queuedToolResult(r), summarizeResult("event marker", r));
+      }
+      case "mark_execution": {
+        const r = await markExecution({
+          price: input.price as number,
+          time: input.time as number,
+          side: input.side as "buy" | "sell",
+          text: input.text as string | undefined,
+          symbol: input.symbol as string | undefined,
+        });
+        const verb = r.drawn
+          ? `marked ${input.side} execution on ${r.symbol}`
+          : `skipped execution mark (chart on different symbol)`;
+        return ok(JSON.stringify(r), verb);
+      }
+      case "compare_symbol": {
+        const r = await compareSymbol(input.symbol as string);
+        return ok(
+          queuedToolResult(r),
+          summarizeResult(`compared with ${(input.symbol as string).toUpperCase()}`, r),
+        );
+      }
+      case "get_chart_state": {
+        const s = getChartState();
+        return ok(JSON.stringify(s), `chart state: ${s.symbol} ${s.resolution}`);
+      }
+      case "inspect_chart": {
+        const r = inspectChart();
+        return ok(
+          JSON.stringify(r),
+          `inspected: ${r.shapes.length} shape(s), ${r.studies.length} study(ies)`,
+        );
+      }
+      case "get_drawing_properties": {
+        const id = input.entity_id as string;
+        const props = getEntityProperties(id);
+        return ok(JSON.stringify({ entity_id: id, properties: props }), `read properties of ${id}`);
+      }
+      case "set_drawing_properties": {
+        const id = input.entity_id as string;
+        setEntityProperties(id, input.properties as Record<string, unknown>);
+        return ok(JSON.stringify({ entity_id: id, updated: true }), `updated properties of ${id}`);
+      }
+      case "set_timezone": {
+        const tz = input.timezone as string;
+        setChartTimezone(tz);
+        return ok(JSON.stringify({ timezone: tz }), `timezone → ${tz}`);
+      }
+      case "take_screenshot": {
+        const r = await takeScreenshot();
+        // Strip the "data:image/png;base64," prefix — Anthropic wants raw
+        // base64 in source.data.
+        const b64 = r.data_url.replace(/^data:image\/png;base64,/, "");
+        return ok(
+          [
+            {
+              type: "text",
+              text: `Chart screenshot (${r.width}x${r.height}). Describe what you see.`,
+            },
+            {
+              type: "image",
+              source: { type: "base64", media_type: "image/png", data: b64 },
+            },
+          ],
+          `screenshot taken (${r.width}x${r.height})`,
+        );
+      }
+      case "export_chart_data": {
+        const r = await exportChartData({
+          from: input.from as number | undefined,
+          to: input.to as number | undefined,
+          include_studies: input.include_studies as boolean | undefined,
+        });
+        return ok(
+          JSON.stringify(r),
+          `exported ${r.bars.length} bars (${r.schema.length} fields)`,
+        );
       }
       default:
         return err(`unknown draw tool: ${name}`, `unknown tool ${name}`);

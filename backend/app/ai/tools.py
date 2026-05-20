@@ -23,9 +23,9 @@ READ_TOOL_NAMES = {
 }
 
 # Frontend-executed tools (backend declares, frontend dispatches on the
-# TradingView widget). Drawing primitives, chart navigation, and trading
-# visualization all live here because the dispatcher only distinguishes
-# read vs not-read.
+# TradingView widget). Drawing primitives, chart navigation, trading
+# visualization, inspection, and capture all live here because the
+# dispatcher only distinguishes read vs not-read.
 DRAW_TOOL_NAMES = {
     # Drawing primitives
     "draw_horizontal_line",
@@ -44,10 +44,22 @@ DRAW_TOOL_NAMES = {
     "set_resolution",
     "set_chart_type",
     "set_visible_range",
+    "set_timezone",
     # Trading visualization
     "propose_order",
     "show_position_line",
     "mark_bar",
+    "mark_execution",
+    # Comparison overlay
+    "compare_symbol",
+    # Chart inspection
+    "get_chart_state",
+    "inspect_chart",
+    "get_drawing_properties",
+    "set_drawing_properties",
+    # Capture / export
+    "take_screenshot",
+    "export_chart_data",
 }
 
 
@@ -544,6 +556,145 @@ TOOLS: list[dict[str, Any]] = [
                 "symbol": _SYMBOL_FIELD,
             },
             "required": ["time", "text"],
+        },
+    },
+    {
+        "name": "mark_execution",
+        "description": (
+            "Mark a trade execution / fill as an arrow on the chart "
+            "(direction = side). Session-only; not persisted. Use this "
+            "for 'show me where I got filled' visualizations after "
+            "fetching the user's activities."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "price": {"type": "number"},
+                "time": {"type": "integer", "description": "UNIX seconds."},
+                "side": {"type": "string", "enum": ["buy", "sell"]},
+                "text": {"type": "string", "description": "Optional label, e.g. 'Filled 100 @ 184.50'."},
+                "symbol": _SYMBOL_FIELD,
+            },
+            "required": ["price", "time", "side"],
+        },
+    },
+    # --- COMPARISON OVERLAY (frontend executes) -------------------------------
+    {
+        "name": "compare_symbol",
+        "description": (
+            "Overlay another symbol's price series on top of the current "
+            "chart for relative-performance comparison (e.g. 'overlay QQQ "
+            "on NVDA'). Returns a drawing_id you can pass to remove_drawing."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Ticker to overlay, e.g. SPY."},
+            },
+            "required": ["symbol"],
+        },
+    },
+    # --- CHART INSPECTION (frontend executes) ---------------------------------
+    {
+        "name": "get_chart_state",
+        "description": (
+            "Get the current chart's view state: symbol, resolution, chart "
+            "type, timezone, and visible time range. Use this to ground "
+            "your reasoning about what the user is currently looking at."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "inspect_chart",
+        "description": (
+            "List ALL shapes and studies currently on the chart, including "
+            "ones the user drew manually (not just AI-created). Returns "
+            "TV entity IDs you can pass to get_drawing_properties or "
+            "set_drawing_properties. Different from list_drawings, which "
+            "only sees AI-created records."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "get_drawing_properties",
+        "description": (
+            "Read the property bag of a shape or study by its TV entity "
+            "ID (from inspect_chart). Use for questions like 'what period "
+            "is that moving average?' or 'what color is that trend line?'"
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "entity_id": {"type": "string", "description": "TV entity ID from inspect_chart."},
+            },
+            "required": ["entity_id"],
+        },
+    },
+    {
+        "name": "set_drawing_properties",
+        "description": (
+            "Update properties on a shape or study by its TV entity ID. "
+            "Pass only the keys you want to change (TV merges them). "
+            "EXPLICIT-REQUEST ONLY — this can edit user-drawn objects, so "
+            "never restyle their work unprompted."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "entity_id": {"type": "string"},
+                "properties": {
+                    "type": "object",
+                    "description": "Property key/value pairs to merge into the entity.",
+                },
+            },
+            "required": ["entity_id", "properties"],
+        },
+    },
+    {
+        "name": "set_timezone",
+        "description": (
+            "Change the chart's display timezone (e.g. 'America/New_York', "
+            "'Europe/London', 'Asia/Tokyo'). Explicit-request only."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "timezone": {"type": "string", "description": "IANA timezone ID."},
+            },
+            "required": ["timezone"],
+        },
+    },
+    # --- CAPTURE / EXPORT (frontend executes) ---------------------------------
+    {
+        "name": "take_screenshot",
+        "description": (
+            "Capture the current chart as an image and return it so you "
+            "can visually analyze what the user sees — price action, "
+            "your own annotations, indicator readings. Useful when the "
+            "user asks 'what does this look like?' or for grounding a "
+            "written analysis. The image counts toward your context budget; "
+            "use sparingly."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "export_chart_data",
+        "description": (
+            "Pull the chart's rendered bars (and optionally study values) "
+            "as structured JSON for statistical analysis. Heavier than "
+            "get_bars but reflects exactly what's on screen — useful when "
+            "you need study/indicator values aligned to bars."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "from": {"type": "integer", "description": "Optional start time (UNIX seconds)."},
+                "to": {"type": "integer", "description": "Optional end time (UNIX seconds)."},
+                "include_studies": {
+                    "type": "boolean",
+                    "description": "Include values from chart studies (default false).",
+                },
+            },
         },
     },
 ]
