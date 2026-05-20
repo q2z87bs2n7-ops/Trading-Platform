@@ -52,7 +52,8 @@ export function createDatafeed() {
       fetch(`${API_BASE}/api/assets?search=${encodeURIComponent(userInput)}`)
         .then((r) => r.json())
         .then((data) => {
-          const results = (data.assets ?? []).map((a: { symbol: string; name: string; exchange: string }) => ({
+          // /api/assets returns a plain array, not { assets: [...] }
+          const results = (Array.isArray(data) ? data : []).map((a: { symbol: string; name: string; exchange: string }) => ({
             symbol: a.symbol,
             full_name: a.symbol,
             description: a.name,
