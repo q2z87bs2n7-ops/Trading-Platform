@@ -5,3 +5,4 @@ python-dotenv==1.0.1
 pydantic>=2.11
 pydantic-settings>=2.7
 pytz==2024.2
+anthropic>=0.40

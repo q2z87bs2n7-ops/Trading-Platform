@@ -11,6 +11,13 @@ class Settings(BaseSettings):
     alpaca_paper: bool = True
     alpaca_data_feed: str = "iex"
     default_symbols: str = "AAPL,MSFT,TSLA,SPY"
+    # AI chat (Anthropic). Off by default — calls cost real money. Flip
+    # ai_chat_enabled=true once an ANTHROPIC_API_KEY is loaded server-side.
+    ai_chat_enabled: bool = False
+    anthropic_api_key: str = ""
+    anthropic_model: str = "claude-sonnet-4-6"
+    ai_max_tokens: int = 2048
+    ai_max_tool_iterations: int = 8
     # Browser origins allowed to call this API. The GitHub Pages origin is
     # included so the dev-branch previews can reach the Vercel backend.
     cors_origins: str = (
@@ -30,6 +37,10 @@ class Settings(BaseSettings):
     @property
     def configured(self) -> bool:
         return bool(self.alpaca_api_key and self.alpaca_secret_key)
+
+    @property
+    def ai_configured(self) -> bool:
+        return bool(self.anthropic_api_key)
 
 
 @lru_cache
