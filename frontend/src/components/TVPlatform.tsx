@@ -28,76 +28,87 @@ export default function TVPlatform({ symbol }: Props) {
 
   useEffect(() => {
     if (!containerRef.current) return;
-    if (typeof TradingView === "undefined") {
-      console.error("[TV] charting_library.standalone.js not loaded");
-      return;
-    }
 
+    let destroyed = false;
     let brokerRef: ReturnType<typeof createBroker> | null = null;
 
-    const widget = new TradingView.widget({
-      // Container
-      container: containerRef.current,
-      library_path: `${import.meta.env.BASE_URL}charting_library/`,
+    // charting_library.standalone.js loads its own async chunks; poll until
+    // TradingView.widget is callable (typically <200 ms on cold load).
+    function init() {
+      if (destroyed) return;
+      if (typeof TradingView === "undefined" || typeof TradingView.widget !== "function") {
+        setTimeout(init, 100);
+        return;
+      }
+      if (!containerRef.current) return;
 
-      // Symbol + interval
-      symbol: symbol || "AAPL",
-      interval: "D",
-      locale: "en",
-      timezone: "America/New_York",
+      const widget = new TradingView.widget({
+        // Container
+        container: containerRef.current,
+        library_path: `${import.meta.env.BASE_URL}charting_library/`,
 
-      // Theme — dark to match existing app
-      theme: "Dark",
-      custom_css_url: "",
-      overrides: {
-        "paneProperties.background": "#0d1117",
-        "paneProperties.backgroundType": "solid",
-      },
+        // Symbol + interval
+        symbol: symbol || "AAPL",
+        interval: "D",
+        locale: "en",
+        timezone: "America/New_York",
 
-      // Data
-      datafeed: createDatafeed(),
-
-      // Trading panel wired to our broker. TV passes a host with
-      // factory.createWatchedValue() that the broker needs to wire up the
-      // account summary WatchedValue fields.
-      broker_factory: (host: Parameters<typeof createBroker>[0]) => {
-        brokerRef = createBroker(host, () => {
-          // onUpdate — TV will refetch positions/orders on next poll
-        });
-        return brokerRef;
-      },
-      broker_config: {
-        configFlags: {
-          supportOrderBrackets: false,
-          supportEditAmount: true,
-          supportClosePosition: true,
-          supportPositions: true,
-          supportExecutions: true,
+        // Theme — dark to match existing app
+        theme: "Dark",
+        custom_css_url: "",
+        overrides: {
+          "paneProperties.background": "#0d1117",
+          "paneProperties.backgroundType": "solid",
         },
-      },
 
-      // Features
-      enabled_features: [
-        "use_localstorage_for_settings",
-        "side_toolbar_in_fullscreen_mode",
-      ],
-      disabled_features: [
-        "header_symbol_search",   // we drive symbol from our watchlist
-        "header_compare",
-      ],
+        // Data
+        datafeed: createDatafeed(),
 
-      // Sizing — fill the container
-      autosize: true,
-      fullscreen: false,
-    });
+        // Trading panel wired to our broker. TV passes a host with
+        // factory.createWatchedValue() that the broker needs to wire up the
+        // account summary WatchedValue fields.
+        broker_factory: (host: Parameters<typeof createBroker>[0]) => {
+          brokerRef = createBroker(host, () => {
+            // onUpdate — TV will refetch positions/orders on next poll
+          });
+          return brokerRef;
+        },
+        broker_config: {
+          configFlags: {
+            supportOrderBrackets: false,
+            supportEditAmount: true,
+            supportClosePosition: true,
+            supportPositions: true,
+            supportExecutions: true,
+          },
+        },
 
-    widget.onChartReady(() => {
-      brokerRef?.connect();
-    });
+        // Features
+        enabled_features: [
+          "use_localstorage_for_settings",
+          "side_toolbar_in_fullscreen_mode",
+        ],
+        disabled_features: [
+          "header_symbol_search",   // we drive symbol from our watchlist
+          "header_compare",
+        ],
 
-    widgetRef.current = widget;
+        // Sizing — fill the container
+        autosize: true,
+        fullscreen: false,
+      });
+
+      widget.onChartReady(() => {
+        brokerRef?.connect();
+      });
+
+      widgetRef.current = widget;
+    }
+
+    init();
 
     return () => {
+      destroyed = true;
       brokerRef?.disconnect();
       widgetRef.current?.remove();
       widgetRef.current = null;
