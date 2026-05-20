@@ -629,7 +629,14 @@ async function openOrderTicket(
   price: number,
 ): Promise<boolean> {
   const host = getTVBrokerHost();
-  if (!host?.showOrderDialog) return false;
+  if (!host) {
+    console.warn("[AI] propose_order: broker host not captured yet");
+    return false;
+  }
+  if (!host.showOrderDialog) {
+    console.warn("[AI] propose_order: host.showOrderDialog not exposed on this TV build");
+    return false;
+  }
   const order: Record<string, unknown> = {
     symbol,
     side: opts.side === "buy" ? 1 : -1,
@@ -640,9 +647,29 @@ async function openOrderTicket(
   else if (opts.type === "limit") order.limitPrice = price;
   if (opts.stop_price != null) order.stopPrice = opts.stop_price;
   else if (opts.type === "stop") order.stopPrice = price;
+
+  // Fire-and-forget. showOrderDialog returns Promise<boolean> that resolves
+  // when the dialog CLOSES — true if the user placed, false if they
+  // dismissed. We don't want the tool result to block on user interaction,
+  // and conflating "ticket opened" with "order placed" wrongly reports
+  // staged=false whenever the user reviews-then-dismisses (the normal
+  // case for AI-suggested trades). Kick it off, record the placement
+  // outcome in the console for diagnostics, and return true on
+  // successful invocation.
   try {
-    return await host.showOrderDialog(order);
-  } catch {
+    host
+      .showOrderDialog(order)
+      .then((placed) => {
+        console.info(
+          `[AI] order ticket closed for ${symbol} — ${placed ? "placed" : "dismissed"}`,
+        );
+      })
+      .catch((e) => {
+        console.error(`[AI] order ticket rejected for ${symbol}:`, e);
+      });
+    return true;
+  } catch (e) {
+    console.error(`[AI] showOrderDialog threw synchronously for ${symbol}:`, e);
     return false;
   }
 }
