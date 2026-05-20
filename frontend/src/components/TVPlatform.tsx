@@ -7,13 +7,16 @@
 import { useEffect, useRef } from "react";
 import { createDatafeed } from "../lib/tv-datafeed";
 import { createBroker } from "../lib/tv-broker";
+import {
+  setTVWidget,
+  type TVWidgetInstance,
+} from "../lib/tv-widget-handle";
+import {
+  clearEntityIds,
+  recreateDrawingsForChart,
+} from "../lib/tv-drawings";
 
 // TradingView widget is injected by charting_library.standalone.js in index.html
-interface TVWidgetInstance {
-  onChartReady: (cb: () => void) => void;
-  remove: () => void;
-  activeChart: () => { setSymbol: (s: string) => void };
-}
 declare const TradingView: {
   widget: new (config: Record<string, unknown>) => TVWidgetInstance;
 };
@@ -100,6 +103,20 @@ export default function TVPlatform({ symbol }: Props) {
 
       widget.onChartReady(() => {
         brokerRef?.connect();
+        setTVWidget(widget);
+        // Replay any persisted AI-drawn shapes for this (symbol, resolution).
+        recreateDrawingsForChart();
+        // Re-replay on symbol change so swapping the chart swaps the drawings.
+        try {
+          const sub = widget.activeChart().onSymbolChanged();
+          const handler = () => {
+            clearEntityIds();
+            recreateDrawingsForChart();
+          };
+          sub.subscribe(null, handler);
+        } catch {
+          // Older TV builds may not expose onSymbolChanged; non-fatal.
+        }
       });
 
       widgetRef.current = widget;
@@ -110,6 +127,8 @@ export default function TVPlatform({ symbol }: Props) {
     return () => {
       destroyed = true;
       brokerRef?.disconnect();
+      setTVWidget(null);
+      clearEntityIds();
       widgetRef.current?.remove();
       widgetRef.current = null;
     };
