@@ -46,10 +46,11 @@ persisted watchlists, asset search, and real-time streaming.
   - **Discover (default):** `Tools.tsx` — indices ticker (Yahoo Finance
     direct HTTP, 13 indices), holdings donut chart (daily % change),
     top gainers/losers/most-active, market news (Yahoo Finance RSS).
-  - **Trading:** `App.tsx` — `TopBar` status strip, workspace
-    (`AssetSearch`, `Watchlist`, `PriceChart`, `OrderTicket`, `News`),
-    blotter (`Positions`, `Orders`, `Activities`). Charts use TradingView
-    `lightweight-charts` (npm lib — data from our backend).
+  - **Trading:** `App.tsx` — `TopBar` status strip, workspace (left:
+    `Watchlist` with `AssetSearch` embedded + per-symbol `News`;
+    centre: `PriceChart`; right: `OrderTicket`), blotter (`Positions`,
+    `Orders`, `Activities`). Charts use TradingView `lightweight-charts`
+    (npm lib — data from our backend).
   - **TradingView:** `TVPlatform.tsx` mounts the full TradingView
     Charting Library terminal (`frontend/public/charting_library/`,
     committed to repo — private repo only). Data and broker wired via
