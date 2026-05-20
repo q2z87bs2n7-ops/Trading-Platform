@@ -112,19 +112,40 @@ export function createBroker(host: TVHost, onUpdate: () => void) {
 
   // Push the current orders/positions to TV. TV's panels only re-render
   // when we call these host methods — they don't re-poll our broker.
+  // On the FIRST poll we only populate the diff caches without pushing,
+  // because TV's own orders()/positions() calls already populated the
+  // panels — re-pushing every historical order would trigger a flood of
+  // "order updated" notifications. After that, only push genuine changes.
+  let firstPoll = true;
+  const orderCache = new Map<string, string>();
+  const positionCache = new Map<string, string>();
+
   async function pushOrdersAndPositions() {
     try {
-      const data = await apiFetch("/api/orders?status=all");
+      const data = await apiFetch("/api/orders?status=all&limit=100");
       for (const o of data.orders ?? []) {
-        host.orderUpdate(toTVOrder(o));
+        const tv = toTVOrder(o);
+        const key = String(tv.id);
+        const sig = JSON.stringify(tv);
+        if (orderCache.get(key) !== sig) {
+          orderCache.set(key, sig);
+          if (!firstPoll) host.orderUpdate(tv);
+        }
       }
     } catch { /* ignore */ }
     try {
       const data = await apiFetch("/api/positions");
       for (const p of data.positions ?? []) {
-        host.positionUpdate(toTVPosition(p));
+        const tv = toTVPosition(p);
+        const key = String(tv.id);
+        const sig = JSON.stringify(tv);
+        if (positionCache.get(key) !== sig) {
+          positionCache.set(key, sig);
+          if (!firstPoll) host.positionUpdate(tv);
+        }
       }
     } catch { /* ignore */ }
+    firstPoll = false;
   }
 
   function startPolling() {
