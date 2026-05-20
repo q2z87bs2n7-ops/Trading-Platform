@@ -74,9 +74,12 @@ export function createDatafeed() {
       onResolve: (info: object) => void,
       onError: (err: string) => void,
     ) {
-      fetch(`${API_BASE}/api/assets/${encodeURIComponent(symbolName)}`)
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 15_000);
+      fetch(`${API_BASE}/api/assets/${encodeURIComponent(symbolName)}`, { signal: ctrl.signal })
         .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
         .then((data) => {
+          clearTimeout(timer);
           onResolve({
             name: data.symbol,
             full_name: data.symbol,
@@ -93,7 +96,7 @@ export function createDatafeed() {
             data_status: "streaming",
           });
         })
-        .catch(() => onError(`Symbol ${symbolName} not found`));
+        .catch(() => { clearTimeout(timer); onError(`Symbol ${symbolName} not found`); });
     },
 
     getBars(
@@ -111,9 +114,12 @@ export function createDatafeed() {
         `${API_BASE}/api/bars` +
         `?symbol=${encodeURIComponent(symbolInfo.name)}&timeframe=${tf}&limit=${limit}`;
 
-      fetch(url)
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 20_000);
+      fetch(url, { signal: ctrl.signal })
         .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
         .then((data) => {
+          clearTimeout(timer);
           const bars = (data.bars ?? []).map(
             (b: { time: number; open: number; high: number; low: number; close: number; volume: number }) => ({
               time: b.time * 1000, // TV expects milliseconds
@@ -126,7 +132,7 @@ export function createDatafeed() {
           );
           onResult(bars, { noData: bars.length === 0 });
         })
-        .catch((e) => onError(String(e)));
+        .catch((e) => { clearTimeout(timer); onError(String(e)); });
     },
 
     subscribeBars(

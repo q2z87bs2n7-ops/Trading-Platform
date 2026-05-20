@@ -35,45 +35,13 @@ export default defineConfig({
         start_url: "./",
         icons: [
           {
-            src: "pwa-192x192.png",
-            sizes: "192x192",
-            type: "image/png",
+            src: "icon.svg",
+            sizes: "any",
+            type: "image/svg+xml",
             purpose: "any",
-          },
-          {
-            src: "pwa-512x512.png",
-            sizes: "512x512",
-            type: "image/png",
-            purpose: "any",
-          },
-          {
-            src: "pwa-maskable-192x192.png",
-            sizes: "192x192",
-            type: "image/png",
-            purpose: "maskable",
-          },
-          {
-            src: "pwa-maskable-512x512.png",
-            sizes: "512x512",
-            type: "image/png",
-            purpose: "maskable",
           },
         ],
         categories: ["finance", "productivity"],
-        screenshots: [
-          {
-            src: "screenshot-narrow.png",
-            sizes: "540x720",
-            type: "image/png",
-            form_factor: "narrow",
-          },
-          {
-            src: "screenshot-wide.png",
-            sizes: "1280x720",
-            type: "image/png",
-            form_factor: "wide",
-          },
-        ],
       },
       workbox: {
         globPatterns: [
@@ -82,29 +50,11 @@ export default defineConfig({
         globIgnores: ["**/charting_library/**"],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         runtimeCaching: [
+          // Live market data must never be served from cache.
+          // NetworkOnly passes straight through — no timeout race, no stale quotes.
           {
-            urlPattern: /^https:\/\/api\..*/i,
-            handler: "NetworkFirst",
-            options: {
-              cacheName: "api-cache",
-              networkTimeoutSeconds: 10,
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 300,
-              },
-            },
-          },
-          {
-            urlPattern: /^\/api\/.*/i,
-            handler: "NetworkFirst",
-            options: {
-              cacheName: "local-api-cache",
-              networkTimeoutSeconds: 10,
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 300,
-              },
-            },
+            urlPattern: ({ url }: { url: URL }) => url.pathname.startsWith("/api/"),
+            handler: "NetworkOnly",
           },
           {
             urlPattern: /charting_library/i,
