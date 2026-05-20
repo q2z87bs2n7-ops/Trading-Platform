@@ -1,5 +1,6 @@
 import asyncio
 import time
+from pathlib import Path
 
 from alpaca.common.exceptions import APIError
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
@@ -22,7 +23,8 @@ from .schemas import (
     WatchlistSymbol,
 )
 
-app = FastAPI(title="Trading Platform API", version="0.1.0")
+_version = Path(__file__).parent.parent.parent.joinpath("VERSION").read_text().strip()
+app = FastAPI(title="Trading Platform API", version=_version)
 
 app.add_middleware(
     CORSMiddleware,
