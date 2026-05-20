@@ -126,7 +126,7 @@ export default function TopBar() {
           <button
             type="button"
             onClick={() => setEqOpen((v) => !v)}
-            className="flex items-center gap-1 text-[13px] bg-transparent border-0 p-0 cursor-pointer"
+            className="flex items-center gap-1 text-[13px] text-text bg-transparent border-0 p-0 cursor-pointer"
           >
             <span className="text-muted">Equity</span>
             <span className="tabular-nums font-semibold">
