@@ -724,9 +724,12 @@ export function getChartState(): ChartState {
   const chart = requireChart();
   let tz = "";
   try {
-    tz = chart.getTimezone().id;
+    // TV's timezone API lives on chart.getTimezoneApi(), not directly on
+    // chart. Earlier draft called chart.getTimezone() which always threw
+    // (silently caught), leaving timezone blank in the response.
+    tz = chart.getTimezoneApi().getTimezone().id;
   } catch {
-    /* not all builds expose getTimezone */
+    /* still leave empty on unexpected build */
   }
   return {
     symbol: chart.symbol(),
@@ -747,33 +750,86 @@ export function inspectChart(): ChartInspection {
   return { shapes, studies };
 }
 
-// Try shape first, then study. TV doesn't expose a unified "entityType"
-// lookup so we probe both.
-function entityAccessor(entityId: string) {
+// Studies and shapes have different APIs: shapes expose
+// getProperties/setProperties (ILineDataSourceApi), studies expose
+// getInputValues/getStyleValues/setInputValues (IStudyApi). Probing
+// both blindly crashes on studies, so resolve the entity type first by
+// cross-referencing the entity ID against getAllShapes / getAllStudies.
+type EntityKind = "shape" | "study" | "unknown";
+
+function classifyEntity(entityId: string): EntityKind {
   const chart = requireChart();
-  try {
-    return chart.getShapeById(entityId);
-  } catch {
-    /* fall through */
+  if (chart.getAllShapes().some((s) => String(s.id) === String(entityId))) {
+    return "shape";
   }
-  return chart.getStudyById(entityId);
+  if (chart.getAllStudies().some((s) => String(s.id) === String(entityId))) {
+    return "study";
+  }
+  return "unknown";
 }
 
-export function getEntityProperties(entityId: string): Record<string, unknown> {
-  return entityAccessor(entityId).getProperties();
+export interface EntityProperties {
+  kind: EntityKind;
+  // For shapes: TV's full property bag.
+  properties?: Record<string, unknown>;
+  // For studies: input values + style values, split since they live
+  // behind different setters.
+  inputs?: Array<{ id: string; value: unknown }>;
+  styles?: Record<string, unknown>;
 }
 
+export function getEntityProperties(entityId: string): EntityProperties {
+  const chart = requireChart();
+  const kind = classifyEntity(entityId);
+  if (kind === "shape") {
+    return { kind, properties: chart.getShapeById(entityId).getProperties() };
+  }
+  if (kind === "study") {
+    const study = chart.getStudyById(entityId);
+    return {
+      kind,
+      inputs: study.getInputValues(),
+      styles: study.getStyleValues(),
+    };
+  }
+  throw new Error(`unknown entity id: ${entityId}`);
+}
+
+// For shapes, `properties` is the merge payload. For studies, accept
+// `{ inputs: [...] }` and route to setInputValues; styles updates aren't
+// commonly needed and TV's setProperties on a study throws (the bug
+// from the v0.30.1 sign-off), so we don't expose that path.
 export function setEntityProperties(
   entityId: string,
-  props: Record<string, unknown>,
+  payload: Record<string, unknown>,
 ): void {
-  entityAccessor(entityId).setProperties(props);
+  const chart = requireChart();
+  const kind = classifyEntity(entityId);
+  if (kind === "shape") {
+    chart.getShapeById(entityId).setProperties(payload);
+    return;
+  }
+  if (kind === "study") {
+    const inputs = payload.inputs;
+    if (!Array.isArray(inputs)) {
+      throw new Error(
+        "studies: pass `{ inputs: [{id, value}, ...] }`; styles aren't editable via this tool",
+      );
+    }
+    chart
+      .getStudyById(entityId)
+      .setInputValues(inputs as Array<{ id: string; value: unknown }>);
+    return;
+  }
+  throw new Error(`unknown entity id: ${entityId}`);
 }
 
 // --- Timezone --------------------------------------------------------------
 
 export function setChartTimezone(tz: string): void {
-  requireChart().setTimezone(tz);
+  // Route through getTimezoneApi() — chart.setTimezone() doesn't exist
+  // on this TV build. (Previous draft happened to no-op silently.)
+  requireChart().getTimezoneApi().setTimezone(tz);
 }
 
 // --- Capture / export ------------------------------------------------------
@@ -800,6 +856,25 @@ export interface ExportedBars {
   bars: Array<Record<string, number>>;
 }
 
+// TV's FieldDescriptor is a discriminated union — there is NO `id`
+// field. Build a stable key per descriptor type:
+//   - time / user_time → "time" / "user_time"
+//   - series           → plotTitle (e.g. "close")
+//   - study            → "<sourceTitle>.<plotTitle>" so multiple studies
+//                        don't collide on identical plot names.
+function fieldKey(desc: Record<string, unknown>): string {
+  const type = desc.type as string;
+  if (type === "time") return "time";
+  if (type === "user_time") return "user_time";
+  const sourceType = desc.sourceType as string;
+  const plot = String(desc.plotTitle ?? "value");
+  if (sourceType === "study") {
+    const src = String(desc.sourceTitle ?? "study");
+    return `${src}.${plot}`;
+  }
+  return plot;
+}
+
 export async function exportChartData(opts: {
   from?: number;
   to?: number;
@@ -813,7 +888,9 @@ export async function exportChartData(opts: {
     includeSeries: true,
     includedStudies: opts.include_studies ? "all" : [],
   });
-  const fields = exported.schema.map((f) => f.id);
+  const fields = exported.schema.map((d) =>
+    fieldKey(d as unknown as Record<string, unknown>),
+  );
   // TV returns one Float64Array per field, all the same length. Pivot
   // to row-oriented records so the AI can read them straightforwardly.
   const colCount = exported.data.length;

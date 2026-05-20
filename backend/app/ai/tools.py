@@ -618,9 +618,12 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "get_drawing_properties",
         "description": (
-            "Read the property bag of a shape or study by its TV entity "
-            "ID (from inspect_chart). Use for questions like 'what period "
-            "is that moving average?' or 'what color is that trend line?'"
+            "Read the properties of a shape or study by its TV entity ID "
+            "(from inspect_chart). Response shape depends on `kind`: "
+            "shapes return `{ kind: 'shape', properties: {...} }`; studies "
+            "return `{ kind: 'study', inputs: [{id, value}, ...], styles: "
+            "{...} }`. Use for 'what period is that MA?' or 'what color "
+            "is that trend line?'."
         ),
         "input_schema": {
             "type": "object",
@@ -633,8 +636,11 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "set_drawing_properties",
         "description": (
-            "Update properties on a shape or study by its TV entity ID. "
-            "Pass only the keys you want to change (TV merges them). "
+            "Update an entity by its TV entity ID. For SHAPES pass any "
+            "subset of TV property keys (e.g. `{linecolor: '#ff0000'}`). "
+            "For STUDIES pass `{inputs: [{id, value}, ...]}` — TV's study "
+            "API doesn't share the shape property bag, and study styles "
+            "(colors, widths) aren't editable via this tool. "
             "EXPLICIT-REQUEST ONLY — this can edit user-drawn objects, so "
             "never restyle their work unprompted."
         ),
@@ -644,7 +650,10 @@ TOOLS: list[dict[str, Any]] = [
                 "entity_id": {"type": "string"},
                 "properties": {
                     "type": "object",
-                    "description": "Property key/value pairs to merge into the entity.",
+                    "description": (
+                        "Shapes: TV property key/value pairs to merge. "
+                        "Studies: `{inputs: [{id, value}, ...]}` payload."
+                    ),
                 },
             },
             "required": ["entity_id", "properties"],

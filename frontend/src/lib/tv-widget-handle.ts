@@ -65,8 +65,32 @@ export interface TVEntityInfo {
   name: string;
 }
 
+// IStudyApi slice. Studies don't expose getProperties/setProperties —
+// inputs (period, source) and styles (colors, widths) are separate.
+export interface TVStudyApi {
+  getInputsInfo: () => Array<Record<string, unknown>>;
+  getInputValues: () => Array<{ id: string; value: unknown }>;
+  setInputValues: (values: Array<{ id: string; value: unknown }>) => void;
+  getStyleValues: () => Record<string, unknown>;
+}
+
+// ILineDataSourceApi slice (what getShapeById returns).
+export interface TVShapeEntityApi {
+  getProperties: () => Record<string, unknown>;
+  setProperties: (props: Record<string, unknown>) => void;
+}
+
+export interface TVTimezoneApi {
+  getTimezone: () => { id: string; title?: string };
+  setTimezone: (tz: string) => void;
+}
+
+// TV's FieldDescriptor is a discriminated union (time / series / study /
+// user_time) with no common shape beyond `type`. Loose typing so the
+// exportData helper can build keys per-variant without TypeScript
+// fighting the union.
 export interface TVExportedData {
-  schema: Array<{ type: string; title: string; id: string }>;
+  schema: Array<Record<string, unknown>>;
   data: Float64Array[];
   displayedData?: string[][];
 }
@@ -100,18 +124,11 @@ export interface TVChartApi {
   createPositionLine: () => Promise<TVPositionLine>;
   createExecutionShape: () => Promise<TVExecutionLine>;
   removeEntity: (id: string) => void;
-  setTimezone: (tz: string) => void;
-  getTimezone: () => { id: string; description?: string };
+  getTimezoneApi: () => TVTimezoneApi;
   getAllShapes: () => TVEntityInfo[];
   getAllStudies: () => TVEntityInfo[];
-  getShapeById: (id: string) => {
-    getProperties: () => Record<string, unknown>;
-    setProperties: (props: Record<string, unknown>) => void;
-  };
-  getStudyById: (id: string) => {
-    getProperties: () => Record<string, unknown>;
-    setProperties: (props: Record<string, unknown>) => void;
-  };
+  getShapeById: (id: string) => TVShapeEntityApi;
+  getStudyById: (id: string) => TVStudyApi;
   exportData: (opts?: {
     from?: number;
     to?: number;

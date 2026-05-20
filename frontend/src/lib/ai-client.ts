@@ -336,8 +336,11 @@ async function executeDrawTool(
       }
       case "get_drawing_properties": {
         const id = input.entity_id as string;
-        const props = getEntityProperties(id);
-        return ok(JSON.stringify({ entity_id: id, properties: props }), `read properties of ${id}`);
+        const r = getEntityProperties(id);
+        return ok(
+          JSON.stringify({ entity_id: id, ...r }),
+          `read ${r.kind} properties of ${id}`,
+        );
       }
       case "set_drawing_properties": {
         const id = input.entity_id as string;
