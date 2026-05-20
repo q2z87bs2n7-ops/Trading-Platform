@@ -14,18 +14,22 @@ def get_account() -> dict:
         hist = trading_client().get(
             "/account/portfolio/history", data=req.to_request_fields()
         )
-        if isinstance(hist, dict) and hist.get("equity"):
-            equities = hist["equity"]
-            if equities:
-                equity_at_market_open = float(equities[0])
-    except Exception:
+        # Safely extract first equity value from history
+        if isinstance(hist, dict):
+            equities = hist.get("equity") or hist.get("equity_values")
+            if equities and isinstance(equities, list) and len(equities) > 0:
+                first = equities[0]
+                if first is not None:
+                    equity_at_market_open = float(first)
+    except (KeyError, ValueError, TypeError, IndexError):
         pass  # Silently fall back to current equity if history fetch fails
+    equity = float(a.equity)
     return {
         "account_number": a.account_number,
         "status": str(a.status),
         "currency": a.currency,
         "cash": float(a.cash),
-        "equity": float(a.equity),
+        "equity": equity,
         "buying_power": float(a.buying_power),
         "portfolio_value": float(a.portfolio_value),
         "long_market_value": float(a.long_market_value),
