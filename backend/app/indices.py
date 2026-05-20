@@ -1,18 +1,16 @@
-"""Market index snapshots via yfinance (Yahoo Finance).
+"""Market index snapshots via Yahoo Finance chart API (direct HTTP).
 
-Fetches indices in parallel via ThreadPoolExecutor so the route returns
-in ~400 ms (one network RTT) instead of ~5 s serial.
-No Alpaca credentials required — public Yahoo Finance data.
-Results are cached in-process for 2 minutes to avoid hammering Yahoo.
+Uses `requests` (already a transitive dep via alpaca-py) — no C-extension
+dependencies, works on Python 3.14 / Vercel serverless.
+Results cached in-process for 2 minutes to avoid hammering Yahoo.
 """
 
 from __future__ import annotations
 
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any
 
-import yfinance as yf
+import requests
 
 # (yf_symbol, display_name, region)
 INDEX_CATALOG: list[tuple[str, str, str]] = [
@@ -31,26 +29,34 @@ INDEX_CATALOG: list[tuple[str, str, str]] = [
     ("^AXJO",     "ASX 200",       "Asia"),
 ]
 
+_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (compatible; market-data-widget/1.0)",
+    "Accept": "application/json",
+}
 _CACHE: list[dict] = []
 _CACHE_TS: float = 0.0
 _CACHE_TTL = 120  # seconds
 
 
-def _safe_float(v: Any) -> float | None:
-    try:
-        f = float(v)
-        return None if (f != f) else f  # nan → None
-    except (TypeError, ValueError):
-        return None
-
-
 def _fetch_one(entry: tuple[str, str, str]) -> dict | None:
     symbol, name, region = entry
     try:
-        fi = yf.Ticker(symbol).fast_info
-        price = _safe_float(fi.last_price)
-        prev = _safe_float(fi.previous_close)
-        if price is None or prev is None or prev == 0:
+        url = f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}"
+        r = requests.get(
+            url,
+            params={"interval": "1d", "range": "5d", "includePrePost": "false"},
+            headers=_HEADERS,
+            timeout=10,
+        )
+        r.raise_for_status()
+        meta = r.json()["chart"]["result"][0]["meta"]
+        price = float(meta["regularMarketPrice"])
+        prev = float(
+            meta.get("previousClose")
+            or meta.get("chartPreviousClose")
+            or 0
+        )
+        if not prev:
             return None
         change = price - prev
         change_pct = change / prev
