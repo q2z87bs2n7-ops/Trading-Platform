@@ -32,10 +32,9 @@ export default function CmdBar({ open, onClose, onOpenInWorkspace }: Props) {
   const counter = useRef(0);
 
   // Focus the textarea each time the modal opens; clear transcript on
-  // close so each session starts fresh (matches the handoff).
+  // close so each session starts fresh.
   useEffect(() => {
     if (open) {
-      // Allow the modal to mount before focusing.
       const id = setTimeout(() => inputRef.current?.focus(), 30);
       return () => clearTimeout(id);
     }
@@ -43,7 +42,7 @@ export default function CmdBar({ open, onClose, onOpenInWorkspace }: Props) {
     setTurns([]);
   }, [open]);
 
-  // ESC closes; Cmd/Ctrl+Enter submits (Enter alone also submits).
+  // ESC closes.
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -66,7 +65,8 @@ export default function CmdBar({ open, onClose, onOpenInWorkspace }: Props) {
     };
   }, [open]);
 
-  // Auto-scroll transcript when a new turn lands.
+  // Auto-scroll transcript when a new turn lands so the latest answer
+  // sits just above the composer.
   useEffect(() => {
     if (!scrollRef.current) return;
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -81,6 +81,8 @@ export default function CmdBar({ open, onClose, onOpenInWorkspace }: Props) {
       { id: counter.current, query: trimmed, intent: parseIntent(trimmed) },
     ]);
     setText("");
+    // Refocus so the user can keep typing follow-ups without re-clicking.
+    requestAnimationFrame(() => inputRef.current?.focus());
   }
 
   if (!open) return null;
@@ -89,7 +91,7 @@ export default function CmdBar({ open, onClose, onOpenInWorkspace }: Props) {
     <div
       role="dialog"
       aria-modal
-      className="fixed inset-0 z-50 flex flex-col justify-end"
+      className="fixed inset-0 z-50"
       style={{
         background: "rgba(20, 22, 28, 0.45)",
         backdropFilter: "blur(4px)",
@@ -100,10 +102,10 @@ export default function CmdBar({ open, onClose, onOpenInWorkspace }: Props) {
         onClick={(e) => e.stopPropagation()}
         className="mx-auto flex flex-col"
         style={{
-          marginBottom: 24,
+          marginTop: "10vh",
           maxWidth: 680,
           width: "calc(100% - 32px)",
-          maxHeight: "min(80vh, calc(100vh - 48px))",
+          maxHeight: "80vh",
           background: "var(--panel)",
           borderRadius: "var(--r-xl)",
           boxShadow: "var(--shadow-lg)",
@@ -111,69 +113,45 @@ export default function CmdBar({ open, onClose, onOpenInWorkspace }: Props) {
           animation: "cmd-up 180ms ease",
         }}
       >
-        <style>{`@keyframes cmd-up{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
+        <style>{`@keyframes cmd-up{from{transform:translateY(-20px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
 
-        {/* Header: sparkle icon + textarea + ✕ close + Esc kbd */}
+        {/* Header — sparkle brand + close. Keeps a small top frame around
+           the transcript without putting input controls up here. */}
         <div
-          className="flex items-start gap-3 px-4 py-3"
+          className="flex items-center gap-2 px-4 py-2.5"
           style={{ borderBottom: "1px solid var(--hairline)" }}
         >
           <span
-            className="text-[18px] mt-1.5"
+            className="text-[16px]"
             style={{ color: "var(--accent)" }}
             aria-hidden
           >
             ✦
           </span>
-          <textarea
-            ref={inputRef}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                submit(text);
-              }
-            }}
-            placeholder="Ask anything — orders, portfolio, news, charts…"
-            rows={1}
-            className="flex-1 resize-none bg-transparent border-0 outline-none text-[15px] py-1.5"
-            style={{
-              color: "var(--text)",
-              fontFamily: "var(--font-sans)",
-              minHeight: 24,
-              maxHeight: 120,
-            }}
-          />
-          <kbd
-            className="font-mono text-[11px] px-1.5 py-0.5 mt-1.5 hidden sm:inline-block"
-            style={{
-              background: "var(--panel-2)",
-              color: "var(--mute)",
-              borderRadius: 4,
-            }}
+          <span
+            className="text-[12px] font-semibold uppercase"
+            style={{ color: "var(--mute)", letterSpacing: "0.06em" }}
           >
-            Esc
-          </kbd>
+            Ask anything
+          </span>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="cursor-pointer border-0 text-[14px] grid place-items-center shrink-0"
+            className="ml-auto cursor-pointer border-0 text-[14px] grid place-items-center"
             style={{
               background: "var(--panel-2)",
               color: "var(--text-2)",
               width: 28,
               height: 28,
               borderRadius: 6,
-              marginTop: 1,
             }}
           >
             ✕
           </button>
         </div>
 
-        {/* Body: empty-state suggestions OR transcript */}
+        {/* Transcript / empty state — fills the middle and scrolls. */}
         <div
           ref={scrollRef}
           className="flex-1 overflow-y-auto px-4 py-4"
@@ -235,6 +213,56 @@ export default function CmdBar({ open, onClose, onOpenInWorkspace }: Props) {
               ))}
             </div>
           )}
+        </div>
+
+        {/* Composer — pinned at the bottom of the modal. Enter submits;
+           Shift+Enter inserts a newline. */}
+        <div
+          className="flex items-end gap-2 px-4 py-3"
+          style={{ borderTop: "1px solid var(--hairline)" }}
+        >
+          <textarea
+            ref={inputRef}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                submit(text);
+              }
+            }}
+            placeholder="Ask anything — orders, portfolio, news, charts…"
+            rows={1}
+            className="flex-1 resize-none bg-transparent outline-none text-[15px]"
+            style={{
+              background: "var(--panel-2)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--r)",
+              color: "var(--text)",
+              fontFamily: "var(--font-sans)",
+              minHeight: 36,
+              maxHeight: 120,
+              padding: "8px 10px",
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => submit(text)}
+            disabled={!text.trim()}
+            aria-label="Send"
+            className="cursor-pointer border-0 font-semibold disabled:cursor-not-allowed"
+            style={{
+              background: "var(--accent)",
+              color: "white",
+              padding: "0 14px",
+              height: 36,
+              borderRadius: "var(--r)",
+              opacity: text.trim() ? 1 : 0.5,
+              fontSize: 13,
+            }}
+          >
+            Send
+          </button>
         </div>
       </div>
     </div>
