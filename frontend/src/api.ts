@@ -7,9 +7,7 @@ import type {
   IndicesResponse,
   MarketClock,
   MarketNewsResponse,
-  MostActivesResponse,
   MoversResponse,
-  NewsArticle,
   Order,
   PortfolioHistory,
   Position,
@@ -82,16 +80,8 @@ export const getBars = (symbol: string, timeframe = "1Day", limit = 120) =>
     `/api/bars?symbol=${encodeURIComponent(symbol)}&timeframe=${timeframe}&limit=${limit}`,
   );
 
-export const getNews = (symbol: string, limit = 10) =>
-  getJSON<{ symbol: string; news: NewsArticle[] }>(
-    `/api/news?symbol=${encodeURIComponent(symbol)}&limit=${limit}`,
-  );
-
 export const getMovers = (top = 10) =>
   getJSON<MoversResponse>(`/api/movers?top=${top}`);
-
-export const getMostActives = (top = 10, by: "volume" | "trades" = "volume") =>
-  getJSON<MostActivesResponse>(`/api/most-active?top=${top}&by=${by}`);
 
 export const getQuotes = (symbols: string[]) =>
   getJSON<{ quotes: Quote[] }>(
@@ -129,11 +119,6 @@ export const getCalendar = (start?: string, end?: string) =>
 
 export const getAsset = (symbol: string) =>
   getJSON<Asset>(`/api/assets/${encodeURIComponent(symbol)}`);
-
-export const searchAssets = (search: string, limit = 25) =>
-  getJSON<Asset[]>(
-    `/api/assets?search=${encodeURIComponent(search)}&limit=${limit}`,
-  );
 
 export const getIndices = () => getJSON<IndicesResponse>("/api/indices");
 

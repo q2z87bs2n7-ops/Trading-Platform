@@ -149,18 +149,6 @@ export interface MoversResponse {
   last_updated: number;
 }
 
-export interface MostActiveStock {
-  symbol: string;
-  volume: number;
-  trade_count: number;
-}
-
-export interface MostActivesResponse {
-  most_actives: MostActiveStock[];
-  by: "volume" | "trades";
-  last_updated: number;
-}
-
 export interface MarketNewsArticle {
   title: string;
   link: string;
@@ -189,15 +177,4 @@ export interface IndexData {
 export interface IndicesResponse {
   indices: IndexData[];
   as_of: number;
-}
-
-export interface NewsArticle {
-  id: number;
-  headline: string;
-  summary: string;
-  author: string;
-  source: string;
-  url: string | null;
-  symbols: string[];
-  time: number;
 }

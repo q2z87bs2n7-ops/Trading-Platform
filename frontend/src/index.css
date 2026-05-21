@@ -137,73 +137,11 @@ header {
   margin-bottom: 16px;
 }
 
-header h1 {
-  font-size: 20px;
-  margin: 0;
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: 1fr 240px;
-  gap: 16px;
-}
-
-.blotter {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  margin-top: 16px;
-}
-
-.watch-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.watch-item:hover {
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.watch-item.active {
-  background: rgba(38, 166, 154, 0.15);
-}
-
-.watch-remove {
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 16px;
-  line-height: 1;
-  padding: 0 4px;
-  opacity: 0.5;
-}
-
-.watch-remove:hover {
-  color: var(--red);
-  opacity: 1;
-}
-
-.price {
-  font-variant-numeric: tabular-nums;
-}
-
-.error {
-  color: var(--red);
-  font-size: 13px;
-}
-
-/* --- Phase A trading controls. Functional only; Phase B replaces this
-   with the Tailwind + shadcn-style design system. --- */
-
+/* Form inputs default to the Calm panel-2 fill. Component-level
+   overrides (OrderSheet, ChartWatchlist) win where needed. */
 input,
 select {
-  background: var(--bg);
+  background: var(--panel-2);
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -211,8 +149,10 @@ select {
   font-size: 14px;
 }
 
+/* Row-level action buttons used in the Positions / Orders tables and
+   the Activities feed. Anything bigger uses inline-styled buttons. */
 .btn {
-  background: var(--bg);
+  background: var(--panel);
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -222,7 +162,7 @@ select {
 }
 
 .btn:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--panel-2);
 }
 
 .btn:disabled {
@@ -234,126 +174,3 @@ select {
   padding: 2px 8px;
   font-size: 12px;
 }
-
-.btn-danger {
-  border-color: var(--red);
-  color: var(--red);
-}
-
-.btn-buy.active,
-.btn-submit.buy {
-  background: rgba(38, 166, 154, 0.18);
-  border-color: var(--green);
-  color: var(--green);
-}
-
-.btn-sell.active,
-.btn-submit.sell {
-  background: rgba(239, 83, 80, 0.18);
-  border-color: var(--red);
-  color: var(--red);
-}
-
-.ticket {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 13px;
-}
-
-.side-toggle {
-  display: flex;
-  gap: 8px;
-}
-
-.side-toggle .btn {
-  flex: 1;
-}
-
-.btn-submit {
-  margin-top: 4px;
-  font-weight: 600;
-}
-
-.search-input {
-  width: 100%;
-}
-
-.search-results {
-  margin-top: 8px;
-  max-height: 220px;
-  overflow-y: auto;
-}
-
-.search-result {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 5px 8px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.search-result:hover {
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.search-result-info {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  flex: 1;
-}
-
-.search-result-info span {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.watch-add {
-  flex-shrink: 0;
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 14px;
-  line-height: 1;
-  padding: 1px 6px;
-  opacity: 0;
-  transition: opacity 0.15s, color 0.15s, border-color 0.15s;
-}
-
-.search-result:hover .watch-add {
-  opacity: 1;
-}
-
-.watch-add:hover {
-  color: var(--pos);
-  border-color: var(--pos);
-}
-
-/* --- Discover: indices ticker --- */
-@keyframes ticker-scroll {
-  0%   { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
-}
-.ticker-track {
-  display: flex;
-  width: max-content;
-  animation: ticker-scroll 60s linear infinite;
-}
-.ticker-wrap:hover .ticker-track {
-  animation-play-state: paused;
-}
-

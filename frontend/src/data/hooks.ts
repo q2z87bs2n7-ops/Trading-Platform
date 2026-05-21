@@ -57,14 +57,6 @@ export const useBars = (symbol: string, timeframe: string, limit = 200) =>
     enabled: symbol.length > 0,
   });
 
-export const useNews = (symbol: string, limit = 10) =>
-  useQuery({
-    queryKey: qk.news(symbol),
-    queryFn: () => api.getNews(symbol, limit),
-    enabled: symbol.length > 0,
-    refetchInterval: 60000,
-  });
-
 // Single-call replacement for the watchlist's N parallel useBars(sym,
 // "1Day") mount burst. Snapshots are slower-moving than quotes (daily
 // bar + prev close stay stable), so 60s refetch is plenty.
@@ -81,16 +73,6 @@ export const useMovers = (top = 10) =>
   useQuery({
     queryKey: qk.movers(top),
     queryFn: () => api.getMovers(top),
-    refetchInterval: 60000,
-  });
-
-export const useMostActives = (
-  top = 10,
-  by: "volume" | "trades" = "volume",
-) =>
-  useQuery({
-    queryKey: qk.mostActives(top, by),
-    queryFn: () => api.getMostActives(top, by),
     refetchInterval: 60000,
   });
 
@@ -117,16 +99,9 @@ export const usePortfolioHistory = (period = "1M", timeframe = "1D") =>
     refetchInterval: 60000,
   });
 
-export const useAssetSearch = (search: string) =>
-  useQuery({
-    queryKey: qk.assets(search),
-    queryFn: () => api.searchAssets(search),
-    enabled: search.trim().length > 0,
-  });
-
 // Single-asset metadata (tradable/fractionable/shortable). Effectively
-// static, so cache hard and skip auto-refetch; OrderTicket debounces the
-// symbol it passes in to avoid a lookup per keystroke.
+// static, so cache hard and skip auto-refetch. The order-ticket hook
+// debounces the symbol it passes in to avoid a lookup per keystroke.
 export const useAsset = (symbol: string) =>
   useQuery({
     queryKey: qk.asset(symbol),
