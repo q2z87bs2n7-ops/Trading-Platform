@@ -10,13 +10,16 @@
  * are kept until components migrate off them.
  */
 :root {
-  /* --- Surface --- */
-  --bg:        #f7f5ef;
+  /* --- Surface ---
+     Near-neutral warm whites. The R/B spread is kept ≤6 so the page
+     reads as "paper" on calibrated panels (iPad, P3) without drifting
+     to overt yellow on uncalibrated sRGB desktop monitors. */
+  --bg:        #f6f5f1;
   --panel:     #ffffff;
-  --panel-2:   #f1ede3;
-  --panel-3:   #eae4d4;
-  --border:    #e0dac9;
-  --border-2:  #c5bda6;
+  --panel-2:   #efece5;
+  --panel-3:   #e6e2d8;
+  --border:    #dcd7c9;
+  --border-2:  #beb9aa;
   --hairline:  rgba(20, 22, 28, 0.06);
 
   /* --- Text --- */
@@ -116,6 +119,10 @@ body {
   font-family: var(--font-sans);
   font-feature-settings: "ss01", "cv11";
   font-variant-numeric: tabular-nums;
+  /* macOS Chrome/Firefox: match Safari's grayscale AA so Inter doesn't
+     look heavier on desktop than on iPad. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 :focus-visible {
