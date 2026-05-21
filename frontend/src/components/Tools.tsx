@@ -21,8 +21,10 @@ import type {
   Snapshot,
 } from "../types";
 import ErrorBanner from "./ErrorBanner";
+import MarketSummaryCard from "./MarketSummaryCard";
 import PriceChart from "./PriceChart";
 import SectionHeading from "./SectionHeading";
+import { useMarketSummary } from "../hooks/useMarketSummary";
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 
@@ -783,6 +785,7 @@ export default function Tools({
   const removeFromWatchlist = useRemoveFromWatchlist();
   const wlSymbols = watchlist.data?.symbols ?? [];
   const snaps = useSnapshots(wlSymbols);
+  const marketSummary = useMarketSummary(wlSymbols);
   const [wlInput, setWlInput] = useState("");
   const [adding, setAdding] = useState(false);
 
@@ -868,6 +871,14 @@ export default function Tools({
         />
         <AllocationCard positions={positions.data?.positions} />
       </div>
+
+      {/* AI market summary — auto-generated per time window, dismissible */}
+      <MarketSummaryCard
+        cache={marketSummary.cache}
+        isGenerating={marketSummary.isGenerating}
+        windowLabel={marketSummary.windowLabel}
+        onDismiss={marketSummary.dismiss}
+      />
 
       {/* Watchlist */}
       <SectionHeading

@@ -10,6 +10,7 @@ interface Turn {
 }
 
 const SUGGESTIONS = [
+  "Market summary",
   "What changed today?",
   "Buy 50 AMD at market",
   "How's NVDA?",

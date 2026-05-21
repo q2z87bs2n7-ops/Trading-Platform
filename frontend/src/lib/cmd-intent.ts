@@ -17,6 +17,7 @@ export type Intent =
   | { type: "news"; symbol?: string }
   | { type: "orders" }
   | { type: "chart"; symbol: string }
+  | { type: "market_summary" }
   | { type: "fallback"; text: string };
 
 // Filter symbol candidates so we don't classify common English words
@@ -48,6 +49,8 @@ const STOPWORDS = new Set([
   "LIMIT",
   "LOSER",
   "LOSERS",
+  "DAILY",
+  "LATEST",
   "MARKET",
   "ME",
   "MOVERS",
@@ -63,9 +66,12 @@ const STOPWORDS = new Set([
   "PORTFOLIO",
   "POSITIONS",
   "PRICE",
+  "PULL",
+  "REPORT",
   "SELL",
   "SHOW",
   "STOP",
+  "SUMMARY",
   "THE",
   "TO",
   "TODAY",
@@ -148,6 +154,15 @@ export function parseIntent(input: string): Intent {
   // ── orders ── "orders" / "open orders" / "my orders"
   if (/\b(orders|open\s+orders)\b/i.test(lower)) {
     return { type: "orders" };
+  }
+
+  // ── market summary ──
+  if (
+    /\bmarket\s+summary\b/i.test(lower) ||
+    /\b(pull|show|get)\s+(?:latest\s+|my\s+)?(?:market\s+)?summary\b/i.test(lower) ||
+    /\b(daily|morning|midday|eod|end.of.day)\s+(summary|report|brief|update)\b/i.test(lower)
+  ) {
+    return { type: "market_summary" };
   }
 
   // ── chart ── "AAPL" alone, "how's NVDA", "chart AAPL"
