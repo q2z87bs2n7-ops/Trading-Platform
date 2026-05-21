@@ -53,7 +53,7 @@ export default {
       },
       fontFamily: {
         sans: [
-          "Manrope",
+          '"Plus Jakarta Sans"',
           "-apple-system",
           "BlinkMacSystemFont",
           '"Segoe UI"',
