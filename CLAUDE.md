@@ -56,8 +56,9 @@ persisted watchlists, asset search, and real-time streaming.
     `PortfolioHero` (portfolio-value `ValueCard` + 30d `EquityCurveCard`
     area chart from `/api/portfolio-history`), `Positions` in
     `variant="strip"` mode (one card per position), restyled `Orders`
-    card, `Activities` feed. `TopBar` status strip mounts only on this
-    mode.
+    card, `Activities` feed. `TopBar` status strip mounts on Portfolio
+    **and** Chart now — TV's Account Manager is suppressed so our
+    TopBar carries the equity / BP / day-P&L chips in both modes.
   - **Chart** (`mode="chart"`, migrated from legacy `"chartbot"` and
     pre-rename `"tv"`): `TVPlatform.tsx` wraps the full TradingView
     Charting Library terminal (`frontend/public/charting_library/`,
@@ -65,30 +66,53 @@ persisted watchlists, asset search, and real-time streaming.
     native top header is hidden via `disabled_features`; our
     `ChartTopBar` (TF tabs / chart-type popover / indicator popover /
     ChartBot launch button) + `IndicatorPillsRow` render above the
-    widget. The body is a flex row of `ChartWatchlist` (180px narrow
-    list), TV's chart canvas + native drawing rail (themed via
-    `custom_css_url`), and `OrderTicketRail` (240px persistent
-    ticket). `ChartBlotter` (tabbed Positions / Orders / Activity,
-    collapsible) sits below. Data + broker wiring is unchanged —
+    widget. The body is just TV's chart canvas + its native drawing
+    rail (themed via `custom_css_url`) — no persistent watchlist or
+    order rail. `ChartBlotter` (tabbed Positions / Orders / Activity,
+    collapsible) sits below, with the same floating `TradeBar` pill
+    Discover and Portfolio use mounting at the bottom for order
+    entry. Data + broker wiring is unchanged —
     `frontend/src/lib/tv-datafeed.ts` → `/api/bars`, `/api/stream`,
     `/api/quotes`, `/api/snapshots`, `/api/assets`;
     `frontend/src/lib/tv-broker.ts` → `/api/account`, `/api/orders`,
-    `/api/positions`, `/api/activities`. The **ChartBot chat panel**
-    (`components/chat/ChatPanel.tsx`, 380px violet right-edge panel)
-    mounts here when `AI_CHAT_ENABLED=true`.
+    `/api/positions`, `/api/activities`. TV's native trading UI
+    (Account Manager, Order Panel, legend Buy/Sell buttons, broker
+    button, on-chart trade notifications) is fully suppressed via
+    `disabled_features` so trade initiation goes through our cards
+    only; the broker stays wired so TV's price-line overlays for
+    open orders / positions still draw. The **ChartBot chat panel**
+    (`components/chat/ChatPanel.tsx`, 380px violet right-edge panel
+    on a white card surface) mounts here when `AI_CHAT_ENABLED=true`.
 - **Order entry surfaces (Calm v2 split).** `OrderTicket.tsx` is gone;
   `hooks/useOrderTicket.ts` owns all form state (symbol/side/type/qty/
   limit/stop/trail/TIF/ext-hours) plus asset lookup, live quote, est
   notional, client-side validate, and a `trySubmit({ skipConfirm? })`
-  that surfaces the paper-account confirm. Three surfaces consume it:
-  - `components/trade/OrderSheet.tsx` — bottom-sheet modal with the
-    two-column form, opened by the `TradeBar`.
-  - `components/trade/TradeBar.tsx` — floating Buy/Sell pill bottom-
-    center, mounted in Discover + Portfolio. Hidden in Chart mode.
-  - `components/chart/OrderTicketRail.tsx` — persistent compact 240px
-    ticket in the Chart workspace.
-  The ⌘K command bar's order intent uses the same hook with
-  `skipConfirm: true` (the modal *is* the confirm UI).
+  that submits the order with no native confirm. The full
+  `components/trade/` family:
+  - `OrderSheet.tsx` — bottom-sheet modal with the two-column form
+    for new buy/sell orders. Accepts `defaultSide` + `defaultQty` so
+    callers can prefill it for the "Customize sell" hand-off.
+  - `TradeBar.tsx` — floating Buy/Sell pill bottom-center. Mounted
+    in every platform mode (Discover + Portfolio render it at the
+    app shell; TVPlatform mounts its own inside the chart workspace
+    so the pill rides with TV's chrome).
+  - `ClosePositionCard.tsx` — replaces `window.confirm("Close X?")`
+    with a bottom-sheet card. Position summary + two paths: instant
+    "Sell N TSLA at market" (fires `useClosePosition`) or "Customize
+    sell order →" (closes itself and opens `OrderSheet` with
+    `defaultSide="sell"` + `defaultQty=position.qty`).
+  - `ModifyOrderCard.tsx` — bottom-sheet card replacing the inline
+    `ReplaceRow` expansion in `Orders.tsx`. Read-only sym/side/type
+    header, editable Qty / Limit / Stop / TIF, `useReplaceOrder` on
+    save. Trailing stops surface a notice because Alpaca won't
+    PATCH them.
+  - `ConfirmCard.tsx` — generic bottom-sheet replacement for the
+    remaining `window.confirm` prompts (Close All positions, Cancel
+    All orders). Title / body / Cancel / destructive Confirm; ESC +
+    backdrop dismiss are gated on `pending`.
+  The ⌘K command bar's order intent uses `useOrderTicket` with
+  `skipConfirm: true` (the modal *is* the confirm UI). **There are
+  no remaining `window.confirm` calls in the trade flow.**
 - **Backend:** FastAPI + `alpaca-py`. `backend/app/` is the real code;
   `api/index.py` is a thin shim that puts it on Vercel's import path.
   Endpoints: `/api/health`, `/api/config`, `/api/account`, `/api/bars`,
@@ -153,6 +177,19 @@ persisted watchlists, asset search, and real-time streaming.
   `--red`, `--muted`, `--bg-elev`, `--border-strong`, `--text-3`,
   `--warn*`. Map to the new tokens; safe to remove once nothing
   references them.
+- **Light surfaces are de-yellowed** for uncalibrated sRGB displays.
+  R-vs-B channel spread on every off-white token is ≤ 9 (was up to
+  31 on the original "warm paper" palette). R ≥ G ≥ B is preserved
+  so wide-gamut renderers still see a hint of warmth, but the spread
+  is small enough that uncalibrated sRGB panels (typical Windows
+  desktops) don't amplify it into yellow. Dark mode untouched.
+- **Segmented tabs use the underline pattern**, not a panel-2 track
+  with white-pill active state. ChartTopBar TF tabs, ChartBlotter
+  Positions/Orders/Activity tabs, and Orders status filter all
+  share: transparent background, muted text on inactive, accent
+  text + 2px accent `border-bottom` on active. The earlier
+  panel-2-track / white-pill pattern read as a vague blob against
+  the de-yellowed surfaces.
 
 ## localStorage keys (browser state)
 
@@ -163,11 +200,10 @@ so future work doesn't accidentally collide.
 | --- | ------ | ------- | ----- |
 | `platform_mode` | `App.tsx` | `App.tsx` | `"discover" \| "portfolio" \| "chart"`. Migrates legacy `"trading"` → `"portfolio"` and `"chartbot"` / `"tv"` → `"chart"` on first load. |
 | `theme` | `hooks/useTheme.ts` + index.html bootstrap | both | `"light" \| "dark"`. Defaults to OS preference. |
-| `chartbot_collapsed` | `ChatPanel` | `ChatPanel` | `"1"` only when explicitly collapsed. Default-open in Chart mode. |
 | `chartbot_session` | `useChatSession` | `useChatSession` | Serialised turns + apiHistory, capped at 256 KB. |
 | `ai_drawings_v1` | `tv-drawings.ts` | `tv-drawings.ts` | Per-symbol drawing UUIDs replayed on chart load. |
 | `chart_blotter_collapsed` | `ChartBlotter` | `ChartBlotter` | `"1"` collapsed. |
-| `app_settings_v1` | `lib/settings.ts` | `useSettings` + `SettingsMenu` | JSON-encoded `AppSettings`. Today: `cmdbarAiEnabled` (default `false`) — when true, ⌘K fallback intents POST to `/api/ai/ask`. |
+| `app_settings_v1` | `lib/settings.ts` | `useSettings` + `SettingsMenu` | JSON-encoded `AppSettings`. Today: `cmdbarAiEnabled` (default `true`) — when true, "Ask anything" fallback intents POST to `/api/ai/ask`. |
 | `watchlist` (Alpaca) | server | server | Note: not in localStorage — watchlist is server-side via `/api/watchlist`. |
 
 ## Three deploy targets (do not conflate)
@@ -250,16 +286,31 @@ Claude API call (Anthropic credits, slow).
 - The chart card renders a real 60-bar sparkline from `useBars` + day
   H/L + volume, plus an "Open in Chart workspace →" CTA that switches
   platform mode and pushes the symbol into the TV widget.
-- **AI fallback path** (`POST /api/ai/ask`, see *AI fallback endpoint*
-  below). Off by default — toggled by `cmdbarAiEnabled` in
-  `lib/settings.ts`, surfaced in the gear-icon `SettingsMenu` that
-  replaced the old "P" avatar. When ON, `fallback` intents render
-  `AiAskCard` which POSTs the raw phrase to `/api/ai/ask`; the answer
-  comes back with a tool-call summary chip row (✓/✕ per backend
-  read tool) and the prose response. When OFF, the fallback card
-  tells the user to flip the setting and lists the local shortcuts.
+- **AI fallback path** (`POST /api/ai/ask`). Default **on** —
+  `cmdbarAiEnabled` in `lib/settings.ts` defaults to `true`, surfaced
+  in the gear-icon `SettingsMenu` that replaced the old "P" avatar.
+  When ON, `fallback` intents render `AiAskCard` which POSTs the raw
+  phrase to `/api/ai/ask`; the answer comes back with a tool-call
+  summary chip row (✓/✕ per backend read tool) and the prose
+  response. When OFF, the fallback card tells the user to flip the
+  setting and lists the local shortcuts. The endpoint runs a
+  trimmed-down version of the ChartBot tool loop —
+  `backend/app/ai/prompt.py::build_general_system()` (finance-only
+  guard rails, paper-account caveats, no chart drawings) plus
+  `backend/app/ai/tools.py::read_only_tools()` (just `get_bars`,
+  `get_quote`, `get_snapshot`, `get_positions`, `get_position`,
+  `get_orders`, `get_account`, `get_news`, `get_movers`,
+  `find_symbol`). Same `AI_CHAT_ENABLED` env gate, same 60 s
+  Anthropic timeout.
+- After every completed result card, a "Try next" pill row appends
+  with four cross-mode follow-ups so the surface doesn't go dead
+  between turns. Same `submit()` callback fires when tapped.
 - Transcript clears on close (no persistence) — fresh session each
   time the modal opens.
+- `SettingsMenu` (gear icon top-right of the nav) also exposes a
+  **Disable service worker** action that unregisters every SW
+  registration, drops every cache, toasts, and reloads — the user's
+  hard-reset path when a stale PWA build is wedged.
 
 ### ChartBot side panel (violet · Chart mode only · `components/chat/`)
 
@@ -319,17 +370,22 @@ Claude API call (Anthropic credits, slow).
   `prompt.py` (mark entry, suggest stop, 50/200 SMA, clear) teaches
   the model the natural-language shortcuts the empty-state suggests;
   none of them are new tools, just compositions.
-- **`components/chat/`** is a 380 px collapsible right-edge panel
-  (Calm v2 violet accent throughout — `--cb-accent` and friends),
-  split into `ChatPanel` (shell + collapse state, default OPEN),
-  `ChatHeader` (gradient brand mark + tagline), `ChatContextPills`
-  (sym · TF · price + Indicators+N, polled from the TV widget on the
-  same 1.2 s cadence as `IndicatorPillsRow`), `ChatTranscript`,
-  `ChatMessage` (user bubble right-aligned with violet bg +
-  asymmetric corner; assistant turns with violet eyebrow and
-  border-left tool-result chips), `ChatComposer` (pill textarea +
-  circular violet send button), `ChatEmptyState` (chart-specialised
-  prompt chips). Conversation state lives in `hooks/useChatSession.ts`
+- **`components/chat/`** is a 380 px collapsible right-edge panel on
+  a white `--panel` card surface with the violet `--cb-accent` family
+  for header / brand / composer accents. Split into `ChatPanel`
+  (shell, **always opens expanded** — collapse state is session-local,
+  no localStorage persistence; the prior `chartbot_collapsed` key is
+  cleaned up on first mount), `ChatHeader` (gradient brand mark +
+  tagline), `ChatTranscript` (renders turns + a "Try next" follow-up
+  chip row after each completed assistant reply), `ChatMessage` (user
+  bubble right-aligned with violet bg + asymmetric corner; assistant
+  turns with violet eyebrow and border-left tool-result chips),
+  `ChatComposer` (pill textarea + circular violet send button),
+  `ChatEmptyState` (chart-specialised prompt chips). The panel
+  container uses `flex-col` + `min-h-0` so a long transcript shrinks
+  to fit and `flex-1 overflow-y-auto` on the transcript kicks in —
+  composer stays pinned as the last flex child. Conversation state
+  lives in `hooks/useChatSession.ts`
   (turns/apiHistory/busy/send/cancel/clear/retryLast). Session is
   persisted to `localStorage` under `chartbot_session` with a 256 KB
   byte budget (screenshot tool_results blow message-count caps fast —
@@ -402,13 +458,36 @@ places TV interface. Specifics that took several iterations to land:
   default, `TVPlatform` mounts before those chunks resolve and the chart
   stays blank. The fix: poll `typeof TradingView.widget === "function"`
   at 100ms intervals before constructing the widget (see `TVPlatform.tsx`).
-- **TV's native top header is hidden** via `disabled_features:
-  ["header_widget", "header_resolutions", "header_chart_type",
-  "header_indicators", "header_compare", "header_settings",
-  "header_screenshot", "header_fullscreen_button", "header_undo_redo",
-  "header_symbol_search", "use_localstorage_for_settings"]`. Our
-  `ChartTopBar` replaces every removed control. Don't re-enable any
-  of those features — they'd produce a doubled toolbar.
+- **TV's native top header is hidden** via the long
+  `disabled_features` list in `TVPlatform.tsx::DISABLED_FEATURES`.
+  In addition to every header item (`header_widget`,
+  `header_resolutions`, `header_chart_type`, `header_indicators`,
+  `header_compare`, `header_settings`, `header_screenshot`,
+  `header_fullscreen_button`, `header_undo_redo`,
+  `header_symbol_search`, `use_localstorage_for_settings`), the
+  whole TV-native **trading UI** is suppressed too —
+  `trading_account_manager`, `open_account_manager`, `order_panel`,
+  `show_order_panel_on_start`, `trading_notifications`,
+  `show_trading_notifications_history`, `buy_sell_buttons`,
+  `broker_button`. Plus `show_right_widgets_panel_by_default` so
+  the right widgetbar (Object Tree, Data Window) starts collapsed,
+  and `create_volume_indicator_by_default` so TV doesn't auto-mount
+  a Volume study. The broker is still wired (`broker_factory`)
+  because that's how TV's price-line overlays work, but trade
+  initiation is ours via `TradeBar` → `OrderSheet`. Don't re-enable
+  any of these features — you'll get doubled UI on top of our
+  cards.
+- **In-TV symbol changes propagate back to App.** `TVPlatform`
+  subscribes to `widget.activeChart().onSymbolChanged()` and reads
+  the active symbol back out, normalises (strips any
+  `EXCHANGE:` prefix), and calls `onSymbolChange(next)` so
+  `ChartTopBar`, `TradeBar`, and `ChatPanel` all follow when a
+  user picks a new symbol from TV's own search dialog or compare
+  picker. The reverse-direction prop → `setSymbol` effect has an
+  equality guard so an in-TV change that round-trips through App
+  doesn't refire `setSymbol` and rebuild drawings pointlessly.
+  The outgoing callback is held in a ref since the widget effect
+  only re-runs on theme change.
 - **Themed left toolbar via `custom_css_url`.** TV's drawing rail stays
   TV-native; `frontend/public/tv-themed.css` re-tunes its CSS variables
   (`--tv-color-platform-background`, `--tv-color-toolbar-button-*`,
@@ -419,7 +498,7 @@ places TV interface. Specifics that took several iterations to land:
   the `useTheme()` value and recreates the widget. The unmount path
   clears the drawing entity-ID map (`clearEntityIds`) so the next mount
   cleanly replays from `ai_drawings_v1`.
-- **Pill row + context pills poll `getAllStudies()`** every 1.2 s.
+- **`IndicatorPillsRow` polls `getAllStudies()`** every 1.2 s.
   This build's `IChartWidgetApi` doesn't expose `onStudyAdded` /
   `onStudyRemoved`; polling is the only reliable way to keep the
   user-facing pills in sync with TV's internal study list (including
