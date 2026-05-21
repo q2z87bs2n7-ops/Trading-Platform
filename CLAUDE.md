@@ -109,7 +109,7 @@ persisted watchlists, asset search, and real-time streaming.
 - **Frontend stack:** Tailwind CSS + a Calm v2 token set in oklch
   (light + dark via `html[data-theme="dark"]`, switched by
   `hooks/useTheme.ts` with a synchronous bootstrap in `index.html` to
-  avoid flash). Fonts are Inter + IBM Plex Mono (Google Fonts).
+  avoid flash). Fonts are Manrope + IBM Plex Mono (Google Fonts).
   Tailwind config exposes the tokens as utility classes (`bg-panel`,
   `text-mute`, `border-hairline`, `rounded-card-lg`, `shadow-elev`,
   `bg-cb-accent`, …). TradingView `lightweight-charts` retained for

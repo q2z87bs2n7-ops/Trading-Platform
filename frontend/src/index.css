@@ -66,7 +66,7 @@
   --muted:         var(--mute);
 
   /* --- Typography --- */
-  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-sans: "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
   font-family: var(--font-sans);
@@ -119,8 +119,8 @@ body {
   font-family: var(--font-sans);
   font-feature-settings: "ss01", "cv11";
   font-variant-numeric: tabular-nums;
-  /* macOS Chrome/Firefox: match Safari's grayscale AA so Inter doesn't
-     look heavier on desktop than on iPad. */
+  /* macOS Chrome/Firefox: match Safari's grayscale AA so the sans body
+     font doesn't look heavier on desktop than on iPad. */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
