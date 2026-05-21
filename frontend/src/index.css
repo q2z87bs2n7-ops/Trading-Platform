@@ -2,37 +2,107 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Calm v2 design tokens. Light theme default; dark variant under
+ * html[data-theme="dark"]. Switched by useTheme() which sets
+ * document.documentElement.dataset.theme. Legacy aliases
+ * (--bg-elev, --border-strong, --text-3, --warn, --green, --red, --muted)
+ * are kept until components migrate off them.
+ */
 :root {
-  /* === Canonical role tokens (UI-01) === */
-  /* Backgrounds */
-  --bg: #0e1117;
-  --bg-elev: oklch(20% 0.01 250);          /* hover/dropdown layer above bg */
-  --panel: #161b22;
-  --panel-2: oklch(24% 0.01 250);          /* nested panels, table rows */
-  /* Borders */
-  --border: #30363d;
-  --border-strong: oklch(40% 0.01 250);
-  /* Text */
-  --text: #e6edf3;
-  --text-2: oklch(80% 0.01 250);
-  --text-3: #8b949e;                       /* tertiary / matches legacy --muted */
-  /* Semantic — kept at legacy hex for zero visual diff in legacy components */
-  --pos: #26a69a;
-  --pos-bg: rgba(38, 166, 154, 0.15);
-  --neg: #ef5350;
-  --neg-bg: rgba(239, 83, 80, 0.15);
-  /* Semantic — new, oklch sibling family at L=65% C=0.13 */
-  --accent: oklch(65% 0.13 240);
-  --accent-bg: oklch(65% 0.13 240 / 0.15);
-  --warn: oklch(70% 0.13 75);
-  --warn-bg: oklch(70% 0.13 75 / 0.15);
+  /* --- Surface --- */
+  --bg:        #f7f5ef;
+  --panel:     #ffffff;
+  --panel-2:   #f1ede3;
+  --panel-3:   #eae4d4;
+  --border:    #e0dac9;
+  --border-2:  #c5bda6;
+  --hairline:  rgba(20, 22, 28, 0.06);
 
-  /* === Aliases for zero-diff in legacy components === */
-  --green: var(--pos);
-  --red: var(--neg);
-  --muted: var(--text-3);
+  /* --- Text --- */
+  --text:      #161a22;
+  --text-2:    #4a505c;
+  --mute:      #828680;
 
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  /* --- Primary accent (calm teal) --- */
+  --accent:      oklch(46% 0.07 200);
+  --accent-2:    oklch(34% 0.06 200);
+  --accent-bg:   oklch(46% 0.07 200 / 0.09);
+  --accent-soft: oklch(95% 0.02 200);
+
+  /* --- Semantic gains / losses --- */
+  --pos:     oklch(48% 0.11 155);
+  --neg:     oklch(52% 0.18 25);
+  --pos-bg:  oklch(48% 0.11 155 / 0.09);
+  --neg-bg:  oklch(52% 0.18 25 / 0.09);
+
+  /* --- Elevation --- */
+  --shadow-sm: 0 1px 1px rgba(20, 22, 28, 0.04), 0 1px 2px rgba(20, 22, 28, 0.03);
+  --shadow:    0 4px 24px rgba(20, 22, 28, 0.05);
+  --shadow-lg: 0 24px 60px rgba(20, 22, 28, 0.16);
+
+  /* --- Radii --- */
+  --r:    10px;
+  --r-lg: 14px;
+  --r-xl: 18px;
+
+  /* --- ChartBot accent (violet, chart-specialized AI) --- */
+  --cb-accent:      oklch(60% 0.17 290);
+  --cb-accent-2:    oklch(46% 0.18 290);
+  --cb-accent-bg:   oklch(60% 0.17 290 / 0.10);
+  --cb-accent-soft: oklch(94% 0.04 290);
+
+  /* --- Legacy aliases kept until components migrate off them --- */
+  --bg-elev:       var(--panel-2);
+  --border-strong: var(--border-2);
+  --text-3:        var(--mute);
+  --warn:          oklch(70% 0.13 75);
+  --warn-bg:       oklch(70% 0.13 75 / 0.15);
+  --green:         var(--pos);
+  --red:           var(--neg);
+  --muted:         var(--mute);
+
+  /* --- Typography --- */
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  font-family: var(--font-sans);
+  color-scheme: light;
+}
+
+html[data-theme="dark"] {
+  --bg:       #0a0c10;
+  --panel:    #111418;
+  --panel-2:  #181c22;
+  --panel-3:  #20262e;
+  --border:   #1f242c;
+  --border-2: #2f3640;
+  --hairline: rgba(255, 255, 255, 0.06);
+
+  --text:   #e6eaef;
+  --text-2: #a8aeb8;
+  --mute:   #6a6f78;
+
+  --accent:      oklch(74% 0.09 200);
+  --accent-2:    oklch(84% 0.06 200);
+  --accent-bg:   oklch(74% 0.09 200 / 0.13);
+  --accent-soft: oklch(28% 0.05 200 / 0.40);
+
+  --pos:    oklch(70% 0.13 155);
+  --neg:    oklch(70% 0.18 25);
+  --pos-bg: oklch(70% 0.13 155 / 0.12);
+  --neg-bg: oklch(70% 0.18 25 / 0.12);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow:    0 4px 24px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.6);
+
+  --cb-accent:      oklch(76% 0.14 290);
+  --cb-accent-2:    oklch(86% 0.10 290);
+  --cb-accent-bg:   oklch(76% 0.14 290 / 0.13);
+  --cb-accent-soft: oklch(28% 0.08 290 / 0.35);
+
+  color-scheme: dark;
 }
 
 * {
@@ -43,6 +113,8 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11";
   font-variant-numeric: tabular-nums;
 }
 

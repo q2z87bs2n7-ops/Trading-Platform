@@ -9,7 +9,28 @@
       content="Paper trading platform on the Alpaca API with real-time market data and portfolio management"
     />
     <link rel="apple-touch-icon" href="%BASE_URL%icon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
     <title>Trading Platform</title>
+    <!-- Theme bootstrap: run before paint so we don't flash the wrong palette. -->
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem("theme");
+          var theme =
+            saved === "light" || saved === "dark"
+              ? saved
+              : window.matchMedia("(prefers-color-scheme: dark)").matches
+                ? "dark"
+                : "light";
+          document.documentElement.dataset.theme = theme;
+        } catch (e) {}
+      })();
+    </script>
     <!-- TradingView Charting Library — served from /public/charting_library/ -->
     <script src="%BASE_URL%charting_library/charting_library.standalone.js"></script>
   </head>
