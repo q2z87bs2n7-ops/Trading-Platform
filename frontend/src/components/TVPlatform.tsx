@@ -72,6 +72,15 @@ const DISABLED_FEATURES = [
   "create_volume_indicator_by_default",
 ];
 
+// TV's symbol string can include an exchange prefix ("NASDAQ:AAPL");
+// the rest of the app (TradeBar, useLiveQuotes, /api/snapshots, …) uses
+// bare tickers, so strip the prefix when propagating up.
+function normalizeSymbol(raw: string): string {
+  if (!raw) return raw;
+  const tail = raw.includes(":") ? raw.split(":").pop()! : raw;
+  return tail.toUpperCase();
+}
+
 export default function TVPlatform({ symbol, onSymbolChange }: Props) {
   const selectSym = (s: string) => onSymbolChange?.(s);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -81,6 +90,15 @@ export default function TVPlatform({ symbol, onSymbolChange }: Props) {
   // when the user toggles themes. `themeKey` is the dependency.
   const [themeKey, setThemeKey] = useState(theme);
   useEffect(() => setThemeKey(theme), [theme]);
+
+  // The widget effect runs once per theme; its closure captures the
+  // initial `onSymbolChange`. App.tsx's setSelected is stable but the
+  // `selectSym` wrapper here isn't — route the inside-TV subscription
+  // through a ref so it always calls the latest callback.
+  const onSymbolChangeRef = useRef(onSymbolChange);
+  useEffect(() => {
+    onSymbolChangeRef.current = onSymbolChange;
+  }, [onSymbolChange]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -148,6 +166,17 @@ export default function TVPlatform({ symbol, onSymbolChange }: Props) {
           sub.subscribe(null, () => {
             clearEntityIds();
             recreateDrawingsForChart();
+            // Propagate symbol changes initiated inside TV (the symbol
+            // search dialog, compare picker, watchlist clicks in TV's
+            // own UI, etc.) back up to App.tsx so the surrounding
+            // chrome — ChartTopBar header, TradeBar, ChartBot — all
+            // follow the active chart.
+            try {
+              const next = normalizeSymbol(widget.activeChart().symbol());
+              if (next) onSymbolChangeRef.current?.(next);
+            } catch {
+              /* widget tearing down */
+            }
           });
         } catch {
           // older builds
@@ -173,10 +202,17 @@ export default function TVPlatform({ symbol, onSymbolChange }: Props) {
   }, [themeKey]);
 
   // Push external symbol changes (cmd-bar Open-in-workspace) into the
-  // running widget.
+  // running widget. Bail out when the widget is already on this symbol
+  // so an in-TV change that flows out to App.tsx → back into this prop
+  // doesn't trigger another setSymbol (which would refire
+  // onSymbolChanged and rebuild the drawings list pointlessly).
   useEffect(() => {
     if (!widgetRef.current || !symbol) return;
     try {
+      const current = normalizeSymbol(
+        widgetRef.current.activeChart().symbol(),
+      );
+      if (current === normalizeSymbol(symbol)) return;
       widgetRef.current.activeChart().setSymbol(symbol);
     } catch {
       /* widget not ready */

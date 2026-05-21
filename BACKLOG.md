@@ -62,12 +62,6 @@
   and equity, and the Account Manager summary row updates live via
   `WatchedValue`s. TV's header strip is now hidden (`disabled_features:
   header_widget`), so this is moot unless we un-hide the header strip.
-- **TV watchlist sync** — Chart mode's `ChartWatchlist` selection
-  pushes through `onSymbolChange` to TV, but switching symbols inside
-  TV (right-click → "Symbol info" → change) doesn't update the React
-  `selected` state. Add an `onSymbolChanged()` subscription handler in
-  `TVPlatform.tsx`.
-
 ## AI chart assistant — deferred
 
 - **Multi-pane chart layouts** — TV exposes `setLayout()` /
