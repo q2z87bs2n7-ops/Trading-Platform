@@ -14,7 +14,7 @@ import Activities from "./components/Activities";
 import TopBar from "./components/TopBar";
 import Tools from "./components/Tools";
 import TVPlatform from "./components/TVPlatform";
-import AIChatPanel from "./components/AIChatPanel";
+import ChatPanel from "./components/chat/ChatPanel";
 
 type PlatformMode = "trading" | "chartbot" | "discover";
 
@@ -99,7 +99,7 @@ export default function App() {
           <div style={{ flex: 1, minWidth: 0 }}>
             <TVPlatform symbol={selected} />
           </div>
-          <AIChatPanel symbol={selected || "AAPL"} />
+          <ChatPanel symbol={selected || "AAPL"} />
         </div>
       )}
 
