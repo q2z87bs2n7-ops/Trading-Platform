@@ -18,6 +18,16 @@ const SUGGESTIONS = [
   "Close my TSLA position",
 ];
 
+// Compact next-question prompts shown after each completed turn. Same
+// vocabulary as the empty state, trimmed to four so the row scrolls
+// horizontally inside the modal width without taking the full screen.
+const FOLLOWUPS = [
+  "What changed today?",
+  "Top gainers",
+  "Open orders",
+  "Portfolio",
+];
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -211,6 +221,42 @@ export default function CmdBar({ open, onClose, onOpenInWorkspace }: Props) {
                   />
                 </div>
               ))}
+              {/* Follow-up prompts after the last result — same idea as
+                 the empty-state chips, smaller so they don't crowd the
+                 reply above. */}
+              <div>
+                <div
+                  className="text-[10.5px] uppercase mb-1.5"
+                  style={{
+                    color: "var(--mute)",
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  Try next
+                </div>
+                <div
+                  className="flex gap-1.5 overflow-x-auto pb-1"
+                  style={{ scrollbarWidth: "none" }}
+                >
+                  {FOLLOWUPS.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => submit(s)}
+                      className="cursor-pointer text-[11.5px] whitespace-nowrap transition-colors"
+                      style={{
+                        padding: "4px 10px",
+                        background: "transparent",
+                        border: "1px solid var(--border)",
+                        color: "var(--text-2)",
+                        borderRadius: 999,
+                      }}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>
