@@ -8,7 +8,6 @@
 import { useEffect, useState } from "react";
 import { useChatSession } from "../../hooks/useChatSession";
 import ChatHeader from "./ChatHeader";
-import ChatContextPills from "./ChatContextPills";
 import ChatTranscript from "./ChatTranscript";
 import ChatComposer from "./ChatComposer";
 
@@ -74,7 +73,6 @@ export default function ChatPanel({ symbol, resolution = "D" }: Props) {
         onCollapse={() => setCollapsed(true)}
         onClear={session.clear}
       />
-      <ChatContextPills symbol={symbol} />
       {/* Transcript flex-grows to fill the gap; composer is always the
          last child and so always pinned at the bottom of the panel. */}
       <ChatTranscript
