@@ -41,7 +41,7 @@ import {
 } from "./tv-drawings";
 
 const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
-const MAX_OUTER_ITERATIONS = 5;
+const MAX_OUTER_ITERATIONS = 10;
 
 // --- Wire types (match backend ChatRequest / ChatResponse) ------------------
 

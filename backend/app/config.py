@@ -16,8 +16,8 @@ class Settings(BaseSettings):
     ai_chat_enabled: bool = False
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-4-6"
-    ai_max_tokens: int = 2048
-    ai_max_tool_iterations: int = 8
+    ai_max_tokens: int = 4096
+    ai_max_tool_iterations: int = 16
     # Browser origins allowed to call this API. The GitHub Pages origin is
     # included so the dev-branch previews can reach the Vercel backend.
     cors_origins: str = (

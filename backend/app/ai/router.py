@@ -25,7 +25,7 @@ from . import prompt, tools
 router = APIRouter()
 
 _MAX_USER_MESSAGE_CHARS = 4000
-_MAX_HISTORY_MESSAGES = 40
+_MAX_HISTORY_MESSAGES = 80
 
 
 def require_ai_enabled() -> None:
@@ -143,11 +143,38 @@ def _block_to_dict(block: Any) -> dict[str, Any]:
     return dict(block)
 
 
+def _starts_with_tool_result(msg: dict[str, Any]) -> bool:
+    """A user message whose first content block is a tool_result is the
+    second half of a tool-use pair — dropping the matching assistant
+    turn leaves Anthropic with an orphaned tool_result_id and a 400.
+    """
+    c = msg.get("content")
+    if not isinstance(c, list) or not c:
+        return False
+    first = c[0]
+    return isinstance(first, dict) and first.get("type") == "tool_result"
+
+
+def _trim_history(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep only the trailing _MAX_HISTORY_MESSAGES, then advance past
+    any leading messages that would orphan a tool_use/tool_result pair
+    so the surviving prefix is a clean user turn. If the walk-forward
+    consumes every message (pathological all-tool-pairs window), fall
+    back to the untouched window — the caller is in a better position
+    to surface the resulting Anthropic 400 than we are to invent state.
+    """
+    window = messages[-_MAX_HISTORY_MESSAGES:]
+    trimmed = window
+    while trimmed and (
+        trimmed[0].get("role") != "user" or _starts_with_tool_result(trimmed[0])
+    ):
+        trimmed = trimmed[1:]
+    return trimmed or window
+
+
 def _validate_messages(messages: list[dict[str, Any]]) -> None:
     if not messages:
         raise HTTPException(400, "messages must not be empty")
-    if len(messages) > _MAX_HISTORY_MESSAGES:
-        raise HTTPException(400, f"messages capped at {_MAX_HISTORY_MESSAGES}")
     # Lightweight length guard on plain-text user content.
     for m in messages:
         c = m.get("content")
@@ -167,7 +194,7 @@ def ai_chat(req: ChatRequest) -> ChatResponse:
     client = anthropic.Anthropic(api_key=s.anthropic_api_key, timeout=60.0)
 
     system = prompt.build_system(req.chart_context.symbol, req.chart_context.resolution)
-    messages = list(req.messages)
+    messages = _trim_history(list(req.messages))
     backend_results_accum: list[dict[str, Any]] = []
 
     for _ in range(s.ai_max_tool_iterations):

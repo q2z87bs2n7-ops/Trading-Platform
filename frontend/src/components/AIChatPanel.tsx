@@ -4,7 +4,7 @@
  * Mounts as a sibling of TVPlatform inside the `mode === "tv"` branch of
  * App.tsx. Chat history is in-memory only (drawings persist via
  * tv-drawings.ts, but the conversation does not). Send is disabled
- * while a turn is in flight; trim guard keeps history ≤ 40 messages.
+ * while a turn is in flight; trim guard keeps history ≤ 80 messages.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -21,7 +21,7 @@ interface RenderedTurn {
   events: TurnEvent[];
 }
 
-const HISTORY_CAP = 40;
+const HISTORY_CAP = 80;
 const COLLAPSED_KEY = "ai_chat_panel_collapsed";
 
 export default function AIChatPanel({ symbol, resolution = "D" }: Props) {

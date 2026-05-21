@@ -146,7 +146,7 @@ persisted watchlists, asset search, and real-time streaming.
   Anthropic credits. Set `AI_CHAT_ENABLED=true` and `ANTHROPIC_API_KEY`
   in the Vercel env (and locally in `backend/.env`) to enable. Other
   tunables: `ANTHROPIC_MODEL` (default `claude-sonnet-4-6`),
-  `AI_MAX_TOKENS` (default 2048), `AI_MAX_TOOL_ITERATIONS` (default 8).
+  `AI_MAX_TOKENS` (default 4096), `AI_MAX_TOOL_ITERATIONS` (default 16).
 - **Hybrid tool-use loop.** The model sees one unified tool list
   declared in `backend/app/ai/tools.py`, split into two halves by who
   executes them:
@@ -159,7 +159,7 @@ persisted watchlists, asset search, and real-time streaming.
   - *Frontend-executed chart tools* are declared in the backend schema
     but dispatched on the client by `frontend/src/lib/ai-client.ts`
     against `frontend/src/lib/tv-drawings.ts`. Results are folded into
-    the next message and re-POSTed (up to 5 outer rounds):
+    the next message and re-POSTed (up to 10 outer rounds):
     - *Drawing:* `draw_horizontal_line`, `draw_vertical_line`,
       `draw_trend_line`, `draw_rectangle`, `draw_fib_retracement`,
       `draw_text`, `draw_arrow`, `list_drawings`, `remove_drawing`,
@@ -195,7 +195,9 @@ persisted watchlists, asset search, and real-time streaming.
   `backend/app/ai/tools.py`.
 - **`AIChatPanel.tsx`** is a 360 px collapsible right-edge panel.
   Chat history is in-memory only (not persisted); history is trimmed
-  to a trailing 40 messages before each POST to stay within token caps.
+  to a trailing 80 messages before each POST. The backend re-trims
+  defensively (overwriting oldest entries to preserve tool_use pairs)
+  so an over-cap request never 400s.
   Conversation does not survive a page reload — drawings do.
 
 ## Vercel Python runtime — landmines (commits #4–#8)
