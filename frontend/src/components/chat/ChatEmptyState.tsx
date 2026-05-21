@@ -2,24 +2,38 @@ interface Props {
   onPick: (text: string) => void;
 }
 
+// Chart-specialized prompts. Mirrors intents.md §"Empty-state suggestions".
 const SUGGESTIONS = [
-  "Draw a horizontal line at the current price",
-  "Mark the last swing high on the 1H",
-  "Add the 50 and 200 SMA",
-  "What's my AAPL position size?",
+  "Trendline from 30-day low to high",
+  "Add 50 + 200 SMA",
+  "Mark entry at $482",
+  "What's the trend?",
+  "Where to place stops",
+  "Compare with QQQ",
+  "Switch to 4h",
+  "Clear all drawings",
 ];
 
 export default function ChatEmptyState({ onPick }: Props) {
   return (
-    <div className="mt-2 text-muted">
-      <p className="mb-2 text-[13px]">Ask me to annotate the chart:</p>
+    <div className="mt-1">
+      <p className="mb-3 text-[12.5px]" style={{ color: "var(--mute)" }}>
+        Try one of these:
+      </p>
       <div className="flex flex-col gap-1.5">
         {SUGGESTIONS.map((s) => (
           <button
             key={s}
             type="button"
             onClick={() => onPick(s)}
-            className="cursor-pointer rounded border border-border bg-panel px-2 py-1.5 text-left text-[12px] text-text-2 hover:border-border-strong hover:text-text"
+            className="cursor-pointer text-left text-[12.5px] transition-colors"
+            style={{
+              padding: "8px 10px",
+              background: "var(--panel)",
+              border: "1px solid var(--border)",
+              color: "var(--text-2)",
+              borderRadius: "var(--r)",
+            }}
           >
             {s}
           </button>
