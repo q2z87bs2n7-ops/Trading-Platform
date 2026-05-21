@@ -147,21 +147,39 @@ persisted watchlists, asset search, and real-time streaming.
   in the Vercel env (and locally in `backend/.env`) to enable. Other
   tunables: `ANTHROPIC_MODEL` (default `claude-sonnet-4-6`),
   `AI_MAX_TOKENS` (default 2048), `AI_MAX_TOOL_ITERATIONS` (default 8).
-- **Hybrid tool-use loop.** The model sees one unified tool list split
-  into two halves:
-  - *Read tools* (`get_bars`, `get_quote`, `get_positions`, `get_orders`,
-    `get_account`) execute on the backend inside `POST /api/ai/chat`
-    (`backend/app/ai/router.py`). The loop runs up to
-    `AI_MAX_TOOL_ITERATIONS` rounds; once there are no more read-tool
-    calls, it returns.
-  - *Drawing tools* (`draw_horizontal_line`, `draw_vertical_line`,
-    `draw_trend_line`, `draw_rectangle`, `draw_fib_retracement`,
-    `draw_text`, `draw_arrow`, `list_drawings`, `remove_drawing`,
-    `modify_drawing`) are declared in the backend schema but execute
-    on the frontend. The backend yields back to the client with the
-    pending draw calls; `frontend/src/lib/ai-client.ts` dispatches
-    them via `frontend/src/lib/tv-drawings.ts`, folds the results into
-    the next message, and POSTs again (up to 5 outer rounds).
+- **Hybrid tool-use loop.** The model sees one unified tool list
+  declared in `backend/app/ai/tools.py`, split into two halves by who
+  executes them:
+  - *Backend-executed read tools* (`get_bars`, `get_quote`,
+    `get_snapshot`, `get_positions`, `get_position`, `get_orders`,
+    `get_account`, `get_news`, `get_movers`, `find_symbol`) run inside
+    `POST /api/ai/chat` (`backend/app/ai/router.py`). The loop runs up
+    to `AI_MAX_TOOL_ITERATIONS` rounds; once there are no more
+    backend-tool calls, it returns to the client.
+  - *Frontend-executed chart tools* are declared in the backend schema
+    but dispatched on the client by `frontend/src/lib/ai-client.ts`
+    against `frontend/src/lib/tv-drawings.ts`. Results are folded into
+    the next message and re-POSTed (up to 5 outer rounds):
+    - *Drawing:* `draw_horizontal_line`, `draw_vertical_line`,
+      `draw_trend_line`, `draw_rectangle`, `draw_fib_retracement`,
+      `draw_text`, `draw_arrow`, `list_drawings`, `remove_drawing`,
+      `modify_drawing`, `get_drawing_properties`,
+      `set_drawing_properties`.
+    - *Studies & chart state:* `add_indicator`, `set_symbol`,
+      `set_resolution`, `set_chart_type`, `set_visible_range`,
+      `set_timezone`, `get_chart_state`, `inspect_chart`,
+      `compare_symbol`.
+    - *Trading viz:* `propose_order` (opens TV's order dialog —
+      `staged=false` must NOT await `showOrderDialog`, see
+      `ai-client.ts`), `show_position_line`, `mark_bar`,
+      `mark_execution`.
+    - *Capture:* `take_screenshot` (returns an image block the model
+      consumes directly), `export_chart_data` (series + optional
+      study columns; row-major — `data[i][c]`, see
+      `tv-drawings.ts:exportChartData`).
+- **Backend timeout.** The Anthropic call uses a 60 s client timeout
+  (`backend/app/ai/router.py`); auth/config errors surface as 503 so
+  the panel can show a useful message rather than a generic 500.
 - **Drawing persistence.** `tv-drawings.ts` tags each drawing with a
   UUID and writes records to `ai_drawings_v1` in `localStorage`. On
   symbol or resolution change `TVPlatform.tsx` calls
