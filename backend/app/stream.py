@@ -23,6 +23,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from contextlib import suppress
 from typing import Any, Literal
 
@@ -230,6 +231,12 @@ class QuoteHub:
             }
         except Exception:
             log.exception("failed to normalize bar")
+            return
+        # Alpaca replays the last completed bar on each stream reconnect.
+        # Drop it if it's more than 5 minutes old — only live bars belong
+        # in the TV cache; getBars covers history.
+        if time.time() - bar["time"] > 300:
+            log.debug("dropping stale bar %s t=%s", bar["symbol"], bar["time"])
             return
         self._broadcast("bar", bar["symbol"], bar)
 
