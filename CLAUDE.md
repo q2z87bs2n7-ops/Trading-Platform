@@ -238,6 +238,10 @@ so future work doesn't accidentally collide.
   relay). This fallback is load-bearing — keep it. `EventSource`
   auto-reconnect is deliberately disabled so failure → polling, not a
   silent reconnect loop.
+- `useLiveQuotes` fires a one-shot `getQuotes()` REST call immediately on
+  mount to seed the cache before the first stream tick arrives. This keeps
+  the order sheet's estimated cost from showing blank while waiting for
+  Alpaca to push a tick on a newly-subscribed instrument.
 - Stream ticks are buffered and flushed at most every `STREAM_FLUSH_MS`
   (500ms) to cap re-renders. The buffer lives in two places — tune both,
   remove neither: `frontend/src/data/useLiveQuotes.ts` (watchlist) and
@@ -270,7 +274,11 @@ Claude API call (Anthropic credits, slow).
   bottom with a panel-2 textarea pill + teal Send button. Enter
   submits; Shift+Enter inserts a newline. Esc closes.
 - Opened by the "Ask anything · ⌘K" pill in the top nav OR a global
-  `⌘K` / `Ctrl+K` listener registered in `App.tsx`.
+  `⌘K` / `Ctrl+K` listener registered in `App.tsx`. The Ask pill,
+  theme toggle, and settings gear all use the shared `IconButton`
+  component (`components/IconButton.tsx`) — panel-fill surface +
+  `shadow-sm` so they render as real buttons on Windows 1x DPR rather
+  than the previous transparent + 1px-border treatment.
 - `lib/cmd-intent.ts` runs each submitted phrase through a chain of
   regex/keyword checks and returns one of 8 typed intents: `order`,
   `close`, `portfolio`, `movers` (gainers/losers/both), `news`,
@@ -278,11 +286,13 @@ Claude API call (Anthropic credits, slow).
   ("OPEN", "NEWS", "ALL") from getting misread as tickers.
 - Each intent renders a `CmdResultCard` from `components/cmd/cards.tsx`
   that composes existing React Query hooks (`usePositions`,
-  `useMovers`, `useMarketNews`, `useSnapshots`, `useBars`, `useOrders`)
-  for reads and existing mutation hooks (`useSubmitOrder`,
-  `useClosePosition`) for writes. The order card drives
-  `useOrderTicket` with `skipConfirm: true` — the card itself is the
-  confirm UI.
+  `useMovers`, `useMarketNews`, `useNews`, `useSnapshots`, `useBars`,
+  `useOrders`) for reads and existing mutation hooks (`useSubmitOrder`,
+  `useClosePosition`) for writes. The order card drives `useOrderTicket`
+  with `skipConfirm: true` — the card itself is the confirm UI.
+  The `news` intent routes to `useNews` → `/api/news` (Benzinga via
+  Alpaca) when a ticker is extracted, and `useMarketNews` → `/api/market-news`
+  (Yahoo Finance) for market-wide queries.
 - The chart card renders a real 60-bar sparkline from `useBars` + day
   H/L + volume, plus an "Open in Chart workspace →" CTA that switches
   platform mode and pushes the symbol into the TV widget.
