@@ -25,37 +25,53 @@ const live = (o: Order) => !TERMINAL.has(o.status.toLowerCase());
 const STATUSES = ["all", "open", "closed"] as const;
 type StatusFilter = (typeof STATUSES)[number];
 
-// Alpaca enum strings can arrive as either "gtc" or "TimeInForce.GTC";
-// keep only the tail and normalise case.
 const enumTail = (s: string) => s.split(".").pop()!.toLowerCase();
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD" });
 
-// Best available per-share price to value the order: actual fill, else
-// the limit, else the stop. Returns null for a pure market order with no
-// fill yet (no meaningful number to show).
 function orderValue(o: Order): number | null {
   const px = o.filled_avg_price ?? o.limit_price ?? o.stop_price;
   return px != null && o.qty != null ? px * o.qty : null;
 }
 
-const TH = "px-2 py-1 text-right font-medium text-[11px] uppercase tracking-wide text-muted border-b border-border whitespace-nowrap";
-const TD = "px-2 py-1 text-right border-b border-white/5 whitespace-nowrap";
-const TD_SKEL = "px-2 py-1 border-b border-white/5";
+const TH =
+  "px-2 py-2 text-right font-medium text-[11px] uppercase tracking-wide border-b whitespace-nowrap";
+const TD =
+  "px-2 py-2 text-right border-b whitespace-nowrap font-mono text-[13px] tabular-nums";
+const TD_SKEL = "px-2 py-2 border-b";
 
 function SkeletonRow({ cols }: { cols: number }) {
   return (
     <tr>
       {Array.from({ length: cols }).map((_, i) => (
-        <td key={i} className={TD_SKEL}>
+        <td
+          key={i}
+          className={TD_SKEL}
+          style={{ borderColor: "var(--hairline)" }}
+        >
           <div
             className="h-3 rounded animate-pulse"
-            style={{ backgroundColor: "rgba(255, 255, 255, 0.06)" }}
+            style={{ background: "var(--panel-2)" }}
           />
         </td>
       ))}
     </tr>
+  );
+}
+
+function SidePill({ side }: { side: string }) {
+  const buy = side.toLowerCase() === "buy";
+  return (
+    <span
+      className="inline-block px-1.5 py-0.5 text-[10px] rounded uppercase tracking-wide font-medium"
+      style={{
+        background: buy ? "var(--pos-bg)" : "var(--neg-bg)",
+        color: buy ? "var(--pos)" : "var(--neg)",
+      }}
+    >
+      {side.toUpperCase()}
+    </span>
   );
 }
 
@@ -69,7 +85,11 @@ function ReplaceRow({ order }: { order: Order }) {
 
   if (!open)
     return (
-      <button className="btn btn-mini" onClick={() => setOpen(true)} type="button">
+      <button
+        className="btn btn-mini"
+        onClick={() => setOpen(true)}
+        type="button"
+      >
         ✎
       </button>
     );
@@ -83,7 +103,9 @@ function ReplaceRow({ order }: { order: Order }) {
         min={0}
         value={qty ?? ""}
         placeholder="qty"
-        onChange={(e) => setQty(e.target.value ? Number(e.target.value) : undefined)}
+        onChange={(e) =>
+          setQty(e.target.value ? Number(e.target.value) : undefined)
+        }
       />
       <input
         className="w-[70px] px-1.5 py-0.5"
@@ -109,7 +131,11 @@ function ReplaceRow({ order }: { order: Order }) {
       >
         save
       </button>
-      <button className="btn btn-mini" type="button" onClick={() => setOpen(false)}>
+      <button
+        className="btn btn-mini"
+        type="button"
+        onClick={() => setOpen(false)}
+      >
         ✕
       </button>
     </span>
@@ -117,7 +143,11 @@ function ReplaceRow({ order }: { order: Order }) {
 }
 
 const dash = (s: string | number | null | undefined) =>
-  s == null || s === "" ? <span className="text-muted">—</span> : s;
+  s == null || s === "" ? (
+    <span style={{ color: "var(--mute)" }}>—</span>
+  ) : (
+    s
+  );
 
 export default function Orders() {
   const [status, setStatus] = useState<StatusFilter>("all");
@@ -128,33 +158,54 @@ export default function Orders() {
   const hasLive = !!rows?.some(live);
 
   return (
-    <div className="bg-panel border border-border rounded-lg p-3">
-      <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-2">
-        Recent Orders
-        <select
-          className="float-right -mt-0.5"
-          value={status}
-          onChange={(e) => setStatus(e.target.value as StatusFilter)}
+    <div
+      className="p-3"
+      style={{
+        background: "var(--panel)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--r-lg)",
+        boxShadow: "var(--shadow-sm)",
+      }}
+    >
+      <div className="flex items-center gap-2 mb-2">
+        <div
+          className="inline-flex p-0.5 gap-0.5"
+          style={{ background: "var(--panel-2)", borderRadius: 7 }}
         >
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
+          {STATUSES.map((s) => {
+            const active = status === s;
+            return (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setStatus(s)}
+                className="text-[12px] font-medium cursor-pointer border-0 px-3 py-1"
+                style={{
+                  background: active ? "var(--panel)" : "transparent",
+                  color: active ? "var(--text)" : "var(--mute)",
+                  borderRadius: 5,
+                  boxShadow: active ? "var(--shadow-sm)" : "none",
+                  textTransform: "capitalize",
+                }}
+              >
+                {s}
+              </button>
+            );
+          })}
+        </div>
         {hasLive && (
           <button
-            className="btn btn-mini float-right -mt-0.5"
+            className="btn btn-mini ml-auto"
             type="button"
             disabled={cancelAll.isPending}
             onClick={() =>
               window.confirm("Cancel ALL open orders?") && cancelAll.mutate()
             }
           >
-            cancel all
+            Cancel all
           </button>
         )}
-      </h2>
+      </div>
       {error && <ErrorBanner message={error.message} />}
       {(cancel.error || cancelAll.error) && (
         <ErrorBanner
@@ -162,7 +213,7 @@ export default function Orders() {
         />
       )}
       {!isPending && rows && rows.length === 0 && (
-        <div className="text-xs text-muted">
+        <div className="text-[13px] py-4" style={{ color: "var(--mute)" }}>
           {status === "open"
             ? "No working orders. Recent fills appear under closed."
             : status === "closed"
@@ -172,21 +223,51 @@ export default function Orders() {
       )}
       {(isPending || (rows && rows.length > 0)) && (
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-[13px] tabular-nums">
+          <table
+            className="w-full border-collapse"
+            style={{ borderColor: "var(--hairline)" }}
+          >
             <thead>
               <tr>
-                <th className={`${TH} text-left`}>Symbol</th>
-                <th className={TH}>Side</th>
-                <th className={TH}>Type</th>
-                <th className={TH}>Qty</th>
-                <th className={TH}>Filled</th>
-                <th className={TH}>Limit</th>
-                <th className={TH}>Stop</th>
-                <th className={TH}>TIF</th>
-                <th className={TH}>Value</th>
-                <th className={TH}>Status</th>
-                <th className={TH}>Submitted</th>
-                <th className={`${TH} text-center`}></th>
+                <th
+                  className={`${TH} text-left`}
+                  style={{
+                    borderColor: "var(--border)",
+                    color: "var(--mute)",
+                  }}
+                >
+                  Symbol
+                </th>
+                {[
+                  "Side",
+                  "Type",
+                  "Qty",
+                  "Filled",
+                  "Limit",
+                  "Stop",
+                  "TIF",
+                  "Value",
+                  "Status",
+                  "Submitted",
+                ].map((h) => (
+                  <th
+                    key={h}
+                    className={TH}
+                    style={{
+                      borderColor: "var(--border)",
+                      color: "var(--mute)",
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
+                <th
+                  className={`${TH} text-center`}
+                  style={{
+                    borderColor: "var(--border)",
+                    color: "var(--mute)",
+                  }}
+                ></th>
               </tr>
             </thead>
             <tbody>
@@ -197,76 +278,143 @@ export default function Orders() {
                   <SkeletonRow cols={12} />
                 </>
               )}
-              {!isPending && rows && rows.map((o) => {
-                const val = orderValue(o);
-                const filled =
-                  o.filled_qty > 0
-                    ? `${o.filled_qty}${o.qty ? `/${o.qty}` : ""}` +
-                      (o.qty
-                        ? ` (${Math.round((o.filled_qty / o.qty) * 100)}%)`
-                        : "") +
-                      (o.filled_avg_price != null
-                        ? ` @ ${o.filled_avg_price}`
-                        : "")
-                    : null;
-                const cls =
-                  o.order_class && !/simple/i.test(o.order_class)
-                    ? ` (${enumTail(o.order_class)})`
-                    : "";
-                return (
-                  <tr key={o.id} className="hover:bg-white/[0.03]">
-                    <td className={`${TD} text-left`}>
-                      <span className="text-text font-semibold">{o.symbol}</span>
-                    </td>
-                    <td className={TD}>
-                      {o.side.toUpperCase()}
-                    </td>
-                    <td className={TD}>
-                      {o.type}
-                      {cls && <span className="text-muted">{cls}</span>}
-                    </td>
-                    <td className={TD}>{dash(o.qty)}</td>
-                    <td className={TD}>
-                      {filled ?? <span className="text-muted">—</span>}
-                    </td>
-                    <td className={TD}>{dash(o.limit_price)}</td>
-                    <td className={TD}>{dash(o.stop_price)}</td>
-                    <td className={TD}>
-                      {o.time_in_force ? (
-                        enumTail(o.time_in_force).toUpperCase()
-                      ) : (
-                        <span className="text-muted">—</span>
-                      )}
-                    </td>
-                    <td className={TD}>
-                      {val != null ? money(val) : <span className="text-muted">—</span>}
-                    </td>
-                    <td className={TD}>
-                      <Pill status={o.status} />
-                    </td>
-                    <td className={`${TD} text-muted`}>
-                      {o.submitted_at
-                        ? new Date(o.submitted_at * 1000).toLocaleString()
-                        : "—"}
-                    </td>
-                    <td className={`${TD} text-center`}>
-                      {live(o) && (
-                        <span className="inline-flex items-center gap-2">
-                          <ReplaceRow order={o} />
-                          <button
-                            className="btn btn-mini"
-                            type="button"
-                            disabled={cancel.isPending}
-                            onClick={() => cancel.mutate(o.id)}
-                          >
-                            ✕
-                          </button>
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
+              {!isPending &&
+                rows &&
+                rows.map((o) => {
+                  const val = orderValue(o);
+                  const filled =
+                    o.filled_qty > 0
+                      ? `${o.filled_qty}${o.qty ? `/${o.qty}` : ""}` +
+                        (o.qty
+                          ? ` (${Math.round((o.filled_qty / o.qty) * 100)}%)`
+                          : "") +
+                        (o.filled_avg_price != null
+                          ? ` @ ${o.filled_avg_price}`
+                          : "")
+                      : null;
+                  const cls =
+                    o.order_class && !/simple/i.test(o.order_class)
+                      ? ` (${enumTail(o.order_class)})`
+                      : "";
+                  return (
+                    <tr
+                      key={o.id}
+                      className="transition-colors"
+                      style={{}}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLElement).style.background =
+                          "var(--panel-2)";
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLElement).style.background =
+                          "transparent";
+                      }}
+                    >
+                      <td
+                        className={`${TD} text-left font-sans`}
+                        style={{ borderColor: "var(--hairline)" }}
+                      >
+                        <span className="font-semibold">{o.symbol}</span>
+                      </td>
+                      <td
+                        className={`${TD} font-sans`}
+                        style={{ borderColor: "var(--hairline)" }}
+                      >
+                        <SidePill side={o.side} />
+                      </td>
+                      <td
+                        className={TD}
+                        style={{ borderColor: "var(--hairline)" }}
+                      >
+                        {o.type}
+                        {cls && (
+                          <span style={{ color: "var(--mute)" }}>{cls}</span>
+                        )}
+                      </td>
+                      <td
+                        className={TD}
+                        style={{ borderColor: "var(--hairline)" }}
+                      >
+                        {dash(o.qty)}
+                      </td>
+                      <td
+                        className={TD}
+                        style={{ borderColor: "var(--hairline)" }}
+                      >
+                        {filled ?? (
+                          <span style={{ color: "var(--mute)" }}>—</span>
+                        )}
+                      </td>
+                      <td
+                        className={TD}
+                        style={{ borderColor: "var(--hairline)" }}
+                      >
+                        {dash(o.limit_price)}
+                      </td>
+                      <td
+                        className={TD}
+                        style={{ borderColor: "var(--hairline)" }}
+                      >
+                        {dash(o.stop_price)}
+                      </td>
+                      <td
+                        className={TD}
+                        style={{ borderColor: "var(--hairline)" }}
+                      >
+                        {o.time_in_force ? (
+                          enumTail(o.time_in_force).toUpperCase()
+                        ) : (
+                          <span style={{ color: "var(--mute)" }}>—</span>
+                        )}
+                      </td>
+                      <td
+                        className={TD}
+                        style={{ borderColor: "var(--hairline)" }}
+                      >
+                        {val != null ? (
+                          money(val)
+                        ) : (
+                          <span style={{ color: "var(--mute)" }}>—</span>
+                        )}
+                      </td>
+                      <td
+                        className={`${TD} font-sans`}
+                        style={{ borderColor: "var(--hairline)" }}
+                      >
+                        <Pill status={o.status} />
+                      </td>
+                      <td
+                        className={TD}
+                        style={{
+                          borderColor: "var(--hairline)",
+                          color: "var(--mute)",
+                        }}
+                      >
+                        {o.submitted_at
+                          ? new Date(o.submitted_at * 1000).toLocaleString()
+                          : "—"}
+                      </td>
+                      <td
+                        className={`${TD} text-center font-sans`}
+                        style={{ borderColor: "var(--hairline)" }}
+                      >
+                        {live(o) && (
+                          <span className="inline-flex items-center gap-2">
+                            <ReplaceRow order={o} />
+                            <button
+                              className="btn btn-mini"
+                              type="button"
+                              disabled={cancel.isPending}
+                              onClick={() => cancel.mutate(o.id)}
+                            >
+                              ✕
+                            </button>
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
             </tbody>
           </table>
         </div>

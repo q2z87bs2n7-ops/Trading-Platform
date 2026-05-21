@@ -1,19 +1,14 @@
 import { useEffect, useState } from "react";
-import {
-  useAddToWatchlist,
-  useConfig,
-  useRemoveFromWatchlist,
-  useWatchlist,
-} from "./data/hooks";
+import { useConfig, useWatchlist } from "./data/hooks";
 import { useTheme } from "./hooks/useTheme";
 import OrderTicket from "./components/OrderTicket";
-import Watchlist from "./components/Watchlist";
-import PriceChart from "./components/PriceChart";
 import Positions from "./components/Positions";
 import Orders from "./components/Orders";
 import Activities from "./components/Activities";
 import TopBar from "./components/TopBar";
 import Tools from "./components/Tools";
+import PortfolioHero from "./components/PortfolioHero";
+import SectionHeading from "./components/SectionHeading";
 import TVPlatform from "./components/TVPlatform";
 import ChatPanel from "./components/chat/ChatPanel";
 
@@ -155,8 +150,6 @@ export default function App() {
   const { data: wl } = useWatchlist();
   const symbols = wl?.symbols ?? [];
   const meta = cfg ? { feed: cfg.feed, paper: cfg.paper } : null;
-  const addToWatchlist = useAddToWatchlist();
-  const removeFromWatchlist = useRemoveFromWatchlist();
   const [selected, setSelected] = useState<string>("");
   const [mode, setMode] = useState<PlatformMode>(readPlatformMode);
   const { theme, toggle: toggleTheme } = useTheme();
@@ -237,38 +230,25 @@ export default function App() {
         </div>
       )}
 
-      {/* Portfolio (was Trading) — workspace + blotter */}
+      {/* Portfolio (was Trading): hero + positions strip + open orders. The
+         inline OrderTicket card is a temporary trade entry surface — phase 5
+         replaces it with the floating TradeBar + OrderSheet. */}
       {mode === "portfolio" && (
-        <>
-          {/* Workspace: chart on the left (1fr), right sidebar with
-             watchlist on top and order ticket below. */}
-          <div className="grid items-stretch">
-            <div className="min-w-0 flex flex-col">
-              <PriceChart symbol={selected} />
-            </div>
-            <div className="flex flex-col gap-4 min-w-0">
-              <Watchlist
-                symbols={symbols}
-                selected={selected}
-                onSelect={setSelected}
-                onAdd={(s) => addToWatchlist.mutate(s)}
-                onRemove={(s) => removeFromWatchlist.mutate(s)}
-              />
-              <OrderTicket symbol={selected} onSymbolChange={setSelected} />
-            </div>
-          </div>
+        <div className="max-w-[1280px] mx-auto pt-2">
+          <PortfolioHero />
 
-          {/* Blotter: full-width tables so columns have room to breathe. */}
-          <div className="blotter">
-            <Positions />
-            <Orders />
-          </div>
+          <SectionHeading label="Positions" />
+          <Positions variant="strip" onSelect={setSelected} />
 
-          {/* Account activity feed under the blotter. */}
-          <div className="mt-4">
-            <Activities />
-          </div>
-        </>
+          <SectionHeading label="Open orders" />
+          <Orders />
+
+          <SectionHeading label="New order" ctx="temporary · floating bar lands in phase 5" />
+          <OrderTicket symbol={selected} onSymbolChange={setSelected} />
+
+          <SectionHeading label="Activity" />
+          <Activities />
+        </div>
       )}
     </div>
   );
