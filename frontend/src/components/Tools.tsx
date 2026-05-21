@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 
+import * as api from "../api";
 import {
   useAccount,
   useAddToWatchlist,
@@ -11,6 +12,7 @@ import {
   useSnapshots,
   useWatchlist,
 } from "../data/hooks";
+import { showToast } from "../lib/toast";
 import type {
   IndexData,
   MarketNewsArticle,
@@ -355,16 +357,18 @@ function SparkCard({
       {onRemove && (
         <button
           type="button"
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             onRemove();
           }}
           aria-label={`Remove ${symbol} from watchlist`}
-          className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer border-0 text-[12px] leading-none w-5 h-5 grid place-items-center"
+          className="absolute top-1.5 right-1.5 cursor-pointer border-0 text-[12px] leading-none w-5 h-5 grid place-items-center transition-opacity hover:opacity-100"
           style={{
             background: "var(--panel-2)",
             color: "var(--mute)",
             borderRadius: 4,
+            opacity: 0.55,
           }}
         >
           ✕
@@ -780,14 +784,52 @@ export default function Tools({
   const wlSymbols = watchlist.data?.symbols ?? [];
   const snaps = useSnapshots(wlSymbols);
   const [wlInput, setWlInput] = useState("");
+  const [adding, setAdding] = useState(false);
 
-  function submitAddWatchlist(e: React.FormEvent) {
+  async function submitAddWatchlist(e: React.FormEvent) {
     e.preventDefault();
     const v = wlInput.trim().toUpperCase();
-    if (!v) return;
-    addToWatchlist.mutate(v);
-    setWlInput("");
-    onSelect(v);
+    if (!v || adding) return;
+    if (wlSymbols.includes(v)) {
+      showToast(`${v} is already on your watchlist`, "info");
+      return;
+    }
+    setAdding(true);
+    // Validate with Alpaca first so we never push a 404'd ticker into
+    // the watchlist (the backend would still accept it; the symbol
+    // would just never load quotes / bars).
+    try {
+      const asset = await api.getAsset(v);
+      if (!asset.tradable) {
+        showToast(`${v} is not tradable on Alpaca`, "error");
+        setAdding(false);
+        return;
+      }
+    } catch {
+      showToast(`${v} not found on Alpaca`, "error");
+      setAdding(false);
+      return;
+    }
+    addToWatchlist.mutate(v, {
+      onSuccess: () => {
+        setWlInput("");
+        setAdding(false);
+        showToast(`${v} added to watchlist`, "success");
+        onSelect(v);
+      },
+      onError: (err) => {
+        setAdding(false);
+        showToast(`Couldn't add ${v}: ${(err as Error).message}`, "error");
+      },
+    });
+  }
+
+  function removeWatchlistSymbol(sym: string) {
+    removeFromWatchlist.mutate(sym, {
+      onSuccess: () => showToast(`${sym} removed from watchlist`, "info"),
+      onError: (err) =>
+        showToast(`Couldn't remove ${sym}: ${(err as Error).message}`, "error"),
+    });
   }
 
   const invested = (positions.data?.positions || []).reduce(
@@ -857,7 +899,7 @@ export default function Tools({
             />
             <button
               type="submit"
-              disabled={!wlInput.trim() || addToWatchlist.isPending}
+              disabled={!wlInput.trim() || adding}
               className="text-[12px] cursor-pointer"
               style={{
                 background: "var(--accent-bg)",
@@ -865,10 +907,10 @@ export default function Tools({
                 border: "1px solid var(--accent)",
                 borderRadius: 6,
                 padding: "3px 8px",
-                opacity: wlInput.trim() ? 1 : 0.5,
+                opacity: wlInput.trim() && !adding ? 1 : 0.5,
               }}
             >
-              Add
+              {adding ? "…" : "Add"}
             </button>
           </form>
         }
@@ -912,7 +954,7 @@ export default function Tools({
                 changePct={dayChange}
                 selected={sym === selected}
                 onSelect={() => onSelect(sym)}
-                onRemove={() => removeFromWatchlist.mutate(sym)}
+                onRemove={() => removeWatchlistSymbol(sym)}
               />
             );
           })}

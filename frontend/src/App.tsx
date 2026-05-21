@@ -12,6 +12,7 @@ import TVPlatform from "./components/TVPlatform";
 import ChatPanel from "./components/chat/ChatPanel";
 import TradeBar from "./components/trade/TradeBar";
 import CmdBar from "./components/cmd/CmdBar";
+import Toaster from "./components/Toaster";
 
 type PlatformMode = "discover" | "portfolio" | "chart";
 
@@ -276,6 +277,9 @@ export default function App() {
           switchMode("chart");
         }}
       />
+
+      {/* Non-intrusive toast surface — bottom-right, auto-dismiss. */}
+      <Toaster />
     </div>
   );
 }
