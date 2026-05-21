@@ -546,7 +546,9 @@ function OrdersCard() {
             <span className="text-right">Stop</span>
           </div>
           {rows.slice(0, 10).map((o) => {
-            const buy = o.side.toLowerCase() === "buy";
+            const sideKey = o.side.split(".").pop()!.toLowerCase();
+            const buy = sideKey === "buy";
+            const typeKey = o.type.split(".").pop()!.toLowerCase();
             return (
               <div
                 key={o.id}
@@ -565,13 +567,13 @@ function OrdersCard() {
                     borderRadius: 4,
                   }}
                 >
-                  {o.side}
+                  {sideKey}
                 </span>
                 <span
                   className="font-mono tabular-nums text-right"
                   style={{ color: "var(--text-2)" }}
                 >
-                  {o.type}
+                  {typeKey}
                 </span>
                 <span className="font-mono tabular-nums text-right">
                   {o.qty ?? "—"}

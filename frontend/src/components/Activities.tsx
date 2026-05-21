@@ -9,13 +9,19 @@ const TD = "px-2 py-2 border-b whitespace-nowrap text-[13px]";
 
 const str = (v: unknown): string => (v == null ? "" : String(v));
 
+// Alpaca occasionally returns enums as their Python repr ("OrderSide.BUY",
+// "PositionSide.LONG"); take the tail and uppercase it so the activity
+// detail line never reads "ORDERSIDE.BUY".
+const enumTail = (v: unknown): string =>
+  v == null ? "" : String(v).split(".").pop()!.toUpperCase();
+
 // Heterogeneous payload — Alpaca's activity feed mixes fills (FILL,
 // PARTIAL_FILL), corporate actions (DIV, INT), and account moves
 // (TRANS, JNLC). Best-effort describe with whichever fields are
 // populated; never blow up on missing keys.
 function describe(a: Activity): string {
   if (a.symbol) {
-    const side = str(a.side).toUpperCase();
+    const side = enumTail(a.side);
     const qty = str(a.qty);
     const sym = str(a.symbol);
     const price = a.price != null ? `@ ${str(a.price)}` : "";
@@ -29,12 +35,16 @@ function describe(a: Activity): string {
   );
 }
 
-function timeOf(a: Activity): string {
+function whenOf(a: Activity): string {
   const t = a.transaction_time || a.date || a.activity_timestamp;
   if (!t) return "";
   const d = new Date(String(t));
   if (Number.isNaN(d.valueOf())) return String(t);
-  return d.toLocaleTimeString(undefined, {
+  // Compact "5/21 09:32" — matches the density of the Orders Submitted
+  // column without devouring horizontal room on smaller screens.
+  return d.toLocaleString(undefined, {
+    month: "numeric",
+    day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -60,7 +70,7 @@ export default function Activities({ bare = false }: { bare?: boolean }) {
           >
             <thead>
               <tr>
-                {["Time", "Type", "Detail"].map((h) => (
+                {["When", "Type", "Detail"].map((h) => (
                   <th
                     key={h}
                     className={TH}
@@ -112,10 +122,10 @@ export default function Activities({ bare = false }: { bare?: boolean }) {
                       style={{
                         borderColor: "var(--hairline)",
                         color: "var(--mute)",
-                        width: 80,
+                        width: 130,
                       }}
                     >
-                      {timeOf(a) || "—"}
+                      {whenOf(a) || "—"}
                     </td>
                     <td
                       className={TD}

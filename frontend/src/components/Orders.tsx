@@ -81,7 +81,7 @@ function SkeletonRow({ cols }: { cols: number }) {
 }
 
 function SidePill({ side }: { side: string }) {
-  const key = side.toLowerCase();
+  const key = enumTail(side); // Alpaca sometimes returns "OrderSide.SELL"
   const buy = key === "buy";
   return (
     <span
@@ -91,7 +91,7 @@ function SidePill({ side }: { side: string }) {
         color: buy ? "var(--pos)" : "var(--neg)",
       }}
     >
-      {SIDE_LABEL[key] ?? side}
+      {SIDE_LABEL[key] ?? key.charAt(0).toUpperCase() + key.slice(1)}
     </span>
   );
 }
