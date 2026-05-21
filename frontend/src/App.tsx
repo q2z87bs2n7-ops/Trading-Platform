@@ -12,6 +12,7 @@ import TVPlatform from "./components/TVPlatform";
 import ChatPanel from "./components/chat/ChatPanel";
 import TradeBar from "./components/trade/TradeBar";
 import CmdBar from "./components/cmd/CmdBar";
+import SettingsMenu from "./components/SettingsMenu";
 import Toaster from "./components/Toaster";
 
 type PlatformMode = "discover" | "portfolio" | "chart";
@@ -132,21 +133,6 @@ function ThemeToggle({
   );
 }
 
-function Avatar() {
-  return (
-    <div
-      className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-semibold"
-      style={{
-        background: "var(--accent-soft)",
-        color: "var(--accent-2)",
-      }}
-      aria-hidden
-    >
-      P
-    </div>
-  );
-}
-
 export default function App() {
   const { data: cfg } = useConfig();
   const { data: wl } = useWatchlist();
@@ -224,7 +210,7 @@ export default function App() {
           <div className="flex items-center gap-2">
             <AskPill onClick={openCmdBar} />
             <ThemeToggle theme={theme} onToggle={toggleTheme} />
-            <Avatar />
+            <SettingsMenu />
           </div>
         </div>
         {/* Status ribbon — portfolio mode only (UI-04) */}

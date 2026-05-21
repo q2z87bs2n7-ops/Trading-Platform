@@ -122,6 +122,35 @@ export const getAsset = (symbol: string) =>
 
 export const getIndices = () => getJSON<IndicesResponse>("/api/indices");
 
+// ── ⌘K AI ask ─────────────────────────────────────────────────────────────
+// One-shot Q&A against /api/ai/ask. The endpoint resolves backend read
+// tools server-side; no frontend tool loop. 503 → "AI not configured"
+// (env unset on the backend); the frontend keys off that to render a
+// useful error rather than a generic crash.
+
+export interface AiAskToolCall {
+  name: string;
+  ok: boolean;
+}
+
+export interface AiAskResponse {
+  text: string;
+  tool_calls: AiAskToolCall[];
+  usage: Record<string, unknown> | null;
+  backend_stopped?: "" | "max_iterations";
+}
+
+export interface AiAskMessage {
+  role: "user" | "assistant";
+  content: unknown;
+}
+
+export const postAiAsk = (
+  message: string,
+  history: AiAskMessage[] = [],
+): Promise<AiAskResponse> =>
+  sendJSON<AiAskResponse>("POST", "/api/ai/ask", { message, history });
+
 export const getMarketNews = (limit = 20) =>
   getJSON<MarketNewsResponse>(`/api/market-news?limit=${limit}`);
 

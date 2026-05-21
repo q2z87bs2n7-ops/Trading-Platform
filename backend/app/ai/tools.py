@@ -715,3 +715,10 @@ def is_read_tool(name: str) -> bool:
 
 def is_draw_tool(name: str) -> bool:
     return name in DRAW_TOOL_NAMES
+
+
+def read_only_tools() -> list[dict[str, Any]]:
+    """Subset of TOOLS exposed to the ⌘K general-purpose AI surface.
+    Excludes every chart-drawing / chart-navigation / capture tool
+    since there's no chart context in the command-bar modal."""
+    return [t for t in TOOLS if t["name"] in READ_TOOL_NAMES]

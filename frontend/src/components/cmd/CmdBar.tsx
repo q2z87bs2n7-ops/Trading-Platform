@@ -89,7 +89,7 @@ export default function CmdBar({ open, onClose, onOpenInWorkspace }: Props) {
     <div
       role="dialog"
       aria-modal
-      className="fixed inset-0 z-50"
+      className="fixed inset-0 z-50 flex flex-col justify-end"
       style={{
         background: "rgba(20, 22, 28, 0.45)",
         backdropFilter: "blur(4px)",
@@ -100,10 +100,10 @@ export default function CmdBar({ open, onClose, onOpenInWorkspace }: Props) {
         onClick={(e) => e.stopPropagation()}
         className="mx-auto flex flex-col"
         style={{
-          marginTop: "10vh",
+          marginBottom: 24,
           maxWidth: 680,
           width: "calc(100% - 32px)",
-          maxHeight: "80vh",
+          maxHeight: "min(80vh, calc(100vh - 48px))",
           background: "var(--panel)",
           borderRadius: "var(--r-xl)",
           boxShadow: "var(--shadow-lg)",
@@ -111,9 +111,9 @@ export default function CmdBar({ open, onClose, onOpenInWorkspace }: Props) {
           animation: "cmd-up 180ms ease",
         }}
       >
-        <style>{`@keyframes cmd-up{from{transform:translateY(-20px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
+        <style>{`@keyframes cmd-up{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
 
-        {/* Header: sparkle icon + textarea + Esc kbd */}
+        {/* Header: sparkle icon + textarea + ✕ close + Esc kbd */}
         <div
           className="flex items-start gap-3 px-4 py-3"
           style={{ borderBottom: "1px solid var(--hairline)" }}
@@ -146,7 +146,7 @@ export default function CmdBar({ open, onClose, onOpenInWorkspace }: Props) {
             }}
           />
           <kbd
-            className="font-mono text-[11px] px-1.5 py-0.5 mt-1"
+            className="font-mono text-[11px] px-1.5 py-0.5 mt-1.5 hidden sm:inline-block"
             style={{
               background: "var(--panel-2)",
               color: "var(--mute)",
@@ -155,6 +155,22 @@ export default function CmdBar({ open, onClose, onOpenInWorkspace }: Props) {
           >
             Esc
           </kbd>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="cursor-pointer border-0 text-[14px] grid place-items-center shrink-0"
+            style={{
+              background: "var(--panel-2)",
+              color: "var(--text-2)",
+              width: 28,
+              height: 28,
+              borderRadius: 6,
+              marginTop: 1,
+            }}
+          >
+            ✕
+          </button>
         </div>
 
         {/* Body: empty-state suggestions OR transcript */}

@@ -282,3 +282,107 @@ def ai_chat(req: ChatRequest) -> ChatResponse:
         usage=None,
         backend_stopped="max_iterations",
     )
+
+
+# --- ⌘K general-purpose ask endpoint ----------------------------------------
+# Smaller surface area than /api/ai/chat: no frontend tools, no per-request
+# chart context, no streaming. One-shot Q&A with backend reads grounding the
+# answer. The modal clears its transcript on close, so history is bounded
+# in practice — we still trim defensively.
+
+
+class AskRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=_MAX_USER_MESSAGE_CHARS)
+    # Optional prior turns (same Anthropic message shape) so multi-step
+    # follow-ups in the same modal session can resolve.
+    history: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class AskToolCall(BaseModel):
+    name: str
+    ok: bool
+
+
+class AskResponse(BaseModel):
+    text: str
+    tool_calls: list[AskToolCall] = Field(default_factory=list)
+    usage: dict[str, Any] | None = None
+    backend_stopped: Literal["", "max_iterations"] = ""
+
+
+@router.post("/api/ai/ask", dependencies=[Depends(require_ai_enabled)])
+def ai_ask(req: AskRequest) -> AskResponse:
+    s = get_settings()
+    client = anthropic.Anthropic(api_key=s.anthropic_api_key, timeout=60.0)
+
+    system = prompt.build_general_system()
+    tool_list = tools.read_only_tools()
+    messages = _trim_history(
+        list(req.history) + [{"role": "user", "content": req.message}]
+    )
+
+    tool_calls: list[AskToolCall] = []
+
+    for _ in range(s.ai_max_tool_iterations):
+        try:
+            response = client.messages.create(
+                model=s.anthropic_model,
+                max_tokens=s.ai_max_tokens,
+                system=system,
+                tools=tool_list,
+                thinking={"type": "disabled"},
+                messages=messages,
+            )
+        except anthropic.AuthenticationError as e:
+            raise HTTPException(
+                503,
+                f"Anthropic API key invalid or revoked. Check ANTHROPIC_API_KEY: {e}",
+            )
+        except AnthropicAPIError as e:
+            status = getattr(e, "status_code", None) or 502
+            raise HTTPException(status, f"Anthropic error: {e}")
+
+        content_dicts = [_block_to_dict(b) for b in response.content]
+        usage = response.usage.model_dump() if response.usage else None
+
+        if response.stop_reason != "tool_use":
+            text = "".join(
+                b.text for b in response.content if b.type == "text"
+            )
+            return AskResponse(text=text, tool_calls=tool_calls, usage=usage)
+
+        # Resolve every backend tool inline — there are no frontend tools
+        # in the read_only_tools() set, so the loop stays server-side.
+        tool_uses = [b for b in response.content if b.type == "tool_use"]
+        results: list[dict[str, Any]] = []
+        for tu in tool_uses:
+            try:
+                result_str = _execute_read_tool(tu.name, dict(tu.input))
+                results.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": tu.id,
+                        "content": result_str,
+                    }
+                )
+                tool_calls.append(AskToolCall(name=tu.name, ok=True))
+            except Exception as exc:  # noqa: BLE001 — surface every failure
+                results.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": tu.id,
+                        "content": f"error: {exc}",
+                        "is_error": True,
+                    }
+                )
+                tool_calls.append(AskToolCall(name=tu.name, ok=False))
+
+        messages.append({"role": "assistant", "content": content_dicts})
+        messages.append({"role": "user", "content": results})
+
+    return AskResponse(
+        text="(stopped after reaching the tool-use iteration limit — try a more direct question)",
+        tool_calls=tool_calls,
+        usage=None,
+        backend_stopped="max_iterations",
+    )
