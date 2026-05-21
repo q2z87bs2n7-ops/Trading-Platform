@@ -6,12 +6,15 @@ Results cached in-process for 5 minutes.
 
 from __future__ import annotations
 
+import logging
 import time
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from email.utils import parsedate_to_datetime
 
 import requests
+
+_log = logging.getLogger(__name__)
 
 _HEADERS = {
     "User-Agent": "Mozilla/5.0 (compatible; market-news-widget/1.0)",
@@ -61,7 +64,10 @@ def get_market_news(limit: int = 20) -> list[dict]:
             })
         _CACHE = sorted(result, key=lambda x: x["pub_time"], reverse=True)
         _CACHE_TS = now
-    except Exception:
-        pass  # serve stale cache on error rather than crashing
+    except Exception as exc:
+        # Serve stale cache on error rather than crashing. Log so a cold
+        # cache + persistent upstream failure (empty response with no
+        # explanation) doesn't disappear silently.
+        _log.warning("market news fetch failed: %s", exc)
 
     return _CACHE[:limit]

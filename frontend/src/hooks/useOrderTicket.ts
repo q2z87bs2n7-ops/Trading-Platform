@@ -68,8 +68,9 @@ export interface UseOrderTicketResult {
   shortNote: string | null;
   form: SubmitOrderInput;
   submit: ReturnType<typeof useSubmitOrder>;
-  /** Run validation, prompt confirm, then submit. */
-  trySubmit: (opts?: { skipConfirm?: boolean }) => void;
+  /** Run client-side validation, then submit. The calling card IS the
+   * confirm UI — no native dialog. */
+  trySubmit: () => void;
   reset: () => void;
 }
 
@@ -158,20 +159,8 @@ export function useOrderTicket(initialSymbol = ""): UseOrderTicketResult {
       ? `${asset.symbol} is not shortable — sell only closes an existing long`
       : null;
 
-  function trySubmit(opts?: { skipConfirm?: boolean }) {
+  function trySubmit() {
     if (clientError) return;
-    if (!opts?.skipConfirm) {
-      const verb = side.toUpperCase();
-      const ok = window.confirm(
-        `${verb} ${qty} ${symbol} — ${type}` +
-          (limitPrice ? ` @ ${limitPrice}` : "") +
-          (stopPrice ? ` stop ${stopPrice}` : "") +
-          (trailPct ? ` trail ${trailPct}%` : "") +
-          (extHoursOn ? ` · ext-hours` : "") +
-          `\n\nPaper account. Submit this order?`,
-      );
-      if (!ok) return;
-    }
     submit.mutate(form);
   }
 
