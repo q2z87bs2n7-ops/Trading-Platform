@@ -1,0 +1,32 @@
+/*
+ * Calm v2 — TradingView toolbar theming.
+ * Loaded via the widget's `custom_css_url`. We hide TV's own top header
+ * via disabled_features and render our own ChartTopBar above the widget,
+ * so the only TV chrome left to theme is the left drawing toolbar.
+ *
+ * TV's CSS variables are documented loosely; this list is from
+ * frontend/public/charting_library/charting_library.css and is the subset
+ * that drives the side toolbar + popovers.
+ */
+
+:root {
+  --tv-color-platform-background: var(--panel);
+  --tv-color-pane-background: var(--panel);
+  --tv-color-pane-background-secondary: var(--panel-2);
+  --tv-color-toolbar-button-background-hover: var(--panel-3);
+  --tv-color-toolbar-button-background-expanded: var(--panel-3);
+  --tv-color-toolbar-button-background-active: var(--accent-bg);
+  --tv-color-toolbar-button-background-active-hover: var(--accent-bg);
+  --tv-color-toolbar-button-text: var(--text-2);
+  --tv-color-toolbar-button-text-hover: var(--text);
+  --tv-color-toolbar-button-text-active: var(--accent);
+  --tv-color-toolbar-button-text-active-hover: var(--accent);
+  --tv-color-toolbar-toggle-button-background-active: var(--accent);
+  --tv-color-toolbar-toggle-button-background-active-hover: var(--accent-2);
+  --tv-color-toolbar-divider-background: var(--border);
+  --tv-color-popup-background: var(--panel);
+  --tv-color-popup-element-text: var(--text);
+  --tv-color-popup-element-text-hover: var(--text);
+  --tv-color-popup-element-background-hover: var(--panel-2);
+  --tv-color-popup-element-divider-background: var(--hairline);
+}
