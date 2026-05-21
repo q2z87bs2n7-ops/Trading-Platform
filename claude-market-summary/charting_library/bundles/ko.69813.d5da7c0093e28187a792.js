@@ -1,0 +1,1 @@
+(self.webpackChunktradingview=self.webpackChunktradingview||[]).push([[69813,58899,66775],{858899:e=>{e.exports={en:["change {title} text"],ko:["{title} 텍스트 바꾸기"]}},266775:e=>{e.exports={en:["erase level line"],ko:["레벨 라인 지우기"]}}}]);
