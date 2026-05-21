@@ -2,6 +2,26 @@ import { useEffect, useRef, useState } from "react";
 
 import { useSettings } from "../hooks/useSettings";
 import { updateSettings } from "../lib/settings";
+import { showToast } from "../lib/toast";
+
+// One-shot: unregister every service worker, drop every cache, then
+// reload. Lets the user hard-reset the PWA when a stale build is stuck.
+async function disableServiceWorker(): Promise<void> {
+  try {
+    if ("serviceWorker" in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister()));
+    }
+    if ("caches" in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
+    showToast("Service worker disabled — reloading", "info", 1200);
+    setTimeout(() => window.location.reload(), 600);
+  } catch (e) {
+    showToast(`Couldn't unregister: ${(e as Error).message}`, "error");
+  }
+}
 
 function GearIcon() {
   return (
@@ -127,21 +147,44 @@ export default function SettingsMenu() {
             style={{ borderTop: "1px solid var(--hairline)" }}
           >
             <div className="flex flex-col min-w-0">
-              <span className="text-[13px] font-medium">⌘K AI fallback</span>
+              <span className="text-[13px] font-medium">Ask anything AI</span>
               <span
                 className="text-[12px] mt-0.5 leading-snug"
                 style={{ color: "var(--mute)" }}
               >
-                When on, anything ⌘K can't answer locally is sent to Claude
-                with read access to your account, positions, news, and bars.
-                Costs Anthropic credits per question.
+                When on, anything the local parser can't answer is sent to
+                Claude with read access to your account, positions, news,
+                and bars. Costs Anthropic credits per question.
               </span>
             </div>
             <Toggle
               on={settings.cmdbarAiEnabled}
               onChange={(v) => updateSettings({ cmdbarAiEnabled: v })}
-              label="Enable AI fallback in the command bar"
+              label="Enable AI fallback in Ask anything"
             />
+          </div>
+
+          <div
+            className="px-3 py-3 flex items-center justify-between gap-3"
+            style={{ borderTop: "1px solid var(--hairline)" }}
+          >
+            <span className="text-[13px] font-medium">
+              Disable service worker
+            </span>
+            <button
+              type="button"
+              onClick={() => void disableServiceWorker()}
+              className="text-[12px] font-medium cursor-pointer"
+              style={{
+                padding: "5px 10px",
+                background: "transparent",
+                border: "1px solid var(--neg)",
+                color: "var(--neg)",
+                borderRadius: "var(--r)",
+              }}
+            >
+              Disable
+            </button>
           </div>
         </div>
       )}

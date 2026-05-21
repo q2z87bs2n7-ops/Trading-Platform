@@ -708,9 +708,9 @@ function FallbackCard({ text }: { text: string }) {
       meta={text || "(empty)"}
     >
       <div className="text-[13px]" style={{ color: "var(--text-2)" }}>
-        ⌘K only knows a handful of shortcuts when AI is off. Open the
-        settings menu (top-right) to enable the AI fallback, or try one
-        of the recognised phrases:
+        Ask anything only knows a handful of shortcuts when AI is off.
+        Open the settings menu (top-right) to enable the AI fallback,
+        or try one of the recognised phrases:
       </div>
       <ul
         className="mt-2 flex flex-col gap-1 text-[12.5px]"

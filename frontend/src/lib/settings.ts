@@ -7,12 +7,12 @@
 const KEY = "app_settings_v1";
 
 export interface AppSettings {
-  /** ⌘K command bar: route unrecognised phrases through /api/ai/ask. */
+  /** Ask anything: route unrecognised phrases through /api/ai/ask. */
   cmdbarAiEnabled: boolean;
 }
 
 const DEFAULTS: AppSettings = {
-  cmdbarAiEnabled: false,
+  cmdbarAiEnabled: true,
 };
 
 function load(): AppSettings {
