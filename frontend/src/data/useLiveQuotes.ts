@@ -59,6 +59,13 @@ export function useLiveQuotes(symbols: string[]) {
       pollId = window.setInterval(tick, POLL_MS);
     };
 
+    // Seed the cache immediately so estimated cost isn't blank while
+    // waiting for the first stream tick (which can take several seconds
+    // on a new instrument or after a cold Render wake-up).
+    getQuotes(symbols)
+      .then((data) => { if (alive) merge(data.quotes); })
+      .catch(() => { /* non-fatal — stream or poll will follow */ });
+
     setStreamStatus("streaming");
     const stopStream = streamQuotes(
       symbols,
