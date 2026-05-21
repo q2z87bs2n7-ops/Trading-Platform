@@ -247,8 +247,8 @@ export default function App() {
         </div>
       )}
 
-      {/* Floating Buy/Sell bar — Discover + Portfolio only. Chart mode uses
-         the persistent OrderTicketRail (phase 8). */}
+      {/* Floating Buy/Sell bar — Discover + Portfolio. Chart mode mounts
+         its own TradeBar inside TVPlatform so it ships with TV's chrome. */}
       {(mode === "discover" || mode === "portfolio") && (
         <TradeBar symbol={selected} />
       )}

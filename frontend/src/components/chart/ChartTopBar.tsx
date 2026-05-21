@@ -69,14 +69,9 @@ function useClickOutside(
 interface Props {
   symbol: string;
   onChartBotClick?: () => void;
-  onWatchlistOpen?: () => void;
 }
 
-export default function ChartTopBar({
-  symbol,
-  onChartBotClick,
-  onWatchlistOpen,
-}: Props) {
+export default function ChartTopBar({ symbol, onChartBotClick }: Props) {
   const [resolution, setResolution] = useState<string>("D");
   const [typeOpen, setTypeOpen] = useState(false);
   const [indOpen, setIndOpen] = useState(false);
@@ -157,25 +152,6 @@ export default function ChartTopBar({
         boxShadow: "var(--shadow-sm)",
       }}
     >
-      {/* Watchlist toggle — only visible below xl where the inline rail
-         disappears. Drawer overlay lives in TVPlatform. */}
-      {onWatchlistOpen && (
-        <button
-          type="button"
-          onClick={onWatchlistOpen}
-          aria-label="Open watchlist"
-          className="xl:hidden text-[12.5px] cursor-pointer px-2.5 py-1.5"
-          style={{
-            background: "transparent",
-            color: "var(--text-2)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--r)",
-          }}
-        >
-          ☰
-        </button>
-      )}
-
       {/* Symbol + live price */}
       <div className="flex items-baseline gap-2 mr-1">
         <span className="text-[16px] font-semibold" style={{ letterSpacing: "-0.005em" }}>
