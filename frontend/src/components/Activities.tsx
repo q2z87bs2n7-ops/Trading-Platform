@@ -3,14 +3,41 @@ import type { Activity } from "../types";
 import ErrorBanner from "./ErrorBanner";
 import Pill from "./Pill";
 
-// Activities are heterogeneous; show the type plus a best-effort summary
-// of whichever fields Alpaca returned for that activity kind.
-function summarize(a: Activity): string {
-  const s = (k: string) => (a[k] == null ? "" : String(a[k]));
+const TH =
+  "px-2 py-2 text-left font-medium text-[11px] uppercase tracking-wide border-b whitespace-nowrap";
+const TD = "px-2 py-2 border-b whitespace-nowrap text-[13px]";
+
+const str = (v: unknown): string => (v == null ? "" : String(v));
+
+// Heterogeneous payload — Alpaca's activity feed mixes fills (FILL,
+// PARTIAL_FILL), corporate actions (DIV, INT), and account moves
+// (TRANS, JNLC). Best-effort describe with whichever fields are
+// populated; never blow up on missing keys.
+function describe(a: Activity): string {
   if (a.symbol) {
-    return `${s("side").toUpperCase()} ${s("qty")} ${s("symbol")} @ ${s("price")}`;
+    const side = str(a.side).toUpperCase();
+    const qty = str(a.qty);
+    const sym = str(a.symbol);
+    const price = a.price != null ? `@ ${str(a.price)}` : "";
+    return `${side} ${qty} ${sym} ${price}`.trim();
   }
-  return s("description") || s("net_amount") || s("date") || "";
+  return (
+    str(a.description) ||
+    (a.net_amount != null ? `Net ${str(a.net_amount)}` : "") ||
+    str(a.date) ||
+    "—"
+  );
+}
+
+function timeOf(a: Activity): string {
+  const t = a.transaction_time || a.date || a.activity_timestamp;
+  if (!t) return "";
+  const d = new Date(String(t));
+  if (Number.isNaN(d.valueOf())) return String(t);
+  return d.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export default function Activities({ bare = false }: { bare?: boolean }) {
@@ -20,32 +47,112 @@ export default function Activities({ bare = false }: { bare?: boolean }) {
   const body = (
     <>
       {error && <ErrorBanner message={error.message} />}
-      {!error && isPending && (
-        <div className="text-xs text-muted">Loading…</div>
-      )}
       {rows && rows.length === 0 && (
-        <div className="text-xs text-muted">No activity</div>
+        <div className="text-[13px] py-4" style={{ color: "var(--mute)" }}>
+          No activity.
+        </div>
       )}
-      {rows &&
-        rows.map((a, i) => (
-          <div
-            className="flex justify-between py-1 text-[13px]"
-            key={String(a.id ?? i)}
+      {(isPending || (rows && rows.length > 0)) && (
+        <div className="overflow-x-auto">
+          <table
+            className="w-full border-collapse"
+            style={{ borderColor: "var(--hairline)" }}
           >
-            <span>{summarize(a)}</span>
-            <Pill status={a.activity_type as string | undefined} tone="neutral" />
-          </div>
-        ))}
+            <thead>
+              <tr>
+                {["Time", "Type", "Detail"].map((h) => (
+                  <th
+                    key={h}
+                    className={TH}
+                    style={{
+                      borderColor: "var(--border)",
+                      color: "var(--mute)",
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {isPending &&
+                Array.from({ length: 3 }).map((_, i) => (
+                  <tr key={i}>
+                    {Array.from({ length: 3 }).map((_, j) => (
+                      <td
+                        key={j}
+                        className={TD}
+                        style={{ borderColor: "var(--hairline)" }}
+                      >
+                        <div
+                          className="h-3 rounded animate-pulse"
+                          style={{ background: "var(--panel-2)" }}
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              {!isPending &&
+                rows &&
+                rows.map((a, i) => (
+                  <tr
+                    key={String(a.id ?? i)}
+                    className="transition-colors"
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLElement).style.background =
+                        "var(--panel-2)";
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLElement).style.background =
+                        "transparent";
+                    }}
+                  >
+                    <td
+                      className={`${TD} font-mono tabular-nums`}
+                      style={{
+                        borderColor: "var(--hairline)",
+                        color: "var(--mute)",
+                        width: 80,
+                      }}
+                    >
+                      {timeOf(a) || "—"}
+                    </td>
+                    <td
+                      className={TD}
+                      style={{ borderColor: "var(--hairline)", width: 130 }}
+                    >
+                      <Pill
+                        status={a.activity_type as string | undefined}
+                        tone="neutral"
+                      />
+                    </td>
+                    <td
+                      className={TD}
+                      style={{ borderColor: "var(--hairline)" }}
+                    >
+                      {describe(a)}
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </>
   );
 
   if (bare) return body;
 
   return (
-    <div className="bg-panel border border-border rounded-lg p-3">
-      <h2 className="text-[13px] uppercase tracking-wide text-muted m-0 mb-2">
-        Account Activity
-      </h2>
+    <div
+      className="p-3"
+      style={{
+        background: "var(--panel)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--r-lg)",
+        boxShadow: "var(--shadow-sm)",
+      }}
+    >
       {body}
     </div>
   );

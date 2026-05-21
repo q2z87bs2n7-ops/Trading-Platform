@@ -204,7 +204,7 @@ function CloseCard({ symbol, onDone }: { symbol: string; onDone: () => void }) {
   return (
     <CmdResultCard
       title={`Close ${symbol}`}
-      meta={`${pos.qty} sh · ${pos.side}`}
+      meta={`${pos.qty} shares · ${pos.side}`}
     >
       <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
         <div className="flex flex-col">

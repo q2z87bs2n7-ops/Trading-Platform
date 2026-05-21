@@ -84,7 +84,7 @@ function StripRow({
         className="font-mono text-[13px] tabular-nums"
         style={{ color: "var(--text-2)" }}
       >
-        {p.qty} sh
+        {p.qty} shares
       </span>
       <div className="text-right">
         <div className="font-mono text-[14px] tabular-nums">

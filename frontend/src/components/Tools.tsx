@@ -949,7 +949,7 @@ export default function Tools({
               <SparkCard
                 key={sym}
                 symbol={sym}
-                name={pos ? `${pos.qty} sh` : ""}
+                name={pos ? `${pos.qty} shares` : ""}
                 price={last}
                 changePct={dayChange}
                 selected={sym === selected}

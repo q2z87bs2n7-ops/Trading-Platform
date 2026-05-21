@@ -252,7 +252,7 @@ export default function App() {
           <SectionHeading label="Positions" />
           <Positions variant="strip" onSelect={setSelected} />
 
-          <SectionHeading label="Open orders" />
+          <SectionHeading label="Orders" />
           <Orders />
 
           <SectionHeading label="Activity" />

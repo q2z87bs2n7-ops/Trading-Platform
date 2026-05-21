@@ -27,6 +27,26 @@ type StatusFilter = (typeof STATUSES)[number];
 
 const enumTail = (s: string) => s.split(".").pop()!.toLowerCase();
 
+// Alpaca's order-type and TIF enums into client-friendly labels. Falls
+// back to a Title-Case version of whatever the API returned so a new
+// enum doesn't render blank.
+const TYPE_LABEL: Record<string, string> = {
+  market: "Market",
+  limit: "Limit",
+  stop: "Stop",
+  stop_limit: "Stop limit",
+  trailing_stop: "Trailing stop",
+};
+function fmtType(t: string): string {
+  const k = enumTail(t);
+  return (
+    TYPE_LABEL[k] ??
+    k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+  );
+}
+
+const SIDE_LABEL: Record<string, string> = { buy: "Buy", sell: "Sell" };
+
 const money = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD" });
 
@@ -61,18 +81,42 @@ function SkeletonRow({ cols }: { cols: number }) {
 }
 
 function SidePill({ side }: { side: string }) {
-  const buy = side.toLowerCase() === "buy";
+  const key = side.toLowerCase();
+  const buy = key === "buy";
   return (
     <span
-      className="inline-block px-1.5 py-0.5 text-[10px] rounded uppercase tracking-wide font-medium"
+      className="inline-block px-2 py-0.5 text-[11px] rounded font-medium"
       style={{
         background: buy ? "var(--pos-bg)" : "var(--neg-bg)",
         color: buy ? "var(--pos)" : "var(--neg)",
       }}
     >
-      {side.toUpperCase()}
+      {SIDE_LABEL[key] ?? side}
     </span>
   );
+}
+
+// Compact one-line status summary for the merged Status column. Mirrors
+// the data already in the row (Qty, Limit, Stop columns); we only narrate
+// what's distinctive about the status itself — partial fills, the realized
+// fill price, or the terminal reason — so it never duplicates the obvious.
+function statusDetail(o: Order): string | null {
+  const status = enumTail(o.status);
+  if (status === "filled" && o.filled_avg_price != null) {
+    return `@ ${money(o.filled_avg_price)}`;
+  }
+  if (status === "partially_filled" && o.qty != null) {
+    const pct = Math.round((o.filled_qty / o.qty) * 100);
+    return `${o.filled_qty}/${o.qty} (${pct}%)`;
+  }
+  if (status === "canceled" || status === "cancelled") {
+    return o.filled_qty > 0 ? `${o.filled_qty} filled before cancel` : null;
+  }
+  if (status === "rejected") return "rejected by broker";
+  if (status === "expired") return "expired unfilled";
+  if (status === "done_for_day") return "EOD: did not fill";
+  if (status === "replaced") return "replaced by new order";
+  return null;
 }
 
 function ReplaceRow({ order }: { order: Order }) {
@@ -242,7 +286,6 @@ export default function Orders() {
                   "Side",
                   "Type",
                   "Qty",
-                  "Filled",
                   "Limit",
                   "Stop",
                   "TIF",
@@ -273,29 +316,20 @@ export default function Orders() {
             <tbody>
               {isPending && (
                 <>
-                  <SkeletonRow cols={12} />
-                  <SkeletonRow cols={12} />
-                  <SkeletonRow cols={12} />
+                  <SkeletonRow cols={11} />
+                  <SkeletonRow cols={11} />
+                  <SkeletonRow cols={11} />
                 </>
               )}
               {!isPending &&
                 rows &&
                 rows.map((o) => {
                   const val = orderValue(o);
-                  const filled =
-                    o.filled_qty > 0
-                      ? `${o.filled_qty}${o.qty ? `/${o.qty}` : ""}` +
-                        (o.qty
-                          ? ` (${Math.round((o.filled_qty / o.qty) * 100)}%)`
-                          : "") +
-                        (o.filled_avg_price != null
-                          ? ` @ ${o.filled_avg_price}`
-                          : "")
-                      : null;
                   const cls =
                     o.order_class && !/simple/i.test(o.order_class)
                       ? ` (${enumTail(o.order_class)})`
                       : "";
+                  const detail = statusDetail(o);
                   return (
                     <tr
                       key={o.id}
@@ -323,10 +357,10 @@ export default function Orders() {
                         <SidePill side={o.side} />
                       </td>
                       <td
-                        className={TD}
+                        className={`${TD} font-sans`}
                         style={{ borderColor: "var(--hairline)" }}
                       >
-                        {o.type}
+                        {fmtType(o.type)}
                         {cls && (
                           <span style={{ color: "var(--mute)" }}>{cls}</span>
                         )}
@@ -336,14 +370,6 @@ export default function Orders() {
                         style={{ borderColor: "var(--hairline)" }}
                       >
                         {dash(o.qty)}
-                      </td>
-                      <td
-                        className={TD}
-                        style={{ borderColor: "var(--hairline)" }}
-                      >
-                        {filled ?? (
-                          <span style={{ color: "var(--mute)" }}>—</span>
-                        )}
                       </td>
                       <td
                         className={TD}
@@ -378,10 +404,20 @@ export default function Orders() {
                         )}
                       </td>
                       <td
-                        className={`${TD} font-sans`}
+                        className={`${TD} font-sans text-left`}
                         style={{ borderColor: "var(--hairline)" }}
                       >
-                        <Pill status={o.status} />
+                        <div className="flex flex-col items-start gap-0.5">
+                          <Pill status={o.status} />
+                          {detail && (
+                            <span
+                              className="font-mono text-[11px] tabular-nums"
+                              style={{ color: "var(--mute)" }}
+                            >
+                              {detail}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td
                         className={TD}

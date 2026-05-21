@@ -9,6 +9,13 @@
   `backend/app/main.py` is an intentional no-op seam; flip it to a
   shared-token check before any non-paper / non-private exposure.
   Deferred by decision (paper account).
+- **Calendar exceptions chip in TopBar** — the "Cal · N exceptions"
+  click-popover (holidays + half-days in the next 21 days) was removed
+  from `TopBar.tsx` because the Portfolio strip felt over-busy. The
+  `useCalendar` hook and `/api/calendar` endpoint are still wired up
+  and tested; restoring is a copy-paste of the prior block. Likely
+  better as a dedicated surface (a calendar widget in Discover or a
+  Markets-section item) than back in the status strip.
 
 ## ⌘K command bar
 
