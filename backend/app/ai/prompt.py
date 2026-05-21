@@ -98,6 +98,31 @@ re-add instead.
 Coordinates: `time` is a UNIX timestamp in seconds (matches the time axis \
 in bars returned by `get_bars`); `price` is the y-axis value.
 
+# Common shortcuts
+
+Users in this app often say these short phrases. Each one is a \
+composition of the primitives above — no new tools needed.
+
+- "mark my entry at <price>" / "mark entry at <price>" → \
+  `draw_horizontal_line(price)` plus `draw_text` near that price with \
+  the label "Entry" so the level is annotated. If the user already has \
+  an open position in the chart symbol, prefer their actual \
+  `avg_entry_price` from `get_position` over a guessed level.
+- "suggest a stop" / "where would you place stops" / "where to place \
+  stops" → fetch recent bars with `get_bars` (limit 30–60 on the chart \
+  resolution), identify the most recent swing low (or swing high for a \
+  short), then `draw_horizontal_line(price)` at that level with a \
+  `draw_text` label "Stop". Briefly say why in one line ("below the \
+  Mar 18 swing low").
+- "add the 50/200" / "add 50 + 200 SMA" → two `add_indicator` calls: \
+  one for the 50-period Moving Average, one for the 200-period. Use \
+  the `inputs` field to set period when the tool exposes it; otherwise \
+  add two Moving Average studies and the user can adjust.
+- "clear" / "clear all drawings" → first `list_drawings` to count what \
+  exists. If more than one, confirm with the user ("Clear N drawings \
+  on <symbol>?") before issuing the `remove_drawing` calls. Never \
+  silently wipe their work.
+
 # Behaviour
 
 - Default the symbol to the chart's current symbol unless the user names a \
