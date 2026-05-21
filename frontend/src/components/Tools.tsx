@@ -403,6 +403,97 @@ function CardsRow({ children }: { children: React.ReactNode }) {
   );
 }
 
+function SparkCardSkeleton() {
+  return (
+    <div
+      className="animate-pulse p-[13px_14px_10px]"
+      style={{
+        background: "var(--panel)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--r)",
+      }}
+    >
+      <div
+        className="h-3 w-12 rounded mb-1.5"
+        style={{ background: "var(--panel-2)" }}
+      />
+      <div
+        className="h-2.5 w-20 rounded"
+        style={{ background: "var(--panel-2)" }}
+      />
+      <div
+        className="h-4 w-16 rounded mt-2"
+        style={{ background: "var(--panel-2)" }}
+      />
+      <div
+        className="h-8 w-full rounded mt-2"
+        style={{ background: "var(--panel-2)" }}
+      />
+    </div>
+  );
+}
+
+function MoversCardSkeleton() {
+  return (
+    <div
+      className="p-[18px] animate-pulse"
+      style={{
+        background: "var(--panel)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--r-lg)",
+      }}
+    >
+      <div
+        className="h-4 w-28 rounded mb-3"
+        style={{ background: "var(--panel-2)" }}
+      />
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div
+          key={i}
+          className="h-7 w-full rounded mt-1.5"
+          style={{ background: "var(--panel-2)" }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function NewsCardSkeleton() {
+  return (
+    <div
+      className="p-[18px] animate-pulse"
+      style={{
+        background: "var(--panel)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--r-lg)",
+      }}
+    >
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div
+          key={i}
+          className="flex gap-4 items-start py-3.5"
+          style={{ borderTop: i === 0 ? "none" : "1px solid var(--hairline)" }}
+        >
+          <div
+            className="h-3 w-10 rounded shrink-0"
+            style={{ background: "var(--panel-2)" }}
+          />
+          <div className="flex-1 flex flex-col gap-1.5">
+            <div
+              className="h-2.5 w-16 rounded"
+              style={{ background: "var(--panel-2)" }}
+            />
+            <div
+              className="h-4 w-5/6 rounded"
+              style={{ background: "var(--panel-2)" }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Movers list (inside a card) ───────────────────────────────────────────────
 
 function MoversCard({
@@ -626,6 +717,13 @@ export default function Tools({
         }
       />
       {indices.error && <ErrorBanner message={indices.error.message} />}
+      {!indices.data && !indices.error && (
+        <CardsRow>
+          {Array.from({ length: 8 }).map((_, i) => (
+            <SparkCardSkeleton key={i} />
+          ))}
+        </CardsRow>
+      )}
       {indices.data && (
         <CardsRow>
           {indices.data.indices.map((idx: IndexData) => (
@@ -645,9 +743,19 @@ export default function Tools({
       {/* Watchlist */}
       <SectionHeading
         label="Watchlist"
-        ctx={`${wlSymbols.length} symbol${wlSymbols.length === 1 ? "" : "s"}`}
+        ctx={
+          watchlist.isPending
+            ? "loading…"
+            : `${wlSymbols.length} symbol${wlSymbols.length === 1 ? "" : "s"}`
+        }
       />
-      {wlSymbols.length === 0 ? (
+      {watchlist.isPending ? (
+        <CardsRow>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <SparkCardSkeleton key={i} />
+          ))}
+        </CardsRow>
+      ) : wlSymbols.length === 0 ? (
         <div
           className="p-5 text-[13px]"
           style={{
@@ -657,7 +765,7 @@ export default function Tools({
             color: "var(--mute)",
           }}
         >
-          Your watchlist is empty. Add symbols from the Portfolio screen.
+          Your watchlist is empty. Add symbols from the Chart screen.
         </div>
       ) : (
         <CardsRow>
@@ -692,6 +800,12 @@ export default function Tools({
       {/* Movers */}
       <SectionHeading label="Movers" ctxRight="free IEX feed" />
       {movers.error && <ErrorBanner message={movers.error.message} />}
+      {!movers.data && !movers.error && (
+        <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
+          <MoversCardSkeleton />
+          <MoversCardSkeleton />
+        </div>
+      )}
       {movers.data && (
         <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
           <MoversCard
@@ -710,6 +824,7 @@ export default function Tools({
       {/* News */}
       <SectionHeading label="News" ctx="market headlines" />
       {news.error && <ErrorBanner message={news.error.message} />}
+      {!news.data && !news.error && <NewsCardSkeleton />}
       {news.data && <NewsCard articles={news.data.articles} />}
     </div>
   );

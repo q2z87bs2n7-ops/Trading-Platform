@@ -5,6 +5,7 @@ import {
   useCalendar,
   useClock,
 } from "../data/hooks";
+import { useStreamStatus } from "../hooks/useStreamStatus";
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD" });
@@ -56,6 +57,7 @@ function useClickOutside(
 export default function TopBar() {
   const { data: clk } = useClock();
   const { data: acct } = useAccount();
+  const streamStatus = useStreamStatus();
 
   // Calendar horizon mirrors the prior Calendar component: today + 21 days.
   const today = new Date();
@@ -99,6 +101,27 @@ export default function TopBar() {
 
   return (
     <div className="flex items-center gap-6 text-[13px] flex-wrap text-text">
+      {/* Stream disconnected chip — yellow, only visible when polling. */}
+      {streamStatus === "polling" && (
+        <span
+          className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase px-2 py-1"
+          style={{
+            background: "var(--warn-bg)",
+            color: "var(--warn)",
+            borderRadius: 6,
+            letterSpacing: "0.04em",
+          }}
+          title="Server-Sent Events stream is unreachable; falling back to /api/quotes polling every 2s."
+        >
+          <span
+            className="inline-block w-1.5 h-1.5 rounded-full"
+            style={{ background: "var(--warn)" }}
+            aria-hidden
+          />
+          Polling · stream off
+        </span>
+      )}
+
       {/* Market status + next session edge */}
       {clk && (
         <div className="flex items-center gap-2">

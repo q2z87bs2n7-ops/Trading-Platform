@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { getQuotes, streamQuotes } from "../api";
+import { setStreamStatus } from "../lib/stream-status";
 import type { Quote } from "../types";
 import { qk } from "./queryClient";
 
@@ -45,6 +46,7 @@ export function useLiveQuotes(symbols: string[]) {
 
     const startPolling = () => {
       if (pollId !== undefined) return;
+      setStreamStatus("polling");
       const tick = () =>
         getQuotes(symbols)
           .then((data) => {
@@ -57,6 +59,7 @@ export function useLiveQuotes(symbols: string[]) {
       pollId = window.setInterval(tick, POLL_MS);
     };
 
+    setStreamStatus("streaming");
     const stopStream = streamQuotes(
       symbols,
       (q) => {
@@ -74,6 +77,9 @@ export function useLiveQuotes(symbols: string[]) {
       stopStream();
       clearInterval(flushId);
       if (pollId !== undefined) clearInterval(pollId);
+      // Don't reset status here — a sibling consumer may still be live.
+      // Last consumer to unmount naturally leaves the status where it was;
+      // status is purely informational for the TopBar chip.
     };
   }, [qc, symbols.join(",")]);
 
