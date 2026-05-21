@@ -1,10 +1,11 @@
 /**
- * AIChatPanel — right-edge collapsible chat for TV mode.
+ * AIChatPanel — right-edge collapsible chat for ChartBot mode.
  *
- * Mounts as a sibling of TVPlatform inside the `mode === "tv"` branch of
- * App.tsx. Chat history is in-memory only (drawings persist via
- * tv-drawings.ts, but the conversation does not). Send is disabled
- * while a turn is in flight; trim guard keeps history ≤ 80 messages.
+ * Mounts as a sibling of TVPlatform inside the `mode === "chartbot"`
+ * branch of App.tsx. Conversation persists to localStorage (256 KB
+ * byte budget — screenshot tool_results blow message-count caps).
+ * Send is disabled while a turn is in flight; trim guard keeps the
+ * api history ≤ 80 messages.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -22,25 +23,81 @@ interface RenderedTurn {
 }
 
 const HISTORY_CAP = 80;
-const COLLAPSED_KEY = "ai_chat_panel_collapsed";
+const COLLAPSED_KEY = "chartbot_collapsed";
+const LEGACY_COLLAPSED_KEY = "ai_chat_panel_collapsed";
+const SESSION_KEY = "chartbot_session";
+const SESSION_BUDGET_BYTES = 256 * 1024;
+
+interface PersistedSession {
+  turns: RenderedTurn[];
+  apiHistory: APIMessage[];
+}
+
+function readCollapsed(): boolean {
+  const v = localStorage.getItem(COLLAPSED_KEY) ?? localStorage.getItem(LEGACY_COLLAPSED_KEY);
+  return v === "1";
+}
+
+function loadSession(): PersistedSession {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return { turns: [], apiHistory: [] };
+    const p = JSON.parse(raw) as PersistedSession;
+    return {
+      turns: Array.isArray(p.turns) ? p.turns : [],
+      apiHistory: Array.isArray(p.apiHistory) ? p.apiHistory : [],
+    };
+  } catch {
+    return { turns: [], apiHistory: [] };
+  }
+}
+
+function saveSession(turns: RenderedTurn[], apiHistory: APIMessage[]) {
+  let t = turns;
+  let h = apiHistory;
+  // Drop oldest pair (user+assistant) until under the byte budget.
+  for (let guard = 0; guard < 200; guard++) {
+    const payload = JSON.stringify({ turns: t, apiHistory: h });
+    if (payload.length <= SESSION_BUDGET_BYTES) {
+      try { localStorage.setItem(SESSION_KEY, payload); } catch { /* quota */ }
+      return;
+    }
+    if (t.length <= 2) {
+      try { localStorage.removeItem(SESSION_KEY); } catch { /* noop */ }
+      return;
+    }
+    t = t.slice(2);
+    h = h.slice(2);
+  }
+}
 
 export default function AIChatPanel({ symbol, resolution = "D" }: Props) {
-  const [collapsed, setCollapsed] = useState<boolean>(
-    () => localStorage.getItem(COLLAPSED_KEY) === "1",
-  );
-  const [apiHistory, setApiHistory] = useState<APIMessage[]>([]);
-  const [turns, setTurns] = useState<RenderedTurn[]>([]);
+  const [collapsed, setCollapsed] = useState<boolean>(readCollapsed);
+  const [apiHistory, setApiHistory] = useState<APIMessage[]>(() => loadSession().apiHistory);
+  const [turns, setTurns] = useState<RenderedTurn[]>(() => loadSession().turns);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     localStorage.setItem(COLLAPSED_KEY, collapsed ? "1" : "0");
+    // Clear the legacy key once we've written the new one.
+    localStorage.removeItem(LEGACY_COLLAPSED_KEY);
   }, [collapsed]);
+
+  useEffect(() => {
+    saveSession(turns, apiHistory);
+  }, [turns, apiHistory]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [turns, busy]);
+
+  function clearSession() {
+    setTurns([]);
+    setApiHistory([]);
+    try { localStorage.removeItem(SESSION_KEY); } catch { /* noop */ }
+  }
 
   async function send() {
     const text = input.trim();
@@ -134,25 +191,44 @@ export default function AIChatPanel({ symbol, resolution = "D" }: Props) {
         }}
       >
         <div style={{ fontSize: 13, fontWeight: 600 }}>
-          AI chart assistant
+          ChartBot
           <span style={{ color: "#6b7280", marginLeft: 6, fontWeight: 400 }}>
             · {symbol}
           </span>
         </div>
-        <button
-          type="button"
-          onClick={() => setCollapsed(true)}
-          title="Collapse"
-          style={{
-            background: "transparent",
-            color: "#9ca3af",
-            border: "none",
-            cursor: "pointer",
-            fontSize: 16,
-          }}
-        >
-          ›
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <button
+            type="button"
+            onClick={clearSession}
+            title="Clear conversation"
+            disabled={busy || turns.length === 0}
+            style={{
+              background: "transparent",
+              color: "#9ca3af",
+              border: "none",
+              cursor: busy || turns.length === 0 ? "not-allowed" : "pointer",
+              fontSize: 11,
+              opacity: busy || turns.length === 0 ? 0.4 : 1,
+              padding: "0 4px",
+            }}
+          >
+            Clear
+          </button>
+          <button
+            type="button"
+            onClick={() => setCollapsed(true)}
+            title="Collapse"
+            style={{
+              background: "transparent",
+              color: "#9ca3af",
+              border: "none",
+              cursor: "pointer",
+              fontSize: 16,
+            }}
+          >
+            ›
+          </button>
+        </div>
       </div>
 
       <div

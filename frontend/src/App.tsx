@@ -16,7 +16,18 @@ import Tools from "./components/Tools";
 import TVPlatform from "./components/TVPlatform";
 import AIChatPanel from "./components/AIChatPanel";
 
-type PlatformMode = "trading" | "tv" | "discover";
+type PlatformMode = "trading" | "chartbot" | "discover";
+
+function readPlatformMode(): PlatformMode {
+  const raw = localStorage.getItem("platform_mode");
+  // Migrate legacy "tv" value (pre-ChartBot rename).
+  if (raw === "tv") {
+    localStorage.setItem("platform_mode", "chartbot");
+    return "chartbot";
+  }
+  if (raw === "trading" || raw === "chartbot" || raw === "discover") return raw;
+  return "discover";
+}
 
 export default function App() {
   const { data: cfg } = useConfig();
@@ -26,10 +37,7 @@ export default function App() {
   const addToWatchlist = useAddToWatchlist();
   const removeFromWatchlist = useRemoveFromWatchlist();
   const [selected, setSelected] = useState<string>("");
-  const [mode, setMode] = useState<PlatformMode>(
-    // Persist the user's last choice across page reloads; default to discover
-    () => (localStorage.getItem("platform_mode") as PlatformMode) ?? "discover",
-  );
+  const [mode, setMode] = useState<PlatformMode>(readPlatformMode);
 
   useEffect(() => {
     if (!selected && symbols.length) setSelected(symbols[0]);
@@ -70,9 +78,9 @@ export default function App() {
               Trading
             </button>
             <button
-              className={`btn btn-mini${mode === "tv" ? " active" : ""}`}
-              style={{ opacity: mode === "tv" ? 1 : 0.5 }}
-              onClick={() => switchMode("tv")}
+              className={`btn btn-mini${mode === "chartbot" ? " active" : ""}`}
+              style={{ opacity: mode === "chartbot" ? 1 : 0.5 }}
+              onClick={() => switchMode("chartbot")}
               type="button"
             >
               ChartBot
@@ -85,8 +93,8 @@ export default function App() {
       {/* Discover — movers, most-active, news. Hides TopBar like TV mode. */}
       {mode === "discover" && <Tools selected={selected} onSelect={setSelected} />}
 
-      {/* TradingView full terminal + AI chat panel — TV mode only */}
-      {mode === "tv" && (
+      {/* TradingView full terminal + ChartBot panel — ChartBot mode only */}
+      {mode === "chartbot" && (
         <div style={{ display: "flex" }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <TVPlatform symbol={selected} />
