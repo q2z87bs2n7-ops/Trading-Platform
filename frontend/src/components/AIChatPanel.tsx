@@ -9,20 +9,29 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { runAITurn, type APIMessage, type TurnEvent } from "../lib/ai-client";
+import {
+  HISTORY_CAP,
+  runAITurn,
+  type APIMessage,
+  type TurnEvent,
+} from "../lib/ai-client";
 
 interface Props {
   symbol: string;
   resolution?: string;
 }
 
+/**
+ * A turn is an ordered list of events as they arrived. For user turns
+ * the typed text rides as a single assistant_text event; for assistant
+ * turns the events interleave assistant_text + tool_call + error in
+ * the order Claude produced them.
+ */
 interface RenderedTurn {
   role: "user" | "assistant";
-  text: string;
   events: TurnEvent[];
 }
 
-const HISTORY_CAP = 80;
 const COLLAPSED_KEY = "chartbot_collapsed";
 const LEGACY_COLLAPSED_KEY = "ai_chat_panel_collapsed";
 const SESSION_KEY = "chartbot_session";
@@ -42,11 +51,27 @@ function loadSession(): PersistedSession {
   try {
     const raw = localStorage.getItem(SESSION_KEY);
     if (!raw) return { turns: [], apiHistory: [] };
-    const p = JSON.parse(raw) as PersistedSession;
-    return {
-      turns: Array.isArray(p.turns) ? p.turns : [],
-      apiHistory: Array.isArray(p.apiHistory) ? p.apiHistory : [],
-    };
+    const p = JSON.parse(raw) as { turns?: unknown[]; apiHistory?: unknown[] };
+    const apiHistory = Array.isArray(p.apiHistory) ? (p.apiHistory as APIMessage[]) : [];
+    // Migrate legacy { role, text, events } turns (text was a separate
+    // field) to the ordered-events shape used since v0.31.7.
+    const turns: RenderedTurn[] = Array.isArray(p.turns)
+      ? p.turns.map((rawTurn) => {
+          const t = rawTurn as { role: "user" | "assistant"; text?: string; events?: TurnEvent[] };
+          const evs = Array.isArray(t.events) ? t.events : [];
+          if (t.role === "user" && t.text && !evs.some((e) => e.kind === "assistant_text")) {
+            return { role: "user", events: [{ kind: "assistant_text", text: t.text }] };
+          }
+          if (t.role === "assistant" && t.text && !evs.some((e) => e.kind === "assistant_text")) {
+            return {
+              role: "assistant",
+              events: [{ kind: "assistant_text", text: t.text }, ...evs],
+            };
+          }
+          return { role: t.role, events: evs };
+        })
+      : [];
+    return { turns, apiHistory };
   } catch {
     return { turns: [], apiHistory: [] };
   }
@@ -103,7 +128,19 @@ export default function AIChatPanel({ symbol, resolution = "D" }: Props) {
     const text = input.trim();
     if (!text || busy) return;
     setInput("");
-    setTurns((prev) => [...prev, { role: "user", text, events: [] }]);
+
+    // Append user + a placeholder assistant turn up front so onEvent
+    // has somewhere to append live as the turn runs.
+    let assistantIdx = -1;
+    setTurns((prev) => {
+      const next: RenderedTurn[] = [
+        ...prev,
+        { role: "user", events: [{ kind: "assistant_text", text }] },
+        { role: "assistant", events: [] },
+      ];
+      assistantIdx = next.length - 1;
+      return next;
+    });
     setBusy(true);
 
     const trimmed =
@@ -112,19 +149,30 @@ export default function AIChatPanel({ symbol, resolution = "D" }: Props) {
         : apiHistory;
 
     try {
-      const { events, newHistory } = await runAITurn(trimmed, text, {
-        symbol,
-        resolution,
-      });
-      const assistantText = events
-        .filter((e) => e.kind === "assistant_text")
-        .map((e) => (e.kind === "assistant_text" ? e.text : ""))
-        .join("\n\n");
-      setTurns((prev) => [
-        ...prev,
-        { role: "assistant", text: assistantText, events },
-      ]);
-      setApiHistory(newHistory);
+      const { newHistory } = await runAITurn(
+        trimmed,
+        text,
+        { symbol, resolution },
+        {
+          onEvent: (e) => {
+            setTurns((prev) => {
+              if (assistantIdx < 0 || !prev[assistantIdx]) return prev;
+              const next = prev.slice();
+              next[assistantIdx] = {
+                ...next[assistantIdx],
+                events: [...next[assistantIdx].events, e],
+              };
+              return next;
+            });
+          },
+        },
+      );
+      // Cap on save, not just on send — otherwise storage grows unbounded.
+      setApiHistory(
+        newHistory.length > HISTORY_CAP
+          ? newHistory.slice(newHistory.length - HISTORY_CAP)
+          : newHistory,
+      );
     } finally {
       setBusy(false);
     }
@@ -265,23 +313,40 @@ export default function AIChatPanel({ symbol, resolution = "D" }: Props) {
             >
               {t.role}
             </div>
-            {t.text && (
-              <div style={{ whiteSpace: "pre-wrap" }}>{t.text}</div>
-            )}
-            {t.events
-              .filter((e) => e.kind === "tool_call" || e.kind === "error")
-              .map((e, j) => (
+            {t.events.map((e, j) => {
+              if (e.kind === "assistant_text") {
+                return (
+                  <div
+                    key={j}
+                    style={{ whiteSpace: "pre-wrap", marginTop: j === 0 ? 0 : 4 }}
+                  >
+                    {e.text}
+                  </div>
+                );
+              }
+              if (e.kind === "tool_call") {
+                return (
+                  <div
+                    key={j}
+                    style={{
+                      fontSize: 11,
+                      color: e.ok ? "#9ca3af" : "#f87171",
+                      marginTop: 2,
+                    }}
+                  >
+                    · {e.summary}
+                  </div>
+                );
+              }
+              return (
                 <div
                   key={j}
-                  style={{
-                    fontSize: 11,
-                    color: e.kind === "error" ? "#f87171" : "#9ca3af",
-                    marginTop: 2,
-                  }}
+                  style={{ fontSize: 11, color: "#f87171", marginTop: 2 }}
                 >
-                  {e.kind === "error" ? `⚠ ${e.message}` : `· ${e.summary}`}
+                  ⚠ {e.message}
                 </div>
-              ))}
+              );
+            })}
           </div>
         ))}
         {busy && (

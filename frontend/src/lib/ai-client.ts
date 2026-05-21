@@ -43,6 +43,11 @@ import {
 const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
 const MAX_OUTER_ITERATIONS = 10;
 
+// Context-window concern: keep at most this many messages on the wire and
+// in storage. Lives here (not in the panel) because it's about the model,
+// not the UI.
+export const HISTORY_CAP = 80;
+
 // --- Wire types (match backend ChatRequest / ChatResponse) ------------------
 
 // tool_result.content can be a plain string OR a list of nested blocks
@@ -396,11 +401,13 @@ async function executeDrawTool(
 async function postChat(
   messages: APIMessage[],
   chartContext: ChartContext,
+  signal?: AbortSignal,
 ): Promise<ChatResponse> {
   const res = await fetch(`${API_BASE}/api/ai/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ messages, chart_context: chartContext }),
+    signal,
   });
   if (!res.ok) {
     let detail = `${res.status} ${res.statusText}`;
@@ -417,58 +424,66 @@ async function postChat(
 
 // --- Outer loop -------------------------------------------------------------
 
+export interface RunOptions {
+  /** Fired as each event is produced (text, tool_call, error). */
+  onEvent?: (event: TurnEvent) => void;
+  /** Abort the in-flight backend POST and stop the loop after the next yield. */
+  signal?: AbortSignal;
+}
+
 /**
  * Run one user turn: append the user message to history, drive the
  * backend → frontend tool-use loop, return display events + the new
  * api-shaped history slice to keep for the next turn.
+ *
+ * If `onEvent` is supplied, each event is delivered live; the returned
+ * `events` array is still the full ordered list.
  */
 export async function runAITurn(
   history: APIMessage[],
   userText: string,
   chartContext: ChartContext,
+  options: RunOptions = {},
 ): Promise<RunResult> {
+  const { onEvent, signal } = options;
   const events: TurnEvent[] = [];
+  const push = (e: TurnEvent) => {
+    events.push(e);
+    onEvent?.(e);
+  };
+
   let messages: APIMessage[] = [
     ...history,
     { role: "user", content: userText },
   ];
 
   for (let i = 0; i < MAX_OUTER_ITERATIONS; i++) {
+    if (signal?.aborted) {
+      push({ kind: "error", message: "Cancelled." });
+      return { events, newHistory: history };
+    }
+
     let resp: ChatResponse;
     try {
-      resp = await postChat(messages, chartContext);
+      resp = await postChat(messages, chartContext, signal);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      events.push({ kind: "error", message: msg });
-      return { events, newHistory: history }; // don't poison history with failed turn
+      const aborted = e instanceof DOMException && e.name === "AbortError";
+      const msg = aborted ? "Cancelled." : e instanceof Error ? e.message : String(e);
+      push({ kind: "error", message: msg });
+      return { events, newHistory: history }; // don't poison history with failed/cancelled turn
     }
 
     // Append the assistant message Claude just produced.
     messages = [...messages, { role: "assistant", content: resp.content }];
 
-    // Surface text blocks to the panel.
+    // Surface text blocks + backend-executed tool_calls in arrival order.
     for (const block of resp.content) {
       if (block.type === "text" && block.text) {
-        events.push({ kind: "assistant_text", text: block.text });
-      }
-    }
-
-    if (resp.stop_reason !== "tool_use") {
-      if (resp.backend_stopped === "max_iterations") {
-        events.push({
-          kind: "error",
-          message: "Stopped after backend hit max tool iterations — ask again to continue.",
-        });
-      }
-      return { events, newHistory: messages };
-    }
-
-    // Surface backend-executed tool_results as compact "I ran X" lines.
-    for (const block of resp.content) {
-      if (block.type === "tool_use") {
+        push({ kind: "assistant_text", text: block.text });
+      } else if (block.type === "tool_use") {
         const wasBackendExecuted = !resp.pending_tool_use_ids.includes(block.id);
         if (wasBackendExecuted) {
-          events.push({
+          push({
             kind: "tool_call",
             name: block.name,
             summary: `ran ${block.name}`,
@@ -478,13 +493,23 @@ export async function runAITurn(
       }
     }
 
+    if (resp.stop_reason !== "tool_use") {
+      if (resp.backend_stopped === "max_iterations") {
+        push({
+          kind: "error",
+          message: "Stopped after backend hit max tool iterations — ask again to continue.",
+        });
+      }
+      return { events, newHistory: messages };
+    }
+
     // Execute pending drawing tools.
     const frontendResults: ContentBlock[] = [];
     for (const block of resp.content) {
       if (block.type !== "tool_use") continue;
       if (!resp.pending_tool_use_ids.includes(block.id)) continue;
       const result = await executeDrawTool(block.name, block.input);
-      events.push({
+      push({
         kind: "tool_call",
         name: block.name,
         summary: result.summary,
@@ -506,7 +531,7 @@ export async function runAITurn(
     messages = [...messages, { role: "user", content: combined }];
   }
 
-  events.push({
+  push({
     kind: "error",
     message: `Stopped after ${MAX_OUTER_ITERATIONS} frontend rounds — ask again to continue.`,
   });
