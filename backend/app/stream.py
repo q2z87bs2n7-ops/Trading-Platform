@@ -74,11 +74,13 @@ class QuoteHub:
             for sym in wanted:
                 self._counts[(k, sym)] = self._counts.get((k, sym), 0) + 1
         self._clients[queue] = (wanted, ks)
-        # Replay last known event per (kind, sym) so the client doesn't wait
-        # a full bar interval (~60s) before seeing anything.
-        for k in ks:
-            for sym in wanted:
-                ev = self._latest.get((k, sym))
+        # Replay last known quote per sym so the order ticket doesn't wait
+        # for the next tick. We skip bar replays: getBars already seeds TV's
+        # historical cache, and a stale bar from a previous session triggers
+        # TV's time-order violation when replayed after today's bars are cached.
+        for sym in wanted:
+            if "quote" in ks:
+                ev = self._latest.get(("quote", sym))
                 if ev is not None:
                     with suppress(asyncio.QueueFull):
                         queue.put_nowait(json.dumps(ev))
