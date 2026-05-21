@@ -11,6 +11,7 @@ import SectionHeading from "./components/SectionHeading";
 import TVPlatform from "./components/TVPlatform";
 import ChatPanel from "./components/chat/ChatPanel";
 import TradeBar from "./components/trade/TradeBar";
+import CmdBar from "./components/cmd/CmdBar";
 
 type PlatformMode = "discover" | "portfolio" | "chart";
 
@@ -152,11 +153,24 @@ export default function App() {
   const meta = cfg ? { feed: cfg.feed, paper: cfg.paper } : null;
   const [selected, setSelected] = useState<string>("");
   const [mode, setMode] = useState<PlatformMode>(readPlatformMode);
+  const [cmdOpen, setCmdOpen] = useState(false);
   const { theme, toggle: toggleTheme } = useTheme();
 
   useEffect(() => {
     if (!selected && symbols.length) setSelected(symbols[0]);
   }, [symbols.join(","), selected]);
+
+  // Global ⌘K (or Ctrl+K) opens the command bar from anywhere.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setCmdOpen((v) => !v);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   function switchMode(m: PlatformMode) {
     setMode(m);
@@ -164,9 +178,7 @@ export default function App() {
   }
 
   function openCmdBar() {
-    // ⌘K command bar lands in phase 6.
-    // eslint-disable-next-line no-alert
-    alert("Command bar coming soon — phase 6 of the Calm refresh.");
+    setCmdOpen(true);
   }
 
   return (
@@ -252,6 +264,18 @@ export default function App() {
       {(mode === "discover" || mode === "portfolio") && (
         <TradeBar symbol={selected} />
       )}
+
+      {/* ⌘K command bar — mounted in the app shell so it's available from
+         every mode. Closed by default; openCmdBar() drives the pill click
+         and the global ⌘K hotkey toggles it. */}
+      <CmdBar
+        open={cmdOpen}
+        onClose={() => setCmdOpen(false)}
+        onOpenInWorkspace={(sym) => {
+          setSelected(sym);
+          switchMode("chart");
+        }}
+      />
     </div>
   );
 }
