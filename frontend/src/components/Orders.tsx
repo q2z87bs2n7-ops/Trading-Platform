@@ -212,10 +212,7 @@ export default function Orders() {
       }}
     >
       <div className="flex items-center gap-2 mb-2">
-        <div
-          className="inline-flex p-0.5 gap-0.5"
-          style={{ background: "var(--panel-2)", borderRadius: 7 }}
-        >
+        <div className="inline-flex gap-px">
           {STATUSES.map((s) => {
             const active = status === s;
             return (
@@ -223,12 +220,12 @@ export default function Orders() {
                 key={s}
                 type="button"
                 onClick={() => setStatus(s)}
-                className="text-[12px] font-medium cursor-pointer border-0 px-3 py-1"
+                className="text-[12px] font-medium cursor-pointer border-0 px-3 py-1.5 transition-colors"
                 style={{
-                  background: active ? "var(--panel)" : "transparent",
-                  color: active ? "var(--text)" : "var(--mute)",
-                  borderRadius: 5,
-                  boxShadow: active ? "var(--shadow-sm)" : "none",
+                  background: "transparent",
+                  color: active ? "var(--accent)" : "var(--mute)",
+                  borderBottom: `2px solid ${active ? "var(--accent)" : "transparent"}`,
+                  borderRadius: 0,
                   textTransform: "capitalize",
                 }}
               >

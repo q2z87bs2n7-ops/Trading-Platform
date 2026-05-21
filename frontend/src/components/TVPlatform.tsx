@@ -67,6 +67,9 @@ const DISABLED_FEATURES = [
   "broker_button",
   // Right widgetbar
   "show_right_widgets_panel_by_default",
+  // No Volume study by default — user adds it via the Indicator
+  // popover if they want it.
+  "create_volume_indicator_by_default",
 ];
 
 export default function TVPlatform({ symbol, onSymbolChange }: Props) {

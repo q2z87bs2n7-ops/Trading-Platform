@@ -66,10 +66,10 @@ export default function ChartBlotter({
                 if (collapsed) setCollapsed(false);
                 setTab(t.key);
               }}
-              className="text-[12px] font-medium cursor-pointer border-0 px-3 py-1.5"
+              className="text-[12px] font-medium cursor-pointer border-0 px-3 py-1.5 transition-colors"
               style={{
-                background: active ? "var(--panel-2)" : "transparent",
-                color: active ? "var(--text)" : "var(--mute)",
+                background: "transparent",
+                color: active ? "var(--accent)" : "var(--mute)",
                 borderBottom: `2px solid ${active ? "var(--accent)" : "transparent"}`,
                 borderRadius: 0,
               }}

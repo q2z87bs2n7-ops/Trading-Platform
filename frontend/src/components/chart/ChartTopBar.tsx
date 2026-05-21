@@ -172,8 +172,7 @@ export default function ChartTopBar({ symbol, onChartBotClick }: Props) {
 
       {/* TF tabs */}
       <div
-        className="inline-flex p-0.5 gap-0.5"
-        style={{ background: "var(--panel-2)", borderRadius: 7 }}
+        className="inline-flex gap-px"
       >
         {TFS.map((t) => {
           const active = resolution === t.res;
@@ -183,12 +182,12 @@ export default function ChartTopBar({ symbol, onChartBotClick }: Props) {
               type="button"
               onClick={() => setTF(t.res)}
               disabled={!tvReady}
-              className="font-mono text-[11.5px] font-medium cursor-pointer border-0 px-[10px] py-[5px]"
+              className="font-mono text-[11.5px] font-medium cursor-pointer border-0 px-2 py-1.5 transition-colors"
               style={{
-                background: active ? "var(--panel)" : "transparent",
-                color: active ? "var(--text)" : "var(--mute)",
-                borderRadius: 5,
-                boxShadow: active ? "var(--shadow-sm)" : "none",
+                background: "transparent",
+                color: active ? "var(--accent)" : "var(--mute)",
+                borderBottom: `2px solid ${active ? "var(--accent)" : "transparent"}`,
+                borderRadius: 0,
               }}
             >
               {t.label}
