@@ -93,9 +93,9 @@ export default function SettingsMenu() {
         aria-label="Open settings"
         aria-haspopup="menu"
         aria-expanded={open}
-        className="w-8 h-8 flex items-center justify-center rounded-card bg-transparent cursor-pointer"
+        className="w-8 h-8 flex items-center justify-center rounded-card border bg-transparent cursor-pointer"
         style={{
-          boxShadow: "inset 0 0 0 1px var(--border)",
+          borderColor: "var(--border)",
           color: open ? "var(--accent)" : "var(--text-2)",
         }}
       >

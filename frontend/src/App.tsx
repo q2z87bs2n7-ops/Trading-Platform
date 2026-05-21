@@ -86,9 +86,9 @@ function AskPill({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-2 text-[13px] px-3 py-1.5 rounded-card bg-transparent cursor-pointer transition-colors"
+      className="flex items-center gap-2 text-[13px] px-3 py-1.5 rounded-card border bg-transparent cursor-pointer transition-colors"
       style={{
-        boxShadow: "inset 0 0 0 1px var(--border)",
+        borderColor: "var(--border)",
         color: "var(--text-2)",
       }}
     >
@@ -122,9 +122,9 @@ function ThemeToggle({
       onClick={onToggle}
       aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
       title={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
-      className="w-8 h-8 flex items-center justify-center rounded-card bg-transparent cursor-pointer text-[14px]"
+      className="w-8 h-8 flex items-center justify-center rounded-card border bg-transparent cursor-pointer text-[14px]"
       style={{
-        boxShadow: "inset 0 0 0 1px var(--border)",
+        borderColor: "var(--border)",
         color: "var(--text-2)",
       }}
     >
