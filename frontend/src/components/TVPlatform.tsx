@@ -36,6 +36,9 @@ interface Props {
 
 // Header items TV would otherwise render — we replace each with our own
 // ChartTopBar button so the chrome reads as a single, consistent toolbar.
+// Also keep the right widgetbar (object tree, data window, …) collapsed
+// on launch — the button stays in the toolbar so a user can expand it,
+// it just doesn't take up the chart's horizontal real estate by default.
 const DISABLED_HEADER_FEATURES = [
   "header_widget",
   "header_resolutions",
@@ -48,6 +51,7 @@ const DISABLED_HEADER_FEATURES = [
   "header_undo_redo",
   "header_symbol_search",
   "use_localstorage_for_settings",
+  "show_right_widgets_panel_by_default",
 ];
 
 export default function TVPlatform({ symbol, onSymbolChange }: Props) {
