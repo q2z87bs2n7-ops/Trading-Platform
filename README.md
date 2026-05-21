@@ -13,7 +13,7 @@ A header toggle switches between three UI modes:
   chart, top gainers/losers/most-active, and market/symbol news feed
 - **Trading** — custom React dashboard with live-quote watchlist,
   candlestick charts, order ticket, and positions/orders/activities blotter
-- **TradingView** — full TradingView Charting Library terminal with
+- **ChartBot** — full TradingView Charting Library terminal with
   built-in drawing tools, 100+ indicators, and an integrated order/position
   panel wired to the same Alpaca backend. Includes an optional **AI chat
   panel** (see *AI chat* below)
@@ -24,7 +24,8 @@ A header toggle switches between three UI modes:
   over Server-Sent Events, with REST polling as automatic fallback).
 - **Frontend:** React + TypeScript (Vite). Three modes — Discover (market
   overview), Trading (custom charts via `lightweight-charts`), and
-  TradingView (full Charting Library at `frontend/public/charting_library/`).
+  ChartBot (full Charting Library at `frontend/public/charting_library/`
+  plus an AI chat panel).
 - **PWA:** Progressive Web App with service worker, offline support, and
   install capabilities. Smart caching strategies for API calls and charting
   library.
@@ -44,7 +45,7 @@ The free `iex` data feed is the default. `sip` needs a paid Alpaca data plan.
 
 ### 1b. AI chat (optional)
 
-The TradingView mode includes an AI chat panel powered by the Anthropic API.
+The ChartBot mode includes an AI chat panel powered by the Anthropic API.
 It is disabled by default — leave it off unless you want to spend Anthropic
 credits.
 
@@ -159,5 +160,6 @@ paid Alpaca data plan for the full consolidated tape.
 - Platform mode preference is persisted to `localStorage` under the key
   `platform_mode`.
 - AI chat drawings are persisted to `localStorage` (`ai_drawings_v1`) and
-  replayed per symbol on load. Conversation history is in-memory only and
-  does not survive a page reload.
+  replayed per symbol on load. The chat conversation is persisted to
+  `chartbot_session` with a 256 KB byte budget — oldest user+assistant
+  pairs drop once the budget is exceeded.

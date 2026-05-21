@@ -49,7 +49,7 @@
   persist whole chart layouts (symbol, drawings, studies, view state).
   Needs a storage layer; do this on top of the Postgres persistence
   layer above. Naming convention TBD (per-user named views).
-- **Discover-mode AI** — the chat panel is TV-mode-only today. Extending
+- **Discover-mode AI** — the chat panel is ChartBot-mode-only today. Extending
   to Discover needs a mode-aware system prompt, a trimmed tool set
   (no chart-only tools), and a new UI surface (cards over the
   existing tiles, or a separate panel). Bigger than a tool addition.

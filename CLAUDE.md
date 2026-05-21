@@ -56,17 +56,19 @@ persisted watchlists, asset search, and real-time streaming.
     `OrderTicket`), blotter (`Positions`, `Orders`, `Activities`).
     Per-symbol `News` lives in the Discover tab (`MarketNews` toggle).
     Charts use TradingView `lightweight-charts` (npm lib — data from our backend).
-  - **TradingView:** `TVPlatform.tsx` mounts the full TradingView
+  - **ChartBot:** `TVPlatform.tsx` mounts the full TradingView
     Charting Library terminal (`frontend/public/charting_library/`,
-    committed to repo — private repo only). Data and broker wired via
-    `frontend/src/lib/tv-datafeed.ts` (→ `/api/bars`, `/api/stream`,
-    `/api/quotes`, `/api/snapshots`, `/api/assets`) and
+    committed to repo — private repo only). Mode value is `"chartbot"`
+    (migrated one-shot from the legacy `"tv"` in `App.tsx`). Data and
+    broker wired via `frontend/src/lib/tv-datafeed.ts` (→ `/api/bars`,
+    `/api/stream`, `/api/quotes`, `/api/snapshots`, `/api/assets`) and
     `frontend/src/lib/tv-broker.ts` (→ `/api/account`, `/api/orders`,
     `/api/positions`, `/api/activities`). No backend changes — same
-    FastAPI endpoints. An **AI chat panel** (`AIChatPanel.tsx`) mounts
-    alongside the chart when `AI_CHAT_ENABLED=true`; it drives a
-    hybrid tool-use loop via `frontend/src/lib/ai-client.ts` and
-    `POST /api/ai/chat` (see *AI chat design* below).
+    FastAPI endpoints. A **ChartBot chat panel**
+    (`components/chat/ChatPanel.tsx`) mounts alongside the chart when
+    `AI_CHAT_ENABLED=true`; it drives a hybrid tool-use loop via
+    `frontend/src/lib/ai-client.ts` and `POST /api/ai/chat` (see
+    *AI chat design* below).
 - **Backend:** FastAPI + `alpaca-py`. `backend/app/` is the real code;
   `api/index.py` is a thin shim that puts it on Vercel's import path.
   Endpoints: `/api/health`, `/api/config`, `/api/account`, `/api/bars`,
@@ -140,7 +142,7 @@ persisted watchlists, asset search, and real-time streaming.
   Relay CORS (`CORS_ORIGINS`, defaulted in `render.yaml`) must list the
   exact frontend origin or the browser blocks the stream and falls back.
 
-## AI chat design (TradingView mode only)
+## AI chat design (ChartBot mode only)
 
 - **Gated by `AI_CHAT_ENABLED`.** Off by default — calls cost real
   Anthropic credits. Set `AI_CHAT_ENABLED=true` and `ANTHROPIC_API_KEY`
@@ -187,18 +189,28 @@ persisted watchlists, asset search, and real-time streaming.
   symbol. Symbol-mismatch draws are saved with `entityId=null` and
   replayed the next time that symbol is loaded.
 - **Widget singleton.** `frontend/src/lib/tv-widget-handle.ts` holds a
-  module-level reference to the TV widget so `AIChatPanel` can call
+  module-level reference to the TV widget so `ChatPanel` can call
   drawing APIs without being a child of `TVPlatform`.
 - **System prompt + tool schemas are cache-marked** so multi-turn
   chats hit the Anthropic prefix cache on every turn — keep the
   `cache_control` markers in `backend/app/ai/prompt.py` and
   `backend/app/ai/tools.py`.
-- **`AIChatPanel.tsx`** is a 360 px collapsible right-edge panel.
-  Chat history is in-memory only (not persisted); history is trimmed
-  to a trailing 80 messages before each POST. The backend re-trims
+- **`components/chat/`** is a 400 px collapsible right-edge panel,
+  split into `ChatPanel` (shell + collapse state), `ChatHeader`,
+  `ChatTranscript`, `ChatMessage`, `ChatComposer`, `ChatEmptyState`.
+  Conversation state lives in `hooks/useChatSession.ts`
+  (turns/apiHistory/busy/send/cancel/clear/retryLast). Session is
+  persisted to `localStorage` under `chartbot_session` with a 256 KB
+  byte budget (screenshot tool_results blow message-count caps fast —
+  oldest user+assistant pairs drop until under). API history is
+  trimmed to the trailing `HISTORY_CAP` (80, exported from
+  `ai-client.ts`) on send **and** on save. The backend re-trims
   defensively (overwriting oldest entries to preserve tool_use pairs)
-  so an over-cap request never 400s.
-  Conversation does not survive a page reload — drawings do.
+  so an over-cap request never 400s. `runAITurn` accepts
+  `{ onEvent, signal }`: events stream live into the in-flight
+  assistant turn, and the composer's **Stop** button aborts via the
+  signal. Errors render as a banner on the failed turn with a
+  **Retry** button that drops the failed user turn and re-sends.
 
 ## Vercel Python runtime — landmines (commits #4–#8)
 
