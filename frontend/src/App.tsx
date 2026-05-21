@@ -75,7 +75,7 @@ export default function App() {
               onClick={() => switchMode("tv")}
               type="button"
             >
-              TradingView
+              ChartBot
             </button>
           </div>
         </div>
