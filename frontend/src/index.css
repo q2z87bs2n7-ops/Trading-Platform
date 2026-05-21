@@ -123,6 +123,12 @@ body {
   font-family: var(--font-sans);
   font-feature-settings: "ss01", "cv11";
   font-variant-numeric: tabular-nums;
+
+  /* === Calm v2.1 font rendering === */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-optical-sizing: auto;
 }
 
 :focus-visible {
@@ -196,4 +202,25 @@ select {
 }
 .ticker-wrap:hover .ticker-track {
   animation-play-state: paused;
+}
+
+/*
+ * === Calm v2.1 desktop refinements ===
+ * Scoped to standard-gamut displays (typical Windows sRGB monitors).
+ * iPad / recent Macs report (color-gamut: p3) and are intentionally
+ * NOT included here — their rendering is already crisp.
+ */
+@media (color-gamut: srgb) and (not (color-gamut: p3)) {
+  body {
+    letter-spacing: -0.005em;
+    font-feature-settings: "ss01", "cv11", "ss03", "calt", "kern";
+  }
+
+  /* Mode pills and header buttons are the worst zone for Inter on
+     Chrome/Windows. 550 weight + tighter tracking compensates for
+     ClearType over-thinning the geometry. */
+  button {
+    font-weight: 550;
+    letter-spacing: -0.008em;
+  }
 }

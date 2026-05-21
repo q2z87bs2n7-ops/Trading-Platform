@@ -14,6 +14,7 @@ import TradeBar from "./components/trade/TradeBar";
 import CmdBar from "./components/cmd/CmdBar";
 import SettingsMenu from "./components/SettingsMenu";
 import Toaster from "./components/Toaster";
+import IconButton from "./components/IconButton";
 
 type PlatformMode = "discover" | "portfolio" | "chart";
 
@@ -83,15 +84,7 @@ function AskPill({ onClick }: { onClick: () => void }) {
   const isMac =
     typeof navigator !== "undefined" && /mac/i.test(navigator.platform);
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex items-center gap-2 text-[13px] px-3 py-1.5 rounded-card border bg-transparent cursor-pointer transition-colors"
-      style={{
-        borderColor: "var(--border)",
-        color: "var(--text-2)",
-      }}
-    >
+    <IconButton onClick={onClick} className="text-[13px] px-3 py-1.5">
       <span style={{ color: "var(--accent)" }} aria-hidden>
         ✦
       </span>
@@ -99,13 +92,13 @@ function AskPill({ onClick }: { onClick: () => void }) {
       <span
         className="font-mono text-[11px] px-1.5 py-0.5 rounded"
         style={{
-          background: "var(--panel-2)",
+          border: "1px solid var(--border)",
           color: "var(--mute)",
         }}
       >
         {isMac ? "⌘K" : "Ctrl K"}
       </span>
-    </button>
+    </IconButton>
   );
 }
 
@@ -117,19 +110,14 @@ function ThemeToggle({
   onToggle: () => void;
 }) {
   return (
-    <button
-      type="button"
+    <IconButton
       onClick={onToggle}
       aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
       title={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
-      className="w-8 h-8 flex items-center justify-center rounded-card border bg-transparent cursor-pointer text-[14px]"
-      style={{
-        borderColor: "var(--border)",
-        color: "var(--text-2)",
-      }}
+      className="w-8 h-8 justify-center text-[14px]"
     >
       {theme === "dark" ? "☀" : "☾"}
-    </button>
+    </IconButton>
   );
 }
 

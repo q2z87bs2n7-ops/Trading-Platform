@@ -34,4 +34,5 @@ export const qk = {
   watchlist: ["watchlist"] as const,
   indices: ["indices"] as const,
   marketNews: ["marketNews"] as const,
+  news: (symbol: string) => ["news", symbol] as const,
 };

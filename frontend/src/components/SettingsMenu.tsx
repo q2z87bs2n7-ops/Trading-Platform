@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import IconButton from "./IconButton";
 import { useSettings } from "../hooks/useSettings";
 import { updateSettings } from "../lib/settings";
 import { showToast } from "../lib/toast";
@@ -107,20 +108,16 @@ export default function SettingsMenu() {
 
   return (
     <div ref={ref} className="relative">
-      <button
-        type="button"
+      <IconButton
         onClick={() => setOpen((v) => !v)}
+        active={open}
         aria-label="Open settings"
         aria-haspopup="menu"
         aria-expanded={open}
-        className="w-8 h-8 flex items-center justify-center rounded-card border bg-transparent cursor-pointer"
-        style={{
-          borderColor: "var(--border)",
-          color: open ? "var(--accent)" : "var(--text-2)",
-        }}
+        className="w-8 h-8 justify-center"
       >
         <GearIcon />
-      </button>
+      </IconButton>
 
       {open && (
         <div

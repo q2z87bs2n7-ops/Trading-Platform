@@ -8,6 +8,7 @@ import type {
   MarketClock,
   MarketNewsResponse,
   MoversResponse,
+  NewsItem,
   Order,
   PortfolioHistory,
   Position,
@@ -153,6 +154,11 @@ export const postAiAsk = (
 
 export const getMarketNews = (limit = 20) =>
   getJSON<MarketNewsResponse>(`/api/market-news?limit=${limit}`);
+
+export const getNews = (symbol: string, limit = 10) =>
+  getJSON<{ symbol: string; news: NewsItem[] }>(
+    `/api/news?symbols=${encodeURIComponent(symbol.toUpperCase())}&limit=${limit}`,
+  );
 
 export const getWatchlist = () =>
   getJSON<{ symbols: string[] }>("/api/watchlist");

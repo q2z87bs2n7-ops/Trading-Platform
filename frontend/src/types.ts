@@ -161,6 +161,18 @@ export interface MarketNewsResponse {
   articles: MarketNewsArticle[];
 }
 
+// Benzinga ticker news via Alpaca /api/news
+export interface NewsItem {
+  id: number;
+  headline: string;
+  summary: string;
+  author: string;
+  source: string;
+  url: string;
+  symbols: string[];
+  time: number;
+}
+
 export interface IndexData {
   name: string;
   symbol: string;

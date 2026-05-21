@@ -84,6 +84,14 @@ export const useMarketNews = (limit = 20) =>
     staleTime: 120_000,
   });
 
+export const useNews = (symbol: string, limit = 10) =>
+  useQuery({
+    queryKey: qk.news(symbol),
+    queryFn: () => api.getNews(symbol, limit),
+    enabled: symbol.length > 0,
+    staleTime: 120_000,
+  });
+
 export const useIndices = () =>
   useQuery({
     queryKey: qk.indices,

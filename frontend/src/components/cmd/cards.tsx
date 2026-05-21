@@ -7,6 +7,7 @@ import {
   useClosePosition,
   useMarketNews,
   useMovers,
+  useNews,
   useOrders,
   usePositions,
   useSnapshots,
@@ -438,73 +439,118 @@ function MoversCard({ kind }: { kind: "gainers" | "losers" | "both" }) {
 
 // ── News intent ───────────────────────────────────────────────────────────────
 
-function NewsCard({ symbol }: { symbol?: string }) {
-  const news = useMarketNews(8);
-  if (!news.data) {
+function NewsRow({
+  href,
+  time,
+  source,
+  headline,
+  i,
+}: {
+  href: string;
+  time: number;
+  source: string;
+  headline: string;
+  i: number;
+}) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="flex gap-3 items-start no-underline"
+      style={{
+        padding: "8px 0",
+        borderTop: i === 0 ? "none" : "1px solid var(--hairline)",
+        color: "var(--text)",
+      }}
+    >
+      <span
+        className="font-mono text-[11px] min-w-[44px]"
+        style={{ color: "var(--mute)" }}
+      >
+        {relTime(time)}
+      </span>
+      <div className="flex-1">
+        <div
+          className="text-[10.5px] uppercase font-medium"
+          style={{ color: "var(--accent-2)", letterSpacing: "0.04em" }}
+        >
+          {source}
+        </div>
+        <div className="text-[13.5px] leading-snug">{headline}</div>
+      </div>
+    </a>
+  );
+}
+
+function TickerNewsCard({ symbol }: { symbol: string }) {
+  const { data, error } = useNews(symbol, 10);
+  if (!data) {
     return (
-      <CmdResultCard title="Headlines">
+      <CmdResultCard title={`News · ${symbol}`}>
         <div className="text-[13px]" style={{ color: "var(--mute)" }}>
-          {news.error ? news.error.message : "Loading…"}
+          {error ? (error as Error).message : "Loading…"}
         </div>
       </CmdResultCard>
     );
   }
-  // /api/market-news is broad; filter to the symbol if asked.
-  const articles = symbol
-    ? news.data.articles.filter(
-        (a) =>
-          a.title.toUpperCase().includes(symbol.toUpperCase()) ||
-          a.summary?.toUpperCase().includes(symbol.toUpperCase()),
-      )
-    : news.data.articles;
+  const items = data.news.slice(0, 6);
   return (
-    <CmdResultCard
-      title={symbol ? `News · ${symbol}` : "Market headlines"}
-      meta={`${articles.length} items`}
-    >
-      {articles.length === 0 ? (
+    <CmdResultCard title={`News · ${symbol}`} meta={`${items.length} items`}>
+      {items.length === 0 ? (
         <div className="text-[13px]" style={{ color: "var(--mute)" }}>
-          Nothing matching {symbol} in the latest headlines.
+          No recent Benzinga coverage for {symbol}.
         </div>
       ) : (
         <div className="flex flex-col">
-          {articles.slice(0, 6).map((a, i) => (
-            <a
-              key={`${a.pub_time}-${i}`}
-              href={a.link}
-              target="_blank"
-              rel="noreferrer"
-              className="flex gap-3 items-start no-underline"
-              style={{
-                padding: "8px 0",
-                borderTop: i === 0 ? "none" : "1px solid var(--hairline)",
-                color: "var(--text)",
-              }}
-            >
-              <span
-                className="font-mono text-[11px] min-w-[44px]"
-                style={{ color: "var(--mute)" }}
-              >
-                {relTime(a.pub_time)}
-              </span>
-              <div className="flex-1">
-                <div
-                  className="text-[10.5px] uppercase font-medium"
-                  style={{
-                    color: "var(--accent-2)",
-                    letterSpacing: "0.04em",
-                  }}
-                >
-                  {a.source}
-                </div>
-                <div className="text-[13.5px] leading-snug">{a.title}</div>
-              </div>
-            </a>
+          {items.map((a, i) => (
+            <NewsRow
+              key={a.id}
+              href={a.url}
+              time={a.time}
+              source={a.source}
+              headline={a.headline}
+              i={i}
+            />
           ))}
         </div>
       )}
     </CmdResultCard>
   );
+}
+
+function MarketNewsCard() {
+  const { data, error } = useMarketNews(8);
+  if (!data) {
+    return (
+      <CmdResultCard title="Headlines">
+        <div className="text-[13px]" style={{ color: "var(--mute)" }}>
+          {error ? (error as Error).message : "Loading…"}
+        </div>
+      </CmdResultCard>
+    );
+  }
+  return (
+    <CmdResultCard title="Market headlines" meta={`${data.articles.length} items`}>
+      <div className="flex flex-col">
+        {data.articles.slice(0, 6).map((a, i) => (
+          <NewsRow
+            key={`${a.pub_time}-${i}`}
+            href={a.link}
+            time={a.pub_time}
+            source={a.source}
+            headline={a.title}
+            i={i}
+          />
+        ))}
+      </div>
+    </CmdResultCard>
+  );
+}
+
+function NewsCard({ symbol }: { symbol?: string }) {
+  if (symbol) return <TickerNewsCard symbol={symbol} />;
+  return <MarketNewsCard />;
 }
 
 // ── Orders intent ─────────────────────────────────────────────────────────────
