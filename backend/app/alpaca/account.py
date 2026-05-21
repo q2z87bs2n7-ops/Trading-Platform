@@ -7,23 +7,17 @@ from .client import trading_client
 
 def get_account() -> dict:
     a = trading_client().get_account()
-    # Fetch today's opening equity from intraday portfolio history.
-    equity_at_market_open = float(a.equity)  # Default to current if fetch fails
-    try:
-        req = GetPortfolioHistoryRequest(period="1D", timeframe="1Min")
-        hist = trading_client().get(
-            "/account/portfolio/history", data=req.to_request_fields()
-        )
-        # Safely extract first equity value from history
-        if isinstance(hist, dict):
-            equities = hist.get("equity") or hist.get("equity_values")
-            if equities and isinstance(equities, list) and len(equities) > 0:
-                first = equities[0]
-                if first is not None:
-                    equity_at_market_open = float(first)
-    except (KeyError, ValueError, TypeError, IndexError):
-        pass  # Silently fall back to current equity if history fetch fails
     equity = float(a.equity)
+    # First equity value from today's 1-minute intraday history = opening
+    # equity. Fall back to current equity if the history fetch hiccups.
+    equity_at_market_open = equity
+    try:
+        hist = get_portfolio_history("1D", "1Min")
+        equities = hist.get("equity") or hist.get("equity_values")
+        if equities and equities[0] is not None:
+            equity_at_market_open = float(equities[0])
+    except (KeyError, ValueError, TypeError, IndexError):
+        pass
     return {
         "account_number": a.account_number,
         "status": str(a.status),
