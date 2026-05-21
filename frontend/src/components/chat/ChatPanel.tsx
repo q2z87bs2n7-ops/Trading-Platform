@@ -60,11 +60,11 @@ export default function ChatPanel({ symbol, resolution = "D" }: Props) {
 
   return (
     <div
-      className="flex h-[calc(100vh-60px)] flex-col"
+      className="flex h-[calc(100vh-60px)] flex-col min-h-0"
       style={{
         width: "min(380px, 100vw)",
         maxWidth: PANEL_WIDTH,
-        background: "var(--bg)",
+        background: "var(--panel)",
         color: "var(--text)",
         borderLeft: "1px solid var(--border)",
       }}
@@ -75,6 +75,8 @@ export default function ChatPanel({ symbol, resolution = "D" }: Props) {
         onClear={session.clear}
       />
       <ChatContextPills symbol={symbol} />
+      {/* Transcript flex-grows to fill the gap; composer is always the
+         last child and so always pinned at the bottom of the panel. */}
       <ChatTranscript
         turns={session.turns}
         busy={session.busy}
