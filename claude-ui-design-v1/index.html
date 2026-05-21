@@ -9,11 +9,32 @@
       content="Paper trading platform on the Alpaca API with real-time market data and portfolio management"
     />
     <link rel="apple-touch-icon" href="./icon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
     <title>Trading Platform</title>
+    <!-- Theme bootstrap: run before paint so we don't flash the wrong palette. -->
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem("theme");
+          var theme =
+            saved === "light" || saved === "dark"
+              ? saved
+              : window.matchMedia("(prefers-color-scheme: dark)").matches
+                ? "dark"
+                : "light";
+          document.documentElement.dataset.theme = theme;
+        } catch (e) {}
+      })();
+    </script>
     <!-- TradingView Charting Library — served from /public/charting_library/ -->
     <script src="./charting_library/charting_library.standalone.js"></script>
-    <script type="module" crossorigin src="./assets/index-ngjTzMJM.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-Xb8pI6jY.css">
+    <script type="module" crossorigin src="./assets/index-FdP_3WKp.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-CrKzujLS.css">
   <link rel="manifest" href="./manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="./registerSW.js"></script></head>
   <body>
     <div id="root"></div>
