@@ -236,7 +236,7 @@ export default function App() {
       {mode === "chart" && (
         <div style={{ display: "flex" }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <TVPlatform symbol={selected} />
+            <TVPlatform symbol={selected} onSymbolChange={setSelected} />
           </div>
           <ChatPanel symbol={selected || "AAPL"} />
         </div>

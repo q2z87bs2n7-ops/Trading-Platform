@@ -21,6 +21,9 @@ import {
 } from "../lib/tv-drawings";
 import ChartTopBar from "./chart/ChartTopBar";
 import IndicatorPillsRow from "./chart/IndicatorPillsRow";
+import ChartWatchlist from "./chart/ChartWatchlist";
+import OrderTicketRail from "./chart/OrderTicketRail";
+import ChartBlotter from "./chart/ChartBlotter";
 
 declare const TradingView: {
   widget: new (config: Record<string, unknown>) => TVWidgetInstance;
@@ -28,6 +31,7 @@ declare const TradingView: {
 
 interface Props {
   symbol: string;
+  onSymbolChange?: (s: string) => void;
 }
 
 // Header items TV would otherwise render — we replace each with our own
@@ -46,7 +50,8 @@ const DISABLED_HEADER_FEATURES = [
   "use_localstorage_for_settings",
 ];
 
-export default function TVPlatform({ symbol }: Props) {
+export default function TVPlatform({ symbol, onSymbolChange }: Props) {
+  const selectSym = (s: string) => onSymbolChange?.(s);
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetRef = useRef<TVWidgetInstance | null>(null);
   const { theme } = useTheme();
@@ -160,17 +165,26 @@ export default function TVPlatform({ symbol }: Props) {
     <div className="flex flex-col gap-2" style={{ width: "100%" }}>
       <ChartTopBar symbol={symbol || "AAPL"} />
       <IndicatorPillsRow />
-      <div
-        ref={containerRef}
-        style={{
-          width: "100%",
-          height: "calc(100vh - 200px)",
-          minHeight: 400,
-          borderRadius: "var(--r-lg)",
-          overflow: "hidden",
-          border: "1px solid var(--border)",
-        }}
-      />
+      <div className="flex gap-2" style={{ width: "100%" }}>
+        <ChartWatchlist
+          selected={symbol}
+          onSelect={(s) => selectSym(s)}
+        />
+        <div
+          ref={containerRef}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            height: "calc(100vh - 360px)",
+            minHeight: 360,
+            borderRadius: "var(--r-lg)",
+            overflow: "hidden",
+            border: "1px solid var(--border)",
+          }}
+        />
+        <OrderTicketRail symbol={symbol || "AAPL"} />
+      </div>
+      <ChartBlotter onSymbolSelect={(s) => selectSym(s)} />
     </div>
   );
 }

@@ -1,0 +1,110 @@
+import { useEffect, useState } from "react";
+
+import Activities from "../Activities";
+import Orders from "../Orders";
+import Positions from "../Positions";
+
+type Tab = "positions" | "orders" | "activity";
+const TABS: { key: Tab; label: string }[] = [
+  { key: "positions", label: "Positions" },
+  { key: "orders", label: "Orders" },
+  { key: "activity", label: "Activity" },
+];
+
+const COLLAPSE_KEY = "chart_blotter_collapsed";
+
+function readCollapsed(): boolean {
+  try {
+    return localStorage.getItem(COLLAPSE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export default function ChartBlotter({
+  onSymbolSelect,
+}: {
+  onSymbolSelect?: (s: string) => void;
+}) {
+  const [tab, setTab] = useState<Tab>("positions");
+  const [collapsed, setCollapsed] = useState(readCollapsed);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(COLLAPSE_KEY, collapsed ? "1" : "0");
+    } catch {
+      /* noop */
+    }
+  }, [collapsed]);
+
+  return (
+    <div
+      className="flex flex-col"
+      style={{
+        background: "var(--panel)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--r-lg)",
+        boxShadow: "var(--shadow-sm)",
+        overflow: "hidden",
+      }}
+    >
+      {/* Tab bar */}
+      <div
+        className="flex items-center gap-0"
+        style={{
+          borderBottom: collapsed ? "none" : "1px solid var(--hairline)",
+          minHeight: 33,
+        }}
+      >
+        {TABS.map((t) => {
+          const active = tab === t.key && !collapsed;
+          return (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => {
+                if (collapsed) setCollapsed(false);
+                setTab(t.key);
+              }}
+              className="text-[12px] font-medium cursor-pointer border-0 px-3 py-1.5"
+              style={{
+                background: active ? "var(--panel-2)" : "transparent",
+                color: active ? "var(--text)" : "var(--mute)",
+                borderBottom: `2px solid ${active ? "var(--accent)" : "transparent"}`,
+                borderRadius: 0,
+              }}
+            >
+              {t.label}
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          onClick={() => setCollapsed((v) => !v)}
+          aria-label={collapsed ? "Expand blotter" : "Collapse blotter"}
+          className="ml-auto cursor-pointer border-0 text-[14px] px-3"
+          style={{
+            background: "transparent",
+            color: "var(--mute)",
+          }}
+        >
+          {collapsed ? "▴" : "▾"}
+        </button>
+      </div>
+
+      {/* Tab content */}
+      {!collapsed && (
+        <div
+          className="overflow-auto p-2"
+          style={{ maxHeight: 220 }}
+        >
+          {tab === "positions" && (
+            <Positions variant="table" onSelect={onSymbolSelect} />
+          )}
+          {tab === "orders" && <Orders />}
+          {tab === "activity" && <Activities />}
+        </div>
+      )}
+    </div>
+  );
+}
