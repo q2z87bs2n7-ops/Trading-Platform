@@ -8,24 +8,41 @@ order path (market/limit/stop/stop-limit/trailing, bracket/OCO, replace,
 cancel, close positions) with a positions/orders/activities blotter.
 Paper account only — there is no live-trading path.
 
-A header toggle switches between three UI modes:
-- **Discover** (default) — market overview: indices ticker, holdings pie
-  chart, top gainers/losers/most-active, and market/symbol news feed
-- **Trading** — custom React dashboard with live-quote watchlist,
-  candlestick charts, order ticket, and positions/orders/activities blotter
-- **ChartBot** — full TradingView Charting Library terminal with
-  built-in drawing tools, 100+ indicators, and an integrated order/position
-  panel wired to the same Alpaca backend. Includes an optional **AI chat
-  panel** (see *AI chat* below)
+A three-pill header toggle switches between UI modes:
+- **Discover** (default) — market overview: a portfolio balance + monochrome
+  teal allocation donut hero, horizontal-scroll sparkline cards for indices
+  and the user watchlist, an inline chart card, top gainers / losers, and
+  a flat market news feed.
+- **Portfolio** — positions strip (one card per position), open-orders
+  table, equity-curve sparkline, and account activity. Order entry is
+  the floating bottom-center **TradeBar** pill that opens a bottom-sheet
+  order ticket.
+- **Chart** — full TradingView Charting Library terminal wrapped in a
+  custom Calm chrome: own top toolbar with TF / chart-type / indicator
+  popovers, narrow watchlist on the left, persistent order ticket rail
+  on the right, and a tabbed Positions / Orders / Activity blotter below.
+  Includes an optional **ChartBot side panel** (violet · AI chat — see
+  *AI chat* below).
+
+A **⌘K command bar** (centered modal, teal accent) is available from
+every mode — press `⌘K` (or `Ctrl+K`), or click the "Ask anything" pill
+in the top nav. It's a local regex-based intent parser (no LLM, no
+Anthropic credits) that handles orders ("buy 50 AMD at market"),
+portfolio queries, movers, news, open orders, and inline symbol previews
+that can open in the Chart workspace.
+
+Theme switches between light and dark via the moon / sun toggle in the
+top nav; preference persists in `localStorage`.
 
 ## Stack
 
 - **Backend:** FastAPI + `alpaca-py` (REST reads + a real-time quote stream
   over Server-Sent Events, with REST polling as automatic fallback).
-- **Frontend:** React + TypeScript (Vite). Three modes — Discover (market
-  overview), Trading (custom charts via `lightweight-charts`), and
-  ChartBot (full Charting Library at `frontend/public/charting_library/`
-  plus an AI chat panel).
+- **Frontend:** React + TypeScript (Vite) + Tailwind on the Calm v2 token
+  set (light + dark in oklch, Inter + IBM Plex Mono). Three modes —
+  Discover, Portfolio, and Chart (the full Charting Library at
+  `frontend/public/charting_library/` plus the violet ChartBot panel).
+  Cross-mode ⌘K command bar runs locally without any LLM call.
 - **PWA:** Progressive Web App with service worker, offline support, and
   install capabilities. Smart caching strategies for API calls and charting
   library.
@@ -45,9 +62,9 @@ The free `iex` data feed is the default. `sip` needs a paid Alpaca data plan.
 
 ### 1b. AI chat (optional)
 
-The ChartBot mode includes an AI chat panel powered by the Anthropic API.
-It is disabled by default — leave it off unless you want to spend Anthropic
-credits.
+The Chart mode includes a **ChartBot side panel** (violet accent)
+powered by the Anthropic API. It is disabled by default — leave it off
+unless you want to spend Anthropic credits.
 
 To enable: get an API key at https://console.anthropic.com, then add to
 `backend/.env`:
@@ -59,6 +76,10 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 The panel lets you ask questions about your positions, request price data,
 and draw annotations directly on the chart via natural language.
+
+The **⌘K command bar** (teal accent, all modes) is a separate, purely
+local intent parser — orders, portfolio queries, movers, news, charts.
+It works without any Anthropic key and costs nothing to run.
 
 ### 2. Backend
 
@@ -153,13 +174,14 @@ paid Alpaca data plan for the full consolidated tape.
 
 - Quotes stream in real time via `/api/stream` when a relay is reachable,
   otherwise the watchlist polls `/api/quotes` (~2s, `POLL_MS` in
-  `frontend/src/components/Watchlist.tsx`). Charts still load a bar snapshot
-  per symbol/timeframe change.
+  `frontend/src/data/useLiveQuotes.ts`). Charts still load a bar snapshot
+  per symbol/timeframe change. A yellow "Polling · stream off" chip in
+  the Portfolio mode `TopBar` indicates when the stream is unavailable.
 - Keys live only in `backend/.env`, which is gitignored. Never commit it.
 - Default watchlist symbols are configurable via `DEFAULT_SYMBOLS` in `.env`.
-- Platform mode preference is persisted to `localStorage` under the key
-  `platform_mode`.
-- AI chat drawings are persisted to `localStorage` (`ai_drawings_v1`) and
-  replayed per symbol on load. The chat conversation is persisted to
-  `chartbot_session` with a 256 KB byte budget — oldest user+assistant
-  pairs drop once the budget is exceeded.
+- Browser state is in `localStorage`: `platform_mode` (discover /
+  portfolio / chart, with one-shot migration from legacy values),
+  `theme` (light / dark), `chartbot_collapsed`, `chartbot_session`
+  (256 KB byte budget — oldest user+assistant pairs drop once the
+  budget is exceeded), `ai_drawings_v1` (per-symbol drawing UUIDs
+  replayed on chart load), `chart_blotter_collapsed`.

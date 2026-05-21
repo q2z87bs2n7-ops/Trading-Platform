@@ -9,33 +9,57 @@
   `backend/app/main.py` is an intentional no-op seam; flip it to a
   shared-token check before any non-paper / non-private exposure.
   Deferred by decision (paper account).
-- **Orphaned component cleanup (post UI-playground sprint)** — five
-  component files are no longer imported anywhere but are kept in the
-  tree for a clean revert path: `MarketClock.tsx`, `Calendar.tsx`,
-  `AccountSummary.tsx`, `PortfolioSummary.tsx`, `InstrumentInfo.tsx`.
-  Their data hooks (`useClock`, `useCalendar`, `useAccount`,
-  `usePortfolioHistory`, `useAsset`) are now consumed directly by
-  `TopBar.tsx` and `PriceChart.tsx`. Delete the five files once the
-  UI sprint is confirmed sticky.
 
-## TradingView mode
+## ⌘K command bar
+
+- **Modify / cancel-order intents.** `lib/cmd-intent.ts` returns
+  `fallback` for "move my AAPL limit to 195" and "cancel order abc123".
+  Cards exist in the design (`Modify card w/ old/new prices`,
+  `Confirm + undo`); the blocker is fuzzy order matching from a phrase
+  ("my AAPL limit" → which open AAPL order). Needs a small disambiguator
+  pass when the user has multiple working orders for the same symbol.
+- **"Open Chart mode and continue in ChartBot →" fallback.** When ⌘K
+  receives a chart-ish prompt out of its lane (e.g. "draw a trendline"
+  from Discover), the fallback card should suggest opening Chart mode
+  and pre-seeding the ChartBot panel with the user's phrase. Wires the
+  two AI surfaces into a coherent flow.
+
+## Chart mode
 
 - **Bracket / OCO orders** — TV's order dialog supports bracket orders
   natively; `tv-broker.ts` `placeOrder()` currently maps to simple
   market/limit/stop only. Wire `bracket` order type to Alpaca's
-  `order_class=bracket` with `take_profit` / `stop_loss` legs.
+  `order_class=bracket` with `take_profit` / `stop_loss` legs. Same
+  hook would extend `useOrderTicket` and surface bracket fields in
+  `OrderSheet` / `OrderTicketRail`.
 - **Replace / modify order** — TV calls `modifyOrder(orderId, data)` when
   a user drags a price line; `tv-broker.ts` has no `modifyOrder` method.
   Wire to `PATCH /api/orders/{id}`.
+- **Mobile chart-mode UX** — at `<lg` the `OrderTicketRail` is hidden
+  and at `<xl` the `ChartWatchlist` is hidden. Users fall back to ⌘K
+  for order entry / symbol switching, which works but is one extra
+  tap. A bottom-sheet ticket and a quick-pick watchlist drawer would
+  close the gap.
+- **Positions strip mobile layout** — the 6-column `gridTemplateColumns`
+  template compresses below ~720px. Functional but visually cramped;
+  a separate two-row mobile template would read better.
+- **Real `onStudyAdded` / `onStudyRemoved` events** — the bundled TV
+  build doesn't expose them, so `IndicatorPillsRow` and
+  `ChatContextPills` poll `getAllStudies()` every 1.2 s. If a future
+  TV build ships the subscriptions, replace the polling.
+- **TV `changeTheme()` instead of remount** — phase 7's `TVPlatform`
+  recreates the widget on theme toggle because this build's
+  `changeTheme` isn't reliable. Drawings + studies + active TF all
+  reset across the swap. Move to `changeTheme()` once available.
 - **Account equity in TV header** — `accountInfo()` returns buying power
   and equity, and the Account Manager summary row updates live via
-  `WatchedValue`s. TV's header strip (top-right of the chart) is a
-  separate surface that has not been verified — confirm it shows the
-  paper-account currency / equity correctly.
-- **TV watchlist sync** — TV mode starts on the symbol selected in the
-  custom UI watchlist, but switching symbols inside TV does not update
-  the shared `selected` state. Add a `onSymbolChange` callback via
-  `widget.activeChart().onSymbolChanged()` to keep both modes in sync.
+  `WatchedValue`s. TV's header strip is now hidden (`disabled_features:
+  header_widget`), so this is moot unless we un-hide the header strip.
+- **TV watchlist sync** — Chart mode's `ChartWatchlist` selection
+  pushes through `onSymbolChange` to TV, but switching symbols inside
+  TV (right-click → "Symbol info" → change) doesn't update the React
+  `selected` state. Add an `onSymbolChanged()` subscription handler in
+  `TVPlatform.tsx`.
 
 ## AI chart assistant — deferred
 
@@ -49,10 +73,11 @@
   persist whole chart layouts (symbol, drawings, studies, view state).
   Needs a storage layer; do this on top of the Postgres persistence
   layer above. Naming convention TBD (per-user named views).
-- **Discover-mode AI** — the chat panel is ChartBot-mode-only today. Extending
-  to Discover needs a mode-aware system prompt, a trimmed tool set
-  (no chart-only tools), and a new UI surface (cards over the
-  existing tiles, or a separate panel). Bigger than a tool addition.
+- **Discover-mode AI** — the ChartBot panel is Chart-mode-only today.
+  Extending to Discover needs a mode-aware system prompt, a trimmed
+  tool set (no chart-only tools), and a new UI surface. The ⌘K bar
+  covers the casual side of this; a deeper ChartBot-equivalent for
+  portfolio reasoning is a separate question.
 - **`createAlert` integration** — TV has a native alert API but no
   notification path exists in this app; defer until alerts have
   somewhere to go.

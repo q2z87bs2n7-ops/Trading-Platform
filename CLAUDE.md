@@ -43,32 +43,52 @@ persisted watchlists, asset search, and real-time streaming.
 ## Architecture
 
 - **Frontend:** React 18 + TypeScript + Vite. Single-page (no router).
-  A header toggle switches between three platform modes (persisted to
-  `localStorage('platform_mode')`):
-  - **Discover (default):** `Tools.tsx` — indices ticker (Yahoo Finance
-    direct HTTP, 13 indices), holdings donut chart (daily % change),
-    top gainers/losers/most-active, market news (Yahoo Finance RSS) with
-    a Market/Symbol toggle in `MarketNews` for per-symbol news when a
-    symbol is selected.
-  - **Trading:** `App.tsx` — `TopBar` status strip, workspace (left:
-    `PriceChart`; right sidebar: `Watchlist` on top — capped at 5 rows
-    with ‹/› pagination that auto-rotates every 20 s — then
-    `OrderTicket`), blotter (`Positions`, `Orders`, `Activities`).
-    Per-symbol `News` lives in the Discover tab (`MarketNews` toggle).
-    Charts use TradingView `lightweight-charts` (npm lib — data from our backend).
-  - **ChartBot:** `TVPlatform.tsx` mounts the full TradingView
+  A three-pill header toggle switches between platform modes (persisted
+  to `localStorage('platform_mode')`):
+  - **Discover (default):** `Tools.tsx` — `BalanceCard` + monochrome
+    teal `AllocationCard` hero row, horizontal-scroll `SparkCard` rows
+    for indices (`/api/indices`, 13 Yahoo Finance entries) and the
+    user watchlist (sparklines synthesised from snapshot day-change),
+    a wide inline chart card (wraps `PriceChart`), two side-by-side
+    `MoversCard` (gainers / losers from `/api/movers`), and a flat
+    `NewsCard` list from `/api/market-news`.
+  - **Portfolio** (`mode="portfolio"`, migrated from legacy `"trading"`):
+    `PortfolioHero` (portfolio-value `ValueCard` + 30d `EquityCurveCard`
+    area chart from `/api/portfolio-history`), `Positions` in
+    `variant="strip"` mode (one card per position), restyled `Orders`
+    card, `Activities` feed. `TopBar` status strip mounts only on this
+    mode.
+  - **Chart** (`mode="chart"`, migrated from legacy `"chartbot"` and
+    pre-rename `"tv"`): `TVPlatform.tsx` wraps the full TradingView
     Charting Library terminal (`frontend/public/charting_library/`,
-    committed to repo — private repo only). Mode value is `"chartbot"`
-    (migrated one-shot from the legacy `"tv"` in `App.tsx`). Data and
-    broker wired via `frontend/src/lib/tv-datafeed.ts` (→ `/api/bars`,
-    `/api/stream`, `/api/quotes`, `/api/snapshots`, `/api/assets`) and
-    `frontend/src/lib/tv-broker.ts` (→ `/api/account`, `/api/orders`,
-    `/api/positions`, `/api/activities`). No backend changes — same
-    FastAPI endpoints. A **ChartBot chat panel**
-    (`components/chat/ChatPanel.tsx`) mounts alongside the chart when
-    `AI_CHAT_ENABLED=true`; it drives a hybrid tool-use loop via
-    `frontend/src/lib/ai-client.ts` and `POST /api/ai/chat` (see
-    *AI chat design* below).
+    committed to repo — private repo only) in our own chrome. TV's
+    native top header is hidden via `disabled_features`; our
+    `ChartTopBar` (TF tabs / chart-type popover / indicator popover /
+    ChartBot launch button) + `IndicatorPillsRow` render above the
+    widget. The body is a flex row of `ChartWatchlist` (180px narrow
+    list), TV's chart canvas + native drawing rail (themed via
+    `custom_css_url`), and `OrderTicketRail` (240px persistent
+    ticket). `ChartBlotter` (tabbed Positions / Orders / Activity,
+    collapsible) sits below. Data + broker wiring is unchanged —
+    `frontend/src/lib/tv-datafeed.ts` → `/api/bars`, `/api/stream`,
+    `/api/quotes`, `/api/snapshots`, `/api/assets`;
+    `frontend/src/lib/tv-broker.ts` → `/api/account`, `/api/orders`,
+    `/api/positions`, `/api/activities`. The **ChartBot chat panel**
+    (`components/chat/ChatPanel.tsx`, 380px violet right-edge panel)
+    mounts here when `AI_CHAT_ENABLED=true`.
+- **Order entry surfaces (Calm v2 split).** `OrderTicket.tsx` is gone;
+  `hooks/useOrderTicket.ts` owns all form state (symbol/side/type/qty/
+  limit/stop/trail/TIF/ext-hours) plus asset lookup, live quote, est
+  notional, client-side validate, and a `trySubmit({ skipConfirm? })`
+  that surfaces the paper-account confirm. Three surfaces consume it:
+  - `components/trade/OrderSheet.tsx` — bottom-sheet modal with the
+    two-column form, opened by the `TradeBar`.
+  - `components/trade/TradeBar.tsx` — floating Buy/Sell pill bottom-
+    center, mounted in Discover + Portfolio. Hidden in Chart mode.
+  - `components/chart/OrderTicketRail.tsx` — persistent compact 240px
+    ticket in the Chart workspace.
+  The ⌘K command bar's order intent uses the same hook with
+  `skipConfirm: true` (the modal *is* the confirm UI).
 - **Backend:** FastAPI + `alpaca-py`. `backend/app/` is the real code;
   `api/index.py` is a thin shim that puts it on Vercel's import path.
   Endpoints: `/api/health`, `/api/config`, `/api/account`, `/api/bars`,
@@ -79,13 +99,24 @@ persisted watchlists, asset search, and real-time streaming.
   `AI_CHAT_ENABLED`; requires `ANTHROPIC_API_KEY`).
   `/api/indices` and `/api/market-news` use direct Yahoo Finance HTTP
   (`requests`, a transitive dep) — no yfinance, no C extensions, safe
-  on Vercel Python 3.14.
+  on Vercel Python 3.14. `/api/news`, `/api/most-active`, and `/api/
+  assets` (asset search) are still served by the backend and consumed
+  by the AI tool loop (`get_news`, `find_symbol`), but no frontend
+  surface calls them directly any more — that's intentional, don't
+  delete them.
 - **Data feed:** IEX (free, real-time but ~2-3% of volume). `sip` needs a
   paid Alpaca plan; switch via `ALPACA_DATA_FEED` env — no code change.
-- **Frontend stack:** Tailwind CSS + headless (shadcn-style) component
-  primitives; TradingView `lightweight-charts` retained for custom mode.
-  `index.css` is migrated to Tailwind progressively — no new bespoke CSS
-  files.
+- **Frontend stack:** Tailwind CSS + a Calm v2 token set in oklch
+  (light + dark via `html[data-theme="dark"]`, switched by
+  `hooks/useTheme.ts` with a synchronous bootstrap in `index.html` to
+  avoid flash). Fonts are Inter + IBM Plex Mono (Google Fonts).
+  Tailwind config exposes the tokens as utility classes (`bg-panel`,
+  `text-mute`, `border-hairline`, `rounded-card-lg`, `shadow-elev`,
+  `bg-cb-accent`, …). TradingView `lightweight-charts` retained for
+  the Discover inline chart and `PriceChart`. `index.css` is now down
+  to tokens + 4 legacy classes (`.app`, `.btn`, `.btn-mini`, input
+  defaults) plus `:focus-visible` — everything else is utilities or
+  inline `style={{ var(--…) }}`.
 - **PWA:** Progressive Web App via `vite-plugin-pwa`. Service worker
   auto-registers on load with smart caching: API calls use NetworkFirst
   (network with cache fallback), charting library uses CacheFirst (5MB
@@ -97,6 +128,46 @@ persisted watchlists, asset search, and real-time streaming.
   queried directly as source of truth; UI prefs live in browser
   `localStorage`.
 - **Auth:** shared-token middleware guards write endpoints.
+
+## Design tokens (Calm v2)
+
+- **Single token block in `frontend/src/index.css`.** Light is the
+  default; dark lives under `html[data-theme="dark"]`. Surfaces (`--bg`,
+  `--panel`, `--panel-2`, `--panel-3`, `--border`, `--border-2`,
+  `--hairline`), text (`--text`, `--text-2`, `--mute`), accent
+  (`--accent`, `--accent-2`, `--accent-bg`, `--accent-soft` — teal),
+  semantic (`--pos`, `--neg`, `--pos-bg`, `--neg-bg`), elevation
+  (`--shadow-sm`, `--shadow`, `--shadow-lg`), radii (`--r`, `--r-lg`,
+  `--r-xl`), and a violet ChartBot accent family (`--cb-accent*`).
+- **Theme switch** runs through `hooks/useTheme.ts`, which sets
+  `document.documentElement.dataset.theme` and persists to
+  `localStorage.theme`. A synchronous bootstrap in `index.html`
+  applies the saved value before first paint — don't delete that
+  script or every load will flash.
+- **Tailwind config exposes the tokens** as utility names (`bg-panel`,
+  `text-mute`, `border-hairline`, `bg-accent-bg`, `text-cb-accent`,
+  `rounded-card`, `rounded-card-lg`, `shadow-elev`, `font-mono`, …).
+  Adding a new token: declare it in `index.css` AND map it in
+  `tailwind.config.js` if you want a utility class for it.
+- **Legacy aliases kept** so unmigrated code keeps working: `--green`,
+  `--red`, `--muted`, `--bg-elev`, `--border-strong`, `--text-3`,
+  `--warn*`. Map to the new tokens; safe to remove once nothing
+  references them.
+
+## localStorage keys (browser state)
+
+Single-user app, so all of these live in `localStorage`. Listed here
+so future work doesn't accidentally collide.
+
+| Key | Writer | Read by | Notes |
+| --- | ------ | ------- | ----- |
+| `platform_mode` | `App.tsx` | `App.tsx` | `"discover" \| "portfolio" \| "chart"`. Migrates legacy `"trading"` → `"portfolio"` and `"chartbot"` / `"tv"` → `"chart"` on first load. |
+| `theme` | `hooks/useTheme.ts` + index.html bootstrap | both | `"light" \| "dark"`. Defaults to OS preference. |
+| `chartbot_collapsed` | `ChatPanel` | `ChatPanel` | `"1"` only when explicitly collapsed. Default-open in Chart mode. |
+| `chartbot_session` | `useChatSession` | `useChatSession` | Serialised turns + apiHistory, capped at 256 KB. |
+| `ai_drawings_v1` | `tv-drawings.ts` | `tv-drawings.ts` | Per-symbol drawing UUIDs replayed on chart load. |
+| `chart_blotter_collapsed` | `ChartBlotter` | `ChartBlotter` | `"1"` collapsed. |
+| `watchlist` (Alpaca) | server | server | Note: not in localStorage — watchlist is server-side via `/api/watchlist`. |
 
 ## Three deploy targets (do not conflate)
 
@@ -134,6 +205,11 @@ persisted watchlists, asset search, and real-time streaming.
   (500ms) to cap re-renders. The buffer lives in two places — tune both,
   remove neither: `frontend/src/data/useLiveQuotes.ts` (watchlist) and
   `frontend/src/lib/tv-datafeed.ts` `subscribeQuotes` (TV order ticket).
+- Stream status surfaces in the UI via `lib/stream-status.ts` (module
+  pub/sub) + `hooks/useStreamStatus.ts`. `TopBar` renders a yellow
+  "Polling · stream off" chip whenever `useLiveQuotes` has fallen back
+  to polling. Don't remove this — it's how the user knows real-time
+  ticks aren't coming.
 - `VITE_STREAM_BASE` is read at **build time** and must be set in **both**
   build paths or that frontend silently polls:
   - Vercel prod: Vercel project env var (Production).
@@ -142,7 +218,37 @@ persisted watchlists, asset search, and real-time streaming.
   Relay CORS (`CORS_ORIGINS`, defaulted in `render.yaml`) must list the
   exact frontend origin or the browser blocks the stream and falls back.
 
-## AI chat design (ChartBot mode only)
+## Two AI surfaces (teal ⌘K vs violet ChartBot)
+
+The app has **two distinct AI-flavoured front doors**. The accent colour
+is the tell: teal = local intent parser (free, instant); violet = real
+Claude API call (Anthropic credits, slow).
+
+### ⌘K command bar (teal · all modes · `components/cmd/`)
+
+- **No LLM. No Anthropic calls. Free.** Centered modal, 680px max,
+  10vh top anchor, frosted backdrop.
+- Opened by the "Ask anything · ⌘K" pill in the top nav OR a global
+  `⌘K` / `Ctrl+K` listener registered in `App.tsx`.
+- `lib/cmd-intent.ts` runs each submitted phrase through a chain of
+  regex/keyword checks and returns one of 8 typed intents: `order`,
+  `close`, `portfolio`, `movers` (gainers/losers/both), `news`,
+  `orders`, `chart`, `fallback`. Stopword filter keeps common English
+  ("OPEN", "NEWS", "ALL") from getting misread as tickers.
+- Each intent renders a `CmdResultCard` from `components/cmd/cards.tsx`
+  that composes existing React Query hooks (`usePositions`,
+  `useMovers`, `useMarketNews`, `useSnapshots`, `useBars`, `useOrders`)
+  for reads and existing mutation hooks (`useSubmitOrder`,
+  `useClosePosition`) for writes. The order card drives
+  `useOrderTicket` with `skipConfirm: true` — the card itself is the
+  confirm UI.
+- The chart card renders a real 60-bar sparkline from `useBars` + day
+  H/L + volume, plus an "Open in Chart workspace →" CTA that switches
+  platform mode and pushes the symbol into the TV widget.
+- Transcript clears on close (no persistence). Esc closes; Enter
+  submits (Shift+Enter inserts a newline).
+
+### ChartBot side panel (violet · Chart mode only · `components/chat/`)
 
 - **Gated by `AI_CHAT_ENABLED`.** Off by default — calls cost real
   Anthropic credits. Set `AI_CHAT_ENABLED=true` and `ANTHROPIC_API_KEY`
@@ -189,16 +295,28 @@ persisted watchlists, asset search, and real-time streaming.
   symbol. Symbol-mismatch draws are saved with `entityId=null` and
   replayed the next time that symbol is loaded.
 - **Widget singleton.** `frontend/src/lib/tv-widget-handle.ts` holds a
-  module-level reference to the TV widget so `ChatPanel` can call
-  drawing APIs without being a child of `TVPlatform`.
+  module-level reference to the TV widget so `ChatPanel` (and the
+  toolbar / pills / context-chip components) can call TV APIs without
+  being children of `TVPlatform`. `subscribeTVWidget(cb)` lets
+  consumers react to mount/unmount.
 - **System prompt + tool schemas are cache-marked** so multi-turn
   chats hit the Anthropic prefix cache on every turn — keep the
   `cache_control` markers in `backend/app/ai/prompt.py` and
-  `backend/app/ai/tools.py`.
-- **`components/chat/`** is a 400 px collapsible right-edge panel,
-  split into `ChatPanel` (shell + collapse state), `ChatHeader`,
-  `ChatTranscript`, `ChatMessage`, `ChatComposer`, `ChatEmptyState`.
-  Conversation state lives in `hooks/useChatSession.ts`
+  `backend/app/ai/tools.py`. The "Common shortcuts" section in
+  `prompt.py` (mark entry, suggest stop, 50/200 SMA, clear) teaches
+  the model the natural-language shortcuts the empty-state suggests;
+  none of them are new tools, just compositions.
+- **`components/chat/`** is a 380 px collapsible right-edge panel
+  (Calm v2 violet accent throughout — `--cb-accent` and friends),
+  split into `ChatPanel` (shell + collapse state, default OPEN),
+  `ChatHeader` (gradient brand mark + tagline), `ChatContextPills`
+  (sym · TF · price + Indicators+N, polled from the TV widget on the
+  same 1.2 s cadence as `IndicatorPillsRow`), `ChatTranscript`,
+  `ChatMessage` (user bubble right-aligned with violet bg +
+  asymmetric corner; assistant turns with violet eyebrow and
+  border-left tool-result chips), `ChatComposer` (pill textarea +
+  circular violet send button), `ChatEmptyState` (chart-specialised
+  prompt chips). Conversation state lives in `hooks/useChatSession.ts`
   (turns/apiHistory/busy/send/cancel/clear/retryLast). Session is
   persisted to `localStorage` under `chartbot_session` with a 256 KB
   byte budget (screenshot tool_results blow message-count caps fast —
@@ -233,7 +351,7 @@ Vercel's serverless Python builder forces **Python 3.14** and ignores
   files and fails the build if they diverge (uvicorn is intentionally
   backend-only and is excluded from the diff).
 
-## TradingView mode — landmines (don't regress)
+## Chart mode — landmines (don't regress)
 
 The broker adapter (`frontend/src/lib/tv-broker.ts`) and datafeed
 (`frontend/src/lib/tv-datafeed.ts`) bridge a strict, undocumented-in-
@@ -267,10 +385,32 @@ places TV interface. Specifics that took several iterations to land:
   "quotesSnapshot / formatter / spreadFormatter not received".
 - **`charting_library.standalone.js` loads async chunks.** The standalone
   script is a loader — it kicks off further async chunk fetches before
-  `TradingView.widget` becomes callable. If TV mode is the persisted
+  `TradingView.widget` becomes callable. If Chart mode is the persisted
   default, `TVPlatform` mounts before those chunks resolve and the chart
   stays blank. The fix: poll `typeof TradingView.widget === "function"`
   at 100ms intervals before constructing the widget (see `TVPlatform.tsx`).
+- **TV's native top header is hidden** via `disabled_features:
+  ["header_widget", "header_resolutions", "header_chart_type",
+  "header_indicators", "header_compare", "header_settings",
+  "header_screenshot", "header_fullscreen_button", "header_undo_redo",
+  "header_symbol_search", "use_localstorage_for_settings"]`. Our
+  `ChartTopBar` replaces every removed control. Don't re-enable any
+  of those features — they'd produce a doubled toolbar.
+- **Themed left toolbar via `custom_css_url`.** TV's drawing rail stays
+  TV-native; `frontend/public/tv-themed.css` re-tunes its CSS variables
+  (`--tv-color-platform-background`, `--tv-color-toolbar-button-*`,
+  etc.) against the Calm palette. Don't try to hand-roll a React
+  drawing rail.
+- **Theme switch causes widget remount.** This bundled TV build has no
+  reliable `changeTheme()`; `TVPlatform` re-keys its mount effect on
+  the `useTheme()` value and recreates the widget. The unmount path
+  clears the drawing entity-ID map (`clearEntityIds`) so the next mount
+  cleanly replays from `ai_drawings_v1`.
+- **Pill row + context pills poll `getAllStudies()`** every 1.2 s.
+  This build's `IChartWidgetApi` doesn't expose `onStudyAdded` /
+  `onStudyRemoved`; polling is the only reliable way to keep the
+  user-facing pills in sync with TV's internal study list (including
+  studies added via right-click). Cheap; bounded by Chart-mode mounts.
 
 ## Dev workflow
 
