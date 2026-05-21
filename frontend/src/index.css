@@ -10,13 +10,20 @@
  * are kept until components migrate off them.
  */
 :root {
-  /* --- Surface --- */
-  --bg:        #f7f5ef;
+  /* --- Surface ---
+     Light-mode surfaces sit close to neutral with only a hint of
+     warmth (R-vs-B channel spread ≤ 4). The original "warm paper"
+     palette had spreads up to 23, which read as calm paper on
+     color-managed wide-gamut displays (iPad / recent Mac) but
+     amplified into a yellow cast on uncalibrated sRGB monitors —
+     especially typical Windows panels. Subtle warmth is preserved
+     (R ≥ G ≥ B) without the yellow. */
+  --bg:        #f7f6f4;
   --panel:     #ffffff;
-  --panel-2:   #f1ede3;
-  --panel-3:   #eae4d4;
-  --border:    #e0dac9;
-  --border-2:  #c5bda6;
+  --panel-2:   #efedea;
+  --panel-3:   #e5e3df;
+  --border:    #dcd9d4;
+  --border-2:  #b8b5af;
   --hairline:  rgba(20, 22, 28, 0.06);
 
   /* --- Text --- */

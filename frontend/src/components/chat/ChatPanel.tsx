@@ -12,17 +12,9 @@ import ChatContextPills from "./ChatContextPills";
 import ChatTranscript from "./ChatTranscript";
 import ChatComposer from "./ChatComposer";
 
-const COLLAPSED_KEY = "chartbot_collapsed";
 const LEGACY_COLLAPSED_KEY = "ai_chat_panel_collapsed";
+const STALE_COLLAPSED_KEY = "chartbot_collapsed";
 const PANEL_WIDTH = 380;
-
-// Default open — only collapsed if the user explicitly closed it.
-function readCollapsed(): boolean {
-  const v =
-    localStorage.getItem(COLLAPSED_KEY) ??
-    localStorage.getItem(LEGACY_COLLAPSED_KEY);
-  return v === "1";
-}
 
 interface Props {
   symbol: string;
@@ -30,13 +22,17 @@ interface Props {
 }
 
 export default function ChatPanel({ symbol, resolution = "D" }: Props) {
-  const [collapsed, setCollapsed] = useState<boolean>(readCollapsed);
+  // Always start expanded — user can collapse mid-session but it
+  // re-opens on every Chart-mode mount. The two prior collapse keys
+  // are removed on first mount so old "1" values can't drag the panel
+  // back closed.
+  const [collapsed, setCollapsed] = useState(false);
   const session = useChatSession({ symbol, resolution });
 
   useEffect(() => {
-    localStorage.setItem(COLLAPSED_KEY, collapsed ? "1" : "0");
     localStorage.removeItem(LEGACY_COLLAPSED_KEY);
-  }, [collapsed]);
+    localStorage.removeItem(STALE_COLLAPSED_KEY);
+  }, []);
 
   if (collapsed) {
     return (
