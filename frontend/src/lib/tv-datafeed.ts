@@ -144,7 +144,10 @@ export function createDatafeed() {
       // Real-time OHLCV from Alpaca's `subscribe_bars` via the shared SSE
       // stream (kinds=bar). One 1-minute bar per minute per symbol; TV
       // happily merges that into whatever chart resolution it's showing.
-      let lastBarTime = 0;
+      // Seed floor at today's UTC midnight so bars from prior sessions are
+      // rejected even on a fresh subscription (Alpaca replays the last bar
+      // on every stream reconnect).
+      let lastBarTime = new Date().setUTCHours(0, 0, 0, 0);
       const unsubscribe = streamBars(
         [symbolInfo.name],
         (b: BarTick) => {
