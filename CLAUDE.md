@@ -95,8 +95,8 @@ persisted watchlists, asset search, and real-time streaming.
   `/api/quotes`, `/api/snapshots`, `/api/stream`, `/api/orders`,
   `/api/positions`, `/api/activities`, `/api/assets`, `/api/news`,
   `/api/calendar`, `/api/watchlist`, `/api/movers`, `/api/most-active`,
-  `/api/indices`, `/api/market-news`, `/api/ai/chat` (gated by
-  `AI_CHAT_ENABLED`; requires `ANTHROPIC_API_KEY`).
+  `/api/indices`, `/api/market-news`, `/api/ai/chat` + `/api/ai/ask`
+  (both gated by `AI_CHAT_ENABLED`; require `ANTHROPIC_API_KEY`).
   `/api/indices` and `/api/market-news` use direct Yahoo Finance HTTP
   (`requests`, a transitive dep) — no yfinance, no C extensions, safe
   on Vercel Python 3.14. `/api/news`, `/api/most-active`, and `/api/
@@ -167,6 +167,7 @@ so future work doesn't accidentally collide.
 | `chartbot_session` | `useChatSession` | `useChatSession` | Serialised turns + apiHistory, capped at 256 KB. |
 | `ai_drawings_v1` | `tv-drawings.ts` | `tv-drawings.ts` | Per-symbol drawing UUIDs replayed on chart load. |
 | `chart_blotter_collapsed` | `ChartBlotter` | `ChartBlotter` | `"1"` collapsed. |
+| `app_settings_v1` | `lib/settings.ts` | `useSettings` + `SettingsMenu` | JSON-encoded `AppSettings`. Today: `cmdbarAiEnabled` (default `false`) — when true, ⌘K fallback intents POST to `/api/ai/ask`. |
 | `watchlist` (Alpaca) | server | server | Note: not in localStorage — watchlist is server-side via `/api/watchlist`. |
 
 ## Three deploy targets (do not conflate)
@@ -226,8 +227,12 @@ Claude API call (Anthropic credits, slow).
 
 ### ⌘K command bar (teal · all modes · `components/cmd/`)
 
-- **No LLM. No Anthropic calls. Free.** Centered modal, 680px max,
-  10vh top anchor, frosted backdrop.
+- **Local intent parser by default, with an optional AI fallback.**
+  Centered modal, 680px max, 10vh top anchor, frosted backdrop.
+  Three rows: header (sparkle + "Ask anything" caption + ✕), scrolling
+  transcript / empty-state suggestions, and a composer pinned at the
+  bottom with a panel-2 textarea pill + teal Send button. Enter
+  submits; Shift+Enter inserts a newline. Esc closes.
 - Opened by the "Ask anything · ⌘K" pill in the top nav OR a global
   `⌘K` / `Ctrl+K` listener registered in `App.tsx`.
 - `lib/cmd-intent.ts` runs each submitted phrase through a chain of
@@ -245,8 +250,16 @@ Claude API call (Anthropic credits, slow).
 - The chart card renders a real 60-bar sparkline from `useBars` + day
   H/L + volume, plus an "Open in Chart workspace →" CTA that switches
   platform mode and pushes the symbol into the TV widget.
-- Transcript clears on close (no persistence). Esc closes; Enter
-  submits (Shift+Enter inserts a newline).
+- **AI fallback path** (`POST /api/ai/ask`, see *AI fallback endpoint*
+  below). Off by default — toggled by `cmdbarAiEnabled` in
+  `lib/settings.ts`, surfaced in the gear-icon `SettingsMenu` that
+  replaced the old "P" avatar. When ON, `fallback` intents render
+  `AiAskCard` which POSTs the raw phrase to `/api/ai/ask`; the answer
+  comes back with a tool-call summary chip row (✓/✕ per backend
+  read tool) and the prose response. When OFF, the fallback card
+  tells the user to flip the setting and lists the local shortcuts.
+- Transcript clears on close (no persistence) — fresh session each
+  time the modal opens.
 
 ### ChartBot side panel (violet · Chart mode only · `components/chat/`)
 
