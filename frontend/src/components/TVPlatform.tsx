@@ -127,7 +127,7 @@ export default function TVPlatform({ symbol, onSymbolChange }: Props) {
         timezone: "America/New_York",
 
         theme: themeKey === "dark" ? "Dark" : "Light",
-        custom_css_url: `${window.location.origin}${import.meta.env.BASE_URL}tv-themed.css`,
+        custom_css_url: new URL(`${import.meta.env.BASE_URL}tv-themed.css`, window.location.href).href,
         overrides: {
           "paneProperties.background":
             themeKey === "dark" ? "#0a0c10" : "#ffffff",
