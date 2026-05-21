@@ -1,6 +1,5 @@
-// Shared card shell for every ⌘K result. Keeps the teal border-left rail
-// and consistent padding/radius so every card reads as "an AI answer"
-// regardless of which intent produced it.
+// Shared card shell for every Ask anything result. Keeps the teal
+// border-left rail and consistent padding/radius across all intent cards.
 
 export default function CmdResultCard({
   title,

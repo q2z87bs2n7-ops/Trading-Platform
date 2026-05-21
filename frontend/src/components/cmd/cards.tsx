@@ -1,3 +1,4 @@
+import type { AiAskResponse } from "../../api";
 import type { Intent } from "../../lib/cmd-intent";
 import { ChartCard } from "./cards/ChartCard";
 import { CloseCard } from "./cards/CloseCard";
@@ -13,10 +14,12 @@ export function CmdResult({
   intent,
   onClose,
   onOpenInWorkspace,
+  onAiResponse,
 }: {
   intent: Intent;
   onClose: () => void;
   onOpenInWorkspace: (symbol: string) => void;
+  onAiResponse?: (resp: AiAskResponse) => void;
 }) {
   switch (intent.type) {
     case "order":
@@ -50,6 +53,6 @@ export function CmdResult({
     case "market_summary":
       return <MarketSummaryIntentCard />;
     case "fallback":
-      return <FallbackOrAiCard text={intent.text} />;
+      return <FallbackOrAiCard text={intent.text} onAiResponse={onAiResponse} />;
   }
 }

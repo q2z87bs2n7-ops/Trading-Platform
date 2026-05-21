@@ -4,6 +4,8 @@ import { postAiAsk, type AiAskResponse } from "../../../api";
 import { useSettings } from "../../../hooks/useSettings";
 import CmdResultCard from "../CmdResultCard";
 
+type OnAiResponse = (resp: AiAskResponse) => void;
+
 function FallbackCard({ text }: { text: string }) {
   return (
     <CmdResultCard title="No match for that phrase" meta={text || "(empty)"}>
@@ -26,7 +28,7 @@ function FallbackCard({ text }: { text: string }) {
   );
 }
 
-function AiAskCard({ text }: { text: string }) {
+function AiAskCard({ text, onAiResponse }: { text: string; onAiResponse?: OnAiResponse }) {
   const [resp, setResp] = useState<AiAskResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [pending, setPending] = useState(true);
@@ -41,6 +43,7 @@ function AiAskCard({ text }: { text: string }) {
         if (cancelled) return;
         setResp(r);
         setPending(false);
+        onAiResponse?.(r);
       })
       .catch((e: Error) => {
         if (cancelled) return;
@@ -111,11 +114,11 @@ function AiAskCard({ text }: { text: string }) {
 }
 
 // Gate the fallback path on the AI setting at render time so toggling
-// the setting reflects immediately in the next ⌘K query.
-export function FallbackOrAiCard({ text }: { text: string }) {
+// the setting reflects immediately in the next Ask anything query.
+export function FallbackOrAiCard({ text, onAiResponse }: { text: string; onAiResponse?: OnAiResponse }) {
   const settings = useSettings();
   return settings.cmdbarAiEnabled ? (
-    <AiAskCard text={text} />
+    <AiAskCard text={text} onAiResponse={onAiResponse} />
   ) : (
     <FallbackCard text={text} />
   );

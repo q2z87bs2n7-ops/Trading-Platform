@@ -135,7 +135,7 @@ export default function App() {
     if (!selected && symbols.length) setSelected(symbols[0]);
   }, [symbols.join(","), selected]);
 
-  // Global ⌘K (or Ctrl+K) opens the command bar from anywhere.
+  // Global Cmd+K / Ctrl+K opens Ask anything from anywhere.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -241,9 +241,9 @@ export default function App() {
         <TradeBar symbol={selected} />
       )}
 
-      {/* ⌘K command bar — mounted in the app shell so it's available from
+      {/* Ask anything — mounted in the app shell so it's available from
          every mode. Closed by default; openCmdBar() drives the pill click
-         and the global ⌘K hotkey toggles it. */}
+         and the global Cmd+K / Ctrl+K hotkey toggles it. */}
       <CmdBar
         open={cmdOpen}
         onClose={() => setCmdOpen(false)}

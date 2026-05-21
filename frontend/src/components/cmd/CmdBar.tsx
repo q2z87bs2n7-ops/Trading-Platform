@@ -1,6 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useMemo, useEffect, useRef, useState } from "react";
 
-import { parseIntent, type Intent } from "../../lib/cmd-intent";
+import type { AiAskResponse } from "../../api";
+import { parseIntent, extractSymbols, type Intent } from "../../lib/cmd-intent";
+import type { Position } from "../../types";
+import { usePositions, useWatchlist } from "../../data/hooks";
 import { CmdResult } from "./cards";
 
 interface Turn {
@@ -9,25 +12,100 @@ interface Turn {
   intent: Intent;
 }
 
-const SUGGESTIONS = [
-  "Market summary",
-  "What changed today?",
-  "Buy 50 AMD at market",
-  "How's NVDA?",
-  "Show me top gainers",
-  "News on Tesla",
-  "Close my TSLA position",
-];
+function buildSuggestions(
+  positions: Position[] | undefined,
+  watchlist: string[] | undefined,
+): string[] {
+  const chips: string[] = [];
 
-// Compact next-question prompts shown after each completed turn. Same
-// vocabulary as the empty state, trimmed to four so the row scrolls
-// horizontally inside the modal width without taking the full screen.
-const FOLLOWUPS = [
-  "What changed today?",
-  "Top gainers",
-  "Open orders",
-  "Portfolio",
-];
+  // Time-of-day aware opening chip (US Eastern).
+  const etHour = Number(
+    new Date().toLocaleString("en-US", {
+      hour: "numeric",
+      hour12: false,
+      timeZone: "America/New_York",
+    }),
+  );
+  if (etHour < 9 || (etHour === 9 && new Date().getMinutes() < 30)) {
+    chips.push("Pre-market movers");
+  } else if (etHour >= 16) {
+    chips.push("After-hours movers");
+  } else {
+    chips.push("Market summary");
+  }
+
+  // Top 2 positions by absolute unrealised P/L.
+  if (positions?.length) {
+    const sorted = [...positions].sort(
+      (a, b) => Math.abs(b.unrealized_pl) - Math.abs(a.unrealized_pl),
+    );
+    for (const p of sorted.slice(0, 2)) chips.push(`How's my ${p.symbol}?`);
+  }
+
+  // Watchlist symbols not already represented via positions.
+  const posSyms = new Set(positions?.map((p) => p.symbol) ?? []);
+  for (const sym of (watchlist ?? []).filter((s) => !posSyms.has(s)).slice(0, 2)) {
+    chips.push(`News on ${sym}`);
+  }
+
+  // Fill remaining slots with generic chips.
+  for (const g of [
+    "Show me top gainers",
+    "What changed today?",
+    "Open orders",
+    "Buy 50 AMD at market",
+  ]) {
+    if (chips.length >= 7) break;
+    chips.push(g);
+  }
+
+  return chips;
+}
+
+function buildFollowups(lastIntent: Intent | null, aiResp: AiAskResponse | null): string[] {
+  // For AI fallback turns: derive chips from the actual response content.
+  if (lastIntent?.type === "fallback" && aiResp) {
+    const chips: string[] = [];
+    const toolNames = new Set(aiResp.tool_calls.filter((t) => t.ok).map((t) => t.name));
+    const syms = extractSymbols(aiResp.text);
+
+    if (syms[0]) chips.push(`Chart ${syms[0]}`);
+    if (syms[1]) chips.push(`News on ${syms[1]}`);
+    if (toolNames.has("get_positions") || toolNames.has("get_account")) chips.push("Portfolio");
+    if (toolNames.has("get_orders")) chips.push("Open orders");
+    if (toolNames.has("get_movers")) chips.push("What changed today?");
+
+    for (const f of ["Top gainers", "Open orders", "Portfolio", "What changed today?"]) {
+      if (chips.length >= 4) break;
+      if (!chips.includes(f)) chips.push(f);
+    }
+    return chips.slice(0, 4);
+  }
+
+  // For structured intents: context-aware static chips.
+  switch (lastIntent?.type) {
+    case "order":
+      return ["Portfolio", `How's ${lastIntent.symbol}?`, "Open orders", "Top gainers"];
+    case "close":
+      return ["Portfolio", "Open orders", "What changed today?", "Top gainers"];
+    case "portfolio":
+      return ["Open orders", "Top gainers", "Market summary", "What changed today?"];
+    case "movers":
+      return ["Market summary", "Portfolio", "Open orders", "What changed today?"];
+    case "news":
+      return lastIntent.symbol
+        ? [`Chart ${lastIntent.symbol}`, "Top gainers", "Portfolio", "Open orders"]
+        : ["Market summary", "Top gainers", "Portfolio", "What changed today?"];
+    case "orders":
+      return ["Portfolio", "Top gainers", "Market summary", "What changed today?"];
+    case "chart":
+      return [`News on ${lastIntent.symbol}`, "Portfolio", "Top gainers", "Open orders"];
+    case "market_summary":
+      return ["Top gainers", "Portfolio", "Open orders", "What changed today?"];
+    default:
+      return ["What changed today?", "Top gainers", "Open orders", "Portfolio"];
+  }
+}
 
 interface Props {
   open: boolean;
@@ -38,9 +116,26 @@ interface Props {
 export default function CmdBar({ open, onClose, onOpenInWorkspace }: Props) {
   const [text, setText] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
+  const [lastAiResp, setLastAiResp] = useState<AiAskResponse | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const counter = useRef(0);
+
+  const { data: posData } = usePositions();
+  const { data: wl } = useWatchlist();
+
+  const suggestions = useMemo(
+    () => buildSuggestions(posData?.positions, wl?.symbols),
+    // Recompute when data arrives or the modal reopens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [posData, wl, open],
+  );
+
+  const lastTurn = turns[turns.length - 1];
+  const followups = useMemo(
+    () => buildFollowups(lastTurn?.intent ?? null, lastAiResp),
+    [lastTurn?.id, lastAiResp],
+  );
 
   // Focus the textarea each time the modal opens; clear transcript on
   // close so each session starts fresh.
@@ -51,6 +146,7 @@ export default function CmdBar({ open, onClose, onOpenInWorkspace }: Props) {
     }
     setText("");
     setTurns([]);
+    setLastAiResp(null);
   }, [open]);
 
   // ESC closes.
@@ -87,6 +183,7 @@ export default function CmdBar({ open, onClose, onOpenInWorkspace }: Props) {
     const trimmed = value.trim();
     if (!trimmed) return;
     counter.current += 1;
+    setLastAiResp(null);
     setTurns((t) => [
       ...t,
       { id: counter.current, query: trimmed, intent: parseIntent(trimmed) },
@@ -177,7 +274,7 @@ export default function CmdBar({ open, onClose, onOpenInWorkspace }: Props) {
                 Try
               </div>
               <div className="flex flex-wrap gap-2">
-                {SUGGESTIONS.map((s) => (
+                {suggestions.map((s) => (
                   <button
                     key={s}
                     type="button"
@@ -219,6 +316,7 @@ export default function CmdBar({ open, onClose, onOpenInWorkspace }: Props) {
                       onOpenInWorkspace(sym);
                       onClose();
                     }}
+                    onAiResponse={setLastAiResp}
                   />
                 </div>
               ))}
@@ -239,7 +337,7 @@ export default function CmdBar({ open, onClose, onOpenInWorkspace }: Props) {
                   className="flex gap-1.5 overflow-x-auto pb-1"
                   style={{ scrollbarWidth: "none" }}
                 >
-                  {FOLLOWUPS.map((s) => (
+                  {followups.map((s) => (
                     <button
                       key={s}
                       type="button"

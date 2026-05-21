@@ -123,7 +123,7 @@ export const getAsset = (symbol: string) =>
 
 export const getIndices = () => getJSON<IndicesResponse>("/api/indices");
 
-// ── ⌘K AI ask ─────────────────────────────────────────────────────────────
+// ── Ask anything AI ────────────────────────────────────────────────────────
 // One-shot Q&A against /api/ai/ask. The endpoint resolves backend read
 // tools server-side; no frontend tool loop. 503 → "AI not configured"
 // (env unset on the backend); the frontend keys off that to render a

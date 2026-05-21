@@ -65,9 +65,9 @@ real-time streaming.
   lookup, live quote, est notional, validation, and submission.
   UI surfaces in `components/trade/`: `OrderSheet` (bottom-sheet
   form), `TradeBar` (floating Buy/Sell pill, mounted in every mode),
-  `ClosePositionCard`, `ModifyOrderCard`, `ConfirmCard`. The ⌘K bar's
-  order intent uses `useOrderTicket` with `skipConfirm: true`. **No
-  `window.confirm` in the trade flow.**
+  `ClosePositionCard`, `ModifyOrderCard`, `ConfirmCard`. The Ask
+  anything order intent uses `useOrderTicket` with `skipConfirm: true`.
+  **No `window.confirm` in the trade flow.**
 - **Backend:** FastAPI + `alpaca-py`. Real code in `backend/app/`;
   `api/index.py` is the Vercel shim. Endpoints under `/api/`: health,
   config, account, bars, quotes, snapshots, stream, orders, positions,
@@ -128,13 +128,13 @@ Watchlist is not in localStorage — server-side via `/api/watchlist`.
    `gh-pages` on every `claude/**` push. Cannot trigger a Vercel
    deploy.
 
-## Two AI surfaces (teal ⌘K vs violet ChartBot)
+## Two AI surfaces (teal Ask anything vs violet ChartBot)
 
 Accent colour is the tell: **teal = local intent parser** (free,
 instant); **violet = real Claude API call** (Anthropic credits, slow).
 
-- **⌘K command bar** (`components/cmd/`, all modes). Opened by the
-  "Ask anything · ⌘K" pill or a global `⌘K` / `Ctrl+K` listener in
+- **Ask anything module** (`components/cmd/`, all modes). Opened by the
+  "Ask anything" pill or a global `Cmd+K` / `Ctrl+K` listener in
   `App.tsx`. `lib/cmd-intent.ts` runs a regex/keyword chain and
   returns one of 8 typed intents (`order`, `close`, `portfolio`,
   `movers`, `news`, `orders`, `chart`, `fallback`); each renders a

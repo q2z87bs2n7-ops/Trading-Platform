@@ -1,4 +1,4 @@
-// ⌘K command-bar intent parser. Strict-ish regex over a small surface;
+// Ask anything intent parser. Strict-ish regex over a small surface;
 // returns the first matching intent or { type: "fallback" }. The result
 // card per intent is rendered by components/cmd/cards.tsx.
 
@@ -95,29 +95,69 @@ function findSymbol(text: string): string | undefined {
   return matches.find((m) => !STOPWORDS.has(m));
 }
 
+// All non-stopword ticker candidates in the text, preserving order.
+// Exported so CmdBar can extract symbols from AI response text for
+// dynamic follow-up chips.
+export function extractSymbols(text: string): string[] {
+  const matches = text.toUpperCase().match(/\b[A-Z]{1,5}(?:\.[A-Z])?\b/g) ?? [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const m of matches) {
+    if (!STOPWORDS.has(m) && !seen.has(m)) {
+      seen.add(m);
+      result.push(m);
+    }
+  }
+  return result;
+}
+
+function parseQty(raw: string): number {
+  const s = raw.toLowerCase();
+  if (s.endsWith("k")) return Number(s.slice(0, -1)) * 1_000;
+  if (s.endsWith("m")) return Number(s.slice(0, -1)) * 1_000_000;
+  return Number(s);
+}
+
 export function parseIntent(input: string): Intent {
   const text = input.trim();
   if (!text) return { type: "fallback", text };
   const lower = text.toLowerCase();
 
   // ── order ── "buy 100 AAPL at market" / "sell 50 AMD" / "buy 5 TSLA at 240"
+  // "purchase" normalises to buy; "short" normalises to sell.
+  // Qty accepts k/m suffix: "1k" → 1000, "2.5k" → 2500.
   const orderMatch = lower.match(
-    /\b(buy|sell)\s+(\d+(?:\.\d+)?)\s+([a-z]{1,5}(?:\.[a-z])?)\b(?:\s+(?:at\s+)?(market|\$?\d+(?:\.\d+)?))?/i,
+    /\b(buy|sell|purchase|short)\s+(\d+(?:\.\d+)?[km]?)\s+([a-z]{1,5}(?:\.[a-z])?)\b(?:\s+(?:at\s+)?(market|\$?\d+(?:\.\d+)?))?/i,
   );
   if (orderMatch) {
-    const [, side, qty, sym, tail] = orderMatch;
+    const [, rawSide, rawQty, sym, tail] = orderMatch;
+    const side =
+      rawSide.toLowerCase() === "purchase"
+        ? "buy"
+        : rawSide.toLowerCase() === "short"
+          ? "sell"
+          : (rawSide.toLowerCase() as "buy" | "sell");
     const price =
       tail && tail.toLowerCase() !== "market"
         ? Number(tail.replace(/^\$/, ""))
         : undefined;
     return {
       type: "order",
-      side: side.toLowerCase() as "buy" | "sell",
-      qty: Number(qty),
+      side,
+      qty: parseQty(rawQty),
       symbol: sym.toUpperCase(),
       price,
       otype: price != null ? "limit" : "market",
     };
+  }
+
+  // ── sell all [sym] → close ── "sell all TSLA", "sell everything TSLA"
+  // Triggers when no explicit share count follows "sell all/everything".
+  const sellAllMatch = lower.match(
+    /\bsell\s+(?:all|everything)\s+(?:my\s+)?([a-z]{1,5}(?:\.[a-z])?)\b/i,
+  );
+  if (sellAllMatch) {
+    return { type: "close", symbol: sellAllMatch[1].toUpperCase() };
   }
 
   // ── close ── "close TSLA", "close my AAPL position"
