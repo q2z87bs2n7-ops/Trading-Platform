@@ -157,7 +157,7 @@ export const getMarketNews = (limit = 20) =>
 
 export const getNews = (symbol: string, limit = 10) =>
   getJSON<{ symbol: string; news: NewsItem[] }>(
-    `/api/news?symbols=${encodeURIComponent(symbol.toUpperCase())}&limit=${limit}`,
+    `/api/news?symbol=${encodeURIComponent(symbol.toUpperCase())}&limit=${limit}`,
   );
 
 export const getWatchlist = () =>
