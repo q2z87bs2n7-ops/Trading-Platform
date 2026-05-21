@@ -174,3 +174,19 @@ select {
   padding: 2px 8px;
   font-size: 12px;
 }
+
+/* Discover: indices marquee at the top of the page. Auto-scrolls; pauses
+   on hover. The track is duplicated in markup so the animation can loop
+   seamlessly by translating -50% (one full original-set width). */
+@keyframes ticker-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.ticker-track {
+  display: flex;
+  width: max-content;
+  animation: ticker-scroll 60s linear infinite;
+}
+.ticker-wrap:hover .ticker-track {
+  animation-play-state: paused;
+}

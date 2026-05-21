@@ -99,6 +99,14 @@ export default function PriceChart({ symbol }: { symbol: string }) {
         close: b.close,
       })),
     );
+    // setData replaces bars but lightweight-charts retains the user's
+    // prior pan/zoom on both axes. Without explicit resets, switching
+    // from AAPL (zoomed in) to NVDA leaves the camera pointed at the
+    // old visible range, often outside NVDA's price/time domain.
+    chartRef.current
+      ?.priceScale("right")
+      .applyOptions({ autoScale: true });
+    chartRef.current?.timeScale().resetTimeScale();
     chartRef.current?.timeScale().fitContent();
   }, [data]);
 

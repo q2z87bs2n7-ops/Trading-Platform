@@ -2,10 +2,12 @@ import { useMemo, useState } from "react";
 
 import {
   useAccount,
+  useAddToWatchlist,
   useIndices,
   useMarketNews,
   useMovers,
   usePositions,
+  useRemoveFromWatchlist,
   useSnapshots,
   useWatchlist,
 } from "../data/hooks";
@@ -281,16 +283,6 @@ function AllocationCard({ positions }: { positions: Position[] | undefined }) {
                 />
               ))}
             </svg>
-            <div className="absolute inset-0 grid place-items-center pointer-events-none">
-              <div className="text-center">
-                <div className="text-[11px]" style={{ color: "var(--mute)" }}>
-                  Open
-                </div>
-                <div className="font-semibold text-[13px] tabular-nums">
-                  {open.length}
-                </div>
-              </div>
-            </div>
           </div>
           <div
             className="flex flex-col gap-1 text-[12.5px] flex-1 min-w-0"
@@ -335,6 +327,7 @@ function SparkCard({
   changePct,
   selected,
   onSelect,
+  onRemove,
 }: {
   symbol: string;
   name: string;
@@ -342,15 +335,16 @@ function SparkCard({
   changePct: number;
   selected: boolean;
   onSelect: () => void;
+  onRemove?: () => void;
 }) {
   const up = changePct >= 0;
   const stroke = up ? "var(--pos)" : "var(--neg)";
   const path = sparkPath(symbol, changePct);
   return (
-    <button
-      type="button"
+    <div
+      role="button"
       onClick={onSelect}
-      className="text-left p-[13px_14px_10px] cursor-pointer transition-all relative overflow-hidden bg-panel"
+      className="group text-left p-[13px_14px_10px] cursor-pointer transition-all relative overflow-hidden bg-panel"
       style={{
         border: `1px solid ${selected ? "var(--accent)" : "var(--border)"}`,
         borderRadius: "var(--r)",
@@ -358,6 +352,24 @@ function SparkCard({
         scrollSnapAlign: "start",
       }}
     >
+      {onRemove && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          aria-label={`Remove ${symbol} from watchlist`}
+          className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer border-0 text-[12px] leading-none w-5 h-5 grid place-items-center"
+          style={{
+            background: "var(--panel-2)",
+            color: "var(--mute)",
+            borderRadius: 4,
+          }}
+        >
+          ✕
+        </button>
+      )}
       <div className="font-semibold text-[15px]">{symbol}</div>
       <div
         className="text-[11px] mt-px truncate h-[14px]"
@@ -382,7 +394,105 @@ function SparkCard({
       >
         <path d={path} fill="none" stroke={stroke} strokeWidth={1.5} />
       </svg>
-    </button>
+    </div>
+  );
+}
+
+// ── Markets marquee ───────────────────────────────────────────────────────────
+// Auto-scrolling ticker across the top of Discover. Non-interactive on
+// purpose — the index symbols are Yahoo Finance (^IXIC, ^DJI, …) and
+// Alpaca can't chart them.
+
+const REGION_ORDER: IndexData["region"][] = ["US", "Europe", "Asia"];
+
+function IndexChip({ idx }: { idx: IndexData }) {
+  const up = idx.change >= 0;
+  const color = up ? "var(--pos)" : "var(--neg)";
+  const arrow = up ? "▲" : "▼";
+  const hasExt =
+    idx.session &&
+    idx.session !== "regular" &&
+    idx.ext_price != null &&
+    idx.ext_change_pct != null;
+  const extUp = hasExt && idx.ext_change_pct! >= 0;
+  return (
+    <span
+      className="flex items-center gap-2 px-4 whitespace-nowrap"
+      style={{ borderRight: "1px solid var(--hairline)" }}
+    >
+      <span
+        className="text-[11px] font-medium"
+        style={{ color: "var(--mute)" }}
+      >
+        {idx.name}
+      </span>
+      <span className="text-[13px] font-semibold tabular-nums">
+        {fmtPrice(idx.price)}
+      </span>
+      <span
+        className="text-[12px] tabular-nums font-medium"
+        style={{ color }}
+      >
+        {arrow} {pct(idx.change_pct)}
+      </span>
+      {hasExt && (
+        <span
+          className="flex items-center gap-1 pl-1"
+          style={{ borderLeft: "1px solid var(--hairline)" }}
+        >
+          <span
+            className="text-[10px] uppercase tracking-wide"
+            style={{ color: "var(--mute)" }}
+          >
+            {idx.session}
+          </span>
+          <span
+            className="text-[11px] tabular-nums font-medium"
+            style={{ color: extUp ? "var(--pos)" : "var(--neg)" }}
+          >
+            {fmtPrice(idx.ext_price!)} ({pct(idx.ext_change_pct!)})
+          </span>
+        </span>
+      )}
+    </span>
+  );
+}
+
+function IndicesTicker({ indices }: { indices: IndexData[] }) {
+  const sorted = REGION_ORDER.flatMap((r) =>
+    indices.filter((i) => i.region === r),
+  );
+  if (sorted.length === 0) return null;
+  return (
+    <div
+      className="overflow-hidden mb-4"
+      style={{
+        background: "var(--panel)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--r-lg)",
+        boxShadow: "var(--shadow-sm)",
+      }}
+    >
+      <div className="flex items-center">
+        <span
+          className="text-[11px] uppercase font-semibold px-3 py-2 whitespace-nowrap"
+          style={{
+            color: "var(--mute)",
+            letterSpacing: "0.06em",
+            borderRight: "1px solid var(--border)",
+          }}
+        >
+          Markets
+        </span>
+        <div className="ticker-wrap overflow-hidden flex-1" style={{ height: 36 }}>
+          <div className="ticker-track h-full items-center">
+            {[...sorted, ...sorted].map((idx, i) => (
+              <IndexChip key={i} idx={idx} />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -665,8 +775,20 @@ export default function Tools({
   const movers = useMovers(8);
   const news = useMarketNews(8);
   const watchlist = useWatchlist();
+  const addToWatchlist = useAddToWatchlist();
+  const removeFromWatchlist = useRemoveFromWatchlist();
   const wlSymbols = watchlist.data?.symbols ?? [];
   const snaps = useSnapshots(wlSymbols);
+  const [wlInput, setWlInput] = useState("");
+
+  function submitAddWatchlist(e: React.FormEvent) {
+    e.preventDefault();
+    const v = wlInput.trim().toUpperCase();
+    if (!v) return;
+    addToWatchlist.mutate(v);
+    setWlInput("");
+    onSelect(v);
+  }
 
   const invested = (positions.data?.positions || []).reduce(
     (s: number, p: Position) => s + p.market_value,
@@ -690,6 +812,10 @@ export default function Tools({
 
   return (
     <div className="max-w-[1280px] mx-auto pt-2">
+      {/* Markets marquee — Yahoo Finance indices, non-clickable for charting
+         since Alpaca can't serve bars for ^IXIC / ^DJI / etc. */}
+      {indices.data && <IndicesTicker indices={indices.data.indices} />}
+
       {/* Hero row */}
       <div className="grid gap-4 mb-6 grid-cols-1 lg:grid-cols-[1.4fr_1fr]">
         <BalanceCard
@@ -701,42 +827,6 @@ export default function Tools({
         <AllocationCard positions={positions.data?.positions} />
       </div>
 
-      {/* Markets */}
-      <SectionHeading
-        label="Markets"
-        ctx="today"
-        ctxRight={
-          indices.data
-            ? `${indices.data.indices.length} indices`
-            : indices.isPending
-              ? "loading…"
-              : ""
-        }
-      />
-      {indices.error && <ErrorBanner message={indices.error.message} />}
-      {!indices.data && !indices.error && (
-        <CardsRow>
-          {Array.from({ length: 8 }).map((_, i) => (
-            <SparkCardSkeleton key={i} />
-          ))}
-        </CardsRow>
-      )}
-      {indices.data && (
-        <CardsRow>
-          {indices.data.indices.map((idx: IndexData) => (
-            <SparkCard
-              key={idx.symbol}
-              symbol={idx.symbol}
-              name={idx.name}
-              price={idx.price}
-              changePct={idx.change_pct}
-              selected={false}
-              onSelect={() => onSelect(idx.symbol)}
-            />
-          ))}
-        </CardsRow>
-      )}
-
       {/* Watchlist */}
       <SectionHeading
         label="Watchlist"
@@ -744,6 +834,43 @@ export default function Tools({
           watchlist.isPending
             ? "loading…"
             : `${wlSymbols.length} symbol${wlSymbols.length === 1 ? "" : "s"}`
+        }
+        ctxRight={
+          <form
+            onSubmit={submitAddWatchlist}
+            className="inline-flex items-center gap-1"
+          >
+            <input
+              value={wlInput}
+              onChange={(e) => setWlInput(e.target.value.toUpperCase())}
+              placeholder="+ SYMBOL"
+              aria-label="Add symbol to watchlist"
+              className="font-mono text-[11.5px] tabular-nums"
+              style={{
+                background: "var(--panel-2)",
+                border: "1px solid var(--border)",
+                borderRadius: 6,
+                color: "var(--text)",
+                padding: "3px 8px",
+                width: 110,
+              }}
+            />
+            <button
+              type="submit"
+              disabled={!wlInput.trim() || addToWatchlist.isPending}
+              className="text-[12px] cursor-pointer"
+              style={{
+                background: "var(--accent-bg)",
+                color: "var(--accent)",
+                border: "1px solid var(--accent)",
+                borderRadius: 6,
+                padding: "3px 8px",
+                opacity: wlInput.trim() ? 1 : 0.5,
+              }}
+            >
+              Add
+            </button>
+          </form>
         }
       />
       {watchlist.isPending ? (
@@ -762,7 +889,7 @@ export default function Tools({
             color: "var(--mute)",
           }}
         >
-          Your watchlist is empty. Add symbols from the Chart screen.
+          Your watchlist is empty. Type a ticker above to add one.
         </div>
       ) : (
         <CardsRow>
@@ -785,6 +912,7 @@ export default function Tools({
                 changePct={dayChange}
                 selected={sym === selected}
                 onSelect={() => onSelect(sym)}
+                onRemove={() => removeFromWatchlist.mutate(sym)}
               />
             );
           })}
