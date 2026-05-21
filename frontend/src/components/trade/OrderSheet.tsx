@@ -275,10 +275,7 @@ export default function OrderSheet({
           </button>
         </div>
 
-        <div
-          className="grid gap-6"
-          style={{ gridTemplateColumns: "1fr 1fr" }}
-        >
+        <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
           {/* ── Left column ── */}
           <div className="flex flex-col gap-4">
             {/* Side toggle */}

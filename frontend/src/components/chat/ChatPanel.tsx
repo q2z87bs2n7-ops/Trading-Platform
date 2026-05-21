@@ -66,7 +66,8 @@ export default function ChatPanel({ symbol, resolution = "D" }: Props) {
     <div
       className="flex h-[calc(100vh-60px)] flex-col"
       style={{
-        width: PANEL_WIDTH,
+        width: "min(380px, 100vw)",
+        maxWidth: PANEL_WIDTH,
         background: "var(--bg)",
         color: "var(--text)",
         borderLeft: "1px solid var(--border)",

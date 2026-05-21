@@ -258,10 +258,7 @@ export default function PortfolioHero() {
   const openOrderCount = (orders.data?.orders || []).filter(isLive).length;
 
   return (
-    <div
-      className="grid gap-4 mb-6"
-      style={{ gridTemplateColumns: "1.4fr 1fr" }}
-    >
+    <div className="grid gap-4 mb-6 grid-cols-1 lg:grid-cols-[1.4fr_1fr]">
       <ValueCard
         account={account.data}
         positions={positions.data?.positions}

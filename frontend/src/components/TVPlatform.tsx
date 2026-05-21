@@ -165,13 +165,19 @@ export default function TVPlatform({ symbol, onSymbolChange }: Props) {
     <div className="flex flex-col gap-2" style={{ width: "100%" }}>
       <ChartTopBar symbol={symbol || "AAPL"} />
       <IndicatorPillsRow />
-      <div className="flex gap-2" style={{ width: "100%" }}>
-        <ChartWatchlist
-          selected={symbol}
-          onSelect={(s) => selectSym(s)}
-        />
+      <div
+        className="flex flex-col xl:flex-row gap-2"
+        style={{ width: "100%" }}
+      >
+        <div className="hidden xl:block">
+          <ChartWatchlist
+            selected={symbol}
+            onSelect={(s) => selectSym(s)}
+          />
+        </div>
         <div
           ref={containerRef}
+          className="border border-border"
           style={{
             flex: 1,
             minWidth: 0,
@@ -179,10 +185,11 @@ export default function TVPlatform({ symbol, onSymbolChange }: Props) {
             minHeight: 360,
             borderRadius: "var(--r-lg)",
             overflow: "hidden",
-            border: "1px solid var(--border)",
           }}
         />
-        <OrderTicketRail symbol={symbol || "AAPL"} />
+        <div className="hidden lg:block">
+          <OrderTicketRail symbol={symbol || "AAPL"} />
+        </div>
       </div>
       <ChartBlotter onSymbolSelect={(s) => selectSym(s)} />
     </div>

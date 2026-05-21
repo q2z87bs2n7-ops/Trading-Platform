@@ -75,7 +75,7 @@ function OrderCard({
       title={`${side === "buy" ? "Buy" : "Sell"} ${qty} ${symbol}`}
       meta={otype === "limit" ? `LIMIT ${price ?? "—"}` : "MARKET"}
     >
-      <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
+      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
         <div className="flex flex-col gap-1">
           <span className="text-[11px] uppercase" style={{ color: "var(--mute)" }}>
             Estimated {side === "buy" ? "cost" : "proceeds"}
@@ -206,7 +206,7 @@ function CloseCard({ symbol, onDone }: { symbol: string; onDone: () => void }) {
       title={`Close ${symbol}`}
       meta={`${pos.qty} sh · ${pos.side}`}
     >
-      <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
+      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
         <div className="flex flex-col">
           <span
             className="text-[11px] uppercase"
@@ -635,7 +635,7 @@ function ChartCard({
       title={symbol}
       meta={snap?.last_price ? money(snap.last_price) : undefined}
     >
-      <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
+      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
         <div className="flex flex-col gap-1">
           <span
             className="text-[11px] uppercase"

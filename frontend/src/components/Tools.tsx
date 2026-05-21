@@ -691,10 +691,7 @@ export default function Tools({
   return (
     <div className="max-w-[1280px] mx-auto pt-2">
       {/* Hero row */}
-      <div
-        className="grid gap-4 mb-6"
-        style={{ gridTemplateColumns: "1.4fr 1fr" }}
-      >
+      <div className="grid gap-4 mb-6 grid-cols-1 lg:grid-cols-[1.4fr_1fr]">
         <BalanceCard
           account={account.data}
           invested={invested}
@@ -801,13 +798,13 @@ export default function Tools({
       <SectionHeading label="Movers" ctxRight="free IEX feed" />
       {movers.error && <ErrorBanner message={movers.error.message} />}
       {!movers.data && !movers.error && (
-        <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
+        <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
           <MoversCardSkeleton />
           <MoversCardSkeleton />
         </div>
       )}
       {movers.data && (
-        <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
+        <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
           <MoversCard
             title="Top gainers"
             movers={movers.data.gainers}

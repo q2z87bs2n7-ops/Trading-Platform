@@ -25,16 +25,17 @@ export default function TradeBar({ symbol }: Props) {
   return (
     <>
       <div
-        className="fixed left-1/2 z-30 flex items-center gap-3 text-[13.5px] font-medium"
+        className="fixed z-30 flex items-center gap-3 text-[13.5px] font-medium left-4 right-4 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 justify-between sm:justify-start"
         style={{
-          transform: `translateX(-50%)${open ? " translateY(120px)" : ""}`,
           bottom: 20,
           background: "var(--text)",
           color: "var(--bg)",
           padding: "6px 6px 6px 16px",
           borderRadius: "var(--r)",
           boxShadow: "var(--shadow-lg)",
-          transition: "transform 0.25s ease",
+          transition: "opacity 0.2s ease",
+          opacity: open ? 0 : 1,
+          pointerEvents: open ? "none" : "auto",
         }}
       >
         <div className="flex items-center gap-2">
