@@ -106,6 +106,8 @@ export interface TVChartApi {
   symbol: () => string;
   resolution: () => string;
   onSymbolChanged: () => TVSubscription;
+  onIntervalChanged: () => TVSubscription;
+  removeAllStudies: () => void;
   createShape: (
     point: TVShapePoint,
     options: Record<string, unknown>,

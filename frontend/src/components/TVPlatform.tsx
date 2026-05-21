@@ -1,10 +1,14 @@
 /**
- * TVPlatform — mounts the full TradingView Charting Library terminal.
- * Shown when the user selects "TradingView" mode from the header toggle.
- * The existing custom UI is unchanged and shown when toggled back.
+ * TVPlatform — mounts the TradingView Charting Library terminal inside our
+ * Calm chrome. TV's own top header is hidden via disabled_features; we
+ * render ChartTopBar + IndicatorPillsRow above the chart. The left
+ * drawing toolbar stays TV-native, retuned via custom_css_url to match
+ * our palette.
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+
+import { useTheme } from "../hooks/useTheme";
 import { createDatafeed } from "../lib/tv-datafeed";
 import { createBroker } from "../lib/tv-broker";
 import {
@@ -15,8 +19,9 @@ import {
   clearEntityIds,
   recreateDrawingsForChart,
 } from "../lib/tv-drawings";
+import ChartTopBar from "./chart/ChartTopBar";
+import IndicatorPillsRow from "./chart/IndicatorPillsRow";
 
-// TradingView widget is injected by charting_library.standalone.js in index.html
 declare const TradingView: {
   widget: new (config: Record<string, unknown>) => TVWidgetInstance;
 };
@@ -25,9 +30,30 @@ interface Props {
   symbol: string;
 }
 
+// Header items TV would otherwise render — we replace each with our own
+// ChartTopBar button so the chrome reads as a single, consistent toolbar.
+const DISABLED_HEADER_FEATURES = [
+  "header_widget",
+  "header_resolutions",
+  "header_chart_type",
+  "header_indicators",
+  "header_compare",
+  "header_settings",
+  "header_screenshot",
+  "header_fullscreen_button",
+  "header_undo_redo",
+  "header_symbol_search",
+  "use_localstorage_for_settings",
+];
+
 export default function TVPlatform({ symbol }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetRef = useRef<TVWidgetInstance | null>(null);
+  const { theme } = useTheme();
+  // The widget can't re-theme on the fly in this build, so we remount it
+  // when the user toggles themes. `themeKey` is the dependency.
+  const [themeKey, setThemeKey] = useState(theme);
+  useEffect(() => setThemeKey(theme), [theme]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -35,45 +61,38 @@ export default function TVPlatform({ symbol }: Props) {
     let destroyed = false;
     let brokerRef: ReturnType<typeof createBroker> | null = null;
 
-    // charting_library.standalone.js loads its own async chunks; poll until
-    // TradingView.widget is callable (typically <200 ms on cold load).
     function init() {
       if (destroyed) return;
-      if (typeof TradingView === "undefined" || typeof TradingView.widget !== "function") {
+      if (
+        typeof TradingView === "undefined" ||
+        typeof TradingView.widget !== "function"
+      ) {
         setTimeout(init, 100);
         return;
       }
       if (!containerRef.current) return;
 
       const widget = new TradingView.widget({
-        // Container
         container: containerRef.current,
         library_path: `${import.meta.env.BASE_URL}charting_library/`,
 
-        // Symbol + interval
         symbol: symbol || "AAPL",
         interval: "D",
         locale: "en",
         timezone: "America/New_York",
 
-        // Theme — dark to match existing app
-        theme: "Dark",
-        custom_css_url: "",
+        theme: themeKey === "dark" ? "Dark" : "Light",
+        custom_css_url: `${import.meta.env.BASE_URL}tv-themed.css`,
         overrides: {
-          "paneProperties.background": "#0d1117",
+          "paneProperties.background":
+            themeKey === "dark" ? "#0a0c10" : "#ffffff",
           "paneProperties.backgroundType": "solid",
         },
 
-        // Data
         datafeed: createDatafeed(),
 
-        // Trading panel wired to our broker. TV passes a host with
-        // factory.createWatchedValue() that the broker needs to wire up the
-        // account summary WatchedValue fields.
         broker_factory: (host: Parameters<typeof createBroker>[0]) => {
-          brokerRef = createBroker(host, () => {
-            // onUpdate — TV will refetch positions/orders on next poll
-          });
+          brokerRef = createBroker(host, () => {});
           return brokerRef;
         },
         broker_config: {
@@ -86,17 +105,9 @@ export default function TVPlatform({ symbol }: Props) {
           },
         },
 
-        // Features
-        enabled_features: [
-          "use_localstorage_for_settings",
-          "side_toolbar_in_fullscreen_mode",
-        ],
-        disabled_features: [
-          "header_symbol_search",   // we drive symbol from our watchlist
-          "header_compare",
-        ],
+        enabled_features: ["side_toolbar_in_fullscreen_mode"],
+        disabled_features: DISABLED_HEADER_FEATURES,
 
-        // Sizing — fill the container
         autosize: true,
         fullscreen: false,
       });
@@ -104,18 +115,15 @@ export default function TVPlatform({ symbol }: Props) {
       widget.onChartReady(() => {
         brokerRef?.connect();
         setTVWidget(widget);
-        // Replay any persisted AI-drawn shapes for this (symbol, resolution).
         recreateDrawingsForChart();
-        // Re-replay on symbol change so swapping the chart swaps the drawings.
         try {
           const sub = widget.activeChart().onSymbolChanged();
-          const handler = () => {
+          sub.subscribe(null, () => {
             clearEntityIds();
             recreateDrawingsForChart();
-          };
-          sub.subscribe(null, handler);
+          });
         } catch {
-          // Older TV builds may not expose onSymbolChanged; non-fatal.
+          // older builds
         }
       });
 
@@ -132,23 +140,37 @@ export default function TVPlatform({ symbol }: Props) {
       widgetRef.current?.remove();
       widgetRef.current = null;
     };
-  }, []); // mount once
+    // Re-mount on theme switch — `changeTheme` is unavailable on this
+    // bundled TV build, so the cleanest re-skin is a full remount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [themeKey]);
 
-  // When the symbol changes externally (watchlist click), tell TV to switch
+  // Push external symbol changes (watchlist / cmd-bar Open-in-workspace)
+  // into the running widget.
   useEffect(() => {
     if (!widgetRef.current || !symbol) return;
-    // TV widget exposes activeChart() after onChartReady; safe to call after mount
     try {
       widgetRef.current.activeChart().setSymbol(symbol);
     } catch {
-      // widget not ready yet — symbol passed as default above, ignore
+      /* widget not ready */
     }
   }, [symbol]);
 
   return (
-    <div
-      ref={containerRef}
-      style={{ width: "100%", height: "calc(100vh - 60px)" }}
-    />
+    <div className="flex flex-col gap-2" style={{ width: "100%" }}>
+      <ChartTopBar symbol={symbol || "AAPL"} />
+      <IndicatorPillsRow />
+      <div
+        ref={containerRef}
+        style={{
+          width: "100%",
+          height: "calc(100vh - 200px)",
+          minHeight: 400,
+          borderRadius: "var(--r-lg)",
+          overflow: "hidden",
+          border: "1px solid var(--border)",
+        }}
+      />
+    </div>
   );
 }
