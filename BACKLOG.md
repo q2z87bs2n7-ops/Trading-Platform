@@ -38,15 +38,12 @@
   market/limit/stop only. Wire `bracket` order type to Alpaca's
   `order_class=bracket` with `take_profit` / `stop_loss` legs. Same
   hook would extend `useOrderTicket` and surface bracket fields in
-  `OrderSheet` / `OrderTicketRail`.
-- **Replace / modify order** — TV calls `modifyOrder(orderId, data)` when
-  a user drags a price line; `tv-broker.ts` has no `modifyOrder` method.
-  Wire to `PATCH /api/orders/{id}`.
-- **Mobile chart-mode UX** — at `<lg` the `OrderTicketRail` is hidden
-  and at `<xl` the `ChartWatchlist` is hidden. Users fall back to ⌘K
-  for order entry / symbol switching, which works but is one extra
-  tap. A bottom-sheet ticket and a quick-pick watchlist drawer would
-  close the gap.
+  `OrderSheet`.
+- **Replace / modify order from TV price-line drag** — `ModifyOrderCard`
+  ships for the Orders blotter (wired via `PATCH /api/orders/{id}`),
+  but TV's `modifyOrder(orderId, data)` (called when a user drags an
+  open-order price line on the chart) is not wired in `tv-broker.ts`
+  yet. Hook it to the same endpoint.
 - **Positions strip mobile layout** — the 6-column `gridTemplateColumns`
   template compresses below ~720px. Functional but visually cramped;
   a separate two-row mobile template would read better.

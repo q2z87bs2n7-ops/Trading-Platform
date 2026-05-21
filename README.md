@@ -19,10 +19,10 @@ A three-pill header toggle switches between UI modes:
   order ticket.
 - **Chart** — full TradingView Charting Library terminal wrapped in a
   custom Calm chrome: own top toolbar with TF / chart-type / indicator
-  popovers, narrow watchlist on the left, persistent order ticket rail
-  on the right, and a tabbed Positions / Orders / Activity blotter below.
-  Includes an optional **ChartBot side panel** (violet · AI chat — see
-  *AI chat* below).
+  popovers, TV's native drawing rail on the left (themed), and a tabbed
+  Positions / Orders / Activity blotter below. Order entry is the same
+  floating **TradeBar** pill used in Portfolio. Includes an optional
+  **ChartBot side panel** (violet · AI chat — see *AI chat* below).
 
 A **⌘K command bar** (centered modal, teal accent) is available from
 every mode — press `⌘K` (or `Ctrl+K`), or click the "Ask anything" pill
@@ -181,7 +181,7 @@ paid Alpaca data plan for the full consolidated tape.
 - Default watchlist symbols are configurable via `DEFAULT_SYMBOLS` in `.env`.
 - Browser state is in `localStorage`: `platform_mode` (discover /
   portfolio / chart, with one-shot migration from legacy values),
-  `theme` (light / dark), `chartbot_collapsed`, `chartbot_session`
-  (256 KB byte budget — oldest user+assistant pairs drop once the
-  budget is exceeded), `ai_drawings_v1` (per-symbol drawing UUIDs
-  replayed on chart load), `chart_blotter_collapsed`.
+  `theme` (light / dark), `chartbot_session` (256 KB byte budget —
+  oldest user+assistant pairs drop once the budget is exceeded),
+  `ai_drawings_v1` (per-symbol drawing UUIDs replayed on chart load),
+  `chart_blotter_collapsed`, `app_settings_v1`.
