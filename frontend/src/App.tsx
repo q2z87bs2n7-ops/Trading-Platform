@@ -213,8 +213,9 @@ export default function App() {
             <SettingsMenu />
           </div>
         </div>
-        {/* Status ribbon — portfolio mode only (UI-04) */}
-        {mode === "portfolio" && <TopBar />}
+        {/* Status ribbon — Portfolio + Chart. Discover keeps the nav
+           clean; the account context is already in the Discover hero. */}
+        {(mode === "portfolio" || mode === "chart") && <TopBar />}
       </header>
       {/* Discover — movers, most-active, news. Hides TopBar like Chart mode. */}
       {mode === "discover" && <Tools selected={selected} onSelect={setSelected} />}

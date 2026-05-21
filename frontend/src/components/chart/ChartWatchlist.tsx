@@ -38,14 +38,12 @@ export default function ChartWatchlist({ selected, onSelect }: Props) {
 
   return (
     <aside
-      className="flex flex-col"
+      className="flex flex-col w-full h-full"
       style={{
         background: "var(--panel)",
         border: "1px solid var(--border)",
         borderRadius: "var(--r-lg)",
         boxShadow: "var(--shadow-sm)",
-        width: 180,
-        minWidth: 180,
         overflow: "hidden",
       }}
     >

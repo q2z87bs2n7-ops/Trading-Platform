@@ -24,6 +24,7 @@ import IndicatorPillsRow from "./chart/IndicatorPillsRow";
 import ChartWatchlist from "./chart/ChartWatchlist";
 import OrderTicketRail from "./chart/OrderTicketRail";
 import ChartBlotter from "./chart/ChartBlotter";
+import TradeBar from "./trade/TradeBar";
 
 declare const TradingView: {
   widget: new (config: Record<string, unknown>) => TVWidgetInstance;
@@ -36,10 +37,14 @@ interface Props {
 
 // Header items TV would otherwise render — we replace each with our own
 // ChartTopBar button so the chrome reads as a single, consistent toolbar.
-// Also keep the right widgetbar (object tree, data window, …) collapsed
-// on launch — the button stays in the toolbar so a user can expand it,
-// it just doesn't take up the chart's horizontal real estate by default.
+// We also disable TV's native Account Manager / Order Panel / on-chart
+// trading notifications: the broker stays wired so price-line clicks
+// open *our* OrderTicketRail (lg+) or the TradeBar OrderSheet (below lg),
+// and trade activity surfaces in our toast system + ChartBlotter. Right
+// widgetbar (object tree, data window) starts collapsed but its button
+// stays visible.
 const DISABLED_HEADER_FEATURES = [
+  // Header
   "header_widget",
   "header_resolutions",
   "header_chart_type",
@@ -51,6 +56,14 @@ const DISABLED_HEADER_FEATURES = [
   "header_undo_redo",
   "header_symbol_search",
   "use_localstorage_for_settings",
+  // TV-native trading UI — we render our own end-to-end.
+  "trading_account_manager",
+  "open_account_manager",
+  "order_panel",
+  "show_order_panel_on_start",
+  "trading_notifications",
+  "show_trading_notifications_history",
+  // Right widgetbar starts collapsed (object tree, data window).
   "show_right_widgets_panel_by_default",
 ];
 
@@ -63,6 +76,18 @@ export default function TVPlatform({ symbol, onSymbolChange }: Props) {
   // when the user toggles themes. `themeKey` is the dependency.
   const [themeKey, setThemeKey] = useState(theme);
   useEffect(() => setThemeKey(theme), [theme]);
+
+  // Watchlist drawer state — only used below xl (inline rail above xl).
+  const [watchlistOpen, setWatchlistOpen] = useState(false);
+  // ESC closes the drawer.
+  useEffect(() => {
+    if (!watchlistOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setWatchlistOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [watchlistOpen]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -167,13 +192,17 @@ export default function TVPlatform({ symbol, onSymbolChange }: Props) {
 
   return (
     <div className="flex flex-col gap-2" style={{ width: "100%" }}>
-      <ChartTopBar symbol={symbol || "AAPL"} />
+      <ChartTopBar
+        symbol={symbol || "AAPL"}
+        onWatchlistOpen={() => setWatchlistOpen(true)}
+      />
       <IndicatorPillsRow />
       <div
         className="flex flex-col xl:flex-row gap-2"
         style={{ width: "100%" }}
       >
-        <div className="hidden xl:block">
+        {/* Inline watchlist — xl+ only. Below xl it lives in the drawer. */}
+        <div className="hidden xl:block" style={{ width: 180, minWidth: 180 }}>
           <ChartWatchlist
             selected={symbol}
             onSelect={(s) => selectSym(s)}
@@ -191,11 +220,83 @@ export default function TVPlatform({ symbol, onSymbolChange }: Props) {
             overflow: "hidden",
           }}
         />
+        {/* Inline order ticket — lg+ only. Below lg the TradeBar below
+           takes over (same surface Discover + Portfolio use). */}
         <div className="hidden lg:block">
           <OrderTicketRail symbol={symbol || "AAPL"} />
         </div>
       </div>
       <ChartBlotter onSymbolSelect={(s) => selectSym(s)} />
+
+      {/* Mobile / tablet trade surface — same TradeBar + OrderSheet the
+         other modes use. Hidden at lg+ where the inline rail is shown. */}
+      <div className="lg:hidden">
+        <TradeBar symbol={symbol || "AAPL"} />
+      </div>
+
+      {/* Watchlist drawer — visible below xl when the toolbar button is
+         tapped. ESC + backdrop click + selecting a symbol all close it. */}
+      {watchlistOpen && (
+        <div
+          role="dialog"
+          aria-modal
+          className="xl:hidden fixed inset-0 z-40"
+          style={{
+            background: "rgba(20, 22, 28, 0.45)",
+            backdropFilter: "blur(4px)",
+          }}
+          onClick={() => setWatchlistOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="h-full flex flex-col"
+            style={{
+              width: "min(280px, 90vw)",
+              animation: "wl-in 180ms ease",
+            }}
+          >
+            <style>{`@keyframes wl-in{from{transform:translateX(-20px);opacity:0}to{transform:translateX(0);opacity:1}}`}</style>
+            <div
+              className="flex items-center justify-between px-3 py-2"
+              style={{
+                background: "var(--panel)",
+                borderBottom: "1px solid var(--hairline)",
+              }}
+            >
+              <span
+                className="text-[12px] uppercase font-semibold"
+                style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
+              >
+                Watchlist
+              </span>
+              <button
+                type="button"
+                onClick={() => setWatchlistOpen(false)}
+                aria-label="Close watchlist"
+                className="cursor-pointer border-0 text-[13px] grid place-items-center"
+                style={{
+                  background: "var(--panel-2)",
+                  color: "var(--text-2)",
+                  width: 26,
+                  height: 26,
+                  borderRadius: 6,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex-1 min-h-0">
+              <ChartWatchlist
+                selected={symbol}
+                onSelect={(s) => {
+                  selectSym(s);
+                  setWatchlistOpen(false);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
