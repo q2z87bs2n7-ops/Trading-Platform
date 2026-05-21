@@ -1,6 +1,12 @@
-import { useClosePosition, useCloseAllPositions, usePositions } from "../data/hooks";
+import { useState } from "react";
+
+import { useCloseAllPositions, usePositions } from "../data/hooks";
+import { showToast } from "../lib/toast";
 import type { Position } from "../types";
 import ErrorBanner from "./ErrorBanner";
+import ClosePositionCard from "./trade/ClosePositionCard";
+import ConfirmCard from "./trade/ConfirmCard";
+import OrderSheet from "./trade/OrderSheet";
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD" });
@@ -48,13 +54,11 @@ function SkeletonCard() {
 function StripRow({
   p,
   onSelect,
-  onClose,
-  closing,
+  onCloseClick,
 }: {
   p: Position;
   onSelect?: (s: string) => void;
-  onClose: (sym: string, qty: number) => void;
-  closing: boolean;
+  onCloseClick: (p: Position) => void;
 }) {
   const dayUp = p.change_today >= 0;
   const plUp = p.unrealized_pl >= 0;
@@ -127,11 +131,9 @@ function StripRow({
       </div>
       <button
         type="button"
-        disabled={closing}
         onClick={(e) => {
           e.stopPropagation();
-          if (window.confirm(`Close ${p.symbol} (${p.qty})?`))
-            onClose(p.symbol, p.qty);
+          onCloseClick(p);
         }}
         className="btn btn-mini"
       >
@@ -149,18 +151,22 @@ export default function Positions({
   onSelect?: (symbol: string) => void;
 } = {}) {
   const { data, error, isPending } = usePositions();
-  const close = useClosePosition();
   const closeAll = useCloseAllPositions();
   const rows = data?.positions;
+
+  // Both cards open from the strip variant. closingPos drives the
+  // ClosePositionCard; customizingPos drives the follow-on OrderSheet
+  // pre-filled at side=sell, qty=position.qty.
+  const [closingPos, setClosingPos] = useState<Position | null>(null);
+  const [customizingPos, setCustomizingPos] = useState<Position | null>(null);
+  const [confirmCloseAll, setConfirmCloseAll] = useState(false);
 
   if (variant === "strip") {
     return (
       <div className="flex flex-col gap-2">
         {error && <ErrorBanner message={error.message} />}
-        {(close.error || closeAll.error) && (
-          <ErrorBanner
-            message={((close.error || closeAll.error) as Error).message}
-          />
+        {closeAll.error && (
+          <ErrorBanner message={(closeAll.error as Error).message} />
         )}
         {isPending && (
           <>
@@ -189,21 +195,59 @@ export default function Positions({
               key={p.symbol}
               p={p}
               onSelect={onSelect}
-              closing={close.isPending}
-              onClose={(s) => close.mutate(s)}
+              onCloseClick={setClosingPos}
             />
           ))}
         {rows && rows.length > 1 && (
           <button
             type="button"
             disabled={closeAll.isPending}
-            onClick={() =>
-              window.confirm("Close ALL open positions?") && closeAll.mutate()
-            }
+            onClick={() => setConfirmCloseAll(true)}
             className="self-end btn btn-mini mt-1"
           >
             Close all
           </button>
+        )}
+
+        {closingPos && (
+          <ClosePositionCard
+            open
+            position={closingPos}
+            onClose={() => setClosingPos(null)}
+            onCustomize={() => setCustomizingPos(closingPos)}
+          />
+        )}
+        {customizingPos && (
+          <OrderSheet
+            open
+            symbol={customizingPos.symbol}
+            defaultSide="sell"
+            defaultQty={customizingPos.qty}
+            onClose={() => setCustomizingPos(null)}
+          />
+        )}
+        {confirmCloseAll && (
+          <ConfirmCard
+            title="Close all open positions?"
+            body={`This will submit a market sell for each of your ${rows?.length ?? 0} open positions.`}
+            confirmLabel="Close all positions"
+            destructive
+            pending={closeAll.isPending}
+            onConfirm={() => {
+              closeAll.mutate(undefined, {
+                onSuccess: () => {
+                  setConfirmCloseAll(false);
+                  showToast("All positions: sell submitted", "success");
+                },
+                onError: (e) =>
+                  showToast(
+                    `Couldn't close all: ${(e as Error).message}`,
+                    "error",
+                  ),
+              });
+            }}
+            onCancel={() => setConfirmCloseAll(false)}
+          />
         )}
       </div>
     );
@@ -221,9 +265,7 @@ export default function Positions({
             className="btn btn-mini"
             type="button"
             disabled={closeAll.isPending}
-            onClick={() =>
-              window.confirm("Close ALL open positions?") && closeAll.mutate()
-            }
+            onClick={() => setConfirmCloseAll(true)}
           >
             close all
           </button>
@@ -291,11 +333,9 @@ export default function Positions({
                         <button
                           className="btn btn-mini"
                           type="button"
-                          disabled={close.isPending}
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (window.confirm(`Close ${p.symbol} (${p.qty})?`))
-                              close.mutate(p.symbol);
+                            setClosingPos(p);
                           }}
                         >
                           close
@@ -307,6 +347,47 @@ export default function Positions({
             </tbody>
           </table>
         </div>
+      )}
+
+      {closingPos && (
+        <ClosePositionCard
+          open
+          position={closingPos}
+          onClose={() => setClosingPos(null)}
+          onCustomize={() => setCustomizingPos(closingPos)}
+        />
+      )}
+      {customizingPos && (
+        <OrderSheet
+          open
+          symbol={customizingPos.symbol}
+          defaultSide="sell"
+          defaultQty={customizingPos.qty}
+          onClose={() => setCustomizingPos(null)}
+        />
+      )}
+      {confirmCloseAll && (
+        <ConfirmCard
+          title="Close all open positions?"
+          body={`This will submit a market sell for each of your ${rows?.length ?? 0} open positions.`}
+          confirmLabel="Close all positions"
+          destructive
+          pending={closeAll.isPending}
+          onConfirm={() => {
+            closeAll.mutate(undefined, {
+              onSuccess: () => {
+                setConfirmCloseAll(false);
+                showToast("All positions: sell submitted", "success");
+              },
+              onError: (e) =>
+                showToast(
+                  `Couldn't close all: ${(e as Error).message}`,
+                  "error",
+                ),
+            });
+          }}
+          onCancel={() => setConfirmCloseAll(false)}
+        />
       )}
     </div>
   );

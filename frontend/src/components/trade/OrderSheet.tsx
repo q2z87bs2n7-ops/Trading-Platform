@@ -34,6 +34,7 @@ interface Props {
   open: boolean;
   symbol: string;
   defaultSide?: "buy" | "sell";
+  defaultQty?: number;
   onClose: () => void;
 }
 
@@ -147,6 +148,7 @@ export default function OrderSheet({
   open,
   symbol,
   defaultSide = "buy",
+  defaultQty,
   onClose,
 }: Props) {
   const t = useOrderTicket(symbol);
@@ -157,6 +159,7 @@ export default function OrderSheet({
     if (!open) return;
     t.setSymbol(symbol);
     t.setSide(defaultSide);
+    if (defaultQty != null) t.setQty(defaultQty);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 

@@ -1,14 +1,12 @@
 import { useState } from "react";
 
-import {
-  useCancelAllOrders,
-  useCancelOrder,
-  useOrders,
-  useReplaceOrder,
-} from "../data/hooks";
+import { useCancelAllOrders, useCancelOrder, useOrders } from "../data/hooks";
+import { showToast } from "../lib/toast";
 import type { Order } from "../types";
 import ErrorBanner from "./ErrorBanner";
 import Pill from "./Pill";
+import ConfirmCard from "./trade/ConfirmCard";
+import ModifyOrderCard from "./trade/ModifyOrderCard";
 
 // Statuses past which an order can no longer be cancelled/replaced.
 const TERMINAL = new Set([
@@ -20,7 +18,10 @@ const TERMINAL = new Set([
   "done_for_day",
   "replaced",
 ]);
-const live = (o: Order) => !TERMINAL.has(o.status.toLowerCase());
+// Alpaca occasionally returns the Python repr ("OrderStatus.CANCELED")
+// instead of the bare enum tail — strip the prefix before the membership
+// check so cancelled / filled orders don't get an ✕ button.
+const live = (o: Order) => !TERMINAL.has(enumTail(o.status));
 
 const STATUSES = ["all", "open", "closed"] as const;
 type StatusFilter = (typeof STATUSES)[number];
@@ -119,73 +120,6 @@ function statusDetail(o: Order): string | null {
   return null;
 }
 
-function ReplaceRow({ order }: { order: Order }) {
-  const replace = useReplaceOrder();
-  const [open, setOpen] = useState(false);
-  const [qty, setQty] = useState<number | undefined>(order.qty ?? undefined);
-  const [limit, setLimit] = useState<number | undefined>(
-    order.limit_price ?? undefined,
-  );
-
-  if (!open)
-    return (
-      <button
-        className="btn btn-mini"
-        onClick={() => setOpen(true)}
-        type="button"
-      >
-        ✎
-      </button>
-    );
-
-  return (
-    <span className="inline-flex items-center gap-1">
-      <input
-        className="w-[70px] px-1.5 py-0.5"
-        type="number"
-        step="any"
-        min={0}
-        value={qty ?? ""}
-        placeholder="qty"
-        onChange={(e) =>
-          setQty(e.target.value ? Number(e.target.value) : undefined)
-        }
-      />
-      <input
-        className="w-[70px] px-1.5 py-0.5"
-        type="number"
-        step="any"
-        min={0}
-        value={limit ?? ""}
-        placeholder="limit"
-        onChange={(e) =>
-          setLimit(e.target.value ? Number(e.target.value) : undefined)
-        }
-      />
-      <button
-        className="btn btn-mini"
-        type="button"
-        disabled={replace.isPending}
-        onClick={() =>
-          replace.mutate(
-            { id: order.id, input: { qty, limit_price: limit } },
-            { onSuccess: () => setOpen(false) },
-          )
-        }
-      >
-        save
-      </button>
-      <button
-        className="btn btn-mini"
-        type="button"
-        onClick={() => setOpen(false)}
-      >
-        ✕
-      </button>
-    </span>
-  );
-}
-
 const dash = (s: string | number | null | undefined) =>
   s == null || s === "" ? (
     <span style={{ color: "var(--mute)" }}>—</span>
@@ -200,6 +134,12 @@ export default function Orders() {
   const cancelAll = useCancelAllOrders();
   const rows = data?.orders;
   const hasLive = !!rows?.some(live);
+
+  // Modify and cancel-all both open cards; canceling a single open
+  // order is a one-tap action (no confirm) since the ✕ is small and
+  // cancellation is recoverable by re-placing.
+  const [modifyingOrder, setModifyingOrder] = useState<Order | null>(null);
+  const [confirmCancelAll, setConfirmCancelAll] = useState(false);
 
   return (
     <div
@@ -239,9 +179,7 @@ export default function Orders() {
             className="btn btn-mini ml-auto"
             type="button"
             disabled={cancelAll.isPending}
-            onClick={() =>
-              window.confirm("Cancel ALL open orders?") && cancelAll.mutate()
-            }
+            onClick={() => setConfirmCancelAll(true)}
           >
             Cancel all
           </button>
@@ -433,12 +371,33 @@ export default function Orders() {
                       >
                         {live(o) && (
                           <span className="inline-flex items-center gap-2">
-                            <ReplaceRow order={o} />
+                            <button
+                              className="btn btn-mini"
+                              type="button"
+                              onClick={() => setModifyingOrder(o)}
+                              aria-label={`Modify ${o.symbol} order`}
+                            >
+                              ✎
+                            </button>
                             <button
                               className="btn btn-mini"
                               type="button"
                               disabled={cancel.isPending}
-                              onClick={() => cancel.mutate(o.id)}
+                              aria-label={`Cancel ${o.symbol} order`}
+                              onClick={() =>
+                                cancel.mutate(o.id, {
+                                  onSuccess: () =>
+                                    showToast(
+                                      `${o.symbol} order cancelled`,
+                                      "info",
+                                    ),
+                                  onError: (e) =>
+                                    showToast(
+                                      `Couldn't cancel ${o.symbol}: ${(e as Error).message}`,
+                                      "error",
+                                    ),
+                                })
+                              }
                             >
                               ✕
                             </button>
@@ -451,6 +410,37 @@ export default function Orders() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {modifyingOrder && (
+        <ModifyOrderCard
+          open
+          order={modifyingOrder}
+          onClose={() => setModifyingOrder(null)}
+        />
+      )}
+      {confirmCancelAll && (
+        <ConfirmCard
+          title="Cancel all open orders?"
+          body="This will cancel every working order in your blotter."
+          confirmLabel="Cancel all orders"
+          destructive
+          pending={cancelAll.isPending}
+          onConfirm={() => {
+            cancelAll.mutate(undefined, {
+              onSuccess: () => {
+                setConfirmCancelAll(false);
+                showToast("All open orders cancelled", "info");
+              },
+              onError: (e) =>
+                showToast(
+                  `Couldn't cancel all: ${(e as Error).message}`,
+                  "error",
+                ),
+            });
+          }}
+          onCancel={() => setConfirmCancelAll(false)}
+        />
       )}
     </div>
   );
