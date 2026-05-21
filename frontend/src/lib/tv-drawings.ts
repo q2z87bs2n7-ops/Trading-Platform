@@ -526,8 +526,20 @@ export function setChartType(type: string): void {
   requireChart().setChartType(code);
 }
 
-export function setChartVisibleRange(from: number, to: number): Promise<void> {
-  return requireChart().setVisibleRange({ from, to });
+export async function setChartVisibleRange(from: number, to: number): Promise<void> {
+  // setVisibleRange can still throw "Value is null" if the time scale hasn't
+  // finished indexing bars after a resolution change, even after the
+  // setResolution callback fires. Retry with backoff to cover that window.
+  const chart = requireChart();
+  for (let i = 0; i < 4; i++) {
+    try {
+      await chart.setVisibleRange({ from, to });
+      return;
+    } catch {
+      if (i === 3) throw new Error("setVisibleRange failed after retries: time scale not ready");
+      await new Promise(r => setTimeout(r, 250 * (i + 1)));
+    }
+  }
 }
 
 // --- Trading visualization (session-only; not persisted) --------------------
