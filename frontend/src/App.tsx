@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useConfig, useWatchlist } from "./data/hooks";
 import { useTheme } from "./hooks/useTheme";
-import OrderTicket from "./components/OrderTicket";
 import Positions from "./components/Positions";
 import Orders from "./components/Orders";
 import Activities from "./components/Activities";
@@ -11,6 +10,7 @@ import PortfolioHero from "./components/PortfolioHero";
 import SectionHeading from "./components/SectionHeading";
 import TVPlatform from "./components/TVPlatform";
 import ChatPanel from "./components/chat/ChatPanel";
+import TradeBar from "./components/trade/TradeBar";
 
 type PlatformMode = "discover" | "portfolio" | "chart";
 
@@ -230,9 +230,8 @@ export default function App() {
         </div>
       )}
 
-      {/* Portfolio (was Trading): hero + positions strip + open orders. The
-         inline OrderTicket card is a temporary trade entry surface — phase 5
-         replaces it with the floating TradeBar + OrderSheet. */}
+      {/* Portfolio: hero + positions strip + open orders + activity. Order
+         entry now comes from the floating TradeBar (mounted below). */}
       {mode === "portfolio" && (
         <div className="max-w-[1280px] mx-auto pt-2">
           <PortfolioHero />
@@ -243,12 +242,15 @@ export default function App() {
           <SectionHeading label="Open orders" />
           <Orders />
 
-          <SectionHeading label="New order" ctx="temporary · floating bar lands in phase 5" />
-          <OrderTicket symbol={selected} onSymbolChange={setSelected} />
-
           <SectionHeading label="Activity" />
           <Activities />
         </div>
+      )}
+
+      {/* Floating Buy/Sell bar — Discover + Portfolio only. Chart mode uses
+         the persistent OrderTicketRail (phase 8). */}
+      {(mode === "discover" || mode === "portfolio") && (
+        <TradeBar symbol={selected} />
       )}
     </div>
   );
