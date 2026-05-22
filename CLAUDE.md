@@ -36,7 +36,9 @@ real-time streaming.
 5. **Version every change** — root `VERSION` is the single source of
    truth (`X.Y.Z`). Each commit on a `claude/` branch bumps **Z**.
    Each promotion to `main` bumps **Y** and resets **Z** to 0, unless
-   the user explicitly asks otherwise. **X** is bumped manually.
+   the user explicitly asks otherwise. Minor hotfix commits made
+   directly on `main` (e.g. a one-line bug fix) bump **Z** by 1.
+   **X** is bumped manually.
    Backend reads `VERSION` at startup; frontend syncs to `package.json`
    via `npm run sync-version` (auto-run pre-build).
 6. **No rewrites** — targeted edits only.
