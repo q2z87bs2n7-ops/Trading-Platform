@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { postAiAsk, type AiAskResponse } from "../../../api";
 import { useSettings } from "../../../hooks/useSettings";
+import type { AssetClass } from "../../../lib/cmd-intent";
 import CmdResultCard from "../CmdResultCard";
 
 type OnAiResponse = (resp: AiAskResponse) => void;
@@ -28,7 +29,15 @@ function FallbackCard({ text }: { text: string }) {
   );
 }
 
-function AiAskCard({ text, onAiResponse }: { text: string; onAiResponse?: OnAiResponse }) {
+function AiAskCard({
+  text,
+  assetClass,
+  onAiResponse,
+}: {
+  text: string;
+  assetClass: AssetClass;
+  onAiResponse?: OnAiResponse;
+}) {
   const [resp, setResp] = useState<AiAskResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [pending, setPending] = useState(true);
@@ -38,7 +47,7 @@ function AiAskCard({ text, onAiResponse }: { text: string; onAiResponse?: OnAiRe
     setPending(true);
     setErr(null);
     setResp(null);
-    postAiAsk(text)
+    postAiAsk(text, [], assetClass)
       .then((r) => {
         if (cancelled) return;
         setResp(r);
@@ -53,7 +62,7 @@ function AiAskCard({ text, onAiResponse }: { text: string; onAiResponse?: OnAiRe
     return () => {
       cancelled = true;
     };
-  }, [text]);
+  }, [text, assetClass]);
 
   return (
     <CmdResultCard title="✦ AI" meta={text || "(empty)"}>
@@ -115,10 +124,18 @@ function AiAskCard({ text, onAiResponse }: { text: string; onAiResponse?: OnAiRe
 
 // Gate the fallback path on the AI setting at render time so toggling
 // the setting reflects immediately in the next Ask anything query.
-export function FallbackOrAiCard({ text, onAiResponse }: { text: string; onAiResponse?: OnAiResponse }) {
+export function FallbackOrAiCard({
+  text,
+  assetClass,
+  onAiResponse,
+}: {
+  text: string;
+  assetClass: AssetClass;
+  onAiResponse?: OnAiResponse;
+}) {
   const settings = useSettings();
   return settings.cmdbarAiEnabled ? (
-    <AiAskCard text={text} onAiResponse={onAiResponse} />
+    <AiAskCard text={text} assetClass={assetClass} onAiResponse={onAiResponse} />
   ) : (
     <FallbackCard text={text} />
   );

@@ -36,7 +36,7 @@ blue for Crypto). Both sides share the same three-pill mode toggle:
   Order entry is the same floating **TradeBar** pill. Includes an optional
   **ChartBot side panel** (violet · AI chat — see *AI chat* below).
 
-A **⌘K command bar** (centred modal, teal accent) is available from every
+The **Ask anything** bar (centred modal, teal accent) is available from every
 mode — press `⌘K` (or `Ctrl+K`), or click the "Ask anything" pill in the
 top nav. It is a local regex-based intent parser (no LLM, no Anthropic
 credits) that handles orders ("buy 50 AMD at market"), portfolio queries,
@@ -55,7 +55,7 @@ top nav; preference persists in `localStorage`.
   set (light + dark in oklch, Inter + IBM Plex Mono). Three modes —
   Discover, Portfolio, and Chart (the full Charting Library at
   `frontend/public/charting_library/` plus the violet ChartBot panel).
-  Cross-mode ⌘K command bar runs locally without any LLM call.
+  Cross-mode Ask anything bar runs locally without any LLM call.
 - **PWA:** Progressive Web App with service worker, offline support, and
   install capabilities. Smart caching strategies for API calls and charting
   library.
@@ -90,7 +90,7 @@ ANTHROPIC_API_KEY=sk-ant-...
 The panel lets you ask questions about your positions, request price data,
 and draw annotations directly on the chart via natural language.
 
-The **⌘K command bar** (teal accent, all modes) is a separate, purely
+The **Ask anything** bar (teal accent, all modes) is a separate, purely
 local intent parser — orders, portfolio queries, movers, news, charts.
 It works without any Anthropic key and costs nothing to run.
 

@@ -323,6 +323,8 @@ class AskRequest(BaseModel):
     # Optional prior turns (same Anthropic message shape) so multi-step
     # follow-ups in the same modal session can resolve.
     history: list[dict[str, Any]] = Field(default_factory=list)
+    # Active silo so the model steers to the right symbols / news / tools.
+    asset_class: Literal["stocks", "crypto"] | None = None
 
 
 class AskToolCall(BaseModel):
@@ -343,7 +345,16 @@ def ai_ask(req: AskRequest) -> AskResponse:
     client = anthropic.Anthropic(api_key=s.anthropic_api_key, timeout=60.0)
 
     now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    system = prompt.build_general_system(context=f"Current time: {now_utc}.")
+    context = f"Current time: {now_utc}."
+    if req.asset_class == "crypto":
+        context += (
+            " The user is in the CRYPTO silo: prefer crypto pair symbols like"
+            " BTC/USD or ETH/USD, use crypto/BTC news, and do NOT call"
+            " get_movers (Alpaca has no crypto screener)."
+        )
+    elif req.asset_class == "stocks":
+        context += " The user is in the STOCKS (US equities) silo."
+    system = prompt.build_general_system(context=context)
     tool_list = tools.read_only_tools(web_search=s.ai_web_search_enabled)
     messages = _trim_history(
         list(req.history) + [{"role": "user", "content": req.message}]

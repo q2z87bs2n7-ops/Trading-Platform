@@ -1,6 +1,7 @@
-import { useMovers } from "../../../data/hooks";
+import { useCryptoTickers, useMovers } from "../../../data/hooks";
+import type { AssetClass } from "../../../lib/cmd-intent";
 import { pct } from "../../../lib/format";
-import type { Mover } from "../../../types";
+import type { Mover, Snapshot } from "../../../types";
 import CmdResultCard from "../CmdResultCard";
 
 function MoversList({ title, rows }: { title: string; rows: Mover[] }) {
@@ -44,7 +45,58 @@ function MoversList({ title, rows }: { title: string; rows: Mover[] }) {
   );
 }
 
-export function MoversCard({ kind }: { kind: "gainers" | "losers" | "both" }) {
+type Kind = "gainers" | "losers" | "both";
+
+// Alpaca has no crypto screener, so derive movers from the crypto ticker
+// snapshots we already stream on the Crypto Discover page.
+function CryptoMoversCard({ kind }: { kind: Kind }) {
+  const tickers = useCryptoTickers();
+  const rows: Mover[] = (tickers.data?.tickers ?? [])
+    .map((t: Snapshot) => {
+      const last = t.last_price ?? 0;
+      const prev = t.prev_close ?? 0;
+      const pc = prev ? (last - prev) / prev : 0;
+      return {
+        symbol: t.symbol.replace(/\/USD$/, ""),
+        price: last,
+        change: last - prev,
+        percent_change: pc,
+      };
+    })
+    .filter((m) => m.price > 0)
+    .sort((a, b) => b.percent_change - a.percent_change);
+
+  if (!tickers.data) {
+    return (
+      <CmdResultCard title="Crypto movers">
+        <div className="text-[13px]" style={{ color: "var(--mute)" }}>
+          {tickers.error ? (tickers.error as Error).message : "Loading…"}
+        </div>
+      </CmdResultCard>
+    );
+  }
+
+  const gainers = rows.filter((m) => m.percent_change >= 0).slice(0, 8);
+  const losers = [...rows]
+    .filter((m) => m.percent_change < 0)
+    .sort((a, b) => a.percent_change - b.percent_change)
+    .slice(0, 8);
+
+  return (
+    <CmdResultCard title="Crypto movers" meta="from your crypto tickers">
+      <div className="flex flex-col gap-3">
+        {(kind === "gainers" || kind === "both") && (
+          <MoversList title="Gainers" rows={gainers} />
+        )}
+        {(kind === "losers" || kind === "both") && (
+          <MoversList title="Losers" rows={losers} />
+        )}
+      </div>
+    </CmdResultCard>
+  );
+}
+
+function StockMoversCard({ kind }: { kind: Kind }) {
   const movers = useMovers(8);
   if (!movers.data) {
     return (
@@ -66,5 +118,19 @@ export function MoversCard({ kind }: { kind: "gainers" | "losers" | "both" }) {
         )}
       </div>
     </CmdResultCard>
+  );
+}
+
+export function MoversCard({
+  kind,
+  assetClass,
+}: {
+  kind: Kind;
+  assetClass: AssetClass;
+}) {
+  return assetClass === "crypto" ? (
+    <CryptoMoversCard kind={kind} />
+  ) : (
+    <StockMoversCard kind={kind} />
   );
 }

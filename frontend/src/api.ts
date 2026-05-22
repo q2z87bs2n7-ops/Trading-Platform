@@ -159,8 +159,13 @@ export interface AiAskMessage {
 export const postAiAsk = (
   message: string,
   history: AiAskMessage[] = [],
+  assetClass?: "stocks" | "crypto",
 ): Promise<AiAskResponse> =>
-  sendJSON<AiAskResponse>("POST", "/api/ai/ask", { message, history });
+  sendJSON<AiAskResponse>("POST", "/api/ai/ask", {
+    message,
+    history,
+    asset_class: assetClass,
+  });
 
 export const getMarketNews = (limit = 20) =>
   getJSON<MarketNewsResponse>(`/api/market-news?limit=${limit}`);

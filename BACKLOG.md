@@ -23,7 +23,7 @@
   better as a dedicated surface (a calendar widget in Discover or a
   Markets-section item) than back in the status strip.
 
-## ⌘K command bar
+## Ask anything
 
 - **Modify / cancel-order intents.** `lib/cmd-intent.ts` returns
   `fallback` for "move my AAPL limit to 195" and "cancel order abc123".

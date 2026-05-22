@@ -87,23 +87,46 @@ const STOPWORDS = new Set([
   "YOUR",
 ]);
 
-function findSymbol(text: string): string | undefined {
-  // Tickers: 1–5 uppercase letters, optional .X (e.g. BRK.B). Take the
-  // first non-stopword match.
-  const matches = text.toUpperCase().match(/\b[A-Z]{1,5}(\.[A-Z])?\b/g);
-  if (!matches) return undefined;
-  return matches.find((m) => !STOPWORDS.has(m));
+export type AssetClass = "stocks" | "crypto";
+
+// Quote currencies in crypto pairs (BTC/USD) — never tickers on their own.
+const QUOTE_CCY = new Set(["USD", "USDT", "USDC"]);
+
+// Normalise a parsed symbol. Crypto pairs (with a slash) pass through; in the
+// crypto silo a bare coin ("BTC") becomes the USD pair ("BTC/USD") so the
+// order ticket / chart / datafeed treat it as crypto.
+function toSymbol(raw: string, assetClass?: AssetClass): string {
+  const up = raw.toUpperCase();
+  if (up.includes("/")) return up;
+  return assetClass === "crypto" ? `${up}/USD` : up;
 }
 
-// All non-stopword ticker candidates in the text, preserving order.
-// Exported so CmdBar can extract symbols from AI response text for
-// dynamic follow-up chips.
+function findSymbol(text: string, assetClass?: AssetClass): string | undefined {
+  const up = text.toUpperCase();
+  // A crypto pair (BTC/USD) wins outright.
+  const pair = up.match(/\b[A-Z]{2,5}\/[A-Z]{3,4}\b/);
+  if (pair) return pair[0];
+  // Tickers: 1–5 uppercase letters, optional .X (e.g. BRK.B). Skip stopwords
+  // and bare quote currencies. Take the first match.
+  const matches = up.match(/\b[A-Z]{1,5}(?:\.[A-Z])?\b/g);
+  const sym = matches?.find((m) => !STOPWORDS.has(m) && !QUOTE_CCY.has(m));
+  return sym ? toSymbol(sym, assetClass) : undefined;
+}
+
+// All ticker/pair candidates in the text, preserving order. Exported so
+// CmdBar can extract symbols from AI response text for dynamic follow-up chips.
 export function extractSymbols(text: string): string[] {
-  const matches = text.toUpperCase().match(/\b[A-Z]{1,5}(?:\.[A-Z])?\b/g) ?? [];
+  const up = text.toUpperCase();
   const seen = new Set<string>();
   const result: string[] = [];
-  for (const m of matches) {
-    if (!STOPWORDS.has(m) && !seen.has(m)) {
+  for (const m of up.match(/\b[A-Z]{2,5}\/[A-Z]{3,4}\b/g) ?? []) {
+    if (!seen.has(m)) {
+      seen.add(m);
+      result.push(m);
+    }
+  }
+  for (const m of up.match(/\b[A-Z]{1,5}(?:\.[A-Z])?\b/g) ?? []) {
+    if (!STOPWORDS.has(m) && !QUOTE_CCY.has(m) && !seen.has(m)) {
       seen.add(m);
       result.push(m);
     }
@@ -118,7 +141,7 @@ function parseQty(raw: string): number {
   return Number(s);
 }
 
-export function parseIntent(input: string): Intent {
+export function parseIntent(input: string, assetClass?: AssetClass): Intent {
   const text = input.trim();
   if (!text) return { type: "fallback", text };
   const lower = text.toLowerCase();
@@ -139,7 +162,7 @@ export function parseIntent(input: string): Intent {
   // "purchase" normalises to buy; "short" normalises to sell.
   // Qty accepts k/m suffix: "1k" → 1000, "2.5k" → 2500.
   const orderMatch = lower.match(
-    /\b(buy|sell|purchase|short)\s+(\d+(?:\.\d+)?[km]?)\s+([a-z]{1,5}(?:\.[a-z])?)\b(?:\s+(?:at\s+)?(market|\$?\d+(?:\.\d+)?))?/i,
+    /\b(buy|sell|purchase|short)\s+(\d+(?:\.\d+)?[km]?)\s+([a-z]{1,5}(?:\.[a-z])?(?:\/[a-z]{3,4})?)\b(?:\s+(?:at\s+)?(market|\$?\d+(?:\.\d+)?))?/i,
   );
   if (orderMatch) {
     const [, rawSide, rawQty, sym, tail] = orderMatch;
@@ -157,7 +180,7 @@ export function parseIntent(input: string): Intent {
       type: "order",
       side,
       qty: parseQty(rawQty),
-      symbol: sym.toUpperCase(),
+      symbol: toSymbol(sym, assetClass),
       price,
       otype: price != null ? "limit" : "market",
     };
@@ -166,18 +189,18 @@ export function parseIntent(input: string): Intent {
   // ── sell all [sym] → close ── "sell all TSLA", "sell everything TSLA"
   // Triggers when no explicit share count follows "sell all/everything".
   const sellAllMatch = lower.match(
-    /\bsell\s+(?:all|everything)\s+(?:my\s+)?([a-z]{1,5}(?:\.[a-z])?)\b/i,
+    /\bsell\s+(?:all|everything)\s+(?:my\s+)?([a-z]{1,5}(?:\.[a-z])?(?:\/[a-z]{3,4})?)\b/i,
   );
   if (sellAllMatch) {
-    return { type: "close", symbol: sellAllMatch[1].toUpperCase() };
+    return { type: "close", symbol: toSymbol(sellAllMatch[1], assetClass) };
   }
 
   // ── close ── "close TSLA", "close my AAPL position"
   const closeMatch = lower.match(
-    /\bclose\s+(?:my\s+|out\s+|all\s+)?([a-z]{1,5}(?:\.[a-z])?)\b/i,
+    /\bclose\s+(?:my\s+|out\s+|all\s+)?([a-z]{1,5}(?:\.[a-z])?(?:\/[a-z]{3,4})?)\b/i,
   );
   if (closeMatch) {
-    return { type: "close", symbol: closeMatch[1].toUpperCase() };
+    return { type: "close", symbol: toSymbol(closeMatch[1], assetClass) };
   }
 
   // ── portfolio ── any of "portfolio", "positions", "holdings", "book"
@@ -200,7 +223,7 @@ export function parseIntent(input: string): Intent {
 
   // ── news ──
   if (/\b(news|happening|headlines)\b/i.test(lower)) {
-    return { type: "news", symbol: findSymbol(text) };
+    return { type: "news", symbol: findSymbol(text, assetClass) };
   }
 
   // ── orders ── "orders" / "open orders" / "my orders"
@@ -210,22 +233,23 @@ export function parseIntent(input: string): Intent {
 
   // ── market summary ──
   if (
-    /\bmarket\s+summary\b/i.test(lower) ||
-    /\b(pull|show|get)\s+(?:latest\s+|my\s+)?(?:market\s+)?summary\b/i.test(lower) ||
-    /\b(daily|morning|midday|eod|end.of.day)\s+(summary|report|brief|update)\b/i.test(lower)
+    /\b(market|crypto)\s+summary\b/i.test(lower) ||
+    /\b(pull|show|get)\s+(?:latest\s+|my\s+)?(?:market\s+|crypto\s+)?summary\b/i.test(lower) ||
+    /\b(daily|morning|midday|eod|end.of.day|overnight|evening)\s+(summary|report|brief|update)\b/i.test(lower) ||
+    /^summary$/i.test(lower)
   ) {
     return { type: "market_summary" };
   }
 
-  // ── chart ── "AAPL" alone, "how's NVDA", "chart AAPL"
-  if (/^[a-z]{1,5}(\.[a-z])?$/i.test(text)) {
-    return { type: "chart", symbol: text.toUpperCase() };
+  // ── chart ── "AAPL" alone, "BTC/USD" alone, "how's NVDA", "chart AAPL"
+  if (/^[a-z]{1,5}(\.[a-z])?$/i.test(text) || /^[a-z]{2,5}\/[a-z]{3,4}$/i.test(text)) {
+    return { type: "chart", symbol: toSymbol(text, assetClass) };
   }
   const chartMatch =
-    text.match(/\bchart\s+(?:(?:my|the|our)\s+)?([a-z]{1,5}(?:\.[a-z])?)\b/i) ||
-    text.match(/\bhow(?:'s|s)?\s+(?:(?:my|the|our)\s+)?([a-z]{1,5}(?:\.[a-z])?)\b/i);
+    text.match(/\bchart\s+(?:(?:my|the|our)\s+)?([a-z]{1,5}(?:\.[a-z])?(?:\/[a-z]{3,4})?)\b/i) ||
+    text.match(/\bhow(?:'s|s)?\s+(?:(?:my|the|our)\s+)?([a-z]{1,5}(?:\.[a-z])?(?:\/[a-z]{3,4})?)\b/i);
   if (chartMatch) {
-    return { type: "chart", symbol: chartMatch[1].toUpperCase() };
+    return { type: "chart", symbol: toSymbol(chartMatch[1], assetClass) };
   }
 
   return { type: "fallback", text };

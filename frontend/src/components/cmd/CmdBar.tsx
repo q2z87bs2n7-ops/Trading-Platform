@@ -1,9 +1,14 @@
 import { useMemo, useEffect, useRef, useState } from "react";
 
 import type { AiAskResponse } from "../../api";
-import { parseIntent, extractSymbols, type Intent } from "../../lib/cmd-intent";
+import {
+  parseIntent,
+  extractSymbols,
+  type AssetClass,
+  type Intent,
+} from "../../lib/cmd-intent";
 import type { Position } from "../../types";
-import { usePositions, useWatchlist } from "../../data/hooks";
+import { useCryptoWatchlist, usePositions, useWatchlist } from "../../data/hooks";
 import { CmdResult } from "./cards";
 
 interface Turn {
@@ -12,26 +17,38 @@ interface Turn {
   intent: Intent;
 }
 
+// Display label for a symbol — strips the /USD quote off crypto pairs.
+const coin = (s: string) => (s.includes("/") ? s.split("/")[0] : s);
+
+const isCryptoPos = (p: Position) =>
+  p.asset_class === "crypto" || p.symbol.includes("/");
+
 function buildSuggestions(
   positions: Position[] | undefined,
   watchlist: string[] | undefined,
+  assetClass: AssetClass,
 ): string[] {
+  const crypto = assetClass === "crypto";
   const chips: string[] = [];
 
-  // Time-of-day aware opening chip (US Eastern).
-  const etHour = Number(
-    new Date().toLocaleString("en-US", {
-      hour: "numeric",
-      hour12: false,
-      timeZone: "America/New_York",
-    }),
-  );
-  if (etHour < 9 || (etHour === 9 && new Date().getMinutes() < 30)) {
-    chips.push("Pre-market movers");
-  } else if (etHour >= 16) {
-    chips.push("After-hours movers");
+  if (crypto) {
+    chips.push("Crypto summary");
   } else {
-    chips.push("Market summary");
+    // Time-of-day aware opening chip (US Eastern).
+    const etHour = Number(
+      new Date().toLocaleString("en-US", {
+        hour: "numeric",
+        hour12: false,
+        timeZone: "America/New_York",
+      }),
+    );
+    if (etHour < 9 || (etHour === 9 && new Date().getMinutes() < 30)) {
+      chips.push("Pre-market movers");
+    } else if (etHour >= 16) {
+      chips.push("After-hours movers");
+    } else {
+      chips.push("Market summary");
+    }
   }
 
   // Top 2 positions by absolute unrealised P/L.
@@ -39,22 +56,20 @@ function buildSuggestions(
     const sorted = [...positions].sort(
       (a, b) => Math.abs(b.unrealized_pl) - Math.abs(a.unrealized_pl),
     );
-    for (const p of sorted.slice(0, 2)) chips.push(`How's my ${p.symbol}?`);
+    for (const p of sorted.slice(0, 2)) chips.push(`How's my ${coin(p.symbol)}?`);
   }
 
   // Watchlist symbols not already represented via positions.
   const posSyms = new Set(positions?.map((p) => p.symbol) ?? []);
   for (const sym of (watchlist ?? []).filter((s) => !posSyms.has(s)).slice(0, 2)) {
-    chips.push(`News on ${sym}`);
+    chips.push(`News on ${coin(sym)}`);
   }
 
   // Fill remaining slots with generic chips.
-  for (const g of [
-    "Show me top gainers",
-    "What changed today?",
-    "Open orders",
-    "Buy 50 AMD at market",
-  ]) {
+  const generic = crypto
+    ? ["Top gainers", "What changed today?", "Open orders", "Buy 0.1 ETH"]
+    : ["Show me top gainers", "What changed today?", "Open orders", "Buy 50 AMD at market"];
+  for (const g of generic) {
     if (chips.length >= 7) break;
     chips.push(g);
   }
@@ -62,20 +77,26 @@ function buildSuggestions(
   return chips;
 }
 
-function buildFollowups(lastIntent: Intent | null, aiResp: AiAskResponse | null): string[] {
+function buildFollowups(
+  lastIntent: Intent | null,
+  aiResp: AiAskResponse | null,
+  assetClass: AssetClass,
+): string[] {
+  const summaryChip = assetClass === "crypto" ? "Crypto summary" : "Market summary";
+
   // For AI fallback turns: derive chips from the actual response content.
   if (lastIntent?.type === "fallback" && aiResp) {
     const chips: string[] = [];
     const toolNames = new Set(aiResp.tool_calls.filter((t) => t.ok).map((t) => t.name));
     const syms = extractSymbols(aiResp.text);
 
-    if (syms[0]) chips.push(`Chart ${syms[0]}`);
-    if (syms[1]) chips.push(`News on ${syms[1]}`);
+    if (syms[0]) chips.push(`Chart ${coin(syms[0])}`);
+    if (syms[1]) chips.push(`News on ${coin(syms[1])}`);
     if (toolNames.has("get_positions") || toolNames.has("get_account")) chips.push("Portfolio");
     if (toolNames.has("get_orders")) chips.push("Open orders");
     if (toolNames.has("get_movers")) chips.push("What changed today?");
 
-    for (const f of ["Top gainers", "Open orders", "Portfolio", "What changed today?"]) {
+    for (const f of ["Top gainers", "Open orders", "Portfolio", summaryChip]) {
       if (chips.length >= 4) break;
       if (!chips.includes(f)) chips.push(f);
     }
@@ -85,21 +106,21 @@ function buildFollowups(lastIntent: Intent | null, aiResp: AiAskResponse | null)
   // For structured intents: context-aware static chips.
   switch (lastIntent?.type) {
     case "order":
-      return ["Portfolio", `How's ${lastIntent.symbol}?`, "Open orders", "Top gainers"];
+      return ["Portfolio", `How's ${coin(lastIntent.symbol)}?`, "Open orders", "Top gainers"];
     case "close":
       return ["Portfolio", "Open orders", "What changed today?", "Top gainers"];
     case "portfolio":
-      return ["Open orders", "Top gainers", "Market summary", "What changed today?"];
+      return ["Open orders", "Top gainers", summaryChip, "What changed today?"];
     case "movers":
-      return ["Market summary", "Portfolio", "Open orders", "What changed today?"];
+      return [summaryChip, "Portfolio", "Open orders", "What changed today?"];
     case "news":
       return lastIntent.symbol
-        ? [`Chart ${lastIntent.symbol}`, "Top gainers", "Portfolio", "Open orders"]
-        : ["Market summary", "Top gainers", "Portfolio", "What changed today?"];
+        ? [`Chart ${coin(lastIntent.symbol)}`, "Top gainers", "Portfolio", "Open orders"]
+        : [summaryChip, "Top gainers", "Portfolio", "What changed today?"];
     case "orders":
-      return ["Portfolio", "Top gainers", "Market summary", "What changed today?"];
+      return ["Portfolio", "Top gainers", summaryChip, "What changed today?"];
     case "chart":
-      return [`News on ${lastIntent.symbol}`, "Portfolio", "Top gainers", "Open orders"];
+      return [`News on ${coin(lastIntent.symbol)}`, "Portfolio", "Top gainers", "Open orders"];
     case "market_summary":
       return ["Top gainers", "Portfolio", "Open orders", "What changed today?"];
     default:
@@ -109,11 +130,12 @@ function buildFollowups(lastIntent: Intent | null, aiResp: AiAskResponse | null)
 
 interface Props {
   open: boolean;
+  assetClass: AssetClass;
   onClose: () => void;
   onOpenInWorkspace: (symbol: string) => void;
 }
 
-export default function CmdBar({ open, onClose, onOpenInWorkspace }: Props) {
+export default function CmdBar({ open, assetClass, onClose, onOpenInWorkspace }: Props) {
   const [text, setText] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [lastAiResp, setLastAiResp] = useState<AiAskResponse | null>(null);
@@ -123,18 +145,29 @@ export default function CmdBar({ open, onClose, onOpenInWorkspace }: Props) {
 
   const { data: posData } = usePositions();
   const { data: wl } = useWatchlist();
+  const { data: cryptoWl } = useCryptoWatchlist();
+
+  const siloPositions = useMemo(
+    () =>
+      (posData?.positions ?? []).filter((p) =>
+        assetClass === "crypto" ? isCryptoPos(p) : !isCryptoPos(p),
+      ),
+    [posData, assetClass],
+  );
+  const siloWatchlist =
+    assetClass === "crypto" ? cryptoWl?.symbols : wl?.symbols;
 
   const suggestions = useMemo(
-    () => buildSuggestions(posData?.positions, wl?.symbols),
+    () => buildSuggestions(siloPositions, siloWatchlist, assetClass),
     // Recompute when data arrives or the modal reopens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [posData, wl, open],
+    [siloPositions, siloWatchlist, assetClass, open],
   );
 
   const lastTurn = turns[turns.length - 1];
   const followups = useMemo(
-    () => buildFollowups(lastTurn?.intent ?? null, lastAiResp),
-    [lastTurn?.id, lastAiResp],
+    () => buildFollowups(lastTurn?.intent ?? null, lastAiResp, assetClass),
+    [lastTurn?.id, lastAiResp, assetClass],
   );
 
   // Focus the textarea each time the modal opens; clear transcript on
@@ -186,7 +219,7 @@ export default function CmdBar({ open, onClose, onOpenInWorkspace }: Props) {
     setLastAiResp(null);
     setTurns((t) => [
       ...t,
-      { id: counter.current, query: trimmed, intent: parseIntent(trimmed) },
+      { id: counter.current, query: trimmed, intent: parseIntent(trimmed, assetClass) },
     ]);
     setText("");
     // Refocus so the user can keep typing follow-ups without re-clicking.
@@ -311,6 +344,7 @@ export default function CmdBar({ open, onClose, onOpenInWorkspace }: Props) {
                   </div>
                   <CmdResult
                     intent={turn.intent}
+                    assetClass={assetClass}
                     onClose={onClose}
                     onOpenInWorkspace={(sym) => {
                       onOpenInWorkspace(sym);

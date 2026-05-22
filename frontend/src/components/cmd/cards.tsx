@@ -1,5 +1,5 @@
 import type { AiAskResponse } from "../../api";
-import type { Intent } from "../../lib/cmd-intent";
+import type { AssetClass, Intent } from "../../lib/cmd-intent";
 import { ChartCard } from "./cards/ChartCard";
 import { CloseCard } from "./cards/CloseCard";
 import { FallbackOrAiCard } from "./cards/FallbackCard";
@@ -12,11 +12,13 @@ import { PortfolioCard } from "./cards/PortfolioCard";
 
 export function CmdResult({
   intent,
+  assetClass,
   onClose,
   onOpenInWorkspace,
   onAiResponse,
 }: {
   intent: Intent;
+  assetClass: AssetClass;
   onClose: () => void;
   onOpenInWorkspace: (symbol: string) => void;
   onAiResponse?: (resp: AiAskResponse) => void;
@@ -36,11 +38,11 @@ export function CmdResult({
     case "close":
       return <CloseCard symbol={intent.symbol} onDone={onClose} />;
     case "portfolio":
-      return <PortfolioCard />;
+      return <PortfolioCard assetClass={assetClass} />;
     case "movers":
-      return <MoversCard kind={intent.kind} />;
+      return <MoversCard kind={intent.kind} assetClass={assetClass} />;
     case "news":
-      return <NewsCard symbol={intent.symbol} />;
+      return <NewsCard symbol={intent.symbol} assetClass={assetClass} />;
     case "orders":
       return <OrdersCard />;
     case "chart":
@@ -51,8 +53,14 @@ export function CmdResult({
         />
       );
     case "market_summary":
-      return <MarketSummaryIntentCard />;
+      return <MarketSummaryIntentCard assetClass={assetClass} />;
     case "fallback":
-      return <FallbackOrAiCard text={intent.text} onAiResponse={onAiResponse} />;
+      return (
+        <FallbackOrAiCard
+          text={intent.text}
+          assetClass={assetClass}
+          onAiResponse={onAiResponse}
+        />
+      );
   }
 }

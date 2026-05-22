@@ -164,6 +164,7 @@ separate silos behind a shared account.
 | `chartbot_session` | `useChatSession` | `useChatSession` | Serialised turns + apiHistory, capped at 256 KB. |
 | `ai_drawings_v1` | `tv-drawings.ts` | `tv-drawings.ts` | Per-symbol drawing UUIDs replayed on chart load. |
 | `chart_blotter_collapsed` | `ChartBlotter` | `ChartBlotter` | `"1"` collapsed. |
+| `market_summary_v1` / `crypto_market_summary_v1` | `useMarketSummary` | `useMarketSummary` + Ask-anything summary card | Per-silo cached AI market summary (window, date, content). |
 | `app_settings_v1` | `lib/settings.ts` | `useSettings` + `SettingsMenu` | JSON-encoded `AppSettings`. Today: `cmdbarAiEnabled` (default `true`). |
 
 Watchlists are not in localStorage — server-side via `/api/watchlist`.
@@ -197,13 +198,26 @@ instant); **violet = real Claude API call** (Anthropic credits, slow).
 - **Ask anything module** (`components/cmd/`, all modes). Opened by the
   "Ask anything" pill or a global `Cmd+K` / `Ctrl+K` listener in
   `App.tsx`. `lib/cmd-intent.ts` runs a regex/keyword chain and
-  returns one of 8 typed intents (`order`, `close`, `portfolio`,
-  `movers`, `news`, `orders`, `chart`, `fallback`); each renders a
-  `CmdResultCard` composing existing hooks. `fallback` intents
+  returns one of 9 typed intents (`order`, `close`, `portfolio`,
+  `movers`, `news`, `orders`, `chart`, `market_summary`, `fallback`);
+  each renders a `CmdResultCard` composing existing hooks. **Silo-aware:**
+  `CmdBar` takes the active `assetClass`; `parseIntent(text, assetClass)`
+  recognises crypto pairs (`BTC/USD`) and normalises bare coins → `COIN/USD`
+  in the crypto silo, and the cards behave per silo (portfolio/news/movers
+  filter to the silo; crypto movers are derived client-side from the crypto
+  tickers since Alpaca has no crypto screener). `fallback` intents
   optionally POST to `/api/ai/ask` (gated by `cmdbarAiEnabled` in
   `app_settings_v1`, default on; trimmed tool set —
-  `read_only_tools()` in `backend/app/ai/tools.py`). Transcript is
+  `read_only_tools()` in `backend/app/ai/tools.py`; the active `asset_class`
+  is sent so the model steers to the right symbols/news). Transcript is
   session-only.
+- **AI market summary** (`hooks/useMarketSummary.ts` + `MarketSummaryCard`,
+  Discover hero). Auto-generates a per-window summary via `/api/ai/ask`
+  (real Claude call; same gating as above). Per silo: **stocks** uses US
+  market windows (open/midday/close EST) and US headlines; **crypto** uses
+  four 6-hour UTC windows and BTC/crypto news. Cached per silo
+  (`market_summary_v1` / `crypto_market_summary_v1`); the `market_summary`
+  intent card reads the matching cache.
 - **ChartBot side panel** (`components/chat/`, Chart mode only, gated
   by `AI_CHAT_ENABLED`). 380px violet right-edge panel. Hybrid
   tool-use loop in `backend/app/ai/router.py`: backend-executed read

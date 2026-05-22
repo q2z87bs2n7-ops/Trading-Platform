@@ -1,33 +1,67 @@
 import { useEffect, useRef, useState } from "react";
 
 import { postAiAsk } from "../api";
+import type { AssetClass } from "../lib/cmd-intent";
 
 export type SummaryWindow = "overnight" | "open" | "midday" | "close";
 
 export interface MarketSummaryCache {
   window: SummaryWindow;
-  dateStr: string; // YYYY-MM-DD in EST — detects day rollover
+  dateStr: string; // YYYY-MM-DD (EST for stocks, UTC for crypto) — day rollover
   content: string;
   generatedAt: number;
   dismissed: boolean;
 }
 
-const LS_KEY = "market_summary_v1";
+// Per-silo cache so the stocks and crypto summaries never clobber each other.
+function lsKey(assetClass: AssetClass): string {
+  return assetClass === "crypto"
+    ? "crypto_market_summary_v1"
+    : "market_summary_v1";
+}
 
-export const WINDOW_LABELS: Record<SummaryWindow, string> = {
+const STOCK_WINDOW_LABELS: Record<SummaryWindow, string> = {
   overnight: "Overnight Report",
   open: "Market Open Report",
   midday: "Midday Report",
   close: "Market Close Report",
 };
 
-function getEstDateStr(): string {
+// Crypto trades 24/7, so the windows are neutral UTC time-of-day buckets
+// rather than US market open/close.
+const CRYPTO_WINDOW_LABELS: Record<SummaryWindow, string> = {
+  overnight: "Overnight Crypto Update",
+  open: "Morning Crypto Update",
+  midday: "Midday Crypto Update",
+  close: "Evening Crypto Update",
+};
+
+export function windowLabel(w: SummaryWindow, assetClass: AssetClass): string {
+  return (assetClass === "crypto" ? CRYPTO_WINDOW_LABELS : STOCK_WINDOW_LABELS)[w];
+}
+
+function getDateStr(assetClass: AssetClass): string {
   return new Date().toLocaleDateString("en-CA", {
-    timeZone: "America/New_York",
+    timeZone: assetClass === "crypto" ? "UTC" : "America/New_York",
   });
 }
 
-export function getCurrentWindow(): SummaryWindow {
+export function getCurrentWindow(assetClass: AssetClass): SummaryWindow {
+  if (assetClass === "crypto") {
+    // Four fixed 6-hour UTC buckets (24/7 market, no open/close).
+    const h =
+      Number(
+        new Date().toLocaleTimeString("en-US", {
+          timeZone: "UTC",
+          hour12: false,
+          hour: "2-digit",
+        }),
+      ) % 24;
+    if (h < 6) return "overnight"; // 00:00–05:59 UTC
+    if (h < 12) return "open"; // 06:00–11:59 UTC
+    if (h < 18) return "midday"; // 12:00–17:59 UTC
+    return "close"; // 18:00–23:59 UTC
+  }
   const t = new Date().toLocaleTimeString("en-US", {
     timeZone: "America/New_York",
     hour12: false,
@@ -42,36 +76,40 @@ export function getCurrentWindow(): SummaryWindow {
   return "close"; // 16:30–23:59
 }
 
-function readCache(): MarketSummaryCache | null {
+function readCache(assetClass: AssetClass): MarketSummaryCache | null {
   try {
-    const raw = localStorage.getItem(LS_KEY);
+    const raw = localStorage.getItem(lsKey(assetClass));
     return raw ? (JSON.parse(raw) as MarketSummaryCache) : null;
   } catch {
     return null;
   }
 }
 
-export function writeMarketSummaryCache(c: MarketSummaryCache): void {
+export function writeMarketSummaryCache(
+  assetClass: AssetClass,
+  c: MarketSummaryCache,
+): void {
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify(c));
+    localStorage.setItem(lsKey(assetClass), JSON.stringify(c));
   } catch {
     // localStorage full or unavailable — fail silently
   }
 }
 
-export function readMarketSummaryCache(): MarketSummaryCache | null {
-  return readCache();
+export function readMarketSummaryCache(
+  assetClass: AssetClass,
+): MarketSummaryCache | null {
+  return readCache(assetClass);
 }
 
-const WINDOW_EXTRA: Record<SummaryWindow, string> = {
-  overnight:
-    " Include any notable after-hours price movements for holdings.",
+const STOCK_WINDOW_EXTRA: Record<SummaryWindow, string> = {
+  overnight: " Include any notable after-hours price movements for holdings.",
   open: " Note how the portfolio is positioned heading into today's session.",
   midday: "",
   close: " Summarise how the portfolio finished the day overall.",
 };
 
-function buildPrompt(w: SummaryWindow, watchlistSymbols: string[]): string {
+function buildStockPrompt(w: SummaryWindow, watchlistSymbols: string[]): string {
   const ctx: Record<SummaryWindow, string> = {
     overnight: "overnight / after-hours market update",
     open: "market open summary",
@@ -88,18 +126,54 @@ function buildPrompt(w: SummaryWindow, watchlistSymbols: string[]): string {
     ` Use get_orders with status=closed and limit=50 to find any symbols sold today that are no longer in current holdings; mention those briefly.` +
     wl +
     ` For the US market overview, call get_news without a symbol to pull real market headlines — summarise the key story in one sentence, naming major companies and indices. Do NOT use get_movers for this section.` +
-    WINDOW_EXTRA[w] +
+    STOCK_WINDOW_EXTRA[w] +
     ` Keep the entire response to 150–200 words. Write in plain prose, no markdown headers.`
   );
 }
 
-export function useMarketSummary(watchlistSymbols: string[]) {
-  const [cache, setCache] = useState<MarketSummaryCache | null>(readCache);
+function buildCryptoPrompt(w: SummaryWindow, watchlistSymbols: string[]): string {
+  const ctx: Record<SummaryWindow, string> = {
+    overnight: "overnight crypto market update",
+    open: "morning crypto market update",
+    midday: "midday crypto market check-in",
+    close: "evening crypto market wrap",
+  };
+  const wl =
+    watchlistSymbols.length > 0
+      ? ` Also briefly note the watchlist: ${watchlistSymbols.slice(0, 8).join(", ")} — get a snapshot for each and mention price and 24h change.`
+      : "";
+  return (
+    `Generate a brief ${ctx[w]} for a crypto portfolio.` +
+    ` Check open crypto positions with get_positions and show each holding's current price and 24h % change.` +
+    ` Use get_orders with status=closed and limit=50 to find any crypto pairs sold recently that are no longer held; mention those briefly.` +
+    wl +
+    ` For market context, call get_news with symbol BTC to pull real crypto headlines — summarise the key story in one sentence. Do NOT call get_movers (Alpaca has no crypto screener).` +
+    ` Keep the entire response to 150–200 words. Write in plain prose, no markdown headers.`
+  );
+}
+
+function buildPrompt(
+  w: SummaryWindow,
+  watchlistSymbols: string[],
+  assetClass: AssetClass,
+): string {
+  return assetClass === "crypto"
+    ? buildCryptoPrompt(w, watchlistSymbols)
+    : buildStockPrompt(w, watchlistSymbols);
+}
+
+export function useMarketSummary(
+  watchlistSymbols: string[],
+  assetClass: AssetClass = "stocks",
+) {
+  const [cache, setCache] = useState<MarketSummaryCache | null>(() =>
+    readCache(assetClass),
+  );
   const [isGenerating, setIsGenerating] = useState(false);
   const generatingRef = useRef(false);
 
-  const currentWindow = getCurrentWindow();
-  const currentDate = getEstDateStr();
+  const currentWindow = getCurrentWindow(assetClass);
+  const currentDate = getDateStr(assetClass);
 
   const isCurrent =
     cache !== null &&
@@ -110,11 +184,16 @@ export function useMarketSummary(watchlistSymbols: string[]) {
   const wlKey = watchlistSymbols.join(",");
 
   useEffect(() => {
+    // Re-read on silo switch so we show that silo's cache, not the prior one.
+    setCache(readCache(assetClass));
+  }, [assetClass]);
+
+  useEffect(() => {
     if (isCurrent || generatingRef.current) return;
     generatingRef.current = true;
     setIsGenerating(true);
 
-    postAiAsk(buildPrompt(currentWindow, watchlistSymbols), [])
+    postAiAsk(buildPrompt(currentWindow, watchlistSymbols, assetClass), [], assetClass)
       .then((res) => {
         const next: MarketSummaryCache = {
           window: currentWindow,
@@ -123,7 +202,7 @@ export function useMarketSummary(watchlistSymbols: string[]) {
           generatedAt: Date.now(),
           dismissed: false,
         };
-        writeMarketSummaryCache(next);
+        writeMarketSummaryCache(assetClass, next);
         setCache(next);
       })
       .catch(() => {
@@ -135,12 +214,12 @@ export function useMarketSummary(watchlistSymbols: string[]) {
       });
     // wlKey is the stable representation of watchlistSymbols
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCurrent, currentWindow, currentDate, wlKey]);
+  }, [isCurrent, currentWindow, currentDate, wlKey, assetClass]);
 
   function dismiss() {
     if (!cache) return;
     const updated = { ...cache, dismissed: true };
-    writeMarketSummaryCache(updated);
+    writeMarketSummaryCache(assetClass, updated);
     setCache(updated);
   }
 
@@ -148,7 +227,7 @@ export function useMarketSummary(watchlistSymbols: string[]) {
     cache,
     isGenerating,
     dismiss,
-    windowLabel: WINDOW_LABELS[currentWindow],
+    windowLabel: windowLabel(currentWindow, assetClass),
     currentWindow,
   };
 }

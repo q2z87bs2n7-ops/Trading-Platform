@@ -320,6 +320,7 @@ export default function App() {
          and the global Cmd+K / Ctrl+K hotkey toggles it. */}
       <CmdBar
         open={cmdOpen}
+        assetClass={activeClass}
         onClose={() => setCmdOpen(false)}
         onOpenInWorkspace={(sym) => {
           setSelected(sym);

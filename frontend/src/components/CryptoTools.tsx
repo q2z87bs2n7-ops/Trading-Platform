@@ -19,8 +19,10 @@ import { ChartCard } from "./discover/ChartCard";
 import { NewsCard, NewsCardSkeleton } from "./discover/NewsCard";
 import { SparkCard, SparkCardSkeleton } from "./discover/SparkCard";
 import ErrorBanner from "./ErrorBanner";
+import MarketSummaryCard from "./MarketSummaryCard";
 import SectionHeading from "./SectionHeading";
 import { useNews } from "../data/hooks";
+import { useMarketSummary } from "../hooks/useMarketSummary";
 
 // Strip "/USD" suffix for compact display (BTC/USD → BTC).
 function coinLabel(symbol: string): string {
@@ -114,6 +116,7 @@ export default function CryptoTools({
   const removeFromWatchlist = useRemoveFromCryptoWatchlist();
   const wlSymbols = watchlist.data?.symbols ?? [];
   const snaps = useSnapshots(wlSymbols);
+  const marketSummary = useMarketSummary(wlSymbols, "crypto");
   // Crypto news: use Alpaca Benzinga feed filtered to BTC.
   const news = useNews("BTC", 8);
   const [wlInput, setWlInput] = useState("");
@@ -201,6 +204,14 @@ export default function CryptoTools({
         />
         <AllocationCard positions={cryptoPositions} />
       </div>
+
+      {/* AI crypto summary — auto-generated per 6-hour UTC window, dismissible */}
+      <MarketSummaryCard
+        cache={marketSummary.cache}
+        isGenerating={marketSummary.isGenerating}
+        windowLabel={marketSummary.windowLabel}
+        onDismiss={marketSummary.dismiss}
+      />
 
       {/* Crypto Watchlist */}
       <SectionHeading

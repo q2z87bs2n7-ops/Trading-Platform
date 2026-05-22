@@ -1,4 +1,5 @@
 import { useMarketNews, useNews } from "../../../data/hooks";
+import type { AssetClass } from "../../../lib/cmd-intent";
 import { relTime } from "../../../lib/format";
 import CmdResultCard from "../CmdResultCard";
 
@@ -46,11 +47,14 @@ function NewsRow({
   );
 }
 
-function TickerNewsCard({ symbol }: { symbol: string }) {
-  const { data, error } = useNews(symbol, 10);
+function TickerNewsCard({ symbol, label }: { symbol: string; label: string }) {
+  // Alpaca's Benzinga feed keys off the bare ticker, so query the base coin
+  // for crypto pairs (BTC/USD → BTC).
+  const query = symbol.includes("/") ? symbol.split("/")[0] : symbol;
+  const { data, error } = useNews(query, 10);
   if (!data) {
     return (
-      <CmdResultCard title={`News · ${symbol}`}>
+      <CmdResultCard title={`News · ${label}`}>
         <div className="text-[13px]" style={{ color: "var(--mute)" }}>
           {error ? (error as Error).message : "Loading…"}
         </div>
@@ -59,10 +63,10 @@ function TickerNewsCard({ symbol }: { symbol: string }) {
   }
   const items = data.news.slice(0, 6);
   return (
-    <CmdResultCard title={`News · ${symbol}`} meta={`${items.length} items`}>
+    <CmdResultCard title={`News · ${label}`} meta={`${items.length} items`}>
       {items.length === 0 ? (
         <div className="text-[13px]" style={{ color: "var(--mute)" }}>
-          No recent Benzinga coverage for {symbol}.
+          No recent Benzinga coverage for {label}.
         </div>
       ) : (
         <div className="flex flex-col">
@@ -114,7 +118,20 @@ function MarketNewsCard() {
   );
 }
 
-export function NewsCard({ symbol }: { symbol?: string }) {
-  if (symbol) return <TickerNewsCard symbol={symbol} />;
+export function NewsCard({
+  symbol,
+  assetClass,
+}: {
+  symbol?: string;
+  assetClass: AssetClass;
+}) {
+  if (symbol) {
+    const label = symbol.includes("/") ? symbol.split("/")[0] : symbol;
+    return <TickerNewsCard symbol={symbol} label={label} />;
+  }
+  // No explicit symbol: crypto silo has no general headlines feed, so fall
+  // back to the BTC feed (same as the Crypto Discover page); stocks use the
+  // US market headlines feed.
+  if (assetClass === "crypto") return <TickerNewsCard symbol="BTC" label="Crypto · BTC" />;
   return <MarketNewsCard />;
 }

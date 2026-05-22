@@ -1,21 +1,26 @@
-import { useAccount, usePositions } from "../../../data/hooks";
+import type { AssetClass } from "../../../lib/cmd-intent";
+import { usePositions } from "../../../data/hooks";
 import { money } from "../../../lib/format";
+import type { Position } from "../../../types";
 import CmdResultCard from "../CmdResultCard";
 
-export function PortfolioCard() {
+const isCrypto = (p: Position) =>
+  p.asset_class === "crypto" || p.symbol.includes("/");
+
+export function PortfolioCard({ assetClass }: { assetClass: AssetClass }) {
   const positions = usePositions();
-  const account = useAccount();
-  const rows = positions.data?.positions || [];
+  const all = positions.data?.positions || [];
+  const rows = all.filter((p) =>
+    assetClass === "crypto" ? isCrypto(p) : !isCrypto(p),
+  );
   const total = rows.reduce((s, p) => s + p.market_value, 0);
+  const label = assetClass === "crypto" ? "Crypto" : "Stocks";
 
   return (
-    <CmdResultCard
-      title="Portfolio"
-      meta={account.data ? `Equity ${money(account.data.equity)}` : undefined}
-    >
+    <CmdResultCard title={`${label} portfolio`} meta={`Holdings ${money(total)}`}>
       {rows.length === 0 ? (
         <div className="text-[13px]" style={{ color: "var(--mute)" }}>
-          No open positions.
+          No open {label.toLowerCase()} positions.
         </div>
       ) : (
         <div className="flex flex-col">
