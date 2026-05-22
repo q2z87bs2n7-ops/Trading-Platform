@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 
-import { postAiAsk, type AiAskResponse } from "../../../api";
+import {
+  streamAiAsk,
+  type AiAskResponse,
+  type AiAskToolCall,
+} from "../../../api";
 import { useSettings } from "../../../hooks/useSettings";
 import CmdResultCard from "../CmdResultCard";
 
@@ -29,31 +33,56 @@ function FallbackCard({ text }: { text: string }) {
 }
 
 function AiAskCard({ text, onAiResponse }: { text: string; onAiResponse?: OnAiResponse }) {
-  const [resp, setResp] = useState<AiAskResponse | null>(null);
+  const [displayText, setDisplayText] = useState("");
+  const [toolCalls, setToolCalls] = useState<AiAskToolCall[]>([]);
   const [err, setErr] = useState<string | null>(null);
-  const [pending, setPending] = useState(true);
+  const [isDone, setIsDone] = useState(false);
+  const [backendStopped, setBackendStopped] = useState<"" | "max_iterations">("");
 
   useEffect(() => {
-    let cancelled = false;
-    setPending(true);
+    const controller = new AbortController();
+    setDisplayText("");
+    setToolCalls([]);
     setErr(null);
-    setResp(null);
-    postAiAsk(text)
-      .then((r) => {
-        if (cancelled) return;
-        setResp(r);
-        setPending(false);
-        onAiResponse?.(r);
-      })
-      .catch((e: Error) => {
-        if (cancelled) return;
-        setErr(e.message);
-        setPending(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+    setIsDone(false);
+    setBackendStopped("");
+
+    let accText = "";
+    const accCalls: AiAskToolCall[] = [];
+
+    (async () => {
+      try {
+        for await (const event of streamAiAsk(text, [], controller.signal)) {
+          if (event.type === "text") {
+            accText += event.delta;
+            setDisplayText(accText);
+          } else if (event.type === "tool_call") {
+            accCalls.push({ name: event.name, ok: event.ok });
+            setToolCalls([...accCalls]);
+          } else if (event.type === "done") {
+            setBackendStopped(event.backend_stopped);
+            setIsDone(true);
+            onAiResponse?.({
+              text: accText,
+              tool_calls: accCalls,
+              usage: null,
+              backend_stopped: event.backend_stopped,
+            });
+          } else if (event.type === "error") {
+            setErr(event.message);
+          }
+        }
+      } catch (e) {
+        if ((e as Error).name !== "AbortError") setErr((e as Error).message);
+      } finally {
+        setIsDone(true);
+      }
+    })();
+
+    return () => controller.abort();
   }, [text]);
+
+  const pending = !displayText && toolCalls.length === 0 && !err;
 
   return (
     <CmdResultCard title="✦ AI" meta={text || "(empty)"}>
@@ -62,52 +91,44 @@ function AiAskCard({ text, onAiResponse }: { text: string; onAiResponse?: OnAiRe
           Thinking…
         </div>
       )}
+      {toolCalls.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {toolCalls.map((tc, i) => (
+            <span
+              key={i}
+              className="font-mono text-[10.5px] px-1.5 py-0.5"
+              style={{
+                background: tc.ok ? "var(--accent-bg)" : "var(--neg-bg)",
+                color: tc.ok ? "var(--accent)" : "var(--neg)",
+                borderRadius: 4,
+              }}
+            >
+              {tc.ok ? "✓" : "✕"} {tc.name}
+            </span>
+          ))}
+        </div>
+      )}
       {err && (
         <div
           className="text-[12.5px] px-3 py-2"
-          style={{
-            background: "var(--neg-bg)",
-            color: "var(--neg)",
-            borderRadius: 6,
-          }}
+          style={{ background: "var(--neg-bg)", color: "var(--neg)", borderRadius: 6 }}
         >
           {err}
         </div>
       )}
-      {resp && (
-        <>
-          {resp.tool_calls.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {resp.tool_calls.map((tc, i) => (
-                <span
-                  key={i}
-                  className="font-mono text-[10.5px] px-1.5 py-0.5"
-                  style={{
-                    background: tc.ok ? "var(--accent-bg)" : "var(--neg-bg)",
-                    color: tc.ok ? "var(--accent)" : "var(--neg)",
-                    borderRadius: 4,
-                  }}
-                >
-                  {tc.ok ? "✓" : "✕"} {tc.name}
-                </span>
-              ))}
-            </div>
-          )}
-          <div
-            className="text-[13.5px] whitespace-pre-wrap leading-relaxed"
-            style={{ color: "var(--text)" }}
-          >
-            {resp.text || "(no response)"}
-          </div>
-          {resp.backend_stopped === "max_iterations" && (
-            <div
-              className="text-[11.5px] mt-2"
-              style={{ color: "var(--mute)" }}
-            >
-              Stopped after hitting the tool-use iteration cap.
-            </div>
-          )}
-        </>
+      {displayText && (
+        <div
+          className="text-[13.5px] whitespace-pre-wrap leading-relaxed"
+          style={{ color: "var(--text)" }}
+        >
+          {displayText}
+          {!isDone && <span className="opacity-50 animate-pulse">▌</span>}
+        </div>
+      )}
+      {backendStopped === "max_iterations" && (
+        <div className="text-[11.5px] mt-2" style={{ color: "var(--mute)" }}>
+          Stopped after hitting the tool-use iteration cap.
+        </div>
       )}
     </CmdResultCard>
   );

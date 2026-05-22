@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { postAiAsk } from "../api";
+import { streamAiAsk } from "../api";
 
 export type SummaryWindow = "overnight" | "open" | "midday" | "close";
 
@@ -96,6 +96,7 @@ function buildPrompt(w: SummaryWindow, watchlistSymbols: string[]): string {
 export function useMarketSummary(watchlistSymbols: string[]) {
   const [cache, setCache] = useState<MarketSummaryCache | null>(readCache);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [streamingContent, setStreamingContent] = useState("");
   const generatingRef = useRef(false);
 
   const currentWindow = getCurrentWindow();
@@ -113,26 +114,43 @@ export function useMarketSummary(watchlistSymbols: string[]) {
     if (isCurrent || generatingRef.current) return;
     generatingRef.current = true;
     setIsGenerating(true);
+    setStreamingContent("");
 
-    postAiAsk(buildPrompt(currentWindow, watchlistSymbols), [])
-      .then((res) => {
-        const next: MarketSummaryCache = {
-          window: currentWindow,
-          dateStr: currentDate,
-          content: res.text,
-          generatedAt: Date.now(),
-          dismissed: false,
-        };
-        writeMarketSummaryCache(next);
-        setCache(next);
-      })
-      .catch(() => {
+    const controller = new AbortController();
+    let accText = "";
+
+    (async () => {
+      try {
+        for await (const event of streamAiAsk(
+          buildPrompt(currentWindow, watchlistSymbols),
+          [],
+          controller.signal,
+        )) {
+          if (event.type === "text") {
+            accText += event.delta;
+            setStreamingContent(accText);
+          } else if (event.type === "done") {
+            const next: MarketSummaryCache = {
+              window: currentWindow,
+              dateStr: currentDate,
+              content: accText,
+              generatedAt: Date.now(),
+              dismissed: false,
+            };
+            writeMarketSummaryCache(next);
+            setCache(next);
+            setStreamingContent("");
+          }
+        }
+      } catch {
         // Auto-generation failure — silent; user not disturbed
-      })
-      .finally(() => {
+      } finally {
         setIsGenerating(false);
         generatingRef.current = false;
-      });
+      }
+    })();
+
+    return () => controller.abort();
     // wlKey is the stable representation of watchlistSymbols
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCurrent, currentWindow, currentDate, wlKey]);
@@ -147,6 +165,7 @@ export function useMarketSummary(watchlistSymbols: string[]) {
   return {
     cache,
     isGenerating,
+    streamingContent,
     dismiss,
     windowLabel: WINDOW_LABELS[currentWindow],
     currentWindow,

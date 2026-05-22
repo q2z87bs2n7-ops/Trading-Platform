@@ -11,6 +11,7 @@ function relTime(ts: number): string {
 interface Props {
   cache: MarketSummaryCache | null;
   isGenerating: boolean;
+  streamingContent: string;
   windowLabel: string;
   onDismiss: () => void;
 }
@@ -18,6 +19,7 @@ interface Props {
 export default function MarketSummaryCard({
   cache,
   isGenerating,
+  streamingContent,
   windowLabel,
   onDismiss,
 }: Props) {
@@ -62,14 +64,24 @@ export default function MarketSummaryCard({
       </div>
 
       {isGenerating ? (
-        <div className="flex flex-col gap-[10px] animate-pulse">
-          <div className="h-[11px] rounded w-full" style={{ background: "var(--panel-2)" }} />
-          <div className="h-[11px] rounded w-[92%]" style={{ background: "var(--panel-2)" }} />
-          <div className="h-[11px] rounded w-[78%]" style={{ background: "var(--panel-2)" }} />
-          <div className="h-[11px] rounded w-full mt-1" style={{ background: "var(--panel-2)" }} />
-          <div className="h-[11px] rounded w-[85%]" style={{ background: "var(--panel-2)" }} />
-          <div className="h-[11px] rounded w-[60%]" style={{ background: "var(--panel-2)" }} />
-        </div>
+        streamingContent ? (
+          <p
+            className="text-[13px] leading-relaxed whitespace-pre-wrap"
+            style={{ color: "var(--text-2)" }}
+          >
+            {streamingContent}
+            <span className="opacity-40 animate-pulse">▌</span>
+          </p>
+        ) : (
+          <div className="flex flex-col gap-[10px] animate-pulse">
+            <div className="h-[11px] rounded w-full" style={{ background: "var(--panel-2)" }} />
+            <div className="h-[11px] rounded w-[92%]" style={{ background: "var(--panel-2)" }} />
+            <div className="h-[11px] rounded w-[78%]" style={{ background: "var(--panel-2)" }} />
+            <div className="h-[11px] rounded w-full mt-1" style={{ background: "var(--panel-2)" }} />
+            <div className="h-[11px] rounded w-[85%]" style={{ background: "var(--panel-2)" }} />
+            <div className="h-[11px] rounded w-[60%]" style={{ background: "var(--panel-2)" }} />
+          </div>
+        )
       ) : cache ? (
         <p
           className="text-[13px] leading-relaxed whitespace-pre-wrap"

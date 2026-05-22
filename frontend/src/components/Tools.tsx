@@ -134,6 +134,7 @@ export default function Tools({
       <MarketSummaryCard
         cache={marketSummary.cache}
         isGenerating={marketSummary.isGenerating}
+        streamingContent={marketSummary.streamingContent}
         windowLabel={marketSummary.windowLabel}
         onDismiss={marketSummary.dismiss}
       />
