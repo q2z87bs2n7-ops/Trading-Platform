@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 
 from .. import alpaca, market_news
 from ..config import get_settings
-from . import prompt, tools
+from . import prompt, reports, tools
 
 
 router = APIRouter()
@@ -77,15 +77,19 @@ class ChatResponse(BaseModel):
 
 
 def _execute_read_tool(
-    name: str, args: dict[str, Any], asset_class: str | None = None
+    name: str,
+    args: dict[str, Any],
+    asset_class: str | None = None,
+    artifacts: list[dict[str, Any]] | None = None,
 ) -> str:
-    """Run one read tool and return its JSON-serialized result string.
+    """Run one read/action tool and return its JSON-serialized result string.
 
     Returns JSON so the model parses uniformly; on failure, raises and
     the caller wraps as ``is_error`` tool_result. ``asset_class`` (the
     Ask-anything silo) defaults the silo-scoped tools (watchlist / symbol
     search) so the model sees the right universe; the ChartBot path leaves
-    it None and keeps the prior all/stocks behaviour.
+    it None and keeps the prior all/stocks behaviour. ``artifacts`` collects
+    downloadable report payloads on the Ask-anything path.
     """
     if name == "get_bars":
         symbol = str(args["symbol"]).upper()
@@ -176,6 +180,53 @@ def _execute_read_tool(
         limit = min(int(args.get("limit", 20)), 50)
         return json.dumps(
             {"corporate_actions": alpaca.get_corporate_actions(symbols, ca_types, since, limit)},
+            default=str,
+        )
+
+    if name == "add_to_watchlist":
+        req_ac = args.get("asset_class") or asset_class
+        default_class = "crypto" if req_ac == "crypto" else ""
+        added: list[str] = []
+        skipped: list[dict[str, str]] = []
+        for raw in args.get("symbols") or []:
+            sym = str(raw).upper()
+            # A pair always belongs to the crypto list regardless of silo.
+            sym_class = "crypto" if "/" in sym else default_class
+            try:
+                asset = alpaca.get_asset(sym)
+                if not asset.get("tradable"):
+                    skipped.append({"symbol": sym, "reason": "not tradable"})
+                    continue
+                alpaca.add_to_watchlist(sym, sym_class)
+                added.append(sym)
+            except Exception as exc:  # noqa: BLE001 — report per-symbol failures
+                skipped.append({"symbol": sym, "reason": str(exc)[:80]})
+        return json.dumps({"added": added, "skipped": skipped}, default=str)
+
+    if name == "remove_from_watchlist":
+        req_ac = args.get("asset_class") or asset_class
+        default_class = "crypto" if req_ac == "crypto" else ""
+        removed: list[str] = []
+        not_removed: list[dict[str, str]] = []
+        for raw in args.get("symbols") or []:
+            sym = str(raw).upper()
+            sym_class = "crypto" if "/" in sym else default_class
+            try:
+                alpaca.remove_from_watchlist(sym, sym_class)
+                removed.append(sym)
+            except Exception as exc:  # noqa: BLE001
+                not_removed.append({"symbol": sym, "reason": str(exc)[:80]})
+        return json.dumps({"removed": removed, "not_removed": not_removed}, default=str)
+
+    if name == "generate_report":
+        kind = str(args.get("kind"))
+        scope = args.get("asset_class") or asset_class or "all"
+        filename, csv_text, rows = reports.build_report(kind, scope)
+        if artifacts is not None:
+            artifacts.append({"filename": filename, "csv": csv_text})
+        return json.dumps(
+            {"report": kind, "scope": scope, "rows": rows, "filename": filename,
+             "download": "ready"},
             default=str,
         )
 
@@ -351,9 +402,15 @@ class AskToolCall(BaseModel):
     ok: bool
 
 
+class AskReport(BaseModel):
+    filename: str
+    csv: str
+
+
 class AskResponse(BaseModel):
     text: str
     tool_calls: list[AskToolCall] = Field(default_factory=list)
+    reports: list[AskReport] = Field(default_factory=list)
     usage: dict[str, Any] | None = None
     backend_stopped: Literal["", "max_iterations"] = ""
 
@@ -384,13 +441,23 @@ def ai_ask(req: AskRequest) -> AskResponse:
                 " get_movers returns STOCK movers only (Alpaca has no crypto"
                 " screener) — call it only if the user asks about stocks."
             )
+    context += (
+        " You can edit the watchlist (add_to_watchlist / remove_from_watchlist,"
+        " bulk) — validate symbols are tradable before adding, and for"
+        " themed/sector lists (e.g. 'top 10 pharma stocks') name tickers from"
+        " your own knowledge then validate; use web_search only when the user"
+        " asks for a current/ranked list. generate_report builds a downloadable"
+        " CSV (positions/orders/activities/pnl) — tell the user it's ready to"
+        " download rather than pasting the rows."
+    )
     system = prompt.build_general_system(context=context)
-    tool_list = tools.read_only_tools(web_search=s.ai_web_search_enabled)
+    tool_list = tools.ask_tools(web_search=s.ai_web_search_enabled)
     messages = _trim_history(
         list(req.history) + [{"role": "user", "content": req.message}]
     )
 
     tool_calls: list[AskToolCall] = []
+    artifacts: list[dict[str, Any]] = []
 
     for _ in range(s.ai_max_tool_iterations):
         try:
@@ -423,16 +490,22 @@ def ai_ask(req: AskRequest) -> AskResponse:
             text = "".join(
                 b.text for b in response.content if b.type == "text"
             )
-            return AskResponse(text=text, tool_calls=tool_calls, usage=usage)
+            return AskResponse(
+                text=text,
+                tool_calls=tool_calls,
+                reports=[AskReport(**a) for a in artifacts],
+                usage=usage,
+            )
 
-        # Resolve every backend tool inline — there are no frontend tools
-        # in the read_only_tools() set, so the loop stays server-side.
+        # Resolve every backend tool inline — the ask tool set has no
+        # frontend tools, so the loop stays server-side.
         tool_uses = [b for b in response.content if b.type == "tool_use"]
         results: list[dict[str, Any]] = []
         for tu in tool_uses:
             try:
                 result_str = _execute_read_tool(
-                    tu.name, dict(tu.input), asset_class=req.asset_class
+                    tu.name, dict(tu.input), asset_class=req.asset_class,
+                    artifacts=artifacts,
                 )
                 results.append(
                     {
@@ -459,6 +532,7 @@ def ai_ask(req: AskRequest) -> AskResponse:
     return AskResponse(
         text="(stopped after reaching the tool-use iteration limit — try a more direct question)",
         tool_calls=tool_calls,
+        reports=[AskReport(**a) for a in artifacts],
         usage=None,
         backend_stopped="max_iterations",
     )

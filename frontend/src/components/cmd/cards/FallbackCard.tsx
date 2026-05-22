@@ -1,11 +1,25 @@
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
-import { postAiAsk, type AiAskResponse } from "../../../api";
+import { postAiAsk, type AiAskReport, type AiAskResponse } from "../../../api";
+import { qk } from "../../../data/queryClient";
 import { useSettings } from "../../../hooks/useSettings";
 import type { AssetClass } from "../../../lib/cmd-intent";
 import CmdResultCard from "../CmdResultCard";
 
 type OnAiResponse = (resp: AiAskResponse) => void;
+
+function downloadCsv(report: AiAskReport) {
+  const blob = new Blob([report.csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = report.filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 
 function FallbackCard({ text }: { text: string }) {
   return (
@@ -41,6 +55,7 @@ function AiAskCard({
   const [resp, setResp] = useState<AiAskResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [pending, setPending] = useState(true);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     let cancelled = false;
@@ -53,6 +68,18 @@ function AiAskCard({
         setResp(r);
         setPending(false);
         onAiResponse?.(r);
+        // The bot may have mutated the watchlist server-side; refresh both
+        // lists so the Discover view reflects it.
+        if (
+          r.tool_calls.some(
+            (t) =>
+              t.ok &&
+              (t.name === "add_to_watchlist" || t.name === "remove_from_watchlist"),
+          )
+        ) {
+          queryClient.invalidateQueries({ queryKey: qk.watchlist });
+          queryClient.invalidateQueries({ queryKey: qk.cryptoWatchlist });
+        }
       })
       .catch((e: Error) => {
         if (cancelled) return;
@@ -108,6 +135,27 @@ function AiAskCard({
           >
             {resp.text || "(no response)"}
           </div>
+          {resp.reports && resp.reports.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {resp.reports.map((r) => (
+                <button
+                  key={r.filename}
+                  type="button"
+                  onClick={() => downloadCsv(r)}
+                  className="text-[12.5px] font-medium cursor-pointer"
+                  style={{
+                    padding: "6px 12px",
+                    background: "var(--accent-bg)",
+                    color: "var(--accent)",
+                    border: "1px solid var(--accent)",
+                    borderRadius: "var(--r)",
+                  }}
+                >
+                  ↓ {r.filename}
+                </button>
+              ))}
+            </div>
+          )}
           {resp.backend_stopped === "max_iterations" && (
             <div
               className="text-[11.5px] mt-2"

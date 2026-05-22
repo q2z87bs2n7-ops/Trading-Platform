@@ -855,3 +855,96 @@ def read_only_tools(web_search: bool = False) -> list[dict[str, Any]]:
     if web_search:
         result.append({"type": "web_search_20250305", "name": "web_search", "max_uses": 2})
     return result
+
+
+# ── Ask-anything action tools ────────────────────────────────────────────────
+# Write / report tools available ONLY to the Ask anything bot (not ChartBot,
+# which uses TOOLS and would mis-route any non-read tool to the frontend).
+# Resolved server-side in router._execute_read_tool.
+_ASSET_CLASS_PROP = {
+    "type": "string",
+    "enum": ["stocks", "crypto"],
+    "description": (
+        "Which silo to target. Omit to use the user's active silo; set "
+        "explicitly only for an other-silo request."
+    ),
+}
+
+ASK_ACTION_TOOLS: list[dict[str, Any]] = [
+    {
+        "name": "add_to_watchlist",
+        "description": (
+            "Add one or more symbols to the user's watchlist (bulk). Validate "
+            "each is tradable first (find_symbol/get_asset). For themed/sector "
+            "requests like 'top 10 pharma stocks', name candidate tickers from "
+            "your own knowledge, then validate before adding; use web_search "
+            "only when the user asks for a current/ranked list. Report what was "
+            "added vs skipped."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symbols": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Tickers (stocks) or pairs like BTC/USD (crypto).",
+                },
+                "asset_class": _ASSET_CLASS_PROP,
+            },
+            "required": ["symbols"],
+        },
+    },
+    {
+        "name": "remove_from_watchlist",
+        "description": (
+            "Remove one or more symbols from the user's watchlist (bulk). "
+            "Report what was removed vs not found."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symbols": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Tickers (stocks) or pairs like BTC/USD (crypto).",
+                },
+                "asset_class": _ASSET_CLASS_PROP,
+            },
+            "required": ["symbols"],
+        },
+    },
+    {
+        "name": "generate_report",
+        "description": (
+            "Build a downloadable CSV report and offer it to the user. Tell "
+            "them the report is ready to download; do not paste the full CSV."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "kind": {
+                    "type": "string",
+                    "enum": ["positions", "orders", "activities", "pnl"],
+                    "description": "Which report to build.",
+                },
+                "asset_class": {
+                    "type": "string",
+                    "enum": ["stocks", "crypto", "all"],
+                    "description": (
+                        "Scope. Omit to use the active silo; 'all' for the "
+                        "whole account."
+                    ),
+                },
+            },
+            "required": ["kind"],
+        },
+    },
+]
+
+ASK_ACTION_TOOL_NAMES = {t["name"] for t in ASK_ACTION_TOOLS}
+
+
+def ask_tools(web_search: bool = False) -> list[dict[str, Any]]:
+    """Tool set for the Ask anything bot: read tools + watchlist/report
+    action tools (+ optional hosted web_search)."""
+    return read_only_tools(web_search=web_search) + ASK_ACTION_TOOLS

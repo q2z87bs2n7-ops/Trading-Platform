@@ -144,9 +144,15 @@ export interface AiAskToolCall {
   ok: boolean;
 }
 
+export interface AiAskReport {
+  filename: string;
+  csv: string;
+}
+
 export interface AiAskResponse {
   text: string;
   tool_calls: AiAskToolCall[];
+  reports?: AiAskReport[];
   usage: Record<string, unknown> | null;
   backend_stopped?: "" | "max_iterations";
 }

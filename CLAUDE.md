@@ -214,7 +214,13 @@ instant); **violet = real Claude API call** (Anthropic credits, slow).
   questions on request — `get_positions`/`get_orders`/`get_account` are
   whole-account, and `get_watchlist`/`find_symbol` take an `asset_class`
   arg to target the other silo; the system context tells it not to pull the
-  other silo proactively. Transcript is session-only.
+  other silo proactively. It also has **action tools** (Ask-anything only,
+  not ChartBot): `add_to_watchlist`/`remove_from_watchlist` (bulk, validate
+  tradability first — themed lists like "top 10 pharma" come from model
+  knowledge, with `web_search` for current/ranked lists) and
+  `generate_report` (positions/orders/activities/pnl → CSV surfaced as a
+  download via `AskResponse.reports`; built in `backend/app/ai/reports.py`).
+  These live in `ask_tools()`, not `TOOLS`. Transcript is session-only.
 - **AI market summary** (`hooks/useMarketSummary.ts` + `MarketSummaryCard`,
   Discover hero). Auto-generates a per-window summary via `/api/ai/ask`
   (real Claude call; same gating as above). Per silo: **stocks** uses US
@@ -235,7 +241,9 @@ instant); **violet = real Claude API call** (Anthropic credits, slow).
 
 Tunables: `AI_CHAT_ENABLED`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`
 (default `claude-sonnet-4-6`), `AI_MAX_TOKENS` (4096),
-`AI_MAX_TOOL_ITERATIONS` (16). 60s Anthropic client timeout;
+`AI_MAX_TOOL_ITERATIONS` (16), `AI_WEB_SEARCH_ENABLED` (default `true`;
+Anthropic hosted web_search for the Ask anything bot — set `false` to
+disable for cost / unsupported accounts). 60s Anthropic client timeout;
 auth/config errors surface as 503.
 
 ## Dual requirements.txt trap
