@@ -80,7 +80,11 @@ separate silos behind a shared account.
     unrealized + a reconstructed **net P/L curve** from `/api/pnl-history`)
     + `Positions` (strip variant, filtered by asset class) + `Orders`
     (filtered) + `Activities`. `TopBar` status strip mounts here and in
-    Chart mode.
+    Chart mode. `TopBar` is silo-aware (`assetClass` prop from `App.tsx`):
+    in **stocks** mode it shows the Alpaca market clock (OPEN/CLOSED +
+    next-edge time) and `buying_power`; in **crypto** mode the clock is
+    hidden (crypto trades 24/7, the Alpaca clock is equities-only) and BP
+    shows `non_marginable_buying_power`.
   - **Chart** — `TVPlatform.tsx` wraps the full TradingView Charting
     Library (`frontend/public/charting_library/`, committed — private
     repo only) in our own chrome: `ChartTopBar`, `IndicatorPillsRow`,
@@ -248,7 +252,9 @@ instant); **violet = real Claude API call** (Anthropic credits, slow).
   Discover hero). Auto-generates a per-window summary via `/api/ai/ask`
   (real Claude call; same gating as above). Per silo: **stocks** uses US
   market windows (open/midday/close EST) and US headlines; **crypto** uses
-  four 6-hour UTC windows and BTC/crypto news. Cached per silo
+  four 6-hour UTC windows (00–06 / 06–12 / 12–18 / 18–24 UTC) and
+  BTC/crypto news; labels show the UTC range explicitly so they are
+  unambiguous for users in any timezone. Cached per silo
   (`market_summary_v1` / `crypto_market_summary_v1`); the `market_summary`
   intent card reads the matching cache.
 - **ChartBot side panel** (`components/chat/`, Chart mode only, gated
