@@ -241,9 +241,11 @@ instant); **violet = real Claude API call** (Anthropic credits, slow).
 
 Tunables: `AI_CHAT_ENABLED`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`
 (default `claude-sonnet-4-6`), `AI_MAX_TOKENS` (4096),
-`AI_MAX_TOOL_ITERATIONS` (16), `AI_WEB_SEARCH_ENABLED` (default `true`;
-Anthropic hosted web_search for the Ask anything bot — set `false` to
-disable for cost / unsupported accounts). 60s Anthropic client timeout;
+`AI_MAX_TOOL_ITERATIONS` (16), `AI_WEB_SEARCH_ENABLED` (default `false` —
+Anthropic hosted web_search for the Ask anything bot; requires the org to
+have web search enabled or the API 400s. The bot is internal-first and
+self-heals: if web search is on but unsupported it drops the tool and
+retries from its own tools/knowledge). 60s Anthropic client timeout;
 auth/config errors surface as 503.
 
 ## Dual requirements.txt trap

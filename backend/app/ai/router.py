@@ -443,13 +443,26 @@ def ai_ask(req: AskRequest) -> AskResponse:
             )
     context += (
         " You can edit the watchlist (add_to_watchlist / remove_from_watchlist,"
-        " bulk) — validate symbols are tradable before adding, and for"
-        " themed/sector lists (e.g. 'top 10 pharma stocks') name tickers from"
-        " your own knowledge then validate; use web_search only when the user"
-        " asks for a current/ranked list. generate_report builds a downloadable"
-        " CSV (positions/orders/activities/pnl) — tell the user it's ready to"
+        " bulk) — validate symbols are tradable before adding. For themed/sector"
+        " lists (e.g. 'top 10 pharma stocks') name the tickers from your own"
+        " knowledge, then validate. generate_report builds a downloadable CSV"
+        " (positions/orders/activities/pnl) — tell the user it's ready to"
         " download rather than pasting the rows."
     )
+    # Internal-first: the model must use its own tools/knowledge by default and
+    # only treat web search as a last resort (and only when it's enabled).
+    context += (
+        " Always answer from your own tools (get_positions, get_quote, get_news,"
+        " get_movers, etc.) and your own knowledge first — that is enough for"
+        " almost every request."
+    )
+    if s.ai_web_search_enabled:
+        context += (
+            " web_search exists only as a last resort, for current external"
+            " information you genuinely cannot get from your tools or knowledge;"
+            " do not use it for symbols, prices, news or lists you can already"
+            " produce."
+        )
     system = prompt.build_general_system(context=context)
     tool_list = tools.ask_tools(web_search=s.ai_web_search_enabled)
     messages = _trim_history(
@@ -459,24 +472,42 @@ def ai_ask(req: AskRequest) -> AskResponse:
     tool_calls: list[AskToolCall] = []
     artifacts: list[dict[str, Any]] = []
 
+    def _create():
+        return client.messages.create(
+            model=s.anthropic_model,
+            max_tokens=s.ai_max_tokens,
+            system=system,
+            tools=tool_list,
+            thinking={"type": "disabled"},
+            messages=messages,
+        )
+
     for _ in range(s.ai_max_tool_iterations):
         try:
-            response = client.messages.create(
-                model=s.anthropic_model,
-                max_tokens=s.ai_max_tokens,
-                system=system,
-                tools=tool_list,
-                thinking={"type": "disabled"},
-                messages=messages,
-            )
+            response = _create()
         except anthropic.AuthenticationError as e:
             raise HTTPException(
                 503,
                 f"Anthropic API key invalid or revoked. Check ANTHROPIC_API_KEY: {e}",
             )
         except AnthropicAPIError as e:
-            status = getattr(e, "status_code", None) or 502
-            raise HTTPException(status, f"Anthropic error: {e}")
+            # Hosted web_search 400s if the org hasn't enabled it. Drop the tool
+            # and retry so the bot just answers from its own tools/knowledge
+            # instead of surfacing an error.
+            if "web search is not enabled" in str(e).lower() and any(
+                t.get("name") == "web_search" for t in tool_list
+            ):
+                tool_list = [t for t in tool_list if t.get("name") != "web_search"]
+                try:
+                    response = _create()
+                except AnthropicAPIError as e2:
+                    raise HTTPException(
+                        getattr(e2, "status_code", None) or 502,
+                        f"Anthropic error: {e2}",
+                    )
+            else:
+                status = getattr(e, "status_code", None) or 502
+                raise HTTPException(status, f"Anthropic error: {e}")
 
         content_dicts = [_block_to_dict(b) for b in response.content]
         usage = response.usage.model_dump() if response.usage else None
