@@ -163,8 +163,8 @@ export default function CryptoTools({
   }
 
   // Filter positions to crypto only for allocation/balance cards.
-  const cryptoPositions = (positions.data?.positions || []).filter((p: Position) =>
-    p.symbol.includes("/"),
+  const cryptoPositions = (positions.data?.positions || []).filter(
+    (p: Position) => p.asset_class === "crypto" || p.symbol.includes("/"),
   );
   const invested = cryptoPositions.reduce((s: number, p: Position) => s + p.market_value, 0);
   const unrealized = cryptoPositions.reduce((s: number, p: Position) => s + p.unrealized_pl, 0);
@@ -188,6 +188,7 @@ export default function CryptoTools({
           invested={invested}
           unrealized={unrealized}
           unrealizedPct={unrealizedPct}
+          buyingPower={account.data?.non_marginable_buying_power}
         />
         <AllocationCard positions={cryptoPositions} />
       </div>

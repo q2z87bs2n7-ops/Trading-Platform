@@ -2,6 +2,7 @@
 
 import requests as _req
 
+from alpaca.trading.enums import AssetClass
 from alpaca.trading.requests import GetCalendarRequest, GetPortfolioHistoryRequest
 
 from ..config import get_settings
@@ -28,6 +29,7 @@ def get_account() -> dict:
         "cash": float(a.cash),
         "equity": equity,
         "buying_power": float(a.buying_power),
+        "non_marginable_buying_power": float(a.non_marginable_buying_power),
         "portfolio_value": float(a.portfolio_value),
         "long_market_value": float(a.long_market_value),
         "pattern_day_trader": a.pattern_day_trader,
@@ -36,8 +38,15 @@ def get_account() -> dict:
 
 
 def _position_dict(p) -> dict:
+    # Alpaca's positions endpoint strips the slash from crypto pairs
+    # (BTCUSD instead of BTC/USD). Re-insert it so it matches watchlist
+    # symbols and order symbols, which both use the slash format.
+    symbol = p.symbol
+    if p.asset_class == AssetClass.CRYPTO and "/" not in symbol and symbol.endswith("USD"):
+        symbol = symbol[:-3] + "/" + symbol[-3:]
     return {
-        "symbol": p.symbol,
+        "symbol": symbol,
+        "asset_class": str(p.asset_class),
         "qty": float(p.qty),
         "side": str(p.side),
         "avg_entry_price": float(p.avg_entry_price),

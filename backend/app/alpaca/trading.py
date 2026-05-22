@@ -41,6 +41,7 @@ def _order_dict(o) -> dict:
     return {
         "id": str(o.id),
         "symbol": o.symbol,
+        "asset_class": str(o.asset_class) if o.asset_class else None,
         "side": str(o.side),
         "type": str(o.order_type or o.type),
         "order_class": str(o.order_class) if o.order_class else None,

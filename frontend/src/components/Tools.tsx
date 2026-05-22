@@ -97,15 +97,18 @@ export default function Tools({
     });
   }
 
-  const invested = (positions.data?.positions || []).reduce(
+  const stockPositions = (positions.data?.positions || []).filter(
+    (p: Position) => p.asset_class !== "crypto" && !p.symbol.includes("/"),
+  );
+  const invested = stockPositions.reduce(
     (s: number, p: Position) => s + p.market_value,
     0,
   );
-  const unrealized = (positions.data?.positions || []).reduce(
+  const unrealized = stockPositions.reduce(
     (s: number, p: Position) => s + p.unrealized_pl,
     0,
   );
-  const totalCostBasis = (positions.data?.positions || []).reduce(
+  const totalCostBasis = stockPositions.reduce(
     (s: number, p: Position) => s + p.cost_basis,
     0,
   );
@@ -131,7 +134,7 @@ export default function Tools({
           unrealized={unrealized}
           unrealizedPct={unrealizedPct}
         />
-        <AllocationCard positions={positions.data?.positions} />
+        <AllocationCard positions={stockPositions} />
       </div>
 
       {/* AI market summary — auto-generated per time window, dismissible */}

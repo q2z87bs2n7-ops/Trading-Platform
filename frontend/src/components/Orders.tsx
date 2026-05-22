@@ -134,7 +134,7 @@ export default function Orders({ assetClass }: { assetClass?: "stocks" | "crypto
   const cancelAll = useCancelAllOrders();
   const rows = data?.orders?.filter((o: Order) => {
     if (!assetClass) return true;
-    const crypto = o.symbol.includes("/");
+    const crypto = o.asset_class === "crypto" || o.symbol.includes("/");
     return assetClass === "crypto" ? crypto : !crypto;
   });
   const hasLive = !!rows?.some(live);

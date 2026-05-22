@@ -6,11 +6,13 @@ export function BalanceCard({
   invested,
   unrealized,
   unrealizedPct,
+  buyingPower,
 }: {
   account: ReturnType<typeof useAccount>["data"];
   invested: number;
   unrealized: number;
   unrealizedPct: number;
+  buyingPower?: number;
 }) {
   if (!account) {
     return (
@@ -100,7 +102,7 @@ export function BalanceCard({
             Buying power
           </small>
           <strong className="font-medium text-[16px] tabular-nums">
-            {money(account.buying_power)}
+            {money(buyingPower ?? account.buying_power)}
           </strong>
         </div>
       </div>

@@ -5,6 +5,7 @@ export interface Account {
   cash: number;
   equity: number;
   buying_power: number;
+  non_marginable_buying_power: number;
   portfolio_value: number;
   long_market_value: number;
   pattern_day_trader: boolean;
@@ -30,6 +31,7 @@ export interface Quote {
 
 export interface Position {
   symbol: string;
+  asset_class?: string;
   qty: number;
   side: string;
   avg_entry_price: number;
@@ -44,6 +46,7 @@ export interface Position {
 export interface Order {
   id: string;
   symbol: string;
+  asset_class?: string;
   side: string;
   type: string;
   order_class: string | null;
