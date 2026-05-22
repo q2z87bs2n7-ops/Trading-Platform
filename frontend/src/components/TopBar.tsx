@@ -196,7 +196,7 @@ function MobileStatusStrip({
           display: "flex",
           alignItems: "center",
           gap: 8,
-          padding: "6px var(--mob-container-pad) 8px",
+          padding: "2px var(--mob-container-pad) 4px",
           fontSize: 12,
         }}
       >
@@ -231,7 +231,7 @@ function MobileStatusStrip({
             alignItems: "center",
             background: "transparent",
             border: 0,
-            padding: "6px 2px",
+            padding: "3px 2px",
             cursor: "pointer",
           }}
         >

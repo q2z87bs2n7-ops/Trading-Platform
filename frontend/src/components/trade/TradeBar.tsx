@@ -53,61 +53,55 @@ export default function TradeBar({ symbol }: Props) {
       <>
         {!open &&
           (expanded ? (
-            <>
-              <div
-                onClick={() => setExpanded(false)}
-                style={{ position: "fixed", inset: 0, zIndex: 34 }}
-              />
-              <div
-                style={{
-                  position: "fixed",
-                  right: 16,
-                  bottom: "calc(var(--safe-bottom) + 16px)",
-                  zIndex: 35,
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 10,
-                  alignItems: "flex-end",
-                }}
-              >
-                {symUpper && (
-                  <span
-                    className="font-mono tabular-nums"
-                    style={{
-                      background: "var(--text)",
-                      color: "var(--bg)",
-                      borderRadius: 999,
-                      padding: "6px 14px",
-                      fontSize: 13,
-                      fontWeight: 600,
-                      boxShadow: "var(--shadow-lg)",
-                    }}
-                  >
-                    {symUpper}
-                    {quote ? ` · ${money(quote.mid)}` : ""}
-                  </span>
-                )}
-                {pill("buy")}
-                {pill("sell")}
-                <button
-                  type="button"
-                  aria-label="Close trade bar"
-                  onClick={() => setExpanded(false)}
-                  className="cursor-pointer border-0"
+            <div
+              style={{
+                position: "fixed",
+                right: 16,
+                bottom: "calc(var(--safe-bottom) + 16px)",
+                zIndex: 35,
+                display: "flex",
+                flexDirection: "column",
+                gap: 10,
+                alignItems: "flex-end",
+              }}
+            >
+              {symUpper && (
+                <span
+                  className="font-mono tabular-nums"
                   style={{
-                    width: 52,
-                    height: 52,
-                    borderRadius: 999,
                     background: "var(--text)",
                     color: "var(--bg)",
-                    fontSize: 20,
+                    borderRadius: 999,
+                    padding: "6px 14px",
+                    fontSize: 13,
+                    fontWeight: 600,
                     boxShadow: "var(--shadow-lg)",
                   }}
                 >
-                  ✕
-                </button>
-              </div>
-            </>
+                  {symUpper}
+                  {quote ? ` · ${money(quote.mid)}` : ""}
+                </span>
+              )}
+              {pill("buy")}
+              {pill("sell")}
+              <button
+                type="button"
+                aria-label="Close trade bar"
+                onClick={() => setExpanded(false)}
+                className="cursor-pointer border-0"
+                style={{
+                  width: 52,
+                  height: 52,
+                  borderRadius: 999,
+                  background: "var(--text)",
+                  color: "var(--bg)",
+                  fontSize: 20,
+                  boxShadow: "var(--shadow-lg)",
+                }}
+              >
+                ✕
+              </button>
+            </div>
           ) : (
             <button
               type="button"
