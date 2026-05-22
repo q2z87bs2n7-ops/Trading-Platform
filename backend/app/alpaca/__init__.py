@@ -15,7 +15,9 @@ from .account import (
     get_positions,
 )
 from .client import (
+    crypto_data_client,
     data_client,
+    is_crypto,
     timeframe_from_str,
     trading_client,
 )
@@ -45,7 +47,9 @@ __all__ = [
     "cancel_order",
     "close_all_positions",
     "close_position",
+    "crypto_data_client",
     "data_client",
+    "is_crypto",
     "get_account",
     "get_activities",
     "get_asset",

@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { useConfig, useWatchlist } from "./data/hooks";
+import { useConfig, useCryptoWatchlist, useWatchlist } from "./data/hooks";
 import { useTheme } from "./hooks/useTheme";
 import Positions from "./components/Positions";
 import Orders from "./components/Orders";
 import Activities from "./components/Activities";
 import TopBar from "./components/TopBar";
 import Tools from "./components/Tools";
+import CryptoTools from "./components/CryptoTools";
+import AssetClassSplash from "./components/AssetClassSplash";
 import PortfolioHero from "./components/PortfolioHero";
 import SectionHeading from "./components/SectionHeading";
 import TVPlatform from "./components/TVPlatform";
@@ -17,6 +19,13 @@ import Toaster from "./components/Toaster";
 import IconButton from "./components/IconButton";
 
 type PlatformMode = "discover" | "portfolio" | "chart";
+type AssetClassMode = "stocks" | "crypto";
+
+function readAssetClassMode(): AssetClassMode | null {
+  const raw = localStorage.getItem("asset_class_mode");
+  if (raw === "stocks" || raw === "crypto") return raw;
+  return null;
+}
 
 function readPlatformMode(): PlatformMode {
   const raw = localStorage.getItem("platform_mode");
@@ -51,6 +60,36 @@ function BrandMark() {
       aria-hidden
     >
       ◆
+    </div>
+  );
+}
+
+function AssetClassToggle({
+  mode,
+  onChange,
+}: {
+  mode: AssetClassMode;
+  onChange: (m: AssetClassMode) => void;
+}) {
+  return (
+    <div
+      className="inline-flex items-center gap-0.5 p-0.5 rounded-card"
+      style={{ background: "var(--panel-2)", border: "1px solid var(--border)" }}
+    >
+      {(["stocks", "crypto"] as AssetClassMode[]).map((m) => (
+        <button
+          key={m}
+          type="button"
+          onClick={() => onChange(m)}
+          className="text-[11px] font-semibold px-2.5 py-1 rounded-card transition-colors border-0 cursor-pointer capitalize"
+          style={{
+            background: mode === m ? "var(--accent)" : "transparent",
+            color: mode === m ? "white" : "var(--text-2)",
+          }}
+        >
+          {m}
+        </button>
+      ))}
     </div>
   );
 }
@@ -124,12 +163,16 @@ function ThemeToggle({
 export default function App() {
   const { data: cfg } = useConfig();
   const { data: wl } = useWatchlist();
-  const symbols = wl?.symbols ?? [];
+  const { data: cryptoWl } = useCryptoWatchlist();
   const meta = cfg ? { feed: cfg.feed, paper: cfg.paper } : null;
   const [selected, setSelected] = useState<string>("");
   const [mode, setMode] = useState<PlatformMode>(readPlatformMode);
+  const [assetClassMode, setAssetClassMode] = useState<AssetClassMode | null>(readAssetClassMode);
   const [cmdOpen, setCmdOpen] = useState(false);
   const { theme, toggle: toggleTheme } = useTheme();
+
+  const activeClass: AssetClassMode = assetClassMode ?? "stocks";
+  const symbols = (activeClass === "crypto" ? cryptoWl?.symbols : wl?.symbols) ?? [];
 
   useEffect(() => {
     if (!selected && symbols.length) setSelected(symbols[0]);
@@ -152,8 +195,19 @@ export default function App() {
     localStorage.setItem("platform_mode", m);
   }
 
+  function switchAssetClass(m: AssetClassMode) {
+    setAssetClassMode(m);
+    setSelected("");
+    localStorage.setItem("asset_class_mode", m);
+  }
+
   function openCmdBar() {
     setCmdOpen(true);
+  }
+
+  // Show splash on first load (no asset class chosen yet).
+  if (assetClassMode === null) {
+    return <AssetClassSplash onSelect={switchAssetClass} />;
   }
 
   return (
@@ -177,6 +231,7 @@ export default function App() {
                 {meta && ` · ${meta.paper ? "PAPER" : "LIVE"} · ${meta.feed.toUpperCase()}`}
               </span>
             </div>
+            <AssetClassToggle mode={activeClass} onChange={switchAssetClass} />
           </div>
 
           {/* Three-pill mode toggle */}
@@ -205,8 +260,14 @@ export default function App() {
            clean; the account context is already in the Discover hero. */}
         {(mode === "portfolio" || mode === "chart") && <TopBar />}
       </header>
-      {/* Discover — movers, most-active, news. Hides TopBar like Chart mode. */}
-      {mode === "discover" && <Tools selected={selected} onSelect={setSelected} />}
+
+      {/* Discover — switches content based on asset class */}
+      {mode === "discover" && activeClass === "stocks" && (
+        <Tools selected={selected} onSelect={setSelected} />
+      )}
+      {mode === "discover" && activeClass === "crypto" && (
+        <CryptoTools selected={selected} onSelect={setSelected} />
+      )}
 
       {/* TradingView full terminal + ChartBot panel — Chart mode only */}
       {mode === "chart" && (
@@ -214,7 +275,7 @@ export default function App() {
           <div style={{ flex: 1, minWidth: 0 }}>
             <TVPlatform symbol={selected} onSymbolChange={setSelected} />
           </div>
-          <ChatPanel symbol={selected || "AAPL"} />
+          <ChatPanel symbol={selected || (activeClass === "crypto" ? "BTC/USD" : "AAPL")} />
         </div>
       )}
 
@@ -225,10 +286,10 @@ export default function App() {
           <PortfolioHero />
 
           <SectionHeading label="Positions" />
-          <Positions variant="strip" onSelect={setSelected} />
+          <Positions variant="strip" onSelect={setSelected} assetClass={activeClass} />
 
           <SectionHeading label="Orders" />
-          <Orders />
+          <Orders assetClass={activeClass} />
 
           <SectionHeading label="Activity" />
           <Activities />

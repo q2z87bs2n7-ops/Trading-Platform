@@ -27,7 +27,7 @@ import time
 from contextlib import suppress
 from typing import Any, Literal
 
-from alpaca.data.live import StockDataStream
+from alpaca.data.live import CryptoDataStream, StockDataStream
 
 from .alpaca.client import _feed
 from .alpaca.market_data import normalize_quote
@@ -134,6 +134,10 @@ class QuoteHub:
                 log.exception("supervisor iteration failed")
                 await asyncio.sleep(min(backoff, _MAX_BACKOFF))
 
+    def _make_stream(self) -> StockDataStream:
+        s = get_settings()
+        return StockDataStream(s.alpaca_api_key, s.alpaca_secret_key, feed=_feed())
+
     async def _run_once(self, q_syms: set[str], b_syms: set[str]) -> bool:
         """Build a fresh stream subscribed to the requested ``q_syms`` /
         ``b_syms`` (before running -- the reliable alpaca-py path) and run
@@ -142,8 +146,7 @@ class QuoteHub:
         must NOT rebuild -- needless upstream reconnects trip Alpaca's
         single-connection limit. Returns True on a real set change
         (rebuild), False on failure (caller backs off)."""
-        s = get_settings()
-        stream = StockDataStream(s.alpaca_api_key, s.alpaca_secret_key, feed=_feed())
+        stream = self._make_stream()
         if q_syms:
             stream.subscribe_quotes(self._on_quote, *q_syms)
         if b_syms:
@@ -179,7 +182,7 @@ class QuoteHub:
             await self._shutdown(stream, run_task)
         return clean
 
-    async def _shutdown(self, stream: StockDataStream, run_task: asyncio.Task) -> None:
+    async def _shutdown(self, stream, run_task: asyncio.Task) -> None:
         """Tear the upstream down cleanly: ``stop_ws`` signals ``_consume``
         to close the socket and ``_run_forever`` to return, so Alpaca frees
         the per-account connection slot. Only force-cancel if it overruns,
@@ -241,4 +244,13 @@ class QuoteHub:
         self._broadcast("bar", bar["symbol"], bar)
 
 
+class CryptoQuoteHub(QuoteHub):
+    """Like QuoteHub but runs CryptoDataStream (no feed param; crypto data is free)."""
+
+    def _make_stream(self) -> CryptoDataStream:
+        s = get_settings()
+        return CryptoDataStream(s.alpaca_api_key, s.alpaca_secret_key)
+
+
 hub = QuoteHub()
+crypto_hub = CryptoQuoteHub()

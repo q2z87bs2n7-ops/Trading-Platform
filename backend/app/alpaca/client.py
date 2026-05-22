@@ -7,7 +7,7 @@ One cached ``TradingClient`` / ``StockHistoricalDataClient`` per process
 from functools import lru_cache
 
 from alpaca.data.enums import DataFeed
-from alpaca.data.historical import StockHistoricalDataClient
+from alpaca.data.historical import CryptoHistoricalDataClient, StockHistoricalDataClient
 from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 from alpaca.trading.client import TradingClient
 
@@ -44,3 +44,13 @@ def trading_client() -> TradingClient:
 def data_client() -> StockHistoricalDataClient:
     s = get_settings()
     return StockHistoricalDataClient(s.alpaca_api_key, s.alpaca_secret_key)
+
+
+@lru_cache
+def crypto_data_client() -> CryptoHistoricalDataClient:
+    # Crypto historical data is free; no feed param required.
+    return CryptoHistoricalDataClient()
+
+
+def is_crypto(symbol: str) -> bool:
+    return "/" in symbol

@@ -176,6 +176,21 @@ export const removeFromWatchlist = (symbol: string) =>
     `/api/watchlist/${encodeURIComponent(symbol)}`,
   );
 
+export const getCryptoWatchlist = () =>
+  getJSON<{ symbols: string[] }>("/api/watchlist?asset_class=crypto");
+
+export const addToCryptoWatchlist = (symbol: string) =>
+  sendJSON<{ symbols: string[] }>("POST", "/api/watchlist?asset_class=crypto", { symbol });
+
+export const removeFromCryptoWatchlist = (symbol: string) =>
+  sendJSON<{ symbols: string[] }>(
+    "DELETE",
+    `/api/watchlist/${encodeURIComponent(symbol)}?asset_class=crypto`,
+  );
+
+export const getCryptoTickers = () =>
+  getJSON<{ tickers: Snapshot[] }>("/api/crypto/tickers");
+
 // --- Write path (Stage 2 backend). ---------------------------------------
 
 export const submitOrder = (input: SubmitOrderInput) =>

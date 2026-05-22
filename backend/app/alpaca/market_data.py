@@ -4,12 +4,15 @@ from datetime import datetime, timedelta, timezone
 
 from alpaca.common.enums import Sort
 from alpaca.data.requests import (
+    CryptoBarsRequest,
+    CryptoLatestQuoteRequest,
+    CryptoSnapshotRequest,
     StockBarsRequest,
     StockLatestQuoteRequest,
     StockSnapshotRequest,
 )
 
-from .client import _feed, data_client, timeframe_from_str
+from .client import _feed, crypto_data_client, data_client, is_crypto, timeframe_from_str
 
 
 def get_bars(symbol: str, timeframe: str, limit: int) -> list[dict]:
@@ -17,17 +20,32 @@ def get_bars(symbol: str, timeframe: str, limit: int) -> list[dict]:
     # explicit window every timeframe only returns today's data (one candle on
     # 1Day). Open a wide window and pull the most recent `limit` bars via
     # Sort.DESC (efficient: Alpaca pages back from `end`, capped at `limit`).
-    req = StockBarsRequest(
-        symbol_or_symbols=symbol.upper(),
-        timeframe=timeframe_from_str(timeframe),
-        start=datetime.now(timezone.utc) - timedelta(days=2000),
-        limit=limit,
-        feed=_feed(),
-        sort=Sort.DESC,
-    )
-    bars = data_client().get_stock_bars(req)
+    sym = symbol.upper()
+    tf = timeframe_from_str(timeframe)
+    start = datetime.now(timezone.utc) - timedelta(days=2000)
     out: list[dict] = []
-    for bar in bars.data.get(symbol.upper(), []):
+
+    if is_crypto(sym):
+        req = CryptoBarsRequest(
+            symbol_or_symbols=sym,
+            timeframe=tf,
+            start=start,
+            limit=limit,
+            sort=Sort.DESC,
+        )
+        bars = crypto_data_client().get_crypto_bars(req)
+    else:
+        req = StockBarsRequest(
+            symbol_or_symbols=sym,
+            timeframe=tf,
+            start=start,
+            limit=limit,
+            feed=_feed(),
+            sort=Sort.DESC,
+        )
+        bars = data_client().get_stock_bars(req)
+
+    for bar in bars.data.get(sym, []):
         out.append(
             {
                 "time": int(bar.timestamp.timestamp()),
@@ -61,9 +79,39 @@ def normalize_quote(symbol: str, q) -> dict:
 def get_latest_quotes(symbols: list[str]) -> list[dict]:
     if not symbols:
         return []
-    req = StockLatestQuoteRequest(symbol_or_symbols=symbols, feed=_feed())
-    quotes = data_client().get_stock_latest_quote(req)
-    return [normalize_quote(sym, q) for sym, q in quotes.items()]
+    crypto = [s for s in symbols if is_crypto(s)]
+    stocks = [s for s in symbols if not is_crypto(s)]
+    out: list[dict] = []
+    if stocks:
+        req = StockLatestQuoteRequest(symbol_or_symbols=stocks, feed=_feed())
+        quotes = data_client().get_stock_latest_quote(req)
+        out.extend(normalize_quote(sym, q) for sym, q in quotes.items())
+    if crypto:
+        req = CryptoLatestQuoteRequest(symbol_or_symbols=crypto)
+        quotes = crypto_data_client().get_crypto_latest_quote(req)
+        out.extend(normalize_quote(sym, q) for sym, q in quotes.items())
+    return out
+
+
+def _snap_dict(sym: str, s) -> dict:
+    daily = s.daily_bar
+    prev = s.previous_daily_bar
+    last_trade = s.latest_trade
+    last_quote = s.latest_quote
+    bid = float(last_quote.bid_price or 0) if last_quote else 0.0
+    ask = float(last_quote.ask_price or 0) if last_quote else 0.0
+    mid = (bid + ask) / 2 if bid and ask else (ask or bid)
+    return {
+        "symbol": sym,
+        "prev_close": prev.close if prev else None,
+        "day_open": daily.open if daily else None,
+        "day_high": daily.high if daily else None,
+        "day_low": daily.low if daily else None,
+        "day_close": daily.close if daily else None,
+        "day_volume": daily.volume if daily else None,
+        "last_price": last_trade.price if last_trade else (mid or None),
+        "last_time": int(last_trade.timestamp.timestamp()) if last_trade else None,
+    }
 
 
 def get_snapshots(symbols: list[str]) -> list[dict]:
@@ -76,28 +124,15 @@ def get_snapshots(symbols: list[str]) -> list[dict]:
     second call."""
     if not symbols:
         return []
-    req = StockSnapshotRequest(symbol_or_symbols=symbols, feed=_feed())
-    snaps = data_client().get_stock_snapshot(req)
+    crypto = [s for s in symbols if is_crypto(s)]
+    stocks = [s for s in symbols if not is_crypto(s)]
     out: list[dict] = []
-    for sym, s in snaps.items():
-        daily = s.daily_bar
-        prev = s.previous_daily_bar
-        last_trade = s.latest_trade
-        last_quote = s.latest_quote
-        bid = float(last_quote.bid_price or 0) if last_quote else 0.0
-        ask = float(last_quote.ask_price or 0) if last_quote else 0.0
-        mid = (bid + ask) / 2 if bid and ask else (ask or bid)
-        out.append(
-            {
-                "symbol": sym,
-                "prev_close": prev.close if prev else None,
-                "day_open": daily.open if daily else None,
-                "day_high": daily.high if daily else None,
-                "day_low": daily.low if daily else None,
-                "day_close": daily.close if daily else None,
-                "day_volume": daily.volume if daily else None,
-                "last_price": last_trade.price if last_trade else (mid or None),
-                "last_time": int(last_trade.timestamp.timestamp()) if last_trade else None,
-            }
-        )
+    if stocks:
+        req = StockSnapshotRequest(symbol_or_symbols=stocks, feed=_feed())
+        snaps = data_client().get_stock_snapshot(req)
+        out.extend(_snap_dict(sym, s) for sym, s in snaps.items())
+    if crypto:
+        req = CryptoSnapshotRequest(symbol_or_symbols=crypto)
+        snaps = crypto_data_client().get_crypto_snapshot(req)
+        out.extend(_snap_dict(sym, s) for sym, s in snaps.items())
     return out

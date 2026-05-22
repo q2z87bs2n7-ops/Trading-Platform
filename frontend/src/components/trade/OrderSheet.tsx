@@ -2,8 +2,6 @@ import { useEffect } from "react";
 
 import { useAccount } from "../../data/hooks";
 import {
-  ORDER_TYPES,
-  TIFS,
   useOrderTicket,
   type OType,
   type TIF,
@@ -327,7 +325,7 @@ export default function OrderSheet({
                 Order type
               </div>
               <div className="flex flex-wrap gap-2">
-                {ORDER_TYPES.map((ot) => (
+                {t.availableOrderTypes.map((ot) => (
                   <Chip
                     key={ot}
                     active={t.type === ot}
@@ -470,7 +468,7 @@ export default function OrderSheet({
                 Time in force
               </div>
               <div className="flex flex-wrap gap-2">
-                {TIFS.map((x) => (
+                {t.availableTifs.map((x) => (
                   <Chip
                     key={x}
                     active={t.tif === x}
@@ -482,19 +480,21 @@ export default function OrderSheet({
               </div>
             </div>
 
-            {/* Ext hours */}
-            <label className="flex items-center gap-2 text-[12.5px]">
-              <input
-                type="checkbox"
-                checked={t.extHoursOn}
-                disabled={!t.extHoursEligible}
-                onChange={(e) => t.setExtHours(e.target.checked)}
-              />
-              <span style={{ color: "var(--mute)" }}>
-                Extended hours
-                {!t.extHoursEligible && " — limit + DAY only"}
-              </span>
-            </label>
+            {/* Ext hours — equity only (crypto is 24/7) */}
+            {!t.isCrypto && (
+              <label className="flex items-center gap-2 text-[12.5px]">
+                <input
+                  type="checkbox"
+                  checked={t.extHoursOn}
+                  disabled={!t.extHoursEligible}
+                  onChange={(e) => t.setExtHours(e.target.checked)}
+                />
+                <span style={{ color: "var(--mute)" }}>
+                  Extended hours
+                  {!t.extHoursEligible && " — limit + DAY only"}
+                </span>
+              </label>
+            )}
           </div>
 
           {/* ── Right column ── */}

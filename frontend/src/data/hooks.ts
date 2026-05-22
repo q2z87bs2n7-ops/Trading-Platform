@@ -158,6 +158,36 @@ export function useRemoveFromWatchlist() {
   });
 }
 
+export const useCryptoWatchlist = () =>
+  useQuery({
+    queryKey: qk.cryptoWatchlist,
+    queryFn: api.getCryptoWatchlist,
+    staleTime: Infinity,
+  });
+
+export function useAddToCryptoWatchlist() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (symbol: string) => api.addToCryptoWatchlist(symbol),
+    onSuccess: (data) => qc.setQueryData(qk.cryptoWatchlist, data),
+  });
+}
+
+export function useRemoveFromCryptoWatchlist() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (symbol: string) => api.removeFromCryptoWatchlist(symbol),
+    onSuccess: (data) => qc.setQueryData(qk.cryptoWatchlist, data),
+  });
+}
+
+export const useCryptoTickers = () =>
+  useQuery({
+    queryKey: qk.cryptoTickers,
+    queryFn: api.getCryptoTickers,
+    refetchInterval: 15000,
+  });
+
 // --- Writes: invalidate everything a trade can move ----------------------
 
 function useTradeInvalidation() {

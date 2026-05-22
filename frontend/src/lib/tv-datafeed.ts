@@ -15,6 +15,8 @@ const STREAM_FLUSH_MS = 500;
 // Strip trailing slash — prevents double-slash when VITE_API_BASE ends with "/"
 const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
 
+const isCryptoSymbol = (sym: string) => sym.includes("/");
+
 // Map TradingView resolution strings → our backend timeframe strings
 const RESOLUTION_MAP: Record<string, string> = {
   "1": "1Min",
@@ -58,12 +60,12 @@ export function createDatafeed() {
         .then((r) => r.json())
         .then((data) => {
           // /api/assets returns a plain array, not { assets: [...] }
-          const results = (Array.isArray(data) ? data : []).map((a: { symbol: string; name: string; exchange: string }) => ({
+          const results = (Array.isArray(data) ? data : []).map((a: { symbol: string; name: string; exchange: string; asset_class?: string }) => ({
             symbol: a.symbol,
             full_name: a.symbol,
             description: a.name,
-            exchange: a.exchange ?? "NASDAQ",
-            type: "stock",
+            exchange: isCryptoSymbol(a.symbol) ? "CRYPTO" : (a.exchange ?? "NASDAQ"),
+            type: isCryptoSymbol(a.symbol) ? "crypto" : "stock",
           }));
           onResult(results);
         })
@@ -81,19 +83,20 @@ export function createDatafeed() {
         .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
         .then((data) => {
           clearTimeout(timer);
+          const crypto = isCryptoSymbol(data.symbol);
           onResolve({
             name: data.symbol,
             full_name: data.symbol,
             description: data.name ?? data.symbol,
-            type: "stock",
-            session: "0930-1600",
-            timezone: "America/New_York",
-            exchange: data.exchange ?? "NASDAQ",
+            type: crypto ? "crypto" : "stock",
+            session: crypto ? "24x7" : "0930-1600",
+            timezone: crypto ? "UTC" : "America/New_York",
+            exchange: crypto ? "CRYPTO" : (data.exchange ?? "NASDAQ"),
             minmov: 1,
             pricescale: 100,
             has_intraday: true,
             supported_resolutions: ["1", "5", "15", "30", "60", "240", "D", "W"],
-            volume_precision: 0,
+            volume_precision: crypto ? 4 : 0,
             data_status: "streaming",
           });
         })

@@ -4,7 +4,7 @@ Writes are gated in ``main.py`` by the (currently no-op) write-auth seam;
 this module just maps our typed requests onto the alpaca-py SDK.
 """
 
-from alpaca.trading.enums import OrderClass, OrderSide, QueryOrderStatus, TimeInForce
+from alpaca.trading.enums import AssetClass, OrderClass, OrderSide, QueryOrderStatus, TimeInForce
 from alpaca.trading.requests import (
     GetAssetsRequest,
     GetOrdersRequest,
@@ -162,10 +162,12 @@ def _asset_dict(a) -> dict:
     }
 
 
-def search_assets(query: str, limit: int) -> list[dict]:
-    """Substring match over tradable US equities, capped at ``limit``."""
+def search_assets(query: str, limit: int, asset_class: str = "") -> list[dict]:
+    """Substring match over tradable assets, capped at ``limit``."""
     q = query.strip().upper()
-    assets = trading_client().get_all_assets(GetAssetsRequest())
+    _CLASS_MAP = {"crypto": AssetClass.CRYPTO, "us_equity": AssetClass.US_EQUITY}
+    req = GetAssetsRequest(asset_class=_CLASS_MAP[asset_class]) if asset_class in _CLASS_MAP else GetAssetsRequest()
+    assets = trading_client().get_all_assets(req)
     out: list[dict] = []
     for a in assets:
         if not a.tradable:

@@ -16,7 +16,12 @@ export const ORDER_TYPES: OType[] = [
   "trailing_stop",
 ];
 
+// Crypto does not support trailing_stop on Alpaca paper accounts.
+export const CRYPTO_ORDER_TYPES: OType[] = ["market", "limit", "stop", "stop_limit"];
+
 export const TIFS: TIF[] = ["day", "gtc", "opg", "cls", "ioc", "fok"];
+// Crypto only supports GTC and IOC time-in-force.
+export const CRYPTO_TIFS: TIF[] = ["gtc", "ioc"];
 
 // Mirrors backend/app/schemas.py SubmitOrderRequest._check + adds asset-
 // capability gating so we fail fast instead of round-tripping a 422.
@@ -61,6 +66,9 @@ export interface UseOrderTicketResult {
   needsLimit: boolean;
   needsStop: boolean;
   needsTrail: boolean;
+  isCrypto: boolean;
+  availableOrderTypes: OType[];
+  availableTifs: TIF[];
   asset: Asset | undefined;
   quote: { bid: number; ask: number; mid: number } | undefined;
   estNotional: number | null;
@@ -112,7 +120,16 @@ export function useOrderTicket(initialSymbol = ""): UseOrderTicketResult {
   const { quotes } = useLiveQuotes(symUpper ? [symUpper] : []);
   const quote = quotes[symUpper];
 
-  const extHoursEligible = type === "limit" && tif === "day";
+  const isCrypto = asset?.asset_class === "crypto";
+  const availableOrderTypes = isCrypto ? CRYPTO_ORDER_TYPES : ORDER_TYPES;
+  const availableTifs = isCrypto ? CRYPTO_TIFS : TIFS;
+
+  // Auto-correct TIF when switching to a crypto asset that doesn't support it.
+  useEffect(() => {
+    if (isCrypto && tif !== "gtc" && tif !== "ioc") setTif("gtc");
+  }, [isCrypto, tif]);
+
+  const extHoursEligible = !isCrypto && type === "limit" && tif === "day";
   const extHoursOn = extHoursEligible && extHours;
   const needsLimit = type === "limit" || type === "stop_limit";
   const needsStop = type === "stop" || type === "stop_limit";
@@ -155,7 +172,7 @@ export function useOrderTicket(initialSymbol = ""): UseOrderTicketResult {
 
   const clientError = validate(form, asset);
   const shortNote =
-    side === "sell" && asset && !asset.shortable
+    !isCrypto && side === "sell" && asset && !asset.shortable
       ? `${asset.symbol} is not shortable — sell only closes an existing long`
       : null;
 
@@ -200,6 +217,9 @@ export function useOrderTicket(initialSymbol = ""): UseOrderTicketResult {
     needsLimit,
     needsStop,
     needsTrail,
+    isCrypto,
+    availableOrderTypes,
+    availableTifs,
     asset,
     quote,
     estNotional,

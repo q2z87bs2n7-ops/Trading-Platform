@@ -88,7 +88,7 @@ function StripRow({
         className="font-mono text-[13px] tabular-nums"
         style={{ color: "var(--text-2)" }}
       >
-        {p.qty} shares
+        {p.qty} {p.symbol.includes("/") ? "units" : "shares"}
       </span>
       <div className="text-right">
         <div className="font-mono text-[14px] tabular-nums">
@@ -146,13 +146,19 @@ function StripRow({
 export default function Positions({
   variant = "strip",
   onSelect,
+  assetClass,
 }: {
   variant?: "strip" | "table";
   onSelect?: (symbol: string) => void;
+  assetClass?: "stocks" | "crypto";
 } = {}) {
   const { data, error, isPending } = usePositions();
   const closeAll = useCloseAllPositions();
-  const rows = data?.positions;
+  const rows = data?.positions.filter((p: Position) => {
+    if (!assetClass) return true;
+    const crypto = p.symbol.includes("/");
+    return assetClass === "crypto" ? crypto : !crypto;
+  });
 
   // Both cards open from the strip variant. closingPos drives the
   // ClosePositionCard; customizingPos drives the follow-on OrderSheet

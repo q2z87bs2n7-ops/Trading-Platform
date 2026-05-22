@@ -229,9 +229,10 @@ def snapshots(symbols: str = Query("")) -> dict:
 )
 def assets_search(
     search: str = Query("", description="symbol/name substring"),
+    asset_class: str = Query("", description="us_equity or crypto"),
     limit: int = Query(25, ge=1, le=100),
 ) -> list[dict]:
-    return alpaca.search_assets(search, limit)
+    return alpaca.search_assets(search, limit, asset_class)
 
 
 # --- Write path (Stage 2). Every route below carries the no-op write-auth
@@ -284,19 +285,31 @@ def close_all_positions() -> dict:
 # mutating routes carry the write-auth seam like the trade routes. ----------
 
 
+_CRYPTO_TICKERS = [
+    "BTC/USD", "ETH/USD", "SOL/USD", "XRP/USD",
+    "DOGE/USD", "AVAX/USD", "LINK/USD", "ADA/USD",
+]
+
+
+@app.get("/api/crypto/tickers", dependencies=[Depends(require_configured)])
+def crypto_tickers() -> dict:
+    """Live snapshots for major crypto pairs — the crypto equivalent of /api/indices."""
+    return {"tickers": alpaca.get_snapshots(_CRYPTO_TICKERS)}
+
+
 @app.get("/api/watchlist", dependencies=[Depends(require_configured)])
-def watchlist() -> dict:
-    return alpaca.get_watchlist()
+def watchlist(asset_class: str = Query("")) -> dict:
+    return alpaca.get_watchlist(asset_class)
 
 
 @app.post("/api/watchlist", dependencies=_WRITE_DEPS)
-def watchlist_add(req: WatchlistSymbol) -> dict:
-    return alpaca.add_to_watchlist(req.symbol)
+def watchlist_add(req: WatchlistSymbol, asset_class: str = Query("")) -> dict:
+    return alpaca.add_to_watchlist(req.symbol, asset_class)
 
 
 @app.delete("/api/watchlist/{symbol}", dependencies=_WRITE_DEPS)
-def watchlist_remove(symbol: str) -> dict:
-    return alpaca.remove_from_watchlist(symbol)
+def watchlist_remove(symbol: str, asset_class: str = Query("")) -> dict:
+    return alpaca.remove_from_watchlist(symbol, asset_class)
 
 
 @app.get("/api/stream")
@@ -321,7 +334,10 @@ async def stream(
         syms = get_settings().symbols
     ks = {k.strip().lower() for k in kinds.split(",") if k.strip()}
     valid_ks = {k for k in ks if k in ("quote", "bar")}
-    queue = await quote_stream.hub.subscribe(syms, valid_ks)  # type: ignore[arg-type]
+    # Route to the crypto hub when all requested symbols are crypto pairs (contain "/").
+    all_crypto = bool(syms) and all("/" in s for s in syms)
+    hub = quote_stream.crypto_hub if all_crypto else quote_stream.hub
+    queue = await hub.subscribe(syms, valid_ks)  # type: ignore[arg-type]
 
     async def events():
         try:
@@ -338,7 +354,7 @@ async def stream(
                     # Comment line keeps proxies from closing an idle stream.
                     yield ": keepalive\n\n"
         finally:
-            quote_stream.hub.unsubscribe(queue)
+            hub.unsubscribe(queue)
 
     return StreamingResponse(
         events(),

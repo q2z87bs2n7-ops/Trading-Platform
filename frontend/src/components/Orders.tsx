@@ -127,12 +127,16 @@ const dash = (s: string | number | null | undefined) =>
     s
   );
 
-export default function Orders() {
+export default function Orders({ assetClass }: { assetClass?: "stocks" | "crypto" } = {}) {
   const [status, setStatus] = useState<StatusFilter>("all");
   const { data, error, isPending } = useOrders(status, 25);
   const cancel = useCancelOrder();
   const cancelAll = useCancelAllOrders();
-  const rows = data?.orders;
+  const rows = data?.orders?.filter((o: Order) => {
+    if (!assetClass) return true;
+    const crypto = o.symbol.includes("/");
+    return assetClass === "crypto" ? crypto : !crypto;
+  });
   const hasLive = !!rows?.some(live);
 
   // Modify and cancel-all both open cards; canceling a single open
