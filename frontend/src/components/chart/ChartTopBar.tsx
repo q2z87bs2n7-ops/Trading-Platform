@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { useLiveQuotes } from "../../data/useLiveQuotes";
+import { useMobile } from "../../hooks/useMobile";
 import {
   getTVWidget,
   subscribeTVWidget,
@@ -141,6 +142,70 @@ export default function ChartTopBar({ symbol, onChartBotClick }: Props) {
   const indRef = useRef<HTMLDivElement>(null);
   useClickOutside(typeRef, () => setTypeOpen(false));
   useClickOutside(indRef, () => setIndOpen(false));
+  const isMobile = useMobile();
+
+  if (isMobile) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          overflowX: "auto",
+          scrollbarWidth: "none",
+          padding: "6px 10px",
+          borderBottom: "1px solid var(--hairline)",
+        }}
+      >
+        {/* Compact symbol + live price */}
+        <span
+          className="font-semibold"
+          style={{ fontSize: 14, whiteSpace: "nowrap" }}
+        >
+          {symbol || "—"}
+        </span>
+        {quote && (
+          <span
+            className="font-mono tabular-nums"
+            style={{ fontSize: 12, color: "var(--text-2)", whiteSpace: "nowrap" }}
+          >
+            {money(quote.mid)}
+          </span>
+        )}
+
+        {/* TF pills */}
+        <div style={{ display: "inline-flex", gap: 4 }}>
+          {TFS.map((t) => {
+            const active = resolution === t.res;
+            return (
+              <button
+                key={t.res}
+                type="button"
+                onClick={() => setTF(t.res)}
+                disabled={!tvReady}
+                className="font-mono cursor-pointer"
+                style={{
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  padding: "5px 10px",
+                  borderRadius: 999,
+                  whiteSpace: "nowrap",
+                  background: active ? "var(--accent-bg)" : "transparent",
+                  color: active ? "var(--accent)" : "var(--text-2)",
+                  border: "1px solid " + (active ? "var(--accent)" : "var(--border)"),
+                }}
+              >
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* ⋯ overflow — chart type + indicators */}
+        <OverflowMenu onPickType={setType} onAddIndicator={addIndicator} tvReady={tvReady} />
+      </div>
+    );
+  }
 
   return (
     <div
@@ -299,6 +364,105 @@ export default function ChartTopBar({ symbol, onChartBotClick }: Props) {
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+// Mobile ⋯ overflow popover combining the chart-type and indicator lists
+// that get their own buttons on desktop.
+function OverflowMenu({
+  onPickType,
+  onAddIndicator,
+  tvReady,
+}: {
+  onPickType: (n: number) => void;
+  onAddIndicator: (name: string) => void;
+  tvReady: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useClickOutside(ref, () => setOpen(false));
+  return (
+    <div className="relative" ref={ref} style={{ marginLeft: "auto" }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        disabled={!tvReady}
+        aria-label="Chart type and indicators"
+        style={{
+          fontSize: 16,
+          lineHeight: 1,
+          padding: "5px 12px",
+          borderRadius: 999,
+          whiteSpace: "nowrap",
+          background: open ? "var(--panel-2)" : "transparent",
+          color: "var(--text-2)",
+          border: "1px solid var(--border)",
+          cursor: "pointer",
+        }}
+      >
+        ⋯
+      </button>
+      {open && (
+        <div
+          className="absolute top-full right-0 mt-1 z-20 flex flex-col py-1"
+          style={{
+            background: "var(--panel)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--r)",
+            boxShadow: "var(--shadow)",
+            minWidth: 200,
+            maxHeight: "60vh",
+            overflowY: "auto",
+          }}
+        >
+          <div
+            className="px-3 pt-1 pb-0.5 text-[10.5px] uppercase"
+            style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
+          >
+            Chart type
+          </div>
+          {CHART_TYPES.map((ct) => (
+            <button
+              key={ct.value}
+              type="button"
+              onClick={() => {
+                onPickType(ct.value);
+                setOpen(false);
+              }}
+              className="text-left text-[13px] px-3 py-2 cursor-pointer border-0 bg-transparent hover:bg-panel-2"
+              style={{ color: "var(--text)" }}
+            >
+              {ct.label}
+            </button>
+          ))}
+          <div
+            className="px-3 pt-2 pb-0.5 text-[10.5px] uppercase"
+            style={{
+              color: "var(--mute)",
+              letterSpacing: "0.04em",
+              borderTop: "1px solid var(--hairline)",
+              marginTop: 4,
+            }}
+          >
+            Indicators
+          </div>
+          {INDICATORS.map((name) => (
+            <button
+              key={name}
+              type="button"
+              onClick={() => {
+                onAddIndicator(name);
+                setOpen(false);
+              }}
+              className="text-left text-[13px] px-3 py-2 cursor-pointer border-0 bg-transparent hover:bg-panel-2"
+              style={{ color: "var(--text)" }}
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

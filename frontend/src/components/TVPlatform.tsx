@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { useTheme } from "../hooks/useTheme";
+import { useMobile } from "../hooks/useMobile";
 import { createDatafeed } from "../lib/tv-datafeed";
 import { createBroker } from "../lib/tv-broker";
 import {
@@ -84,6 +85,7 @@ function normalizeSymbol(raw: string): string {
 
 export default function TVPlatform({ symbol, onSymbolChange, assetClass }: Props) {
   const selectSym = (s: string) => onSymbolChange?.(s);
+  const isMobile = useMobile();
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetRef = useRef<TVWidgetInstance | null>(null);
   const { theme } = useTheme();
@@ -229,8 +231,10 @@ export default function TVPlatform({ symbol, onSymbolChange, assetClass }: Props
         className="border border-border"
         style={{
           width: "100%",
-          height: "calc(100vh - 360px)",
-          minHeight: 360,
+          height: isMobile
+            ? "calc(100dvh - var(--mob-chrome-top) - var(--mob-chrome-top-2) - 140px)"
+            : "calc(100vh - 360px)",
+          minHeight: isMobile ? 320 : 360,
           borderRadius: "var(--r-lg)",
           overflow: "hidden",
         }}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import { useMobile } from "../../hooks/useMobile";
 import {
   getTVWidget,
   subscribeTVWidget,
@@ -15,6 +16,7 @@ import {
 export default function IndicatorPillsRow() {
   const [studies, setStudies] = useState<TVEntityInfo[]>([]);
   const [tvReady, setTvReady] = useState(!!getTVWidget());
+  const isMobile = useMobile();
 
   useEffect(() => {
     return subscribeTVWidget((w) => setTvReady(!!w));
@@ -62,7 +64,23 @@ export default function IndicatorPillsRow() {
   if (studies.length === 0) return null;
 
   return (
-    <div className="flex items-center flex-wrap gap-1.5 px-3 py-1.5">
+    <div
+      className={
+        isMobile
+          ? "flex items-center gap-1.5 py-1.5"
+          : "flex items-center flex-wrap gap-1.5 px-3 py-1.5"
+      }
+      style={
+        isMobile
+          ? {
+              flexWrap: "nowrap",
+              overflowX: "auto",
+              scrollbarWidth: "none",
+              padding: "4px var(--mob-container-pad)",
+            }
+          : undefined
+      }
+    >
       {studies.map((s) => (
         <span
           key={s.id}
@@ -72,6 +90,7 @@ export default function IndicatorPillsRow() {
             color: "var(--accent)",
             borderRadius: 6,
             letterSpacing: 0,
+            flexShrink: 0,
           }}
         >
           <span>{s.name}</span>
