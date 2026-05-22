@@ -96,8 +96,8 @@ def get_corporate_actions(
     params: dict = {"limit": min(limit, 50)}
     if symbols:
         params["symbols"] = ",".join(sym.upper() for sym in symbols)
-    if ca_types:
-        params["types"] = ",".join(ca_types)
+    # API requires at least one type filter; default to all four when unspecified.
+    params["ca_types"] = ",".join(ca_types) if ca_types else "dividend,merger,spinoff,split"
     if since:
         params["since"] = since
     headers = {
@@ -105,7 +105,7 @@ def get_corporate_actions(
         "APCA-API-SECRET-KEY": s.alpaca_secret_key,
     }
     resp = _req.get(
-        "https://data.alpaca.markets/v1beta1/corporate_actions/announcements",
+        "https://data.alpaca.markets/v1beta1/corporate-actions/announcements",
         params=params,
         headers=headers,
         timeout=10,
