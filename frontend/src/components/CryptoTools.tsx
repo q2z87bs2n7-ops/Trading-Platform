@@ -47,7 +47,7 @@ function CryptoTicker({ tickers }: { tickers: Snapshot[] }) {
         boxShadow: "var(--shadow-sm)",
       }}
     >
-      <div className="flex items-center overflow-x-auto">
+      <div className="flex items-center">
         <span
           className="text-[11px] uppercase font-semibold px-3 py-2 whitespace-nowrap shrink-0"
           style={{
@@ -58,39 +58,42 @@ function CryptoTicker({ tickers }: { tickers: Snapshot[] }) {
         >
           Crypto
         </span>
-        {tickers.map((t) => {
-          const last = t.last_price ?? 0;
-          const prev = t.prev_close ?? 0;
-          const changePct = prev ? (last - prev) / prev : 0;
-          const up = changePct >= 0;
-          const color = up ? "var(--pos)" : "var(--neg)";
-          // Price display: use more decimals for sub-dollar coins.
-          const decimals = last < 1 ? 4 : last < 10 ? 3 : 2;
-          return (
-            <span
-              key={t.symbol}
-              className="flex items-center gap-2 px-4 py-2 whitespace-nowrap shrink-0"
-              style={{ borderRight: "1px solid var(--hairline)" }}
-            >
-              <span
-                className="text-[11px] font-semibold"
-                style={{ color: "var(--mute)" }}
-              >
-                {coinLabel(t.symbol)}
-              </span>
-              <span className="text-[13px] font-semibold tabular-nums">
-                {money(last, decimals)}
-              </span>
-              <span
-                className="text-[12px] tabular-nums font-medium"
-                style={{ color }}
-              >
-                {up ? "+" : ""}
-                {(changePct * 100).toFixed(2)}%
-              </span>
-            </span>
-          );
-        })}
+        <div className="ticker-wrap overflow-hidden flex-1" style={{ height: 36 }}>
+          <div className="ticker-track h-full items-center">
+            {[...tickers, ...tickers].map((t, i) => {
+              const last = t.last_price ?? 0;
+              const prev = t.prev_close ?? 0;
+              const changePct = prev ? (last - prev) / prev : 0;
+              const up = changePct >= 0;
+              const color = up ? "var(--pos)" : "var(--neg)";
+              const decimals = last < 1 ? 4 : last < 10 ? 3 : 2;
+              return (
+                <span
+                  key={i}
+                  className="flex items-center gap-2 px-4 whitespace-nowrap"
+                  style={{ borderRight: "1px solid var(--hairline)" }}
+                >
+                  <span
+                    className="text-[11px] font-semibold"
+                    style={{ color: "var(--mute)" }}
+                  >
+                    {coinLabel(t.symbol)}
+                  </span>
+                  <span className="text-[13px] font-semibold tabular-nums">
+                    {money(last, decimals)}
+                  </span>
+                  <span
+                    className="text-[12px] tabular-nums font-medium"
+                    style={{ color }}
+                  >
+                    {up ? "+" : ""}
+                    {(changePct * 100).toFixed(2)}%
+                  </span>
+                </span>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -120,7 +120,8 @@ export function useOrderTicket(initialSymbol = ""): UseOrderTicketResult {
   const { quotes } = useLiveQuotes(symUpper ? [symUpper] : []);
   const quote = quotes[symUpper];
 
-  const isCrypto = asset?.asset_class === "crypto";
+  // Fast-path: slash in symbol is always crypto; don't wait for the asset API.
+  const isCrypto = symbol.trim().includes("/") || asset?.asset_class === "crypto";
   const availableOrderTypes = isCrypto ? CRYPTO_ORDER_TYPES : ORDER_TYPES;
   const availableTifs = isCrypto ? CRYPTO_TIFS : TIFS;
 
@@ -188,7 +189,7 @@ export function useOrderTicket(initialSymbol = ""): UseOrderTicketResult {
     setLimitPrice(undefined);
     setStopPrice(undefined);
     setTrailPct(undefined);
-    setTif("day");
+    setTif(isCrypto ? "gtc" : "day");
     setExtHours(false);
     submit.reset();
   }
