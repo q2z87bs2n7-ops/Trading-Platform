@@ -3,12 +3,15 @@
 # Alpaca WebSocket open, so /api/stream needs an always-on process.
 FROM python:3.12-slim
 
+# Build context is the repo ROOT (see render.yaml dockerContext) so the image
+# can ship the root VERSION file that app/main.py reads at startup.
 WORKDIR /app
 
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app ./app
+COPY backend/app ./app
+COPY VERSION ./VERSION
 
 ENV PORT=8000
 EXPOSE 8000

@@ -12,7 +12,9 @@ services:
     name: trading-relay
     runtime: docker
     dockerfilePath: ./backend/Dockerfile
-    dockerContext: ./backend
+    # Root context (not ./backend) so the image can COPY the repo-root VERSION
+    # file that the backend reads at startup. .dockerignore keeps it lean.
+    dockerContext: .
     # Free instances sleep after ~15 min idle, which drops the upstream
     # Alpaca stream until the next request. Use "starter" for a genuinely
     # always-on relay; switch to "free" to trial it.

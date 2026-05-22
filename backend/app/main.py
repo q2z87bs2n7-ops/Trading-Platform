@@ -1,4 +1,5 @@
 import asyncio
+import os
 import time
 from pathlib import Path
 
@@ -25,7 +26,25 @@ from .schemas import (
     WatchlistSymbol,
 )
 
-_version = Path(__file__).parent.parent.parent.joinpath("VERSION").read_text().strip()
+def _read_version() -> str:
+    """VERSION lives at the repo root. Resolve it across layouts — the local
+    tree and Vercel keep ``backend/app/main.py`` three levels under the file;
+    the Render image flattens to ``/app/app`` with VERSION copied to ``/app``.
+    Fall back to an env var / sentinel so a missing file never crashes startup
+    (the relay must boot even if the version can't be read)."""
+    here = Path(__file__).resolve()
+    for candidate in (
+        here.parent.parent.parent / "VERSION",  # repo root (local dev, Vercel)
+        here.parent.parent / "VERSION",          # /app in the container image
+    ):
+        try:
+            return candidate.read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+    return os.environ.get("APP_VERSION", "0.0.0")
+
+
+_version = _read_version()
 app = FastAPI(title="Trading Platform API", version=_version)
 
 app.add_middleware(

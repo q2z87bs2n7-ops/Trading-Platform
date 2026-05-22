@@ -1,0 +1,23 @@
+# Docker build context is the repo root (render.yaml dockerContext: .) so the
+# backend image can COPY the root VERSION file. Keep everything the image does
+# not need — and any secrets — out of the context.
+.git
+.github
+**/__pycache__
+**/.venv
+**/node_modules
+**/.pytest_cache
+**/.mypy_cache
+
+# Frontend is built/served by Vercel + GitHub Pages, never in this image.
+frontend
+gh-pages
+
+# Vercel-only shim; the relay runs uvicorn against backend/app directly.
+api
+
+# Docs and local env files.
+docs
+*.md
+**/.env
+**/.env.*
