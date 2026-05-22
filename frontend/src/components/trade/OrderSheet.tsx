@@ -194,15 +194,18 @@ export default function OrderSheet({
   if (!open) return null;
 
   const quickFills = [10, 50, 100];
-  const bp = account?.buying_power ?? 0;
+  const bp =
+    (t.isCrypto
+      ? account?.non_marginable_buying_power
+      : account?.buying_power) ?? 0;
   const maxQty =
     t.quote?.mid && t.quote.mid > 0 ? Math.floor(bp / t.quote.mid) : null;
 
   const afterOrder =
     t.estNotional != null && account
       ? t.side === "buy"
-        ? account.buying_power - t.estNotional
-        : account.buying_power + t.estNotional
+        ? bp - t.estNotional
+        : bp + t.estNotional
       : null;
 
   return (
@@ -552,7 +555,7 @@ export default function OrderSheet({
                   >
                     <span style={{ color: "var(--mute)" }}>Buying power</span>
                     <span className="font-mono tabular-nums">
-                      {money(account.buying_power)}
+                      {money(bp)}
                     </span>
                   </div>
                   {afterOrder != null && (
