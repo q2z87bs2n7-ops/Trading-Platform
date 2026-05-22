@@ -1,9 +1,18 @@
 import { useOrders } from "../../../data/hooks";
+import type { AssetClass } from "../../../lib/cmd-intent";
+import type { Order } from "../../../types";
 import CmdResultCard from "../CmdResultCard";
 
-export function OrdersCard() {
-  const orders = useOrders("open", 25);
-  const rows = orders.data?.orders || [];
+const isCrypto = (o: Order) =>
+  o.asset_class === "crypto" || o.symbol.includes("/");
+
+export function OrdersCard({ assetClass }: { assetClass: AssetClass }) {
+  const orders = useOrders("open", 50);
+  const all = orders.data?.orders || [];
+  const rows = all.filter((o) =>
+    assetClass === "crypto" ? isCrypto(o) : !isCrypto(o),
+  );
+  const label = assetClass === "crypto" ? "crypto" : "stock";
   if (!orders.data) {
     return (
       <CmdResultCard title="Open orders">
@@ -17,7 +26,7 @@ export function OrdersCard() {
     <CmdResultCard title="Open orders" meta={`${rows.length} working`}>
       {rows.length === 0 ? (
         <div className="text-[13px]" style={{ color: "var(--mute)" }}>
-          No working orders. Recent fills appear in the blotter.
+          No working {label} orders. Recent fills appear in the blotter.
         </div>
       ) : (
         <div className="flex flex-col">

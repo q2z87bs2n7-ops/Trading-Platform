@@ -76,11 +76,16 @@ class ChatResponse(BaseModel):
 # --- Backend tool dispatcher ------------------------------------------------
 
 
-def _execute_read_tool(name: str, args: dict[str, Any]) -> str:
+def _execute_read_tool(
+    name: str, args: dict[str, Any], asset_class: str | None = None
+) -> str:
     """Run one read tool and return its JSON-serialized result string.
 
     Returns JSON so the model parses uniformly; on failure, raises and
-    the caller wraps as ``is_error`` tool_result.
+    the caller wraps as ``is_error`` tool_result. ``asset_class`` (the
+    Ask-anything silo) defaults the silo-scoped tools (watchlist / symbol
+    search) so the model sees the right universe; the ChartBot path leaves
+    it None and keeps the prior all/stocks behaviour.
     """
     if name == "get_bars":
         symbol = str(args["symbol"]).upper()
@@ -132,7 +137,16 @@ def _execute_read_tool(name: str, args: dict[str, Any]) -> str:
     if name == "find_symbol":
         query = str(args["query"])
         limit = min(int(args.get("limit", 10)), 25)
-        return json.dumps({"matches": alpaca.search_assets(query, limit)}, default=str)
+        search_class = (
+            "crypto"
+            if asset_class == "crypto"
+            else "us_equity"
+            if asset_class == "stocks"
+            else ""
+        )
+        return json.dumps(
+            {"matches": alpaca.search_assets(query, limit, search_class)}, default=str
+        )
 
     if name == "get_activities":
         activity_type = args.get("activity_type")
@@ -148,7 +162,8 @@ def _execute_read_tool(name: str, args: dict[str, Any]) -> str:
         return json.dumps({"calendar": alpaca.get_calendar(start, end)}, default=str)
 
     if name == "get_watchlist":
-        return json.dumps(alpaca.get_watchlist(), default=str)
+        wl_class = "crypto" if asset_class == "crypto" else ""
+        return json.dumps(alpaca.get_watchlist(wl_class), default=str)
 
     if name == "get_corporate_actions":
         symbols = args.get("symbols")
@@ -356,6 +371,10 @@ def ai_ask(req: AskRequest) -> AskResponse:
         context += " The user is in the STOCKS (US equities) silo."
     system = prompt.build_general_system(context=context)
     tool_list = tools.read_only_tools(web_search=s.ai_web_search_enabled)
+    if req.asset_class == "crypto":
+        # Equity-only / irrelevant tools for the 24/7 crypto silo.
+        _crypto_drop = {"get_movers", "get_corporate_actions", "get_calendar", "get_clock"}
+        tool_list = [t for t in tool_list if t.get("name") not in _crypto_drop]
     messages = _trim_history(
         list(req.history) + [{"role": "user", "content": req.message}]
     )
@@ -401,7 +420,9 @@ def ai_ask(req: AskRequest) -> AskResponse:
         results: list[dict[str, Any]] = []
         for tu in tool_uses:
             try:
-                result_str = _execute_read_tool(tu.name, dict(tu.input))
+                result_str = _execute_read_tool(
+                    tu.name, dict(tu.input), asset_class=req.asset_class
+                )
                 results.append(
                     {
                         "type": "tool_result",

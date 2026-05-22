@@ -44,7 +44,7 @@ export function CmdResult({
     case "news":
       return <NewsCard symbol={intent.symbol} assetClass={assetClass} />;
     case "orders":
-      return <OrdersCard />;
+      return <OrdersCard assetClass={assetClass} />;
     case "chart":
       return (
         <ChartCard

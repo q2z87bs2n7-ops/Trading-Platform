@@ -129,9 +129,10 @@ export function NewsCard({
     const label = symbol.includes("/") ? symbol.split("/")[0] : symbol;
     return <TickerNewsCard symbol={symbol} label={label} />;
   }
-  // No explicit symbol: crypto silo has no general headlines feed, so fall
-  // back to the BTC feed (same as the Crypto Discover page); stocks use the
-  // US market headlines feed.
-  if (assetClass === "crypto") return <TickerNewsCard symbol="BTC" label="Crypto · BTC" />;
+  // No explicit symbol: crypto has no general-headlines feed, so query a
+  // basket of the most-covered coins (Benzinga keys off bare tickers) for
+  // broader crypto headlines; stocks use the US market headlines feed.
+  if (assetClass === "crypto")
+    return <TickerNewsCard symbol="BTC,ETH,SOL,XRP,DOGE" label="Crypto" />;
   return <MarketNewsCard />;
 }
