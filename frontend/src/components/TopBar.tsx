@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from "react";
 
 import { useAccount, useClock } from "../data/hooks";
 import { useStreamStatus } from "../hooks/useStreamStatus";
+import { useMobile } from "../hooks/useMobile";
 import type { AssetClass } from "../lib/cmd-intent";
+import type { Account, MarketClock } from "../types";
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD" });
@@ -36,12 +38,23 @@ export default function TopBar({ assetClass = "stocks" }: { assetClass?: AssetCl
   const [eqOpen, setEqOpen] = useState(false);
   const eqRef = useRef<HTMLDivElement>(null);
   useClickOutside(eqRef, () => setEqOpen(false));
+  const isMobile = useMobile();
 
   // Day P/L: dynamic calculation from account equity
   const pl = acct ? acct.equity - acct.equity_at_market_open : 0;
   const plpc =
     acct && acct.equity_at_market_open > 0 ? pl / acct.equity_at_market_open : 0;
   const up = pl >= 0;
+
+  if (isMobile)
+    return (
+      <MobileStatusStrip
+        clk={clk}
+        acct={acct}
+        isCrypto={isCrypto}
+        polling={streamStatus === "polling"}
+      />
+    );
 
   return (
     <div className="flex items-center gap-6 text-[13px] flex-wrap text-text">
@@ -151,6 +164,169 @@ export default function TopBar({ assetClass = "stocks" }: { assetClass?: AssetCl
           </span>
         </div>
       )}
+    </div>
+  );
+}
+
+const money0 = (n: number) =>
+  n.toLocaleString("en-US", { maximumFractionDigits: 0 });
+
+// Single-row status strip for mobile. Polling dot + (stocks-only) OPEN/CLOSED
+// chip + equity/day-% button that opens the balance sheet.
+function MobileStatusStrip({
+  clk,
+  acct,
+  isCrypto,
+  polling,
+}: {
+  clk: MarketClock | undefined;
+  acct: Account | undefined;
+  isCrypto: boolean;
+  polling: boolean;
+}) {
+  const [sheetOpen, setSheetOpen] = useState(false);
+  if (!acct) return null;
+  const pl = acct.equity - acct.equity_at_market_open;
+  const plpc = acct.equity_at_market_open > 0 ? pl / acct.equity_at_market_open : 0;
+  const up = pl >= 0;
+  return (
+    <>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "6px var(--mob-container-pad) 8px",
+          fontSize: 12,
+        }}
+      >
+        {polling && (
+          <span
+            aria-label="Stream polling fallback"
+            style={{ width: 8, height: 8, borderRadius: 99, background: "var(--warn)" }}
+          />
+        )}
+        {!isCrypto && clk && (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: 99,
+                background: clk.is_open ? "var(--pos)" : "var(--neg)",
+              }}
+            />
+            <b style={{ color: clk.is_open ? "var(--pos)" : "var(--neg)", fontSize: 11.5 }}>
+              {clk.is_open ? "OPEN" : "CLOSED"}
+            </b>
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={() => setSheetOpen(true)}
+          style={{
+            marginLeft: "auto",
+            display: "inline-flex",
+            gap: 8,
+            alignItems: "baseline",
+            background: "transparent",
+            border: 0,
+            padding: 0,
+            cursor: "pointer",
+            minHeight: "var(--mob-tap)",
+          }}
+        >
+          <span className="tabular-nums" style={{ fontWeight: 600 }}>
+            ${money0(acct.equity)}
+          </span>
+          <span
+            style={{
+              fontSize: 10.5,
+              padding: "2px 6px",
+              borderRadius: 6,
+              background: up ? "var(--pos-bg)" : "var(--neg-bg)",
+              color: up ? "var(--pos)" : "var(--neg)",
+            }}
+          >
+            {up ? "+" : ""}
+            {(plpc * 100).toFixed(2)}%
+          </span>
+          <span style={{ color: "var(--mute)" }}>▾</span>
+        </button>
+      </div>
+      {sheetOpen && (
+        <EquitySheet acct={acct} isCrypto={isCrypto} onClose={() => setSheetOpen(false)} />
+      )}
+    </>
+  );
+}
+
+// Bottom sheet: Cash / Portfolio Value / Buying Power. Tap backdrop to close.
+function EquitySheet({
+  acct,
+  isCrypto,
+  onClose,
+}: {
+  acct: Account;
+  isCrypto: boolean;
+  onClose: () => void;
+}) {
+  const rows: [string, number][] = [
+    ["Cash", acct.cash],
+    ["Portfolio Value", acct.portfolio_value],
+    [
+      isCrypto ? "Buying Power (crypto)" : "Buying Power",
+      isCrypto ? acct.non_marginable_buying_power : acct.buying_power,
+    ],
+  ];
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-50"
+      style={{ background: "rgba(20,22,28,0.45)" }}
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "var(--panel)",
+          borderTopLeftRadius: 18,
+          borderTopRightRadius: 18,
+          boxShadow: "var(--shadow-lg)",
+          padding: "14px 16px",
+          paddingBottom: "max(var(--safe-bottom), 14px)",
+          animation: "mob-sheet-in 200ms ease",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "center", paddingBottom: 10 }}>
+          <span
+            style={{ width: 36, height: 4, borderRadius: 99, background: "var(--border-2)" }}
+          />
+        </div>
+        {rows.map(([k, v]) => (
+          <div
+            key={k}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              padding: "10px 0",
+              borderTop: "1px solid var(--hairline)",
+              fontSize: 14,
+            }}
+          >
+            <span style={{ color: "var(--mute)" }}>{k}</span>
+            <span className="tabular-nums" style={{ fontWeight: 600 }}>
+              {money(v)}
+            </span>
+          </div>
+        ))}
+      </div>
+      <style>{`@keyframes mob-sheet-in { from { transform: translateY(100%) } to { transform: none } }`}</style>
     </div>
   );
 }

@@ -16,6 +16,9 @@ import CmdBar from "./components/cmd/CmdBar";
 import SettingsMenu from "./components/SettingsMenu";
 import Toaster from "./components/Toaster";
 import IconButton from "./components/IconButton";
+import MobileHeader from "./components/MobileHeader";
+import MobileNavDrawer from "./components/MobileNavDrawer";
+import { useMobile } from "./hooks/useMobile";
 
 type PlatformMode = "discover" | "portfolio" | "chart";
 type AssetClassMode = "stocks" | "crypto";
@@ -159,6 +162,8 @@ export default function App() {
   // The platform always lands on the market-picker / account overview, so
   // this starts open on every load (no last-page restore).
   const [landingOpen, setLandingOpen] = useState(true);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const isMobile = useMobile();
   const { theme, toggle: toggleTheme } = useTheme();
 
   const activeClass: AssetClassMode = assetClassMode ?? "stocks";
@@ -218,6 +223,16 @@ export default function App() {
     <>
     <div className="app" style={siloAccent}>
       <header>
+        {isMobile ? (
+          <MobileHeader
+            mode={mode}
+            activeClass={activeClass}
+            onOpenDrawer={() => setDrawerOpen(true)}
+            onOpenCmd={openCmdBar}
+            onSwitchMode={switchMode}
+            onSwitchAssetClass={switchAssetClass}
+          />
+        ) : (
         <div className="flex items-center justify-between gap-2 lg:gap-4 flex-wrap">
           <div className="flex items-center gap-3 min-w-0">
             <button
@@ -268,6 +283,7 @@ export default function App() {
             <SettingsMenu />
           </div>
         </div>
+        )}
         {/* Status ribbon — Portfolio + Chart. Discover keeps the nav
            clean; the account context is already in the Discover hero. */}
         {(mode === "portfolio" || mode === "chart") && <TopBar assetClass={activeClass} />}
@@ -326,6 +342,14 @@ export default function App() {
           setSelected(sym);
           switchMode("chart");
         }}
+      />
+
+      {/* Mobile-only slide-in nav drawer (hamburger target). */}
+      <MobileNavDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        onOpenHub={() => setHubOpen(true)}
+        version={__APP_VERSION__}
       />
 
       {/* Non-intrusive toast surface — bottom-right, auto-dismiss. */}
