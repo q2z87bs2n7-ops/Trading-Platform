@@ -70,18 +70,21 @@ export default function Activities({ bare = false }: { bare?: boolean }) {
           >
             <thead>
               <tr>
-                {["When", "Type", "Detail"].map((h) => (
+                {(["Type", "Detail"] as const).map((h) => (
                   <th
                     key={h}
                     className={TH}
-                    style={{
-                      borderColor: "var(--border)",
-                      color: "var(--mute)",
-                    }}
+                    style={{ borderColor: "var(--border)", color: "var(--mute)" }}
                   >
                     {h}
                   </th>
                 ))}
+                <th
+                  className={`${TH} text-right`}
+                  style={{ borderColor: "var(--border)", color: "var(--mute)" }}
+                >
+                  When
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -118,18 +121,8 @@ export default function Activities({ bare = false }: { bare?: boolean }) {
                     }}
                   >
                     <td
-                      className={`${TD} font-mono tabular-nums`}
-                      style={{
-                        borderColor: "var(--hairline)",
-                        color: "var(--mute)",
-                        width: 130,
-                      }}
-                    >
-                      {whenOf(a) || "—"}
-                    </td>
-                    <td
                       className={TD}
-                      style={{ borderColor: "var(--hairline)", width: 130 }}
+                      style={{ borderColor: "var(--hairline)" }}
                     >
                       <Pill
                         status={a.activity_type as string | undefined}
@@ -141,6 +134,12 @@ export default function Activities({ bare = false }: { bare?: boolean }) {
                       style={{ borderColor: "var(--hairline)" }}
                     >
                       {describe(a)}
+                    </td>
+                    <td
+                      className={`${TD} text-right`}
+                      style={{ borderColor: "var(--hairline)", color: "var(--mute)" }}
+                    >
+                      {whenOf(a) || "—"}
                     </td>
                   </tr>
                 ))}

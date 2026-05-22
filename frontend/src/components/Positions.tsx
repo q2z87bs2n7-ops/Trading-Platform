@@ -79,10 +79,10 @@ function StripRow({
       <div className="flex flex-col min-w-0">
         <span className="font-semibold">{p.symbol}</span>
         <span
-          className="text-[11px]"
-          style={{ color: "var(--mute)" }}
+          className="text-[11px] font-medium"
+          style={{ color: p.side?.toLowerCase().includes("short") ? "var(--neg)" : "var(--pos)" }}
         >
-          {p.side?.toLowerCase().includes("short") ? "SHORT" : "Long"}
+          {p.side?.toLowerCase().includes("short") ? "SHORT" : "LONG"}
         </span>
       </div>
       <span
