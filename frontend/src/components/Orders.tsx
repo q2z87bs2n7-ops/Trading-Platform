@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { useCancelAllOrders, useCancelOrder, useOrders } from "../data/hooks";
+import { useMobile } from "../hooks/useMobile";
 import { isCryptoOrder } from "../lib/asset-class";
 import { showToast } from "../lib/toast";
 import type { Order } from "../types";
@@ -128,6 +129,130 @@ const dash = (s: string | number | null | undefined) =>
     s
   );
 
+// Card variant used at ≤640px in place of the 11-col table row.
+function OrderCardMobile({
+  o,
+  onModify,
+  onCancel,
+  cancelPending,
+}: {
+  o: Order;
+  onModify: (o: Order) => void;
+  onCancel: (o: Order) => void;
+  cancelPending: boolean;
+}) {
+  const buy = enumTail(o.side) === "buy";
+  const val = orderValue(o);
+  const detail = statusDetail(o);
+  const canEdit = live(o);
+  return (
+    <div
+      style={{
+        background: "var(--panel)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--mob-card-radius)",
+        padding: 14,
+        marginBottom: 8,
+        boxShadow: "var(--shadow-sm)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span
+          style={{
+            fontSize: 10.5,
+            fontWeight: 700,
+            padding: "2px 8px",
+            borderRadius: 6,
+            background: buy ? "var(--pos-bg)" : "var(--neg-bg)",
+            color: buy ? "var(--pos)" : "var(--neg)",
+            textTransform: "uppercase",
+            letterSpacing: "0.04em",
+          }}
+        >
+          {buy ? "Buy" : "Sell"}
+        </span>
+        <b style={{ fontSize: 16 }}>{o.symbol}</b>
+        <span style={{ fontSize: 12, color: "var(--mute)" }}>
+          {fmtType(o.type)} · {o.qty}
+          {o.limit_price
+            ? ` @ ${o.limit_price}`
+            : o.stop_price
+              ? ` stop ${o.stop_price}`
+              : ""}
+        </span>
+        {canEdit && (
+          <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+            <button
+              type="button"
+              onClick={() => onModify(o)}
+              aria-label={`Modify ${o.symbol}`}
+              style={{
+                minHeight: "var(--mob-tap)",
+                minWidth: 38,
+                background: "var(--panel-2)",
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                fontSize: 13,
+              }}
+            >
+              ✎
+            </button>
+            <button
+              type="button"
+              onClick={() => onCancel(o)}
+              disabled={cancelPending}
+              aria-label={`Cancel ${o.symbol}`}
+              style={{
+                minHeight: "var(--mob-tap)",
+                minWidth: 38,
+                background: "var(--panel-2)",
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                fontSize: 13,
+              }}
+            >
+              ✕
+            </button>
+          </span>
+        )}
+      </div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          marginTop: 8,
+          fontSize: 11.5,
+          alignItems: "center",
+          gap: 8,
+          flexWrap: "wrap",
+        }}
+      >
+        <span className="font-mono" style={{ color: "var(--text-2)" }}>
+          {o.time_in_force ? enumTail(o.time_in_force).toUpperCase() : "—"}
+          {val != null && ` · est. ${money(val)}`}
+        </span>
+        <Pill status={o.status} />
+        {detail && (
+          <span
+            className="font-mono"
+            style={{ fontSize: 10.5, color: "var(--mute)" }}
+          >
+            {detail}
+          </span>
+        )}
+        <span
+          className="font-mono"
+          style={{ fontSize: 10.5, color: "var(--mute)", marginLeft: "auto" }}
+        >
+          {o.submitted_at
+            ? new Date(o.submitted_at * 1000).toLocaleString()
+            : "—"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export default function Orders({ assetClass }: { assetClass?: "stocks" | "crypto" } = {}) {
   const [status, setStatus] = useState<StatusFilter>("all");
   const { data, error, isPending } = useOrders(status, 25);
@@ -145,6 +270,7 @@ export default function Orders({ assetClass }: { assetClass?: "stocks" | "crypto
   // cancellation is recoverable by re-placing.
   const [modifyingOrder, setModifyingOrder] = useState<Order | null>(null);
   const [confirmCancelAll, setConfirmCancelAll] = useState(false);
+  const isMobile = useMobile();
 
   return (
     <div
@@ -205,7 +331,30 @@ export default function Orders({ assetClass }: { assetClass?: "stocks" | "crypto
               : "No orders yet."}
         </div>
       )}
-      {(isPending || (rows && rows.length > 0)) && (
+      {!isPending && isMobile && rows && rows.length > 0 && (
+        <div className="flex flex-col">
+          {rows.map((o) => (
+            <OrderCardMobile
+              key={o.id}
+              o={o}
+              onModify={setModifyingOrder}
+              onCancel={(or) =>
+                cancel.mutate(or.id, {
+                  onSuccess: () =>
+                    showToast(`${or.symbol} order cancelled`, "info"),
+                  onError: (e) =>
+                    showToast(
+                      `Couldn't cancel ${or.symbol}: ${(e as Error).message}`,
+                      "error",
+                    ),
+                })
+              }
+              cancelPending={cancel.isPending}
+            />
+          ))}
+        </div>
+      )}
+      {!isMobile && (isPending || (rows && rows.length > 0)) && (
         <div className="overflow-x-auto">
           <table
             className="w-full border-collapse"

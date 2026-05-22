@@ -1,4 +1,5 @@
 import { useActivities } from "../data/hooks";
+import { useMobile } from "../hooks/useMobile";
 import type { Activity } from "../types";
 import ErrorBanner from "./ErrorBanner";
 import Pill from "./Pill";
@@ -50,9 +51,49 @@ function whenOf(a: Activity): string {
   });
 }
 
+// Single-row card variant used at ≤640px in place of the 3-col table.
+function ActivityRowMobile({ a }: { a: Activity }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: 10,
+        alignItems: "center",
+        background: "var(--panel)",
+        border: "1px solid var(--border)",
+        borderRadius: 10,
+        padding: "10px 14px",
+        marginBottom: 8,
+        minHeight: "var(--mob-tap)",
+      }}
+    >
+      <Pill status={a.activity_type as string | undefined} tone="neutral" />
+      <span
+        style={{
+          flex: 1,
+          fontSize: 13,
+          minWidth: 0,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
+        {describe(a)}
+      </span>
+      <span
+        className="font-mono"
+        style={{ fontSize: 11, color: "var(--mute)", flexShrink: 0 }}
+      >
+        {whenOf(a) || "—"}
+      </span>
+    </div>
+  );
+}
+
 export default function Activities({ bare = false }: { bare?: boolean }) {
   const { data, error, isPending } = useActivities(25);
   const rows = data?.activities;
+  const isMobile = useMobile();
 
   const body = (
     <>
@@ -62,7 +103,14 @@ export default function Activities({ bare = false }: { bare?: boolean }) {
           No activity.
         </div>
       )}
-      {(isPending || (rows && rows.length > 0)) && (
+      {!isPending && isMobile && rows && rows.length > 0 && (
+        <div>
+          {rows.map((a, i) => (
+            <ActivityRowMobile key={String(a.id ?? i)} a={a} />
+          ))}
+        </div>
+      )}
+      {!isMobile && (isPending || (rows && rows.length > 0)) && (
         <div className="overflow-x-auto">
           <table
             className="w-full border-collapse"

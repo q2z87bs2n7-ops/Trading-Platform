@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import { useMobile } from "../../hooks/useMobile";
 import Activities from "../Activities";
 import Orders from "../Orders";
 import Positions from "../Positions";
@@ -15,7 +16,11 @@ const COLLAPSE_KEY = "chart_blotter_collapsed";
 
 function readCollapsed(): boolean {
   try {
-    return localStorage.getItem(COLLAPSE_KEY) === "1";
+    const v = localStorage.getItem(COLLAPSE_KEY);
+    if (v === "1") return true;
+    if (v === "0") return false;
+    // No stored preference: collapse by default on mobile to save space.
+    return window.matchMedia("(max-width: 640px)").matches;
   } catch {
     return false;
   }
@@ -30,6 +35,7 @@ export default function ChartBlotter({
 }) {
   const [tab, setTab] = useState<Tab>("positions");
   const [collapsed, setCollapsed] = useState(readCollapsed);
+  const isMobile = useMobile();
 
   useEffect(() => {
     try {
@@ -101,7 +107,11 @@ export default function ChartBlotter({
           style={{ maxHeight: 220 }}
         >
           {tab === "positions" && (
-            <Positions variant="table" onSelect={onSymbolSelect} assetClass={assetClass} />
+            <Positions
+              variant={isMobile ? "strip" : "table"}
+              onSelect={onSymbolSelect}
+              assetClass={assetClass}
+            />
           )}
           {tab === "orders" && <Orders assetClass={assetClass} />}
           {tab === "activity" && <Activities />}

@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { useCloseAllPositions, usePositions } from "../data/hooks";
+import { useMobile } from "../hooks/useMobile";
 import { isCryptoPosition } from "../lib/asset-class";
 import { showToast } from "../lib/toast";
 import type { Position } from "../types";
@@ -144,6 +145,146 @@ function StripRow({
   );
 }
 
+// Stacked card variant used at ≤640px in place of the 6-col strip grid.
+function StripRowMobile({
+  p,
+  onSelect,
+  onCloseClick,
+}: {
+  p: Position;
+  onSelect?: (s: string) => void;
+  onCloseClick: (p: Position) => void;
+}) {
+  const dayUp = p.change_today >= 0;
+  const plUp = p.unrealized_pl >= 0;
+  return (
+    <div
+      role={onSelect ? "button" : undefined}
+      onClick={onSelect ? () => onSelect(p.symbol) : undefined}
+      style={{
+        background: "var(--panel)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--mob-card-radius)",
+        padding: "14px 16px",
+        boxShadow: "var(--shadow-sm)",
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        cursor: onSelect ? "pointer" : "default",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+        }}
+      >
+        <div>
+          <span style={{ fontSize: 16, fontWeight: 700 }}>{p.symbol}</span>
+          <span
+            className="tabular-nums"
+            style={{
+              fontSize: 11,
+              marginLeft: 8,
+              color: "var(--mute)",
+              fontFamily: "var(--font-mono)",
+            }}
+          >
+            {p.qty} {isCryptoPosition(p) ? "units" : "sh"}
+          </span>
+          {p.side?.toLowerCase().includes("short") && (
+            <span style={{ fontSize: 10, marginLeft: 6, color: "var(--mute)" }}>
+              SHORT
+            </span>
+          )}
+        </div>
+        <div
+          className="tabular-nums font-mono"
+          style={{ fontSize: 14, fontWeight: 600 }}
+        >
+          {money(p.market_value)}
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+        <StripStat
+          k="Mark"
+          v={money(p.current_price)}
+          sub={pct(p.change_today)}
+          tone={dayUp ? "pos" : "neg"}
+        />
+        <StripStat k="Avg" v={money(p.avg_entry_price)} sub="cost" />
+        <StripStat
+          k="P/L"
+          v={(plUp ? "+" : "") + money(p.unrealized_pl)}
+          sub={pct(p.unrealized_plpc)}
+          tone={plUp ? "pos" : "neg"}
+        />
+      </div>
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onCloseClick(p);
+          }}
+          style={{
+            minHeight: "var(--mob-tap)",
+            padding: "6px 16px",
+            background: "var(--panel-2)",
+            border: "1px solid var(--border)",
+            borderRadius: 8,
+            fontSize: 12.5,
+            fontWeight: 500,
+          }}
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function StripStat({
+  k,
+  v,
+  sub,
+  tone,
+}: {
+  k: string;
+  v: string;
+  sub: string;
+  tone?: "pos" | "neg";
+}) {
+  const valColor =
+    tone === "pos" ? "var(--pos)" : tone === "neg" ? "var(--neg)" : "var(--text)";
+  const subColor =
+    tone === "pos" ? "var(--pos)" : tone === "neg" ? "var(--neg)" : "var(--mute)";
+  return (
+    <div>
+      <div
+        style={{
+          fontSize: 10.5,
+          color: "var(--mute)",
+          textTransform: "uppercase",
+          letterSpacing: "0.02em",
+        }}
+      >
+        {k}
+      </div>
+      <div
+        className="font-mono tabular-nums"
+        style={{ fontSize: 13, fontWeight: 600, color: valColor }}
+      >
+        {v}
+      </div>
+      <div className="font-mono" style={{ fontSize: 10.5, color: subColor }}>
+        {sub}
+      </div>
+    </div>
+  );
+}
+
 export default function Positions({
   variant = "strip",
   onSelect,
@@ -167,8 +308,10 @@ export default function Positions({
   const [closingPos, setClosingPos] = useState<Position | null>(null);
   const [customizingPos, setCustomizingPos] = useState<Position | null>(null);
   const [confirmCloseAll, setConfirmCloseAll] = useState(false);
+  const isMobile = useMobile();
 
   if (variant === "strip") {
+    const Row = isMobile ? StripRowMobile : StripRow;
     return (
       <div className="flex flex-col gap-2">
         {error && <ErrorBanner message={error.message} />}
@@ -198,7 +341,7 @@ export default function Positions({
         {!isPending &&
           rows &&
           rows.map((p) => (
-            <StripRow
+            <Row
               key={p.symbol}
               p={p}
               onSelect={onSelect}
