@@ -60,7 +60,11 @@ top nav; preference persists in `localStorage`.
   set (light + dark in oklch, Inter + IBM Plex Mono). Three modes —
   Discover, Portfolio, and Chart (the full Charting Library at
   `frontend/public/charting_library/` plus the violet ChartBot panel).
-  Cross-mode Ask anything bar runs locally without any LLM call.
+  Cross-mode Ask anything bar runs locally without any LLM call. Layouts
+  are responsive down to phones (≤640px): a slim header + slide-in nav
+  drawer, card lists in place of tables, a full-bleed chart, and
+  full-screen / slide-up sheets for the order ticket and Ask anything,
+  with iOS safe-area handling for installed-PWA use.
 - **PWA:** Progressive Web App with service worker, offline support, and
   install capabilities. Smart caching strategies for API calls and charting
   library.

@@ -94,6 +94,27 @@ separate silos behind a shared account.
     for open orders/positions draw. Datafeed: `lib/tv-datafeed.ts`.
     Broker: `lib/tv-broker.ts`. ChartBot side panel mounts here when
     `AI_CHAT_ENABLED=true`.
+- **Mobile / responsive (≤ 640px).** A single `useMobile()` hook
+  (`hooks/useMobile.ts`, `matchMedia("(max-width: 640px)")`) gates the
+  phone layouts; it mirrors the CSS `@media (max-width: 640px)` breakpoint
+  exactly. **Desktop / iPad (> 640px) render unchanged** — every mobile
+  branch is additive, never a replacement. The header swaps to a slim
+  sticky `MobileHeader` (☰ + mode title + `✦` Ask, second row of mode
+  pills + asset toggle) with a left slide-in `MobileNavDrawer` (theme +
+  AI toggle + Account hub); `TopBar` collapses to a one-row status strip
+  whose equity chip opens a balance bottom sheet. Tabular surfaces
+  (`Positions`/`Orders`/`Activities` and the chart blotter) render stacked
+  **card lists** instead of tables. Chart mode goes full-bleed
+  (`100dvh`-based height) with a horizontally-scrolling `ChartTopBar`
+  (`⋯` overflow popover for type/indicators), and the ChartBot panel
+  becomes a floating **violet launcher + slide-up sheet** (the header `✦`
+  stays Ask-anything — teal — in every mode). `OrderSheet` and the
+  Ask-anything `CmdBar` go full-screen with safe-area-padded sticky
+  footers; `TradeBar` and the watchlist add-sheet clear the home
+  indicator. Mobile tokens (`--mob-*`, `--safe-*`) live in `index.css`;
+  `--mob-hero-value` is deliberately scoped to the media query, not
+  `:root` (see `docs/landmines.md`). The `Handover Mobile Trading.html`
+  spec at the repo root documents the original phased plan.
 - **Order entry.** `hooks/useOrderTicket.ts` owns all form state
   (symbol/side/type/qty/limit/stop/trail/TIF/ext-hours) plus asset
   lookup, live quote, est notional, validation, and submission.
@@ -171,7 +192,9 @@ separate silos behind a shared account.
   `html[data-theme="dark"]`, switched by `hooks/useTheme.ts` with a
   synchronous bootstrap in `index.html` — don't delete that script or
   every load flashes). Tokens exposed as utilities in
-  `tailwind.config.js`. Fonts: Inter + IBM Plex Mono.
+  `tailwind.config.js`. Fonts: Inter + IBM Plex Mono. Mobile layout
+  tokens (`--mob-*`) and safe-area insets (`--safe-*`) are appended in the
+  same file; `index.html` sets `viewport-fit=cover` so the insets resolve.
 
 ## localStorage keys (single-user app)
 
@@ -181,7 +204,7 @@ separate silos behind a shared account.
 | `theme` | `hooks/useTheme.ts` + `index.html` bootstrap | both | `"light" \| "dark"`. Defaults to OS preference. |
 | `chartbot_session` | `useChatSession` | `useChatSession` | Serialised turns + apiHistory, capped at 256 KB. |
 | `ai_drawings_v1` | `tv-drawings.ts` | `tv-drawings.ts` | Per-symbol drawing UUIDs replayed on chart load. |
-| `chart_blotter_collapsed` | `ChartBlotter` | `ChartBlotter` | `"1"` collapsed. |
+| `chart_blotter_collapsed` | `ChartBlotter` | `ChartBlotter` | `"1"` collapsed. With no stored value, defaults collapsed on mobile (≤640px) and expanded on desktop. |
 | `market_summary_v1` / `crypto_market_summary_v1` | `useMarketSummary` | `useMarketSummary` + Ask-anything summary card | Per-silo cached AI market summary (window, date, content). |
 | `app_settings_v1` | `lib/settings.ts` | `useSettings` + `SettingsMenu` | JSON-encoded `AppSettings`. Today: `cmdbarAiEnabled` (default `true`). |
 

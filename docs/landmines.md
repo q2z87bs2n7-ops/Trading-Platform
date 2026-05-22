@@ -190,6 +190,37 @@ places TV interface.
   pills in sync (including studies added via right-click). Cheap;
   bounded by Chart-mode mounts.
 
+## Mobile / responsive layer (≤ 640px)
+
+The phone layouts are **additive** — every mobile branch is gated so
+desktop / iPad (> 640px) render byte-identical. A few things bite:
+
+- **`useMobile()` must mirror the CSS breakpoint.** `hooks/useMobile.ts`
+  uses `matchMedia("(max-width: 640px)")`; the same 640px is hard-coded in
+  the `@media` rules in `index.css`. Change one, change both — otherwise
+  JS-driven branches desync from the style rules.
+- **`--mob-hero-value` lives in the `@media (max-width: 640px)` block, NOT
+  `:root`.** `discover/BalanceCard.tsx` reads it as
+  `var(--mob-hero-value, clamp(34px, 5.4vw, 48px))` — the desktop clamp is
+  the *fallback*, which only fires when the var is undefined. Define the
+  token in `:root` and desktop silently inherits the smaller mobile hero
+  size. The other `--mob-*` / `--safe-*` tokens are fine in `:root` because
+  they're only ever read inside mobile-gated code.
+- **Mobile overlays render `position: fixed`.** The nav drawer, the ChartBot
+  slide-up + its launcher, the OrderSheet / EquitySheet / watchlist-add
+  sheets, and the full-screen CmdBar are all fixed. That's why `App.tsx`'s
+  chart-mode flex row needs no mobile branch — on mobile `ChatPanel` is out
+  of flow, so the chart's `flex:1` wrapper already takes the full width.
+  Don't "fix" it by adding a mobile ternary there.
+- **Safe-area + `dvh` are load-bearing on iOS.** Bottom-pinned UI (TradeBar,
+  sheet footers, composer) pads with `var(--safe-bottom)` and full-screen
+  surfaces size to `100dvh`. Swap back to plain `vh` / zero insets and the
+  notch / home-indicator / collapsing URL bar clip the CTA on a real phone.
+- **ChartBot launches from its own violet launcher on mobile, not the
+  header `✦`.** The header `✦` is Ask-anything (teal) in every mode; the
+  separate violet launcher preserves the teal-vs-violet AI-surface
+  convention. Don't overload the header button by mode.
+
 ## AI chat — wiring notes
 
 - System prompt + tool schemas in `backend/app/ai/prompt.py` and

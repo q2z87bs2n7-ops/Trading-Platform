@@ -50,9 +50,11 @@
   but TV's `modifyOrder(orderId, data)` (called when a user drags an
   open-order price line on the chart) is not wired in `tv-broker.ts`
   yet. Hook it to the same endpoint.
-- **Positions strip mobile layout** — the 6-column `gridTemplateColumns`
-  template compresses below ~720px. Functional but visually cramped;
-  a separate two-row mobile template would read better.
+- **Positions strip narrow-desktop band** — the mobile redesign added a
+  stacked `StripRowMobile` card at ≤640px, so phones no longer get the
+  cramped 6-column grid. The 641–720px band (large phone landscape / small
+  windows) still renders the compressed desktop grid; a fluid grid or
+  lowering the card breakpoint would tidy it.
 - **Real `onStudyAdded` / `onStudyRemoved` events** — the bundled TV
   build doesn't expose them, so `IndicatorPillsRow` and
   `ChatContextPills` poll `getAllStudies()` every 1.2 s. If a future
@@ -82,6 +84,25 @@
 - **`createAlert` integration** — TV has a native alert API but no
   notification path exists in this app; defer until alerts have
   somewhere to go.
+
+## Mobile
+
+The phased mobile redesign (P0–P6, v0.40.2–0.40.8; spec in
+`Handover Mobile Trading.html`) shipped behind the ≤640px breakpoint.
+Two follow-ups were deliberately left:
+
+- **Combined Discover hero + merged movers card (≤640px)** — P5 kept
+  `BalanceCard` + `AllocationCard` as two stacked cards and `MoversCard` +
+  `MostActiveCard` as two stacked cards, rather than building the handover's
+  combined `HeroCardMobile` (donut → horizontal allocation bar) and merged
+  Gainers/Losers/Active tabbed card. Both already stack cleanly on mobile;
+  the rebuilds were deferred as density polish (and to honour the
+  "no rewrites" rule). The spec's §5.2 / §5.4 have the design if wanted.
+- **On-device verification** — the mobile layer was typechecked +
+  production-built but not yet validated on real devices / simulators
+  (iPhone 12 / SE, iPad portrait) or as an installed PWA. Run the per-phase
+  device checklists + the cross-cutting matrix from the handover spec before
+  promoting to `main`.
 
 ## Crypto
 
