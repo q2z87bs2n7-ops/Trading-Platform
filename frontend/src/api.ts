@@ -123,7 +123,7 @@ export const getCalendar = (start?: string, end?: string) =>
   );
 
 export const getAsset = (symbol: string) =>
-  getJSON<Asset>(`/api/assets/${encodeURIComponent(symbol)}`);
+  getJSON<Asset>(`/api/assets/${symbol}`);
 
 export const getIndices = () => getJSON<IndicesResponse>("/api/indices");
 
@@ -171,10 +171,7 @@ export const addToWatchlist = (symbol: string) =>
   sendJSON<{ symbols: string[] }>("POST", "/api/watchlist", { symbol });
 
 export const removeFromWatchlist = (symbol: string) =>
-  sendJSON<{ symbols: string[] }>(
-    "DELETE",
-    `/api/watchlist/${encodeURIComponent(symbol)}`,
-  );
+  sendJSON<{ symbols: string[] }>("DELETE", `/api/watchlist/${symbol}`);
 
 export const getCryptoWatchlist = () =>
   getJSON<{ symbols: string[] }>("/api/watchlist?asset_class=crypto");
@@ -183,10 +180,7 @@ export const addToCryptoWatchlist = (symbol: string) =>
   sendJSON<{ symbols: string[] }>("POST", "/api/watchlist?asset_class=crypto", { symbol });
 
 export const removeFromCryptoWatchlist = (symbol: string) =>
-  sendJSON<{ symbols: string[] }>(
-    "DELETE",
-    `/api/watchlist/${encodeURIComponent(symbol)}?asset_class=crypto`,
-  );
+  sendJSON<{ symbols: string[] }>("DELETE", `/api/watchlist/${symbol}?asset_class=crypto`);
 
 export const getCryptoTickers = () =>
   getJSON<{ tickers: Snapshot[] }>("/api/crypto/tickers");
@@ -209,7 +203,7 @@ export const cancelAllOrders = () =>
   sendJSON<{ cancelled: string[] }>("DELETE", "/api/orders");
 
 export const closePosition = (symbol: string) =>
-  sendJSON<Order>("DELETE", `/api/positions/${encodeURIComponent(symbol)}`);
+  sendJSON<Order>("DELETE", `/api/positions/${symbol}`);
 
 export const closeAllPositions = () =>
   sendJSON<{ closed: string[] }>("DELETE", "/api/positions");

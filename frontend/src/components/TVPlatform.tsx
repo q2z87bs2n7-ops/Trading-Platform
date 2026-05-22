@@ -30,6 +30,7 @@ declare const TradingView: {
 interface Props {
   symbol: string;
   onSymbolChange?: (s: string) => void;
+  assetClass?: "stocks" | "crypto";
 }
 
 // Features we suppress so the platform reads as a single Calm-native
@@ -81,7 +82,7 @@ function normalizeSymbol(raw: string): string {
   return tail.toUpperCase();
 }
 
-export default function TVPlatform({ symbol, onSymbolChange }: Props) {
+export default function TVPlatform({ symbol, onSymbolChange, assetClass }: Props) {
   const selectSym = (s: string) => onSymbolChange?.(s);
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetRef = useRef<TVWidgetInstance | null>(null);
@@ -234,7 +235,7 @@ export default function TVPlatform({ symbol, onSymbolChange }: Props) {
           overflow: "hidden",
         }}
       />
-      <ChartBlotter onSymbolSelect={(s) => selectSym(s)} />
+      <ChartBlotter onSymbolSelect={(s) => selectSym(s)} assetClass={assetClass} />
       <TradeBar symbol={symbol || "AAPL"} />
     </div>
   );

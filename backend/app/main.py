@@ -104,7 +104,7 @@ def positions() -> dict:
 
 
 @app.get(
-    "/api/positions/{symbol}",
+    "/api/positions/{symbol:path}",
     dependencies=[Depends(require_configured)],
     response_model=PositionOut,
 )
@@ -149,7 +149,7 @@ def calendar(
     return {"calendar": alpaca.get_calendar(start or None, end or None)}
 
 
-@app.get("/api/assets/{symbol}", dependencies=[Depends(require_configured)])
+@app.get("/api/assets/{symbol:path}", dependencies=[Depends(require_configured)])
 def asset(symbol: str) -> dict:
     return alpaca.get_asset(symbol)
 
@@ -270,7 +270,7 @@ def cancel_all_orders() -> dict:
 
 
 @app.delete(
-    "/api/positions/{symbol}", dependencies=_WRITE_DEPS, response_model=OrderOut
+    "/api/positions/{symbol:path}", dependencies=_WRITE_DEPS, response_model=OrderOut
 )
 def close_position(symbol: str) -> dict:
     return alpaca.close_position(symbol)
@@ -307,7 +307,7 @@ def watchlist_add(req: WatchlistSymbol, asset_class: str = Query("")) -> dict:
     return alpaca.add_to_watchlist(req.symbol, asset_class)
 
 
-@app.delete("/api/watchlist/{symbol}", dependencies=_WRITE_DEPS)
+@app.delete("/api/watchlist/{symbol:path}", dependencies=_WRITE_DEPS)
 def watchlist_remove(symbol: str, asset_class: str = Query("")) -> dict:
     return alpaca.remove_from_watchlist(symbol, asset_class)
 

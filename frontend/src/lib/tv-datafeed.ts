@@ -79,11 +79,11 @@ export function createDatafeed() {
     ) {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 15_000);
-      fetch(`${API_BASE}/api/assets/${encodeURIComponent(symbolName)}`, { signal: ctrl.signal })
+      fetch(`${API_BASE}/api/assets/${symbolName}`, { signal: ctrl.signal })
         .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
         .then((data) => {
           clearTimeout(timer);
-          const crypto = isCryptoSymbol(data.symbol);
+          const crypto = data.asset_class === "crypto" || isCryptoSymbol(data.symbol);
           onResolve({
             name: data.symbol,
             full_name: data.symbol,

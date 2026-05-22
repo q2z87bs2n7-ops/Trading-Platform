@@ -273,7 +273,7 @@ export default function App() {
       {mode === "chart" && (
         <div style={{ display: "flex" }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <TVPlatform symbol={selected} onSymbolChange={setSelected} />
+            <TVPlatform symbol={selected} onSymbolChange={setSelected} assetClass={activeClass} />
           </div>
           <ChatPanel symbol={selected || (activeClass === "crypto" ? "BTC/USD" : "AAPL")} />
         </div>

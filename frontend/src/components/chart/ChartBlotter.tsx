@@ -23,8 +23,10 @@ function readCollapsed(): boolean {
 
 export default function ChartBlotter({
   onSymbolSelect,
+  assetClass,
 }: {
   onSymbolSelect?: (s: string) => void;
+  assetClass?: "stocks" | "crypto";
 }) {
   const [tab, setTab] = useState<Tab>("positions");
   const [collapsed, setCollapsed] = useState(readCollapsed);
@@ -99,9 +101,9 @@ export default function ChartBlotter({
           style={{ maxHeight: 220 }}
         >
           {tab === "positions" && (
-            <Positions variant="table" onSelect={onSymbolSelect} />
+            <Positions variant="table" onSelect={onSymbolSelect} assetClass={assetClass} />
           )}
-          {tab === "orders" && <Orders />}
+          {tab === "orders" && <Orders assetClass={assetClass} />}
           {tab === "activity" && <Activities />}
         </div>
       )}
