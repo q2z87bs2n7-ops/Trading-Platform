@@ -210,8 +210,8 @@ export function parseIntent(input: string): Intent {
     return { type: "chart", symbol: text.toUpperCase() };
   }
   const chartMatch =
-    text.match(/\bchart\s+([a-z]{1,5}(?:\.[a-z])?)\b/i) ||
-    text.match(/\bhow(?:'s|s)?\s+([a-z]{1,5}(?:\.[a-z])?)\b/i);
+    text.match(/\bchart\s+(?:(?:my|the|our)\s+)?([a-z]{1,5}(?:\.[a-z])?)\b/i) ||
+    text.match(/\bhow(?:'s|s)?\s+(?:(?:my|the|our)\s+)?([a-z]{1,5}(?:\.[a-z])?)\b/i);
   if (chartMatch) {
     return { type: "chart", symbol: chartMatch[1].toUpperCase() };
   }
