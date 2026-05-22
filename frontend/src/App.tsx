@@ -91,7 +91,7 @@ function ModePill({
     <button
       type="button"
       onClick={onClick}
-      className="text-[13px] font-medium px-3 py-1.5 rounded-card transition-colors bg-transparent border-0 cursor-pointer"
+      className="text-[13px] font-normal px-3 py-1.5 rounded-card transition-colors bg-transparent border-0 cursor-pointer"
       style={{
         color: active ? "var(--text)" : "var(--text-2)",
         background: active ? "var(--panel)" : "transparent",
