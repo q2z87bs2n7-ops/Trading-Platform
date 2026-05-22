@@ -27,13 +27,13 @@ const STOCK_WINDOW_LABELS: Record<SummaryWindow, string> = {
   close: "Market Close Report",
 };
 
-// Crypto trades 24/7, so the windows are neutral UTC time-of-day buckets
-// rather than US market open/close.
+// Crypto trades 24/7; labels show UTC bucket so users in any timezone know
+// exactly when each window fires (not misleading local-time names).
 const CRYPTO_WINDOW_LABELS: Record<SummaryWindow, string> = {
-  overnight: "Overnight Crypto Update",
-  open: "Morning Crypto Update",
-  midday: "Midday Crypto Update",
-  close: "Evening Crypto Update",
+  overnight: "Crypto Update · 00–06 UTC",
+  open: "Crypto Update · 06–12 UTC",
+  midday: "Crypto Update · 12–18 UTC",
+  close: "Crypto Update · 18–24 UTC",
 };
 
 export function windowLabel(w: SummaryWindow, assetClass: AssetClass): string {

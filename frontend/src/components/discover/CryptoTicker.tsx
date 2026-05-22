@@ -35,7 +35,10 @@ export function CryptoTicker({ tickers }: { tickers: Snapshot[] }) {
           Crypto
         </span>
         <div className="ticker-wrap overflow-hidden flex-1" style={{ height: 36 }}>
-          <div className="ticker-track h-full items-center">
+          <div
+            className="ticker-track h-full items-center"
+            style={{ animationDuration: `${Math.max(tickers.length * 6, 20)}s` }}
+          >
             {[...tickers, ...tickers].map((t, i) => {
               const last = t.last_price ?? 0;
               const prev = t.prev_close ?? 0;

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { useAccount, useClock } from "../data/hooks";
 import { useStreamStatus } from "../hooks/useStreamStatus";
+import type { AssetClass } from "../lib/cmd-intent";
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD" });
@@ -26,10 +27,11 @@ function useClickOutside(
   }, [ref, onOutside]);
 }
 
-export default function TopBar() {
+export default function TopBar({ assetClass = "stocks" }: { assetClass?: AssetClass }) {
   const { data: clk } = useClock();
   const { data: acct } = useAccount();
   const streamStatus = useStreamStatus();
+  const isCrypto = assetClass === "crypto";
 
   const [eqOpen, setEqOpen] = useState(false);
   const eqRef = useRef<HTMLDivElement>(null);
@@ -64,8 +66,8 @@ export default function TopBar() {
         </span>
       )}
 
-      {/* Market status + next session edge */}
-      {clk && (
+      {/* Market status — stocks only; crypto trades 24/7 */}
+      {!isCrypto && clk && (
         <div className="flex items-center gap-2">
           <span
             className="inline-block w-2 h-2 rounded-full"
@@ -140,11 +142,13 @@ export default function TopBar() {
         </div>
       )}
 
-      {/* Buying Power */}
+      {/* Buying Power — non_marginable for crypto (Alpaca doesn't extend margin) */}
       {acct && (
         <div className="flex items-center gap-1">
           <span style={{ color: "var(--mute)" }}>BP</span>
-          <span className="tabular-nums">{money(acct.buying_power)}</span>
+          <span className="tabular-nums">
+            {money(isCrypto ? acct.non_marginable_buying_power : acct.buying_power)}
+          </span>
         </div>
       )}
     </div>

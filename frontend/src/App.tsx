@@ -270,7 +270,7 @@ export default function App() {
         </div>
         {/* Status ribbon — Portfolio + Chart. Discover keeps the nav
            clean; the account context is already in the Discover hero. */}
-        {(mode === "portfolio" || mode === "chart") && <TopBar />}
+        {(mode === "portfolio" || mode === "chart") && <TopBar assetClass={activeClass} />}
       </header>
 
       {/* Discover — one surface, parameterized by the active asset class */}
