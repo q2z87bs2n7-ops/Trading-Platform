@@ -25,8 +25,8 @@ const RESOLUTION_MAP: Record<string, string> = {
   "240": "4Hour",
   "D": "1Day",
   "1D": "1Day",
-  "W": "1Week",
-  "1W": "1Week",
+  "W": "1Day",
+  "1W": "1Day",
 };
 
 function toBackendTf(resolution: string): string {
@@ -92,6 +92,7 @@ export function createDatafeed() {
             minmov: 1,
             pricescale: 100,
             has_intraday: true,
+            has_weekly_and_monthly: false,
             supported_resolutions: ["1", "5", "15", "30", "60", "240", "D", "W"],
             volume_precision: 0,
             data_status: "streaming",
