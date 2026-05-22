@@ -216,3 +216,28 @@ places TV interface.
   to the TV widget so `ChatPanel` and friends can call TV APIs without
   being children of `TVPlatform`. `subscribeTVWidget(cb)` lets
   consumers react to mount/unmount.
+
+## AI web search (Ask anything)
+
+Hosted Anthropic `web_search` has **two independent switches** that are easy
+to get out of sync:
+
+- **Our flag `AI_WEB_SEARCH_ENABLED`** (`backend/app/config.py`, default
+  `false`) — whether the backend even offers the tool to the model. This is
+  the deterministic off switch: with it off, `web_search` isn't in the tool
+  list, so it physically cannot run regardless of the org.
+- **The Anthropic org toggle** — whether web search is allowed for the
+  organization. **Enablement follows the org that owns the
+  `ANTHROPIC_API_KEY` in the deployment env, NOT whatever Console you happen
+  to be looking at.** If the key in Vercel belongs to a different org/workspace
+  than the toggle you flipped, your change has no effect. Symptom: web search
+  keeps working (live results + a `✓ web_search` chip) even though you
+  "disabled" it — you disabled the wrong org.
+
+The bot is **internal-first** and **self-heals**: if the flag is on but the org
+hasn't enabled web search, the `messages.create` call 400s the moment the model
+invokes web search; `ai_ask` catches that, strips `web_search`, and retries so
+the user gets a normal internal answer. Consequence: an org-off failure is
+**silent** — there's no error and no `web_search` chip — so don't rely on the
+app to surface it. To truly confirm org state, test in the Anthropic Workbench
+with a key from that org (it shows the raw 400).

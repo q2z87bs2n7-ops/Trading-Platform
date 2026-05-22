@@ -40,7 +40,12 @@ The **Ask anything** bar (centred modal, teal accent) is available from every
 mode — press `⌘K` (or `Ctrl+K`), or click the "Ask anything" pill in the
 top nav. It is a local regex-based intent parser (no LLM, no Anthropic
 credits) that handles orders ("buy 50 AMD at market"), portfolio queries,
-movers, news, open orders, and inline symbol previews.
+movers, news, open orders, and inline symbol previews. It is **silo-aware**
+(stocks vs crypto). When the optional AI fallback is enabled (see *AI chat*
+below), free-text questions also reach a Claude-backed bot that can read your
+account, edit watchlists in bulk ("add the top 10 pharma stocks"), and export
+data to downloadable CSVs (positions/orders/activities/P&L, plus price history
+and other readable data); it keeps context across follow-ups within a session.
 
 Theme switches between light and dark via the moon / sun toggle in the
 top nav; preference persists in `localStorage`.
