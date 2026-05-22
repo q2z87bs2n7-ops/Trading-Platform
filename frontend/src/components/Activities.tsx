@@ -5,7 +5,7 @@ import Pill from "./Pill";
 
 const TH =
   "px-2 py-2 text-left font-medium text-[11px] uppercase tracking-wide border-b whitespace-nowrap";
-const TD = "px-2 py-2 border-b whitespace-nowrap text-[13px]";
+const TD = "px-2 py-2 border-b whitespace-nowrap font-mono text-[13px] tabular-nums";
 
 const str = (v: unknown): string => (v == null ? "" : String(v));
 
