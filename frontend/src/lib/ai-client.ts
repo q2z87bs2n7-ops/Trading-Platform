@@ -41,7 +41,7 @@ import {
 } from "./tv-drawings";
 
 const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
-const MAX_OUTER_ITERATIONS = 10;
+const MAX_OUTER_ITERATIONS = 40; // raised for full-tool test sweep; revert after
 
 // Context-window concern: keep at most this many messages on the wire and
 // in storage. Lives here (not in the panel) because it's about the model,

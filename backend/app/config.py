@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-4-6"
     ai_max_tokens: int = 4096
-    ai_max_tool_iterations: int = 16
+    ai_max_tool_iterations: int = 64  # raised for full-tool test sweep; revert after
     # Browser origins allowed to call this API. The GitHub Pages origin is
     # included so the dev-branch previews can reach the Vercel backend.
     cors_origins: str = (
