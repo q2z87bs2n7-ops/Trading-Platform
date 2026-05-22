@@ -1,16 +1,13 @@
 import { useOrders } from "../../../data/hooks";
 import type { AssetClass } from "../../../lib/cmd-intent";
-import type { Order } from "../../../types";
+import { isCryptoOrder } from "../../../lib/asset-class";
 import CmdResultCard from "../CmdResultCard";
-
-const isCrypto = (o: Order) =>
-  o.asset_class === "crypto" || o.symbol.includes("/");
 
 export function OrdersCard({ assetClass }: { assetClass: AssetClass }) {
   const orders = useOrders("open", 50);
   const all = orders.data?.orders || [];
   const rows = all.filter((o) =>
-    assetClass === "crypto" ? isCrypto(o) : !isCrypto(o),
+    assetClass === "crypto" ? isCryptoOrder(o) : !isCryptoOrder(o),
   );
   const label = assetClass === "crypto" ? "crypto" : "stock";
   if (!orders.data) {

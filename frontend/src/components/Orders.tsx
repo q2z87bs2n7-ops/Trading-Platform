@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { useCancelAllOrders, useCancelOrder, useOrders } from "../data/hooks";
+import { isCryptoOrder } from "../lib/asset-class";
 import { showToast } from "../lib/toast";
 import type { Order } from "../types";
 import ErrorBanner from "./ErrorBanner";
@@ -134,7 +135,7 @@ export default function Orders({ assetClass }: { assetClass?: "stocks" | "crypto
   const cancelAll = useCancelAllOrders();
   const rows = data?.orders?.filter((o: Order) => {
     if (!assetClass) return true;
-    const crypto = o.asset_class === "crypto" || o.symbol.includes("/");
+    const crypto = isCryptoOrder(o);
     return assetClass === "crypto" ? crypto : !crypto;
   });
   const hasLive = !!rows?.some(live);

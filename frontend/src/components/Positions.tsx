@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { useCloseAllPositions, usePositions } from "../data/hooks";
+import { isCryptoPosition } from "../lib/asset-class";
 import { showToast } from "../lib/toast";
 import type { Position } from "../types";
 import ErrorBanner from "./ErrorBanner";
@@ -88,7 +89,7 @@ function StripRow({
         className="font-mono text-[13px] tabular-nums"
         style={{ color: "var(--text-2)" }}
       >
-        {p.qty} {p.asset_class === "crypto" || p.symbol.includes("/") ? "units" : "shares"}
+        {p.qty} {isCryptoPosition(p) ? "units" : "shares"}
       </span>
       <div className="text-right">
         <div className="font-mono text-[14px] tabular-nums">
@@ -156,7 +157,7 @@ export default function Positions({
   const closeAll = useCloseAllPositions();
   const rows = data?.positions.filter((p: Position) => {
     if (!assetClass) return true;
-    const crypto = p.asset_class === "crypto" || p.symbol.includes("/");
+    const crypto = isCryptoPosition(p);
     return assetClass === "crypto" ? crypto : !crypto;
   });
 

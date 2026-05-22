@@ -6,6 +6,7 @@
  * trading order ticket can display live bid/ask and last price.
  */
 import { streamBars, streamQuotes, type BarTick } from "../api";
+import { isCryptoSymbol } from "./asset-class";
 import type { Quote } from "../types";
 
 // Matches the flush interval in useLiveQuotes — caps TV order-ticket
@@ -14,8 +15,6 @@ const STREAM_FLUSH_MS = 500;
 
 // Strip trailing slash — prevents double-slash when VITE_API_BASE ends with "/"
 const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
-
-const isCryptoSymbol = (sym: string) => sym.includes("/");
 
 // Map TradingView resolution strings → our backend timeframe strings
 const RESOLUTION_MAP: Record<string, string> = {

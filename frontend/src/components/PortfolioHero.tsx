@@ -1,4 +1,5 @@
 import { useAccount, useOrders, usePnlHistory, usePositions } from "../data/hooks";
+import { isCryptoOrder, isCryptoPosition } from "../lib/asset-class";
 import type { Order, Position } from "../types";
 
 const money = (n: number) =>
@@ -7,12 +8,6 @@ const money = (n: number) =>
 const pct = (n: number) => `${n >= 0 ? "+" : ""}${(n * 100).toFixed(2)}%`;
 
 type AssetClass = "stocks" | "crypto";
-
-const isCrypto = (symbol: string, assetClass?: string) =>
-  assetClass === "crypto" || symbol.includes("/");
-
-const inSilo = (symbol: string, ac: AssetClass, assetClass?: string) =>
-  ac === "crypto" ? isCrypto(symbol, assetClass) : !isCrypto(symbol, assetClass);
 
 const TERMINAL = new Set([
   "filled",
@@ -266,7 +261,7 @@ export default function PortfolioHero({ assetClass }: { assetClass: AssetClass }
 
   const title = assetClass === "crypto" ? "Crypto" : "Stocks";
   const siloPositions = (positions.data?.positions || []).filter((p: Position) =>
-    inSilo(p.symbol, assetClass, p.asset_class),
+    assetClass === "crypto" ? isCryptoPosition(p) : !isCryptoPosition(p),
   );
   const holdings = siloPositions.reduce((s, p) => s + p.market_value, 0);
   const unrealized = siloPositions.reduce((s, p) => s + p.unrealized_pl, 0);
@@ -278,7 +273,8 @@ export default function PortfolioHero({ assetClass }: { assetClass: AssetClass }
 
   const openOrderCount = (orders.data?.orders || [])
     .filter(isLive)
-    .filter((o) => inSilo(o.symbol, assetClass, o.asset_class)).length;
+    .filter((o) => (assetClass === "crypto" ? isCryptoOrder(o) : !isCryptoOrder(o)))
+    .length;
 
   return (
     <div className="grid gap-4 mb-6 grid-cols-1 lg:grid-cols-[1.4fr_1fr]">

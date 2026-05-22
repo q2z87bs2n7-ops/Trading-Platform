@@ -10,6 +10,7 @@ import {
   useRemoveFromCryptoWatchlist,
   useSnapshots,
 } from "../data/hooks";
+import { isCryptoPosition } from "../lib/asset-class";
 import { showToast } from "../lib/toast";
 import type { NewsItem, Position, Snapshot } from "../types";
 import { AllocationCard } from "./discover/AllocationCard";
@@ -167,7 +168,7 @@ export default function CryptoTools({
 
   // Filter positions to crypto only for allocation/balance cards.
   const cryptoPositions = (positions.data?.positions || []).filter(
-    (p: Position) => p.asset_class === "crypto" || p.symbol.includes("/"),
+    (p: Position) => isCryptoPosition(p),
   );
   const invested = cryptoPositions.reduce((s: number, p: Position) => s + p.market_value, 0);
   const unrealized = cryptoPositions.reduce((s: number, p: Position) => s + p.unrealized_pl, 0);

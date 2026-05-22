@@ -7,6 +7,7 @@ import {
   type AssetClass,
   type Intent,
 } from "../../lib/cmd-intent";
+import { isCryptoPosition } from "../../lib/asset-class";
 import type { Position } from "../../types";
 import { useCryptoWatchlist, usePositions, useWatchlist } from "../../data/hooks";
 import { CmdResult } from "./cards";
@@ -25,9 +26,6 @@ const HISTORY_CAP = 16;
 
 // Display label for a symbol — strips the /USD quote off crypto pairs.
 const coin = (s: string) => (s.includes("/") ? s.split("/")[0] : s);
-
-const isCryptoPos = (p: Position) =>
-  p.asset_class === "crypto" || p.symbol.includes("/");
 
 function buildSuggestions(
   positions: Position[] | undefined,
@@ -158,7 +156,7 @@ export default function CmdBar({ open, assetClass, onClose, onOpenInWorkspace }:
   const siloPositions = useMemo(
     () =>
       (posData?.positions ?? []).filter((p) =>
-        assetClass === "crypto" ? isCryptoPos(p) : !isCryptoPos(p),
+        assetClass === "crypto" ? isCryptoPosition(p) : !isCryptoPosition(p),
       ),
     [posData, assetClass],
   );

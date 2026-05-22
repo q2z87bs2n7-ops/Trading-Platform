@@ -1,11 +1,8 @@
 import { useAccount, usePositions } from "../data/hooks";
+import { isCryptoPosition } from "../lib/asset-class";
 import { money, pct } from "../lib/format";
-import type { Position } from "../types";
 
 type AssetClassMode = "stocks" | "crypto";
-
-const isCrypto = (p: Position) =>
-  p.asset_class === "crypto" || p.symbol.includes("/");
 
 function Card({
   title,
@@ -90,10 +87,10 @@ function AccountOverview() {
 
   const all = positions.data?.positions || [];
   const cryptoVal = all
-    .filter(isCrypto)
+    .filter(isCryptoPosition)
     .reduce((s, p) => s + p.market_value, 0);
   const stockVal = all
-    .filter((p) => !isCrypto(p))
+    .filter((p) => !isCryptoPosition(p))
     .reduce((s, p) => s + p.market_value, 0);
   const cash = Math.max(a.cash, 0);
   const total = stockVal + cryptoVal + cash || 1;

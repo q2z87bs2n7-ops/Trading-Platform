@@ -1,17 +1,14 @@
 import type { AssetClass } from "../../../lib/cmd-intent";
 import { usePositions } from "../../../data/hooks";
+import { isCryptoPosition } from "../../../lib/asset-class";
 import { money } from "../../../lib/format";
-import type { Position } from "../../../types";
 import CmdResultCard from "../CmdResultCard";
-
-const isCrypto = (p: Position) =>
-  p.asset_class === "crypto" || p.symbol.includes("/");
 
 export function PortfolioCard({ assetClass }: { assetClass: AssetClass }) {
   const positions = usePositions();
   const all = positions.data?.positions || [];
   const rows = all.filter((p) =>
-    assetClass === "crypto" ? isCrypto(p) : !isCrypto(p),
+    assetClass === "crypto" ? isCryptoPosition(p) : !isCryptoPosition(p),
   );
   const total = rows.reduce((s, p) => s + p.market_value, 0);
   const label = assetClass === "crypto" ? "Crypto" : "Stocks";
