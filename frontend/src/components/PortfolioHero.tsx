@@ -152,6 +152,7 @@ function ValueCard({
   account,
   title,
   holdings,
+  netEquity,
   dayPl,
   dayPlPct,
   unrealized,
@@ -161,6 +162,7 @@ function ValueCard({
   account: ReturnType<typeof useAccount>["data"];
   title: string;
   holdings: number;
+  netEquity?: number;
   dayPl: number;
   dayPlPct: number;
   unrealized: number;
@@ -213,6 +215,16 @@ function ValueCard({
       >
         {money(holdings)}
       </div>
+      {netEquity !== undefined && (
+        <div className="flex items-baseline gap-2">
+          <span className="text-[12px]" style={{ color: "var(--mute)", letterSpacing: "0.02em" }}>
+            Net equity
+          </span>
+          <span className="text-[15px] font-medium tabular-nums" style={{ letterSpacing: "-0.015em" }}>
+            {money(netEquity)}
+          </span>
+        </div>
+      )}
       <div className="flex gap-3.5 items-baseline flex-wrap">
         <span
           className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[12.5px] font-medium tabular-nums"
@@ -260,12 +272,20 @@ export default function PortfolioHero({ assetClass }: { assetClass: AssetClass }
   const orders = useOrders("open", 50);
 
   const title = assetClass === "crypto" ? "Crypto" : "Stocks";
-  const siloPositions = (positions.data?.positions || []).filter((p: Position) =>
+  const allPositions = positions.data?.positions || [];
+  const siloPositions = allPositions.filter((p: Position) =>
     assetClass === "crypto" ? isCryptoPosition(p) : !isCryptoPosition(p),
   );
   const holdings = siloPositions.reduce((s, p) => s + p.market_value, 0);
   const unrealized = siloPositions.reduce((s, p) => s + p.unrealized_pl, 0);
   const costBasis = siloPositions.reduce((s, p) => s + p.cost_basis, 0);
+  const cryptoMarketValue = allPositions
+    .filter((p: Position) => isCryptoPosition(p))
+    .reduce((s, p) => s + p.market_value, 0);
+  const stockNetEquity =
+    account.data && assetClass === "stocks"
+      ? account.data.equity - cryptoMarketValue
+      : undefined;
   const unrealizedPct = costBasis > 0 ? unrealized / costBasis : 0;
   const dayPl = siloPositions.reduce((s, p) => s + p.unrealized_intraday_pl, 0);
   const dayBasis = holdings - dayPl;
@@ -282,6 +302,7 @@ export default function PortfolioHero({ assetClass }: { assetClass: AssetClass }
         account={account.data}
         title={title}
         holdings={holdings}
+        netEquity={stockNetEquity}
         dayPl={dayPl}
         dayPlPct={dayPlPct}
         unrealized={unrealized}
