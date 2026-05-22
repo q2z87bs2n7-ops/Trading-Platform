@@ -76,6 +76,13 @@ export const useMovers = (top = 10) =>
     refetchInterval: 60000,
   });
 
+export const useMostActive = (top = 10, by = "volume") =>
+  useQuery({
+    queryKey: qk.mostActive(top, by),
+    queryFn: () => api.getMostActive(top, by),
+    refetchInterval: 60000,
+  });
+
 export const useMarketNews = (limit = 20) =>
   useQuery({
     queryKey: qk.marketNews,

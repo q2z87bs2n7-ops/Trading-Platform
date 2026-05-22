@@ -1,15 +1,22 @@
+import { useState } from "react";
+
 import { money, pct } from "../../lib/format";
 import type { Mover } from "../../types";
 
+type Tab = "gainers" | "losers";
+
 export function MoversCard({
-  title,
-  movers,
+  gainers,
+  losers,
   onSelect,
 }: {
-  title: string;
-  movers: Mover[];
+  gainers: Mover[];
+  losers: Mover[];
   onSelect: (s: string) => void;
 }) {
+  const [tab, setTab] = useState<Tab>("gainers");
+  const movers = tab === "gainers" ? gainers : losers;
+
   return (
     <div
       className="p-[18px]"
@@ -21,7 +28,23 @@ export function MoversCard({
       }}
     >
       <div className="flex items-center justify-between mb-2.5">
-        <strong className="text-[14px]">{title}</strong>
+        <div className="flex gap-1">
+          {(["gainers", "losers"] as Tab[]).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTab(t)}
+              className="text-[12px] font-medium px-2.5 py-0.5 rounded-full border-0 cursor-pointer"
+              style={{
+                background: tab === t ? "var(--accent)" : "var(--panel-2)",
+                color: tab === t ? "#fff" : "var(--mute)",
+                transition: "background 0.15s, color 0.15s",
+              }}
+            >
+              {t === "gainers" ? "Gainers" : "Losers"}
+            </button>
+          ))}
+        </div>
         <span
           className="text-[12px]"
           style={{ color: "var(--mute)", letterSpacing: "0.02em" }}

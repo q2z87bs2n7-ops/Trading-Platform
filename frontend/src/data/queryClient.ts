@@ -26,6 +26,7 @@ export const qk = {
   bars: (symbol: string, timeframe: string) =>
     ["bars", symbol, timeframe] as const,
   movers: (top: number) => ["movers", top] as const,
+  mostActive: (top: number, by: string) => ["mostActive", top, by] as const,
   portfolioHistory: (period: string, timeframe: string) =>
     ["portfolioHistory", period, timeframe] as const,
   asset: (symbol: string) => ["asset", symbol] as const,

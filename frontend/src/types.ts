@@ -149,6 +149,18 @@ export interface MoversResponse {
   last_updated: number;
 }
 
+export interface MostActive {
+  symbol: string;
+  volume: number;
+  trade_count: number;
+}
+
+export interface MostActiveResponse {
+  most_actives: MostActive[];
+  by: string;
+  last_updated: number;
+}
+
 export interface MarketNewsArticle {
   title: string;
   link: string;

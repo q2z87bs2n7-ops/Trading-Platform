@@ -6,6 +6,7 @@ import {
   useAddToWatchlist,
   useIndices,
   useMarketNews,
+  useMostActive,
   useMovers,
   usePositions,
   useRemoveFromWatchlist,
@@ -19,6 +20,7 @@ import { BalanceCard } from "./discover/BalanceCard";
 import { CardsRow } from "./discover/CardsRow";
 import { ChartCard } from "./discover/ChartCard";
 import { IndicesTicker } from "./discover/IndicesTicker";
+import { MostActiveCard, MostActiveCardSkeleton } from "./discover/MostActiveCard";
 import { MoversCard, MoversCardSkeleton } from "./discover/MoversCard";
 import { NewsCard, NewsCardSkeleton } from "./discover/NewsCard";
 import { SparkCard, SparkCardSkeleton } from "./discover/SparkCard";
@@ -38,6 +40,8 @@ export default function Tools({
   const account = useAccount();
   const indices = useIndices();
   const movers = useMovers(8);
+  const mostActiveVolume = useMostActive(8, "volume");
+  const mostActiveTrades = useMostActive(8, "trades");
   const news = useMarketNews(8);
   const watchlist = useWatchlist();
   const addToWatchlist = useAddToWatchlist();
@@ -233,25 +237,26 @@ export default function Tools({
       {/* Inline chart */}
       <ChartCard symbol={selected} />
 
-      {/* Movers */}
+      {/* Movers + Most Active */}
       <SectionHeading label="Movers" ctxRight="free IEX feed" />
       {movers.error && <ErrorBanner message={movers.error.message} />}
-      {!movers.data && !movers.error && (
+      {mostActiveVolume.error && <ErrorBanner message={mostActiveVolume.error.message} />}
+      {(!movers.data || !mostActiveVolume.data || !mostActiveTrades.data) && !movers.error && (
         <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
           <MoversCardSkeleton />
-          <MoversCardSkeleton />
+          <MostActiveCardSkeleton />
         </div>
       )}
-      {movers.data && (
+      {movers.data && mostActiveVolume.data && mostActiveTrades.data && (
         <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
           <MoversCard
-            title="Top gainers"
-            movers={movers.data.gainers}
+            gainers={movers.data.gainers}
+            losers={movers.data.losers}
             onSelect={onSelect}
           />
-          <MoversCard
-            title="Top losers"
-            movers={movers.data.losers}
+          <MostActiveCard
+            volumeData={mostActiveVolume.data.most_actives}
+            tradesData={mostActiveTrades.data.most_actives}
             onSelect={onSelect}
           />
         </div>

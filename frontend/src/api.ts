@@ -7,6 +7,7 @@ import type {
   IndicesResponse,
   MarketClock,
   MarketNewsResponse,
+  MostActiveResponse,
   MoversResponse,
   NewsItem,
   Order,
@@ -83,6 +84,9 @@ export const getBars = (symbol: string, timeframe = "1Day", limit = 120) =>
 
 export const getMovers = (top = 10) =>
   getJSON<MoversResponse>(`/api/movers?top=${top}`);
+
+export const getMostActive = (top = 10, by = "volume") =>
+  getJSON<MostActiveResponse>(`/api/most-active?top=${top}&by=${by}`);
 
 export const getQuotes = (symbols: string[]) =>
   getJSON<{ quotes: Quote[] }>(
