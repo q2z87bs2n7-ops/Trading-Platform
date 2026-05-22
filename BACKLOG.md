@@ -86,8 +86,10 @@
 ## Crypto
 
 - **Crypto movers / screener** — Alpaca has no gainers/losers or
-  most-active endpoint for crypto. A Yahoo Finance or CoinGecko fallback
-  could fill this gap on the CryptoTools Discover page.
+  most-active endpoint for crypto. The Ask-anything bar now derives a
+  movers view client-side from the crypto ticker snapshots, but the
+  CryptoTools Discover page still has none; a Yahoo Finance or CoinGecko
+  fallback could fill that gap with a broader universe.
 - **Crypto streaming on Render relay** — `CryptoQuoteHub` is wired but
   only tested locally. Verify the Render deployment holds both
   `StockDataStream` and `CryptoDataStream` connections simultaneously
