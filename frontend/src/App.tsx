@@ -107,13 +107,18 @@ function AskPill({ onClick }: { onClick: () => void }) {
   const isMac =
     typeof navigator !== "undefined" && /mac/i.test(navigator.platform);
   return (
-    <IconButton onClick={onClick} className="text-[13px] px-3 py-1.5">
+    <IconButton
+      onClick={onClick}
+      aria-label="Ask anything"
+      title={`Ask anything (${isMac ? "⌘K" : "Ctrl+K"})`}
+      className="text-[13px] px-3 py-1.5"
+    >
       <span style={{ color: "var(--accent)" }} aria-hidden>
         ✦
       </span>
-      <span>Ask anything</span>
+      <span className="hidden lg:inline">Ask anything</span>
       <span
-        className="font-mono text-[11px] px-1.5 py-0.5 rounded"
+        className="hidden lg:inline font-mono text-[11px] px-1.5 py-0.5 rounded"
         style={{
           border: "1px solid var(--border)",
           color: "var(--mute)",
@@ -214,7 +219,7 @@ export default function App() {
     <>
     <div className="app" style={siloAccent}>
       <header>
-        <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center justify-between gap-2 lg:gap-4 flex-wrap">
           <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"

@@ -182,7 +182,7 @@ function AccountOverview() {
         </div>
         <div className="flex flex-col">
           <small className="text-[12px]" style={{ color: "var(--mute)" }}>
-            Buying power (margin)
+            Stocks buying power
           </small>
           <strong className="font-medium text-[15px] tabular-nums">
             {money(a.buying_power)}
