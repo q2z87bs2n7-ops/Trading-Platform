@@ -1,0 +1,372 @@
+import { useState } from "react";
+
+import * as api from "../api";
+import {
+  useAccount,
+  useAddToCryptoWatchlist,
+  useAddToWatchlist,
+  useCryptoTickers,
+  useCryptoWatchlist,
+  useIndices,
+  useMarketNews,
+  useMostActive,
+  useMovers,
+  useNews,
+  usePositions,
+  useRemoveFromCryptoWatchlist,
+  useRemoveFromWatchlist,
+  useSnapshots,
+  useWatchlist,
+} from "../data/hooks";
+import { useMarketSummary } from "../hooks/useMarketSummary";
+import { isCryptoPosition } from "../lib/asset-class";
+import { showToast } from "../lib/toast";
+import type { Snapshot } from "../types";
+import { AllocationCard } from "./discover/AllocationCard";
+import { BalanceCard } from "./discover/BalanceCard";
+import { CardsRow } from "./discover/CardsRow";
+import { ChartCard } from "./discover/ChartCard";
+import { CryptoTicker } from "./discover/CryptoTicker";
+import { IndicesTicker } from "./discover/IndicesTicker";
+import { MostActiveCard, MostActiveCardSkeleton } from "./discover/MostActiveCard";
+import { MoversCard, MoversCardSkeleton } from "./discover/MoversCard";
+import { NewsCard, NewsCardSkeleton } from "./discover/NewsCard";
+import { SparkCard, SparkCardSkeleton } from "./discover/SparkCard";
+import { coinLabel, DONUT_COLORS_GREEN } from "./discover/util";
+import ErrorBanner from "./ErrorBanner";
+import MarketSummaryCard from "./MarketSummaryCard";
+import SectionHeading from "./SectionHeading";
+
+type AssetClass = "stocks" | "crypto";
+
+// Single Discover surface for both silos. The two silos share the whole
+// scaffold (hero, AI summary, watchlist, inline chart, news) and differ only
+// in: the price strip (equity indices vs crypto ticker), buying-power field,
+// donut palette, watchlist copy, the stocks-only movers section, and the news
+// source. Silo-specific data hooks are gated with `enabled` so the inactive
+// silo never fetches. The market-summary hook takes the active silo directly,
+// so switching silo regenerates that silo's summary (no double AI calls).
+export default function DiscoverPage({
+  assetClass,
+  selected,
+  onSelect,
+}: {
+  assetClass: AssetClass;
+  selected: string;
+  onSelect: (symbol: string) => void;
+}) {
+  const isCrypto = assetClass === "crypto";
+
+  const positions = usePositions();
+  const account = useAccount();
+
+  // App already subscribes to both watchlists app-wide, so this adds no fetch.
+  const stockWatchlist = useWatchlist();
+  const cryptoWatchlist = useCryptoWatchlist();
+  const watchlist = isCrypto ? cryptoWatchlist : stockWatchlist;
+
+  const addStock = useAddToWatchlist();
+  const removeStock = useRemoveFromWatchlist();
+  const addCrypto = useAddToCryptoWatchlist();
+  const removeCrypto = useRemoveFromCryptoWatchlist();
+  const addToWatchlist = isCrypto ? addCrypto : addStock;
+  const removeFromWatchlist = isCrypto ? removeCrypto : removeStock;
+
+  // Price strip — only the active silo's source fetches.
+  const indices = useIndices(!isCrypto);
+  const tickers = useCryptoTickers(isCrypto);
+
+  // Movers / most-active are stocks-only (Alpaca has no crypto screener).
+  const movers = useMovers(8, !isCrypto);
+  const mostActiveVolume = useMostActive(8, "volume", !isCrypto);
+  const mostActiveTrades = useMostActive(8, "trades", !isCrypto);
+
+  // News source differs per silo: market-wide headlines vs Alpaca BTC feed.
+  const stockNews = useMarketNews(8, !isCrypto);
+  const cryptoNews = useNews("BTC", 8, isCrypto);
+
+  const wlSymbols = watchlist.data?.symbols ?? [];
+  const snaps = useSnapshots(wlSymbols);
+  const marketSummary = useMarketSummary(wlSymbols, assetClass);
+
+  const [wlInput, setWlInput] = useState("");
+  const [adding, setAdding] = useState(false);
+
+  async function submitAddWatchlist(e: React.FormEvent) {
+    e.preventDefault();
+    const v = wlInput.trim().toUpperCase();
+    if (!v || adding) return;
+    if (wlSymbols.includes(v)) {
+      showToast(`${v} is already on your watchlist`, "info");
+      return;
+    }
+    setAdding(true);
+    // Validate with Alpaca first so a 404'd ticker can't be pushed onto
+    // the watchlist (backend would accept it; it would never load quotes).
+    try {
+      const asset = await api.getAsset(v);
+      if (!asset.tradable) {
+        showToast(`${v} is not tradable on Alpaca`, "error");
+        setAdding(false);
+        return;
+      }
+    } catch {
+      showToast(`${v} not found on Alpaca`, "error");
+      setAdding(false);
+      return;
+    }
+    addToWatchlist.mutate(v, {
+      onSuccess: () => {
+        setWlInput("");
+        setAdding(false);
+        showToast(`${v} added to watchlist`, "success");
+        onSelect(v);
+      },
+      onError: (err) => {
+        setAdding(false);
+        showToast(`Couldn't add ${v}: ${(err as Error).message}`, "error");
+      },
+    });
+  }
+
+  function removeWatchlistSymbol(sym: string) {
+    removeFromWatchlist.mutate(sym, {
+      onSuccess: () => showToast(`${sym} removed from watchlist`, "info"),
+      onError: (err) =>
+        showToast(`Couldn't remove ${sym}: ${(err as Error).message}`, "error"),
+    });
+  }
+
+  const siloPositions = (positions.data?.positions || []).filter((p) =>
+    isCrypto ? isCryptoPosition(p) : !isCryptoPosition(p),
+  );
+  const invested = siloPositions.reduce((s, p) => s + p.market_value, 0);
+  const unrealized = siloPositions.reduce((s, p) => s + p.unrealized_pl, 0);
+  const totalCostBasis = siloPositions.reduce((s, p) => s + p.cost_basis, 0);
+  const unrealizedPct = totalCostBasis > 0 ? unrealized / totalCostBasis : 0;
+  // Silo day P/L: sum of intraday unrealized P/L, as a % of prior-close value.
+  const dayPl = siloPositions.reduce((s, p) => s + p.unrealized_intraday_pl, 0);
+  const dayBasis = invested - dayPl;
+  const dayPlPct = dayBasis > 0 ? dayPl / dayBasis : 0;
+
+  // Quote map drives watchlist sparkline cards.
+  const quotes: Record<string, Snapshot> = {};
+  (snaps.data?.snapshots || []).forEach((s: Snapshot) => {
+    quotes[s.symbol] = s;
+  });
+
+  return (
+    <div className="max-w-[1280px] mx-auto pt-2">
+      {/* Price strip — equity indices marquee (Yahoo, non-clickable) for
+         stocks, live crypto ticker for crypto. */}
+      {isCrypto
+        ? tickers.data && <CryptoTicker tickers={tickers.data.tickers} />
+        : indices.data && <IndicesTicker indices={indices.data.indices} />}
+
+      {/* Hero row */}
+      <div className="grid gap-4 mb-6 grid-cols-1 lg:grid-cols-[1.4fr_1fr]">
+        <BalanceCard
+          account={account.data}
+          title={isCrypto ? "Crypto" : "Stocks"}
+          value={invested}
+          dayPl={dayPl}
+          dayPlPct={dayPlPct}
+          unrealized={unrealized}
+          unrealizedPct={unrealizedPct}
+          buyingPower={
+            isCrypto
+              ? account.data?.non_marginable_buying_power ?? 0
+              : account.data?.buying_power ?? 0
+          }
+        />
+        <AllocationCard
+          positions={siloPositions}
+          colors={isCrypto ? undefined : DONUT_COLORS_GREEN}
+        />
+      </div>
+
+      {/* AI market summary — auto-generated per time window, dismissible */}
+      <MarketSummaryCard
+        cache={marketSummary.cache}
+        isGenerating={marketSummary.isGenerating}
+        windowLabel={marketSummary.windowLabel}
+        onDismiss={marketSummary.dismiss}
+      />
+
+      {/* Watchlist */}
+      <SectionHeading
+        label="Watchlist"
+        ctx={
+          watchlist.isPending
+            ? "loading…"
+            : isCrypto
+              ? `${wlSymbols.length} pair${wlSymbols.length === 1 ? "" : "s"}`
+              : `${wlSymbols.length} symbol${wlSymbols.length === 1 ? "" : "s"}`
+        }
+        ctxRight={
+          <form
+            onSubmit={submitAddWatchlist}
+            className="inline-flex items-center gap-1"
+          >
+            <input
+              value={wlInput}
+              onChange={(e) => setWlInput(e.target.value.toUpperCase())}
+              placeholder={isCrypto ? "+ BTC/USD" : "+ SYMBOL"}
+              aria-label={
+                isCrypto
+                  ? "Add crypto pair to watchlist"
+                  : "Add symbol to watchlist"
+              }
+              className="font-mono text-[11.5px] tabular-nums"
+              style={{
+                background: "var(--panel-2)",
+                border: "1px solid var(--border)",
+                borderRadius: 6,
+                color: "var(--text)",
+                padding: "3px 8px",
+                width: 110,
+              }}
+            />
+            <button
+              type="submit"
+              disabled={!wlInput.trim() || adding}
+              className="text-[12px] cursor-pointer"
+              style={{
+                background: "var(--accent-bg)",
+                color: "var(--accent)",
+                border: "1px solid var(--accent)",
+                borderRadius: 6,
+                padding: "3px 8px",
+                opacity: wlInput.trim() && !adding ? 1 : 0.5,
+              }}
+            >
+              {adding ? "…" : "Add"}
+            </button>
+          </form>
+        }
+      />
+      {watchlist.isPending ? (
+        <CardsRow>
+          {Array.from({ length: isCrypto ? 4 : 6 }).map((_, i) => (
+            <SparkCardSkeleton key={i} />
+          ))}
+        </CardsRow>
+      ) : wlSymbols.length === 0 ? (
+        <div
+          className="p-5 text-[13px]"
+          style={{
+            background: "var(--panel)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--r)",
+            color: "var(--mute)",
+          }}
+        >
+          {isCrypto
+            ? "Your crypto watchlist is empty. Type a pair above (e.g. BTC/USD) to add one."
+            : "Your watchlist is empty. Type a ticker above to add one."}
+        </div>
+      ) : (
+        <CardsRow>
+          {wlSymbols.map((sym) => {
+            const q = quotes[sym];
+            const last = q?.last_price ?? 0;
+            const dayChange =
+              q?.prev_close && q?.last_price
+                ? (q.last_price - q.prev_close) / q.prev_close
+                : 0;
+            const pos = siloPositions.find((p) => p.symbol === sym);
+            return (
+              <SparkCard
+                key={sym}
+                symbol={isCrypto ? coinLabel(sym) : sym}
+                name={pos ? `${pos.qty} ${isCrypto ? "units" : "shares"}` : ""}
+                price={last}
+                changePct={dayChange}
+                selected={sym === selected}
+                onSelect={() => onSelect(sym)}
+                onRemove={() => removeWatchlistSymbol(sym)}
+              />
+            );
+          })}
+        </CardsRow>
+      )}
+
+      {/* Inline chart */}
+      <ChartCard symbol={selected} />
+
+      {/* Movers + Most Active — stocks only */}
+      {!isCrypto && (
+        <>
+          <SectionHeading label="Movers" ctxRight="free IEX feed" />
+          {movers.error && <ErrorBanner message={movers.error.message} />}
+          {mostActiveVolume.error && (
+            <ErrorBanner message={mostActiveVolume.error.message} />
+          )}
+          {(!movers.data || !mostActiveVolume.data || !mostActiveTrades.data) &&
+            !movers.error && (
+              <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
+                <MoversCardSkeleton />
+                <MostActiveCardSkeleton />
+              </div>
+            )}
+          {movers.data && mostActiveVolume.data && mostActiveTrades.data && (
+            <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
+              <MoversCard
+                gainers={movers.data.gainers}
+                losers={movers.data.losers}
+                onSelect={onSelect}
+              />
+              <MostActiveCard
+                volumeData={mostActiveVolume.data.most_actives}
+                tradesData={mostActiveTrades.data.most_actives}
+                onSelect={onSelect}
+              />
+            </div>
+          )}
+        </>
+      )}
+
+      {/* News */}
+      <SectionHeading
+        label="News"
+        ctx={isCrypto ? "crypto headlines" : "market headlines"}
+      />
+      {isCrypto ? (
+        <>
+          {cryptoNews.error && <ErrorBanner message={cryptoNews.error.message} />}
+          {!cryptoNews.data && !cryptoNews.error && <NewsCardSkeleton />}
+          {cryptoNews.data && cryptoNews.data.news.length > 0 && (
+            <NewsCard
+              articles={cryptoNews.data.news.map((n) => ({
+                title: n.headline,
+                link: n.url,
+                summary: n.summary,
+                source: n.source,
+                pub_time: n.time,
+              }))}
+            />
+          )}
+          {cryptoNews.data && cryptoNews.data.news.length === 0 && (
+            <div
+              className="p-5 text-[13px]"
+              style={{
+                background: "var(--panel)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--r)",
+                color: "var(--mute)",
+              }}
+            >
+              No recent crypto news.
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          {stockNews.error && <ErrorBanner message={stockNews.error.message} />}
+          {!stockNews.data && !stockNews.error && <NewsCardSkeleton />}
+          {stockNews.data && <NewsCard articles={stockNews.data.articles} />}
+        </>
+      )}
+    </div>
+  );
+}

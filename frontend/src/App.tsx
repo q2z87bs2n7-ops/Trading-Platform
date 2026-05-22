@@ -5,8 +5,7 @@ import Positions from "./components/Positions";
 import Orders from "./components/Orders";
 import Activities from "./components/Activities";
 import TopBar from "./components/TopBar";
-import Tools from "./components/Tools";
-import CryptoTools from "./components/CryptoTools";
+import DiscoverPage from "./components/DiscoverPage";
 import AssetClassSplash from "./components/AssetClassSplash";
 import PortfolioHero from "./components/PortfolioHero";
 import SectionHeading from "./components/SectionHeading";
@@ -274,12 +273,13 @@ export default function App() {
         {(mode === "portfolio" || mode === "chart") && <TopBar />}
       </header>
 
-      {/* Discover — switches content based on asset class */}
-      {mode === "discover" && activeClass === "stocks" && (
-        <Tools selected={selected} onSelect={setSelected} />
-      )}
-      {mode === "discover" && activeClass === "crypto" && (
-        <CryptoTools selected={selected} onSelect={setSelected} />
+      {/* Discover — one surface, parameterized by the active asset class */}
+      {mode === "discover" && (
+        <DiscoverPage
+          assetClass={activeClass}
+          selected={selected}
+          onSelect={setSelected}
+        />
       )}
 
       {/* TradingView full terminal + ChartBot panel — Chart mode only */}

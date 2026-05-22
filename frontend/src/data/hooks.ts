@@ -69,42 +69,46 @@ export const useSnapshots = (symbols: string[]) =>
     staleTime: 30000,
   });
 
-export const useMovers = (top = 10) =>
+export const useMovers = (top = 10, enabled = true) =>
   useQuery({
     queryKey: qk.movers(top),
     queryFn: () => api.getMovers(top),
     refetchInterval: 60000,
+    enabled,
   });
 
-export const useMostActive = (top = 10, by = "volume") =>
+export const useMostActive = (top = 10, by = "volume", enabled = true) =>
   useQuery({
     queryKey: qk.mostActive(top, by),
     queryFn: () => api.getMostActive(top, by),
     refetchInterval: 60000,
+    enabled,
   });
 
-export const useMarketNews = (limit = 20) =>
+export const useMarketNews = (limit = 20, enabled = true) =>
   useQuery({
     queryKey: qk.marketNews,
     queryFn: () => api.getMarketNews(limit),
     refetchInterval: 300_000, // 5 min — matches backend cache TTL
     staleTime: 120_000,
+    enabled,
   });
 
-export const useNews = (symbol: string, limit = 10) =>
+export const useNews = (symbol: string, limit = 10, enabled = true) =>
   useQuery({
     queryKey: qk.news(symbol),
     queryFn: () => api.getNews(symbol, limit),
-    enabled: symbol.length > 0,
+    enabled: enabled && symbol.length > 0,
     staleTime: 120_000,
   });
 
-export const useIndices = () =>
+export const useIndices = (enabled = true) =>
   useQuery({
     queryKey: qk.indices,
     queryFn: api.getIndices,
     refetchInterval: 120_000,
     staleTime: 60_000,
+    enabled,
   });
 
 export const usePortfolioHistory = (period = "1M", timeframe = "1D") =>
@@ -193,11 +197,12 @@ export const useCryptoWatchlist = cryptoWatchlist.useList;
 export const useAddToCryptoWatchlist = cryptoWatchlist.useAdd;
 export const useRemoveFromCryptoWatchlist = cryptoWatchlist.useRemove;
 
-export const useCryptoTickers = () =>
+export const useCryptoTickers = (enabled = true) =>
   useQuery({
     queryKey: qk.cryptoTickers,
     queryFn: api.getCryptoTickers,
     refetchInterval: 15000,
+    enabled,
   });
 
 // --- Writes: invalidate everything a trade can move ----------------------

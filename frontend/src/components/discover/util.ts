@@ -1,3 +1,8 @@
+// Strip the "/USD" quote off a crypto pair for compact display (BTC/USD → BTC).
+export function coinLabel(symbol: string): string {
+  return symbol.replace(/\/USD$/, "");
+}
+
 export function fmtPrice(n: number): string {
   if (n >= 10_000) return n.toLocaleString("en-US", { maximumFractionDigits: 0 });
   return n.toLocaleString("en-US", {
