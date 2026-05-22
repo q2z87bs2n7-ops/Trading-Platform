@@ -142,51 +142,56 @@ export const useCalendar = (start: string, end: string) =>
     staleTime: 60 * 60_000,
   });
 
-export const useWatchlist = () =>
-  useQuery({
-    queryKey: qk.watchlist,
-    queryFn: api.getWatchlist,
-    staleTime: Infinity,
-  });
+// The stocks and crypto watchlist hooks differ only by silo (query key + the
+// api fn each calls). One factory builds the list/add/remove trio for a silo;
+// the six original hook names are re-exported as thin wrappers so call sites
+// are unchanged.
+type WatchlistApi = {
+  get: () => Promise<{ symbols: string[] }>;
+  add: (symbol: string) => Promise<{ symbols: string[] }>;
+  remove: (symbol: string) => Promise<{ symbols: string[] }>;
+};
 
-export function useAddToWatchlist() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (symbol: string) => api.addToWatchlist(symbol),
-    onSuccess: (data) => qc.setQueryData(qk.watchlist, data),
-  });
+function makeWatchlistHooks(key: readonly string[], fns: WatchlistApi) {
+  const useList = () =>
+    useQuery({ queryKey: key, queryFn: fns.get, staleTime: Infinity });
+
+  const useAdd = () => {
+    const qc = useQueryClient();
+    return useMutation({
+      mutationFn: fns.add,
+      onSuccess: (data) => qc.setQueryData(key, data),
+    });
+  };
+
+  const useRemove = () => {
+    const qc = useQueryClient();
+    return useMutation({
+      mutationFn: fns.remove,
+      onSuccess: (data) => qc.setQueryData(key, data),
+    });
+  };
+
+  return { useList, useAdd, useRemove };
 }
 
-export function useRemoveFromWatchlist() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (symbol: string) => api.removeFromWatchlist(symbol),
-    onSuccess: (data) => qc.setQueryData(qk.watchlist, data),
-  });
-}
+const stocksWatchlist = makeWatchlistHooks(qk.watchlist, {
+  get: api.getWatchlist,
+  add: api.addToWatchlist,
+  remove: api.removeFromWatchlist,
+});
+const cryptoWatchlist = makeWatchlistHooks(qk.cryptoWatchlist, {
+  get: api.getCryptoWatchlist,
+  add: api.addToCryptoWatchlist,
+  remove: api.removeFromCryptoWatchlist,
+});
 
-export const useCryptoWatchlist = () =>
-  useQuery({
-    queryKey: qk.cryptoWatchlist,
-    queryFn: api.getCryptoWatchlist,
-    staleTime: Infinity,
-  });
-
-export function useAddToCryptoWatchlist() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (symbol: string) => api.addToCryptoWatchlist(symbol),
-    onSuccess: (data) => qc.setQueryData(qk.cryptoWatchlist, data),
-  });
-}
-
-export function useRemoveFromCryptoWatchlist() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (symbol: string) => api.removeFromCryptoWatchlist(symbol),
-    onSuccess: (data) => qc.setQueryData(qk.cryptoWatchlist, data),
-  });
-}
+export const useWatchlist = stocksWatchlist.useList;
+export const useAddToWatchlist = stocksWatchlist.useAdd;
+export const useRemoveFromWatchlist = stocksWatchlist.useRemove;
+export const useCryptoWatchlist = cryptoWatchlist.useList;
+export const useAddToCryptoWatchlist = cryptoWatchlist.useAdd;
+export const useRemoveFromCryptoWatchlist = cryptoWatchlist.useRemove;
 
 export const useCryptoTickers = () =>
   useQuery({
