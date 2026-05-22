@@ -54,3 +54,25 @@ def crypto_data_client() -> CryptoHistoricalDataClient:
 
 def is_crypto(symbol: str) -> bool:
     return "/" in symbol
+
+
+# Quote currencies Alpaca appends without a slash on crypto symbols (its
+# positions and activities endpoints strip the slash: BTCUSD, not BTC/USD).
+# Longest first so ``USDT`` wins over ``USD``.
+_CRYPTO_QUOTES = ("USDT", "USDC", "USD")
+
+
+def normalize_crypto_symbol(symbol: str, asset_class: str | None = None) -> str:
+    """Re-insert the slash Alpaca strips from crypto pairs (BTCUSD -> BTC/USD)
+    so a symbol matches the slash form orders and watchlists use. Already-
+    slashed symbols pass through unchanged. When ``asset_class`` is supplied and
+    is not crypto the symbol is left as-is — guards the rare equity ticker that
+    happens to end in a quote-currency suffix."""
+    if "/" in symbol:
+        return symbol
+    if asset_class is not None and "crypto" not in asset_class.lower():
+        return symbol
+    for q in _CRYPTO_QUOTES:
+        if symbol.endswith(q) and len(symbol) > len(q) and symbol[: -len(q)].isalpha():
+            return f"{symbol[: -len(q)]}/{q}"
+    return symbol

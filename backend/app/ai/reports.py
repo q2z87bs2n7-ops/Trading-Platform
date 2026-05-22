@@ -10,11 +10,12 @@ import io
 from datetime import date
 
 from .. import alpaca
+from ..alpaca import is_crypto
 from ..alpaca.pnl import get_pnl_history
 
 
 def _is_crypto(symbol: str, asset_class: str | None = None) -> bool:
-    return asset_class == "crypto" or "/" in symbol
+    return asset_class == "crypto" or is_crypto(symbol)
 
 
 def _in_scope(symbol: str, asset_class: str | None, scope: str) -> bool:

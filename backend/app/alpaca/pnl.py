@@ -16,26 +16,12 @@ from collections import defaultdict, deque
 from datetime import date, datetime, time, timedelta, timezone
 
 from .account import get_positions
-from .client import is_crypto, trading_client
+from .client import is_crypto, normalize_crypto_symbol, trading_client
 from .market_data import get_daily_closes
 
 # Lookback per period; ``ALL`` (or anything unmapped) walks back to the first
 # fill.
 _PERIOD_DAYS: dict[str, int] = {"1M": 31, "3M": 93, "1Y": 366}
-
-# Quote currencies Alpaca may append without a slash on crypto activities
-# (the positions endpoint does the same — see account._position_dict). Longest
-# first so ``USDT`` wins over ``USD``.
-_CRYPTO_QUOTES = ("USDT", "USDC", "USD")
-
-
-def _normalize_symbol(sym: str) -> str:
-    if "/" in sym:
-        return sym
-    for q in _CRYPTO_QUOTES:
-        if sym.endswith(q) and len(sym) > len(q) and sym[: -len(q)].isalpha():
-            return f"{sym[: -len(q)]}/{q}"
-    return sym
 
 
 def _parse_ts(value) -> datetime:
@@ -71,7 +57,7 @@ def get_pnl_history(asset_class: str, period: str = "ALL") -> dict:
 
     parsed: list[tuple[datetime, str, str, float, float]] = []
     for f in _fetch_fills():
-        sym = _normalize_symbol(str(f.get("symbol", "")))
+        sym = normalize_crypto_symbol(str(f.get("symbol", "")))
         if not sym or is_crypto(sym) != want_crypto:
             continue
         try:
@@ -103,7 +89,7 @@ def get_pnl_history(asset_class: str, period: str = "ALL") -> dict:
     live_market_value = sum(
         float(p.get("market_value") or 0)
         for p in get_positions()
-        if is_crypto(_normalize_symbol(str(p.get("symbol", "")))) == want_crypto
+        if is_crypto(normalize_crypto_symbol(str(p.get("symbol", "")))) == want_crypto
     )
 
     lots: dict[str, deque[list[float]]] = defaultdict(deque)

@@ -18,6 +18,7 @@ from .client import (
     crypto_data_client,
     data_client,
     is_crypto,
+    normalize_crypto_symbol,
     timeframe_from_str,
     trading_client,
 )
@@ -51,6 +52,7 @@ __all__ = [
     "crypto_data_client",
     "data_client",
     "is_crypto",
+    "normalize_crypto_symbol",
     "get_account",
     "get_activities",
     "get_asset",

@@ -2,11 +2,10 @@
 
 import requests as _req
 
-from alpaca.trading.enums import AssetClass
 from alpaca.trading.requests import GetCalendarRequest, GetPortfolioHistoryRequest
 
 from ..config import get_settings
-from .client import trading_client
+from .client import normalize_crypto_symbol, trading_client
 
 
 def get_account() -> dict:
@@ -41,9 +40,7 @@ def _position_dict(p) -> dict:
     # Alpaca's positions endpoint strips the slash from crypto pairs
     # (BTCUSD instead of BTC/USD). Re-insert it so it matches watchlist
     # symbols and order symbols, which both use the slash format.
-    symbol = p.symbol
-    if p.asset_class == AssetClass.CRYPTO and "/" not in symbol and symbol.endswith("USD"):
-        symbol = symbol[:-3] + "/" + symbol[-3:]
+    symbol = normalize_crypto_symbol(p.symbol, str(p.asset_class))
     return {
         "symbol": symbol,
         "asset_class": str(p.asset_class),
