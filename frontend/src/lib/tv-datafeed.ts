@@ -25,40 +25,12 @@ const RESOLUTION_MAP: Record<string, string> = {
   "240": "4Hour",
   "D": "1Day",
   "1D": "1Day",
-  "W": "1Day",
-  "1W": "1Day",
+  "W": "1Week",
+  "1W": "1Week",
 };
 
 function toBackendTf(resolution: string): string {
   return RESOLUTION_MAP[resolution] ?? "1Day";
-}
-
-type Bar = { time: number; open: number; high: number; low: number; close: number; volume: number };
-
-// Alpaca IEX doesn't support native weekly bars (returns 422). Aggregate
-// daily bars into weekly bars here so we never need to request them.
-// Weekly bar: Monday open, week high/low, Friday close, cumulative volume.
-// Timestamp = Monday 00:00 UTC in milliseconds (TV convention).
-function toWeeklyBars(daily: Bar[]): Bar[] {
-  const weeks = new Map<number, Bar>();
-  for (const bar of daily) {
-    const d = new Date(bar.time);
-    const dow = d.getUTCDay();
-    const mon = new Date(bar.time);
-    mon.setUTCDate(d.getUTCDate() - (dow === 0 ? 6 : dow - 1));
-    mon.setUTCHours(0, 0, 0, 0);
-    const key = mon.getTime();
-    const w = weeks.get(key);
-    if (!w) {
-      weeks.set(key, { time: key, open: bar.open, high: bar.high, low: bar.low, close: bar.close, volume: bar.volume });
-    } else {
-      w.high = Math.max(w.high, bar.high);
-      w.low = Math.min(w.low, bar.low);
-      w.close = bar.close;
-      w.volume += bar.volume;
-    }
-  }
-  return [...weeks.values()].sort((a, b) => a.time - b.time);
 }
 
 export function createDatafeed() {
@@ -120,7 +92,6 @@ export function createDatafeed() {
             minmov: 1,
             pricescale: 100,
             has_intraday: true,
-            has_weekly_and_monthly: false,
             supported_resolutions: ["1", "5", "15", "30", "60", "240", "D", "W"],
             volume_precision: 0,
             data_status: "streaming",
@@ -136,12 +107,10 @@ export function createDatafeed() {
       onResult: (bars: object[], meta: { noData: boolean }) => void,
       onError: (err: string) => void,
     ) {
-      const isWeekly = resolution === "W" || resolution === "1W";
-      const tf = isWeekly ? "1Day" : toBackendTf(resolution);
-      // For weekly, fetch 7× the requested bar count to cover enough daily bars
-      // for aggregation (plus a buffer for weekends/holidays). Cap at 1000.
-      const countBack = periodParams.countBack ?? (isWeekly ? 104 : 300);
-      const limit = isWeekly ? Math.min(countBack * 7 + 20, 1000) : countBack;
+      const tf = toBackendTf(resolution);
+      // Backend uses ?symbol=&timeframe=&limit= — no path param, no start/end.
+      // Use countBack as the limit when provided; fall back to 300.
+      const limit = periodParams.countBack ?? 300;
       const url =
         `${API_BASE}/api/bars` +
         `?symbol=${encodeURIComponent(symbolInfo.name)}&timeframe=${tf}&limit=${limit}`;
@@ -152,7 +121,7 @@ export function createDatafeed() {
         .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
         .then((data) => {
           clearTimeout(timer);
-          const daily: Bar[] = (data.bars ?? []).map(
+          const bars = (data.bars ?? []).map(
             (b: { time: number; open: number; high: number; low: number; close: number; volume: number }) => ({
               time: b.time * 1000, // TV expects milliseconds
               open: b.open,
@@ -162,7 +131,6 @@ export function createDatafeed() {
               volume: b.volume ?? 0,
             }),
           );
-          const bars = isWeekly ? toWeeklyBars(daily) : daily;
           onResult(bars, { noData: bars.length === 0 });
         })
         .catch((e) => { clearTimeout(timer); onError(String(e)); });
