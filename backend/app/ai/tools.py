@@ -20,6 +20,11 @@ READ_TOOL_NAMES = {
     "get_news",
     "get_movers",
     "find_symbol",
+    "get_activities",
+    "get_clock",
+    "get_calendar",
+    "get_watchlist",
+    "get_corporate_actions",
 }
 
 # Frontend-executed tools (backend declares, frontend dispatches on the
@@ -238,6 +243,108 @@ TOOLS: list[dict[str, Any]] = [
                 },
             },
             "required": ["query"],
+        },
+    },
+    {
+        "name": "get_activities",
+        "description": (
+            "Fetch account activity history: trade fills (FILL), dividends "
+            "(DIV), interest (INT), and fees (FEE). Use for 'what did I trade "
+            "last week', 'my average entry on AAPL', 'realized P&L today', "
+            "'recent fills'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "activity_type": {
+                    "type": "string",
+                    "enum": ["FILL", "DIV", "INT", "FEE"],
+                    "description": "Filter by type. Omit to return all types.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "description": "Max activities to return (default 25).",
+                },
+            },
+        },
+    },
+    {
+        "name": "get_clock",
+        "description": (
+            "Current market clock: whether the market is open right now, and "
+            "the next open/close times as UNIX timestamps. Use for 'is market "
+            "open', 'when does market close', 'premarket hours' questions."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "get_calendar",
+        "description": (
+            "Trading calendar: market open and close times for each session. "
+            "Pass a date range for a specific window; omit both for the "
+            "current month. Use for 'next trading day', 'was market open on "
+            "X date', or 'what did the stock do last session' on weekends."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "start": {
+                    "type": "string",
+                    "description": "Start date (YYYY-MM-DD). Optional.",
+                },
+                "end": {
+                    "type": "string",
+                    "description": "End date (YYYY-MM-DD). Optional.",
+                },
+            },
+        },
+    },
+    {
+        "name": "get_watchlist",
+        "description": (
+            "Fetch the user's watchlist symbols. Use when they ask about "
+            "'my watchlist' or 'how are my watched stocks doing'; then call "
+            "get_snapshot on the returned symbols for current prices."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "get_corporate_actions",
+        "description": (
+            "Fetch corporate action announcements: splits, dividends, mergers, "
+            "and spinoffs. Use for 'why did X gap down/up', 'any dividends "
+            "coming for AAPL', 'was there a split'. Pass symbols to filter "
+            "by ticker; omit for market-wide announcements."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symbols": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional ticker list to filter by.",
+                },
+                "types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": ["dividend", "merger", "spinoff", "split"],
+                    },
+                    "description": "Optional action types to filter by.",
+                },
+                "since": {
+                    "type": "string",
+                    "description": "Filter from this date (YYYY-MM-DD). Optional.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 50,
+                    "description": "Max announcements to return (default 20).",
+                },
+            },
         },
     },
     # --- DRAWING TOOLS (frontend executes) ------------------------------------
@@ -717,8 +824,12 @@ def is_draw_tool(name: str) -> bool:
     return name in DRAW_TOOL_NAMES
 
 
-def read_only_tools() -> list[dict[str, Any]]:
+def read_only_tools(web_search: bool = False) -> list[dict[str, Any]]:
     """Subset of TOOLS exposed to the ⌘K general-purpose AI surface.
     Excludes every chart-drawing / chart-navigation / capture tool
-    since there's no chart context in the command-bar modal."""
-    return [t for t in TOOLS if t["name"] in READ_TOOL_NAMES]
+    since there's no chart context in the command-bar modal.
+    Pass web_search=True to append Anthropic's hosted web_search server tool."""
+    result = [t for t in TOOLS if t["name"] in READ_TOOL_NAMES]
+    if web_search:
+        result.append({"type": "web_search_20250305", "name": "web_search", "max_uses": 2})
+    return result

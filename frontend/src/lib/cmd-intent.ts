@@ -123,6 +123,18 @@ export function parseIntent(input: string): Intent {
   if (!text) return { type: "fallback", text };
   const lower = text.toLowerCase();
 
+  // ── negative routing ── open-ended questions bypass structured intents.
+  // Prevents e.g. "why did my order fail" being hijacked by the orders intent.
+  // Does NOT catch "how's AAPL" or "what's SPY" — those use contractions and
+  // fall through to the chart intent below.
+  if (
+    /^(why\b|explain\b|what\s+(is|are|does|do|was|were|means?|happened)\b|how\s+(does|do|did|can|should|would|is|are)\b)/i.test(
+      lower,
+    )
+  ) {
+    return { type: "fallback", text };
+  }
+
   // ── order ── "buy 100 AAPL at market" / "sell 50 AMD" / "buy 5 TSLA at 240"
   // "purchase" normalises to buy; "short" normalises to sell.
   // Qty accepts k/m suffix: "1k" → 1000, "2.5k" → 2500.

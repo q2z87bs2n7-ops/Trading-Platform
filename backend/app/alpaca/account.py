@@ -1,7 +1,10 @@
 """Account, positions, portfolio history, activities, clock, calendar reads."""
 
+import requests as _req
+
 from alpaca.trading.requests import GetCalendarRequest, GetPortfolioHistoryRequest
 
+from ..config import get_settings
 from .client import trading_client
 
 
@@ -81,6 +84,36 @@ def get_calendar(start: str | None, end: str | None) -> list[dict]:
         {"date": str(d.date), "open": str(d.open), "close": str(d.close)}
         for d in cal
     ]
+
+
+def get_corporate_actions(
+    symbols: list[str] | None,
+    ca_types: list[str] | None,
+    since: str | None,
+    limit: int,
+) -> list[dict]:
+    s = get_settings()
+    params: dict = {"limit": min(limit, 50)}
+    if symbols:
+        params["symbols"] = ",".join(sym.upper() for sym in symbols)
+    if ca_types:
+        params["types"] = ",".join(ca_types)
+    if since:
+        params["since"] = since
+    headers = {
+        "APCA-API-KEY-ID": s.alpaca_api_key,
+        "APCA-API-SECRET-KEY": s.alpaca_secret_key,
+    }
+    resp = _req.get(
+        "https://data.alpaca.markets/v1beta1/corporate_actions/announcements",
+        params=params,
+        headers=headers,
+        timeout=10,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    items = data.get("announcements", data) if isinstance(data, dict) else data
+    return items if isinstance(items, list) else []
 
 
 def get_portfolio_history(period: str, timeframe: str) -> dict:

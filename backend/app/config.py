@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-sonnet-4-6"
     ai_max_tokens: int = 4096
     ai_max_tool_iterations: int = 16
+    # Web search via Anthropic's hosted tool ($10/1k searches). Off by default.
+    ai_web_search_enabled: bool = False
     # Browser origins allowed to call this API. The GitHub Pages origin is
     # included so the dev-branch previews can reach the Vercel backend.
     cors_origins: str = (

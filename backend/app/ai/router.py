@@ -10,6 +10,7 @@ back, and the loop resumes here.
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from typing import Any, Literal
 
 import anthropic
@@ -132,6 +133,32 @@ def _execute_read_tool(name: str, args: dict[str, Any]) -> str:
         query = str(args["query"])
         limit = min(int(args.get("limit", 10)), 25)
         return json.dumps({"matches": alpaca.search_assets(query, limit)}, default=str)
+
+    if name == "get_activities":
+        activity_type = args.get("activity_type")
+        limit = min(int(args.get("limit", 25)), 100)
+        return json.dumps({"activities": alpaca.get_activities(activity_type, limit)}, default=str)
+
+    if name == "get_clock":
+        return json.dumps(alpaca.get_clock(), default=str)
+
+    if name == "get_calendar":
+        start = args.get("start")
+        end = args.get("end")
+        return json.dumps({"calendar": alpaca.get_calendar(start, end)}, default=str)
+
+    if name == "get_watchlist":
+        return json.dumps(alpaca.get_watchlist(), default=str)
+
+    if name == "get_corporate_actions":
+        symbols = args.get("symbols")
+        ca_types = args.get("types")
+        since = args.get("since")
+        limit = min(int(args.get("limit", 20)), 50)
+        return json.dumps(
+            {"corporate_actions": alpaca.get_corporate_actions(symbols, ca_types, since, limit)},
+            default=str,
+        )
 
     raise ValueError(f"unknown read tool: {name}")
 
@@ -315,8 +342,9 @@ def ai_ask(req: AskRequest) -> AskResponse:
     s = get_settings()
     client = anthropic.Anthropic(api_key=s.anthropic_api_key, timeout=60.0)
 
-    system = prompt.build_general_system()
-    tool_list = tools.read_only_tools()
+    now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    system = prompt.build_general_system(context=f"Current time: {now_utc}.")
+    tool_list = tools.read_only_tools(web_search=s.ai_web_search_enabled)
     messages = _trim_history(
         list(req.history) + [{"role": "user", "content": req.message}]
     )
@@ -344,6 +372,11 @@ def ai_ask(req: AskRequest) -> AskResponse:
 
         content_dicts = [_block_to_dict(b) for b in response.content]
         usage = response.usage.model_dump() if response.usage else None
+
+        # Track Anthropic-executed server tools (e.g. web_search) for badge display.
+        for b in response.content:
+            if getattr(b, "type", None) == "server_tool_use":
+                tool_calls.append(AskToolCall(name=getattr(b, "name", "web_search"), ok=True))
 
         if response.stop_reason != "tool_use":
             text = "".join(

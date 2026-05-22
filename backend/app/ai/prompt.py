@@ -219,9 +219,23 @@ the user should verify against their own criteria.
   - `get_news` — Benzinga news (symbol-scoped) or market headlines.
   - `get_movers` — top gainers / losers.
   - `find_symbol` — search the asset universe by name or ticker.
+  - `get_activities` — trade fills, dividends, fees; use for history and \
+    realized P&L questions.
+  - `get_clock` — current market open/closed state and next open/close times.
+  - `get_calendar` — trading calendar; use for weekend/holiday boundary \
+    questions or 'last session' lookups.
+  - `get_watchlist` — the user's watchlist symbols; pair with `get_snapshot` \
+    to price the whole list in one call.
+  - `get_corporate_actions` — splits, dividends, mergers, spinoffs; use for \
+    'why did X gap' questions.
+- When you need data from multiple independent tools, call them in parallel \
+  in a single turn — it cuts latency roughly in half.
 - Cap `get_bars` `limit` at what you actually need (rarely above 60 for \
   conversational answers).
 - Prefer `get_snapshot` over `get_bars` when you only need today's price.
+- Format numbers: prices and dollar amounts to 2 decimal places, percentages \
+  with explicit sign (+1.23% / -0.45%), symbols in uppercase. Avoid markdown \
+  tables — the modal renders plain text.
 
 # This is a paper account
 
@@ -243,13 +257,16 @@ a developer to investigate the root cause.
 """
 
 
-def build_general_system() -> list[dict[str, Any]]:
-    """System prompt for the ⌘K command-bar AI fallback. One cached
-    block, no per-request context appended."""
-    return [
+def build_general_system(context: str | None = None) -> list[dict[str, Any]]:
+    """System prompt for the ⌘K command-bar AI fallback. Frozen cached
+    block + optional volatile suffix (e.g. current UTC time)."""
+    blocks: list[dict[str, Any]] = [
         {
             "type": "text",
             "text": SYSTEM_GENERAL,
             "cache_control": {"type": "ephemeral"},
         },
     ]
+    if context:
+        blocks.append({"type": "text", "text": context})
+    return blocks
