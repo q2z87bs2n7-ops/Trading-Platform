@@ -331,17 +331,17 @@ def crypto_tickers() -> dict:
 
 @app.get("/api/watchlist", dependencies=[Depends(require_configured)])
 def watchlist(asset_class: str = Query("")) -> dict:
-    return alpaca.get_watchlist(asset_class)
+    return alpaca.get_watchlist(alpaca.coerce_silo(asset_class))
 
 
 @app.post("/api/watchlist", dependencies=_WRITE_DEPS)
 def watchlist_add(req: WatchlistSymbol, asset_class: str = Query("")) -> dict:
-    return alpaca.add_to_watchlist(req.symbol, asset_class)
+    return alpaca.add_to_watchlist(req.symbol, alpaca.coerce_silo(asset_class))
 
 
 @app.delete("/api/watchlist/{symbol:path}", dependencies=_WRITE_DEPS)
 def watchlist_remove(symbol: str, asset_class: str = Query("")) -> dict:
-    return alpaca.remove_from_watchlist(symbol, asset_class)
+    return alpaca.remove_from_watchlist(symbol, alpaca.coerce_silo(asset_class))
 
 
 @app.get("/api/stream")
@@ -366,7 +366,11 @@ async def stream(
         syms = get_settings().symbols
     ks = {k.strip().lower() for k in kinds.split(",") if k.strip()}
     valid_ks = {k for k in ks if k in ("quote", "bar")}
-    # Route to the crypto hub when all requested symbols are crypto pairs (contain "/").
+    # Route to the crypto hub only when every requested symbol is a crypto pair
+    # (contains "/"); any equity present sends the whole batch to the stock hub.
+    # Each hub holds its own Alpaca WebSocket, so callers must send homogeneous
+    # batches — a mixed batch silently leaves the crypto symbols unsubscribed.
+    # The frontend always streams one silo at a time, so batches are homogeneous.
     all_crypto = bool(syms) and all("/" in s for s in syms)
     hub = quote_stream.crypto_hub if all_crypto else quote_stream.hub
     queue = await hub.subscribe(syms, valid_ks)  # type: ignore[arg-type]

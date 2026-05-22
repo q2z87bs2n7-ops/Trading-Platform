@@ -16,7 +16,7 @@ from collections import defaultdict, deque
 from datetime import date, datetime, time, timedelta, timezone
 
 from .account import get_positions
-from .client import is_crypto, normalize_crypto_symbol, trading_client
+from .client import coerce_silo, is_crypto, normalize_crypto_symbol, trading_client
 from .market_data import get_daily_closes
 
 # Lookback per period; ``ALL`` (or anything unmapped) walks back to the first
@@ -53,7 +53,8 @@ def _start_dt(d: date) -> datetime:
 
 
 def get_pnl_history(asset_class: str, period: str = "ALL") -> dict:
-    want_crypto = asset_class == "crypto"
+    silo = coerce_silo(asset_class)
+    want_crypto = silo == "crypto"
 
     parsed: list[tuple[datetime, str, str, float, float]] = []
     for f in _fetch_fills():
@@ -69,7 +70,7 @@ def get_pnl_history(asset_class: str, period: str = "ALL") -> dict:
         parsed.append((dt, sym, str(f.get("side", "")).lower(), qty, price))
 
     if not parsed:
-        return {"t": [], "pnl": []}
+        return {"t": [], "pnl": [], "asset_class": silo}
 
     # Sort by full timestamp so a same-day buy-then-sell is FIFO-applied in
     # the right order.
@@ -169,4 +170,4 @@ def get_pnl_history(asset_class: str, period: str = "ALL") -> dict:
         t_out.insert(0, int(_start_dt(window_start).timestamp()))
         pnl_out.insert(0, round(opening_value, 2))
 
-    return {"t": t_out, "pnl": pnl_out}
+    return {"t": t_out, "pnl": pnl_out, "asset_class": silo}

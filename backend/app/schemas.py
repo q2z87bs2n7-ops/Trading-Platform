@@ -115,8 +115,10 @@ class PositionsOut(BaseModel):
 class PnlHistoryOut(BaseModel):
     # Daily cumulative net P/L curve for one asset-class silo, reconstructed
     # from fills (FIFO) + historical daily closes. `t` is unix seconds.
+    # `asset_class` echoes the resolved silo ("stocks" | "crypto").
     t: list[int]
     pnl: list[float]
+    asset_class: str
 
 
 class CancelledOrders(BaseModel):

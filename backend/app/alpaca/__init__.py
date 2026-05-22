@@ -15,6 +15,7 @@ from .account import (
     get_positions,
 )
 from .client import (
+    coerce_silo,
     crypto_data_client,
     data_client,
     is_crypto,
@@ -49,6 +50,7 @@ __all__ = [
     "cancel_order",
     "close_all_positions",
     "close_position",
+    "coerce_silo",
     "crypto_data_client",
     "data_client",
     "is_crypto",

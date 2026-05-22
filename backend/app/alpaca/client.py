@@ -62,6 +62,14 @@ def is_crypto(symbol: str) -> bool:
 _CRYPTO_QUOTES = ("USDT", "USDC", "USD")
 
 
+def coerce_silo(asset_class: str | None) -> str:
+    """Canonical two-state silo selector for the per-silo API params
+    (watchlist, pnl-history). Anything that isn't exactly ``"crypto"`` —
+    including ``""``/``None``/unknown — resolves to ``"stocks"``, matching the
+    long-standing ``== "crypto"`` checks in watchlist/pnl."""
+    return "crypto" if (asset_class or "") == "crypto" else "stocks"
+
+
 def normalize_crypto_symbol(symbol: str, asset_class: str | None = None) -> str:
     """Re-insert the slash Alpaca strips from crypto pairs (BTCUSD -> BTC/USD)
     so a symbol matches the slash form orders and watchlists use. Already-
