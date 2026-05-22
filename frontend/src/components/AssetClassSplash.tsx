@@ -1,4 +1,5 @@
 import { useAccount, usePositions } from "../data/hooks";
+import { useMobile } from "../hooks/useMobile";
 import { isCryptoPosition } from "../lib/asset-class";
 import { money, pct } from "../lib/format";
 
@@ -59,6 +60,66 @@ function Card({
       >
         Enter {subtitle}
       </div>
+    </button>
+  );
+}
+
+// Compact horizontal market pill — mobile alternative to the big glyph
+// cards so both markets sit above the fold.
+function MarketPill({
+  glyph,
+  name,
+  detail,
+  accent,
+  active,
+  onClick,
+}: {
+  glyph: string;
+  name: string;
+  detail: string;
+  accent: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full text-left cursor-pointer"
+      style={{
+        background: "var(--panel)",
+        border: `1.5px solid ${active ? accent : "var(--border)"}`,
+        borderRadius: 14,
+        padding: 14,
+        boxShadow: active ? `0 0 0 3px ${accent}22` : "var(--shadow-sm)",
+        display: "grid",
+        gridTemplateColumns: "44px 1fr auto",
+        gap: 12,
+        alignItems: "center",
+        minHeight: "var(--mob-tap)",
+      }}
+    >
+      <span
+        aria-hidden
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 12,
+          display: "grid",
+          placeItems: "center",
+          fontSize: 22,
+          fontWeight: 700,
+          background: `${accent}1a`,
+          color: accent,
+        }}
+      >
+        {glyph}
+      </span>
+      <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+        <span style={{ fontSize: 16, fontWeight: 600 }}>{name}</span>
+        <span style={{ fontSize: 11.5, color: "var(--mute)" }}>{detail}</span>
+      </span>
+      <span style={{ color: accent, fontWeight: 600, fontSize: 18 }}>→</span>
     </button>
   );
 }
@@ -168,7 +229,7 @@ function AccountOverview() {
         </div>
       </div>
 
-      <div className="flex gap-8 flex-wrap">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
         <div className="flex flex-col">
           <small className="text-[12px]" style={{ color: "var(--mute)" }}>
             Cash
@@ -207,6 +268,7 @@ export default function AssetClassSplash({
   onClose?: () => void;
   currentClass?: AssetClassMode;
 }) {
+  const isMobile = useMobile();
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-6 overflow-auto"
@@ -254,25 +316,46 @@ export default function AssetClassSplash({
         {/* Global account overview */}
         <AccountOverview />
 
-        {/* Market cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
-          <Card
-            title="$"
-            subtitle="Stocks"
-            detail="NYSE · NASDAQ · ARCA · 9,000+ equities · Market hours"
-            accent="var(--pos)"
-            active={currentClass === "stocks"}
-            onClick={() => onSelect("stocks")}
-          />
-          <Card
-            title="₿"
-            subtitle="Crypto"
-            detail="BTC · ETH · SOL · XRP · DOGE · 24/7 trading"
-            accent="var(--accent)"
-            active={currentClass === "crypto"}
-            onClick={() => onSelect("crypto")}
-          />
-        </div>
+        {/* Market cards — big glyph cards on desktop, compact pills on mobile */}
+        {isMobile ? (
+          <div className="flex flex-col gap-2.5 w-full">
+            <MarketPill
+              glyph="$"
+              name="Stocks"
+              detail="9,000+ equities · Market hours"
+              accent="var(--pos)"
+              active={currentClass === "stocks"}
+              onClick={() => onSelect("stocks")}
+            />
+            <MarketPill
+              glyph="₿"
+              name="Crypto"
+              detail="BTC · ETH · SOL · 24/7 trading"
+              accent="var(--accent)"
+              active={currentClass === "crypto"}
+              onClick={() => onSelect("crypto")}
+            />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
+            <Card
+              title="$"
+              subtitle="Stocks"
+              detail="NYSE · NASDAQ · ARCA · 9,000+ equities · Market hours"
+              accent="var(--pos)"
+              active={currentClass === "stocks"}
+              onClick={() => onSelect("stocks")}
+            />
+            <Card
+              title="₿"
+              subtitle="Crypto"
+              detail="BTC · ETH · SOL · XRP · DOGE · 24/7 trading"
+              accent="var(--accent)"
+              active={currentClass === "crypto"}
+              onClick={() => onSelect("crypto")}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
