@@ -1,0 +1,543 @@
+"""Frontend-executed tool schemas: drawing primitives, chart navigation,
+trade visualization, comparison, inspection, and capture.
+
+The backend declares these; ``lib/ai-client.ts`` dispatches them against the
+TradingView widget. Split out of ``tools.py``; the assembler concatenates these
+after the read tools to build ``TOOLS``. Schema text and ordering are
+load-bearing for Anthropic prefix-cache hits — don't edit.
+"""
+
+from typing import Any
+
+# Frontend-executed tools (backend declares, frontend dispatches on the
+# TradingView widget). Drawing primitives, chart navigation, trading
+# visualization, inspection, and capture all live here because the
+# dispatcher only distinguishes read vs not-read.
+DRAW_TOOL_NAMES = {
+    # Drawing primitives
+    "draw_horizontal_line",
+    "draw_vertical_line",
+    "draw_trend_line",
+    "draw_rectangle",
+    "draw_fib_retracement",
+    "draw_text",
+    "draw_arrow",
+    "add_indicator",
+    "list_drawings",
+    "remove_drawing",
+    "modify_drawing",
+    # Chart navigation
+    "set_symbol",
+    "set_resolution",
+    "set_chart_type",
+    "set_visible_range",
+    "set_timezone",
+    # Trading visualization
+    "propose_order",
+    "show_position_line",
+    "mark_bar",
+    "mark_execution",
+    # Comparison overlay
+    "compare_symbol",
+    # Chart inspection
+    "get_chart_state",
+    "inspect_chart",
+    "get_drawing_properties",
+    "set_drawing_properties",
+    # Capture / export
+    "take_screenshot",
+    "export_chart_data",
+}
+
+
+_SYMBOL_FIELD = {
+    "type": "string",
+    "description": (
+        "Optional ticker the drawing belongs to. Defaults to the chart's "
+        "current symbol. If a different symbol is given, the drawing is "
+        "queued and rendered when that symbol is loaded on the chart."
+    ),
+}
+
+
+_POINT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "time": {
+            "type": "integer",
+            "description": "UNIX timestamp in seconds (TradingView's chart time axis).",
+        },
+        "price": {"type": "number", "description": "Y-axis price coordinate."},
+    },
+    "required": ["time", "price"],
+    "additionalProperties": False,
+}
+
+
+DRAW_TOOLS: list[dict[str, Any]] = [
+    {
+        "name": "draw_horizontal_line",
+        "description": (
+            "Draw a horizontal price line on the current chart. Use for "
+            "support/resistance levels, moving averages, target prices, "
+            "entry/stop/take-profit lines."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "price": {"type": "number"},
+                "text": {"type": "string", "description": "Optional label."},
+                "color": {
+                    "type": "string",
+                    "description": "Optional hex color, e.g. #3b82f6.",
+                },
+                "symbol": _SYMBOL_FIELD,
+            },
+            "required": ["price"],
+        },
+    },
+    {
+        "name": "draw_vertical_line",
+        "description": "Draw a vertical line at a specific time (event marker).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "time": {"type": "integer", "description": "UNIX timestamp (seconds)."},
+                "text": {"type": "string"},
+                "color": {"type": "string"},
+                "symbol": _SYMBOL_FIELD,
+            },
+            "required": ["time"],
+        },
+    },
+    {
+        "name": "draw_trend_line",
+        "description": "Draw a trend line between two price/time points.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "point1": _POINT_SCHEMA,
+                "point2": _POINT_SCHEMA,
+                "text": {"type": "string"},
+                "color": {"type": "string"},
+                "symbol": _SYMBOL_FIELD,
+            },
+            "required": ["point1", "point2"],
+        },
+    },
+    {
+        "name": "draw_rectangle",
+        "description": "Draw a rectangle highlighting a region between two points.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "point1": _POINT_SCHEMA,
+                "point2": _POINT_SCHEMA,
+                "color": {"type": "string"},
+                "symbol": _SYMBOL_FIELD,
+            },
+            "required": ["point1", "point2"],
+        },
+    },
+    {
+        "name": "draw_fib_retracement",
+        "description": "Draw a Fibonacci retracement between two pivot points.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "point1": _POINT_SCHEMA,
+                "point2": _POINT_SCHEMA,
+                "symbol": _SYMBOL_FIELD,
+            },
+            "required": ["point1", "point2"],
+        },
+    },
+    {
+        "name": "draw_text",
+        "description": "Place a text annotation on the chart.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "point": _POINT_SCHEMA,
+                "text": {"type": "string"},
+                "color": {"type": "string"},
+                "symbol": _SYMBOL_FIELD,
+            },
+            "required": ["point", "text"],
+        },
+    },
+    {
+        "name": "draw_arrow",
+        "description": "Place an up or down arrow at a point (e.g. mark a swing).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "point": _POINT_SCHEMA,
+                "direction": {"type": "string", "enum": ["up", "down"]},
+                "text": {"type": "string"},
+                "color": {"type": "string"},
+                "symbol": _SYMBOL_FIELD,
+            },
+            "required": ["point", "direction"],
+        },
+    },
+    {
+        "name": "add_indicator",
+        "description": (
+            "Add a built-in TradingView indicator/study to the chart by name "
+            "(e.g. 'Moving Average', 'Relative Strength Index', 'Bollinger Bands'). "
+            "Pass indicator-specific inputs as a flat object if needed."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Indicator name as TV expects (case-sensitive).",
+                },
+                "inputs": {
+                    "type": "object",
+                    "description": "Indicator-specific input overrides (optional).",
+                },
+                "symbol": _SYMBOL_FIELD,
+            },
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "list_drawings",
+        "description": (
+            "List drawings you've previously added on this chart (for the "
+            "current symbol+resolution). Use before remove_drawing or "
+            "modify_drawing."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "remove_drawing",
+        "description": "Remove a previously-added drawing by its id.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "drawing_id": {"type": "string", "description": "id from list_drawings."},
+            },
+            "required": ["drawing_id"],
+        },
+    },
+    {
+        "name": "modify_drawing",
+        "description": (
+            "Move or restyle an existing drawing in place. Look the id up "
+            "with list_drawings first. Provide only the fields you want to "
+            "change: price for a horizontal line, time for a vertical line, "
+            "point for single-point shapes (text/arrow), point1+point2 for "
+            "two-point shapes (trend_line/rectangle/fib_retracement). "
+            "text and color can be updated on any shape that supports them. "
+            "Indicators (studies) can't be modified — remove and re-add "
+            "instead."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "drawing_id": {"type": "string"},
+                "price": {"type": "number"},
+                "time": {"type": "integer"},
+                "point": _POINT_SCHEMA,
+                "point1": _POINT_SCHEMA,
+                "point2": _POINT_SCHEMA,
+                "text": {"type": "string"},
+                "color": {"type": "string"},
+            },
+            "required": ["drawing_id"],
+        },
+    },
+    # --- CHART NAVIGATION (frontend executes) ---------------------------------
+    {
+        "name": "set_symbol",
+        "description": (
+            "Switch the active chart to a different instrument. Only call "
+            "this when the user explicitly asks to look at another symbol — "
+            "do not change the chart out from under them unprompted."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Ticker to load, e.g. NVDA."},
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "set_resolution",
+        "description": (
+            "Change the chart's timeframe (e.g. switch from daily to hourly). "
+            "Explicit-request only — same caveat as set_symbol."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "resolution": {
+                    "type": "string",
+                    "description": (
+                        "TradingView resolution string: '1', '5', '15', '60' "
+                        "(intraday minutes); 'D', 'W', 'M' (daily/weekly/monthly)."
+                    ),
+                },
+            },
+            "required": ["resolution"],
+        },
+    },
+    {
+        "name": "set_chart_type",
+        "description": (
+            "Change the chart's series style. Explicit-request only."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "candles",
+                        "bars",
+                        "line",
+                        "area",
+                        "heikin_ashi",
+                        "hollow_candles",
+                        "baseline",
+                        "renko",
+                    ],
+                },
+            },
+            "required": ["type"],
+        },
+    },
+    {
+        "name": "set_visible_range",
+        "description": (
+            "Zoom the chart's time axis to a specific window — e.g. 'frame "
+            "the March–May breakout' or 'show me the last 6 months'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "from": {"type": "integer", "description": "Start time, UNIX seconds."},
+                "to": {"type": "integer", "description": "End time, UNIX seconds."},
+            },
+            "required": ["from", "to"],
+        },
+    },
+    # --- TRADING VISUALIZATION (frontend executes) ----------------------------
+    {
+        "name": "propose_order",
+        "description": (
+            "Suggest a trade by drawing a draggable order line on the chart "
+            "and opening the order ticket prefilled with the same parameters. "
+            "You DO NOT place the order — the user reviews the ticket and "
+            "decides. Use this for 'I'd consider a long entry at $185' style "
+            "suggestions; for purely informational levels use draw_horizontal_line."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "side": {"type": "string", "enum": ["buy", "sell"]},
+                "type": {
+                    "type": "string",
+                    "enum": ["market", "limit", "stop", "stop_limit"],
+                    "description": "Order type. Use 'limit' or 'stop' for level-based proposals.",
+                },
+                "quantity": {"type": "number", "minimum": 0.01},
+                "limit_price": {"type": "number"},
+                "stop_price": {"type": "number"},
+                "symbol": {
+                    "type": "string",
+                    "description": "Optional override. Defaults to the chart's current symbol.",
+                },
+            },
+            "required": ["side", "type", "quantity"],
+        },
+    },
+    {
+        "name": "show_position_line",
+        "description": (
+            "Overlay an open position as a draggable line on the chart "
+            "(entry price + qty + P/L). Pass a symbol for one position, or "
+            "omit to show every open position. Session-only; not persisted."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symbol": {
+                    "type": "string",
+                    "description": "Optional ticker. Omit to show all positions.",
+                },
+            },
+        },
+    },
+    {
+        "name": "mark_bar",
+        "description": (
+            "Drop a small icon marker on a specific bar — useful for "
+            "earnings dates, news events, dividends, fills. Persisted like "
+            "other drawings."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "time": {"type": "integer", "description": "UNIX seconds."},
+                "text": {"type": "string", "description": "Short label / emoji (e.g. '📊 Q2 earnings')."},
+                "color": {"type": "string"},
+                "symbol": _SYMBOL_FIELD,
+            },
+            "required": ["time", "text"],
+        },
+    },
+    {
+        "name": "mark_execution",
+        "description": (
+            "Mark a trade execution / fill as an arrow on the chart "
+            "(direction = side). Session-only; not persisted. Use this "
+            "for 'show me where I got filled' visualizations after "
+            "fetching the user's activities."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "price": {"type": "number"},
+                "time": {"type": "integer", "description": "UNIX seconds."},
+                "side": {"type": "string", "enum": ["buy", "sell"]},
+                "text": {"type": "string", "description": "Optional label, e.g. 'Filled 100 @ 184.50'."},
+                "symbol": _SYMBOL_FIELD,
+            },
+            "required": ["price", "time", "side"],
+        },
+    },
+    # --- COMPARISON OVERLAY (frontend executes) -------------------------------
+    {
+        "name": "compare_symbol",
+        "description": (
+            "Overlay another symbol's price series on top of the current "
+            "chart for relative-performance comparison (e.g. 'overlay QQQ "
+            "on NVDA'). Returns a drawing_id you can pass to remove_drawing."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "Ticker to overlay, e.g. SPY."},
+            },
+            "required": ["symbol"],
+        },
+    },
+    # --- CHART INSPECTION (frontend executes) ---------------------------------
+    {
+        "name": "get_chart_state",
+        "description": (
+            "Get the current chart's view state: symbol, resolution, chart "
+            "type, timezone, and visible time range. Use this to ground "
+            "your reasoning about what the user is currently looking at."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "inspect_chart",
+        "description": (
+            "List ALL shapes and studies currently on the chart, including "
+            "ones the user drew manually (not just AI-created). Returns "
+            "TV entity IDs you can pass to get_drawing_properties or "
+            "set_drawing_properties. Different from list_drawings, which "
+            "only sees AI-created records."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "get_drawing_properties",
+        "description": (
+            "Read the properties of a shape or study by its TV entity ID "
+            "(from inspect_chart). Response shape depends on `kind`: "
+            "shapes return `{ kind: 'shape', properties: {...} }`; studies "
+            "return `{ kind: 'study', inputs: [{id, value}, ...], styles: "
+            "{...} }`. Use for 'what period is that MA?' or 'what color "
+            "is that trend line?'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "entity_id": {"type": "string", "description": "TV entity ID from inspect_chart."},
+            },
+            "required": ["entity_id"],
+        },
+    },
+    {
+        "name": "set_drawing_properties",
+        "description": (
+            "Update an entity by its TV entity ID. For SHAPES pass any "
+            "subset of TV property keys (e.g. `{linecolor: '#ff0000'}`). "
+            "For STUDIES pass `{inputs: [{id, value}, ...]}` — TV's study "
+            "API doesn't share the shape property bag, and study styles "
+            "(colors, widths) aren't editable via this tool. "
+            "EXPLICIT-REQUEST ONLY — this can edit user-drawn objects, so "
+            "never restyle their work unprompted."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "entity_id": {"type": "string"},
+                "properties": {
+                    "type": "object",
+                    "description": (
+                        "Shapes: TV property key/value pairs to merge. "
+                        "Studies: `{inputs: [{id, value}, ...]}` payload."
+                    ),
+                },
+            },
+            "required": ["entity_id", "properties"],
+        },
+    },
+    {
+        "name": "set_timezone",
+        "description": (
+            "Change the chart's display timezone (e.g. 'America/New_York', "
+            "'Europe/London', 'Asia/Tokyo'). Explicit-request only."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "timezone": {"type": "string", "description": "IANA timezone ID."},
+            },
+            "required": ["timezone"],
+        },
+    },
+    # --- CAPTURE / EXPORT (frontend executes) ---------------------------------
+    {
+        "name": "take_screenshot",
+        "description": (
+            "Capture the current chart as an image and return it so you "
+            "can visually analyze what the user sees — price action, "
+            "your own annotations, indicator readings. Useful when the "
+            "user asks 'what does this look like?' or for grounding a "
+            "written analysis. The image counts toward your context budget; "
+            "use sparingly."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "export_chart_data",
+        "description": (
+            "Pull the chart's rendered bars (and optionally study values) "
+            "as structured JSON for statistical analysis. Heavier than "
+            "get_bars but reflects exactly what's on screen — useful when "
+            "you need study/indicator values aligned to bars."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "from": {"type": "integer", "description": "Optional start time (UNIX seconds)."},
+                "to": {"type": "integer", "description": "Optional end time (UNIX seconds)."},
+                "include_studies": {
+                    "type": "boolean",
+                    "description": "Include values from chart studies (default false).",
+                },
+            },
+        },
+    },
+]
