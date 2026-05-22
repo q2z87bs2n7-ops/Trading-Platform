@@ -195,7 +195,10 @@ places TV interface.
 - System prompt + tool schemas in `backend/app/ai/prompt.py` and
   `backend/app/ai/tools.py` are **cache-marked** (`cache_control`) so
   multi-turn chats hit the Anthropic prefix cache on every turn. Keep
-  the markers.
+  the markers. The schemas live in `ai/tools_read.py` / `tools_draw.py` /
+  `tools_action.py`; `tools.py` assembles `TOOLS` as `READ_TOOLS + DRAW_TOOLS`.
+  **Never reorder `TOOLS` or edit schema text gratuitously** — both shift the
+  cached prefix and cost every subsequent cache hit.
 - The ChartBot frontend-executed tool catalog is declared server-side
   in `tools.py` but dispatched client-side in `lib/ai-client.ts`
   against `lib/tv-drawings.ts`. Results are folded into the next

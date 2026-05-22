@@ -61,13 +61,17 @@ separate silos behind a shared account.
   tokens to green (`--pos`), crypto keeps the default blue; `--pos`/`--neg`
   P/L colours are untouched. The header pill switches between three modes
   (session-only — not persisted):
-  - **Discover** (default)
-    - *Stocks* — `Tools.tsx`: holdings + allocation hero (stock positions
+  - **Discover** (default) — one parameterized surface, `DiscoverPage.tsx`
+    (`assetClass` prop), sharing the hero / AI summary / watchlist / inline
+    chart / news scaffold across both silos and branching only where they
+    differ. Silo-specific data hooks are gated with `enabled` so the inactive
+    silo never fetches.
+    - *Stocks*: holdings + allocation hero (stock positions
       only; `BalanceCard` headline is silo holdings, with silo day P/L and
       stock buying power — no shared cash), indices marquee ticker,
       watchlist sparkline cards, inline chart, gainers/losers tabbed card
       (with most-active volume), market news.
-    - *Crypto* — `CryptoTools.tsx`: crypto price marquee ticker,
+    - *Crypto*: crypto price marquee ticker (`discover/CryptoTicker.tsx`),
       holdings + allocation hero (crypto positions only;
       `non_marginable_buying_power`), crypto watchlist sparkline cards,
       inline chart, BTC news feed. No movers/most-active (Alpaca has no
@@ -118,8 +122,14 @@ separate silos behind a shared account.
   **Account fields:** `get_account()` returns `buying_power` (may
   include margin) and `non_marginable_buying_power` (cash-only; correct
   figure for crypto trades). Use the latter in crypto contexts.
-  **Positions:** `_position_dict` normalises crypto symbols from
-  `BTCUSD` back to `BTC/USD` (Alpaca strips the slash in its positions
+  **Crypto symbol/silo helpers (single source of truth):** `alpaca/client.py`
+  owns `is_crypto`, `normalize_crypto_symbol` (re-slash `BTCUSD`→`BTC/USD`,
+  longest-first `USDT`/`USDC`/`USD`), and `coerce_silo` (anything ≠ `"crypto"`
+  → `"stocks"`). Re-slashing and silo coercion happen *only* here — don't
+  re-implement them inline. Frontend mirror: `lib/asset-class.ts`
+  (`isCryptoSymbol`/`isCryptoPosition`/`isCryptoOrder`).
+  **Positions:** `_position_dict` normalises crypto symbols via
+  `normalize_crypto_symbol` (Alpaca strips the slash in its positions
   endpoint) and includes `asset_class`. Use `asset_class === "crypto"`
   — not `symbol.includes("/")` — to filter positions. `_position_dict`
   also exposes `unrealized_intraday_pl` (silo day-P/L source); `PositionOut`
@@ -143,7 +153,11 @@ separate silos behind a shared account.
 - **Watchlists:** Two named Alpaca watchlists per account — `"primary"`
   (stocks) and `"primary-crypto"` (crypto, seeded with BTC/ETH/SOL).
   All three `/api/watchlist` routes accept `?asset_class=crypto` to
-  target the crypto list.
+  target the crypto list (run through `coerce_silo`). `/api/pnl-history`
+  uses the same two-state silo param and echoes the resolved
+  `asset_class` in `PnlHistoryOut`. **`/api/assets` is different** — a
+  three-state asset-universe filter (`""`=all / `us_equity` / `crypto`)
+  the AI `find_symbol` path relies on; don't fold it into `coerce_silo`.
 - **PWA:** `vite-plugin-pwa`. NetworkFirst for API, CacheFirst for
   static; charting library excluded from precache.
 - **Persistence:** Backlogged Postgres (Supabase/Neon). Today Alpaca
@@ -222,7 +236,12 @@ instant); **violet = real Claude API call** (Anthropic credits, slow).
   (any other readable data — bars/quotes/news/custom tables — the model fetches
   then passes as rows). Both surface as a download via `AskResponse.reports`;
   CSVs are built in `backend/app/ai/reports.py`. These live in `ask_tools()`,
-  not `TOOLS`. Multi-turn within a session:
+  not `TOOLS`. **Tool schemas are split across `ai/tools_read.py` (backend),
+  `ai/tools_draw.py` (frontend), and `ai/tools_action.py` (Ask-anything
+  write/report); `ai/tools.py` is the assembler that builds `TOOLS` (read then
+  draw — order is load-bearing for prefix-cache hits) and re-exports the public
+  API (`TOOLS`/`read_only_tools`/`ask_tools`/…). Edit schemas in the split
+  files; never reorder `TOOLS`.** Multi-turn within a session:
   `CmdBar` keeps a running `apiHistory` and sends prior fallback Q&A as
   `history` so follow-ups have context; it's session-only (reset on close).
 - **AI market summary** (`hooks/useMarketSummary.ts` + `MarketSummaryCard`,
