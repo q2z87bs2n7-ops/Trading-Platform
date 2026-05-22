@@ -45,6 +45,14 @@ export default {
         card: "var(--r)",
         "card-lg": "var(--r-lg)",
         "card-xl": "var(--r-xl)",
+        "mob-card": "var(--mob-card-radius)",
+      },
+      spacing: {
+        "mob-pad": "var(--mob-container-pad)",
+        "mob-card": "var(--mob-card-pad)",
+        "mob-tap": "var(--mob-tap)",
+        "safe-t": "var(--safe-top)",
+        "safe-b": "var(--safe-bottom)",
       },
       boxShadow: {
         "elev-sm": "var(--shadow-sm)",
