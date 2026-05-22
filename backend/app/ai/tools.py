@@ -939,6 +939,40 @@ ASK_ACTION_TOOLS: list[dict[str, Any]] = [
             "required": ["kind"],
         },
     },
+    {
+        "name": "export_csv",
+        "description": (
+            "Export ANY tabular data you can read or compute into a downloadable "
+            "CSV — price history (call get_bars first), quotes, snapshots, news, "
+            "watchlist, movers, or a custom table you assembled. Fetch the data "
+            "with the read tools, then pass the COMPLETE rows here (do not "
+            "summarise or truncate). For the standard account reports "
+            "(positions/orders/activities/pnl) prefer generate_report instead. "
+            "Tell the user it's ready to download; don't paste the rows."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "filename": {
+                    "type": "string",
+                    "description": "Download name, e.g. 'AAPL-daily-bars.csv'.",
+                },
+                "columns": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "Optional column order. Omit to infer from the row keys."
+                    ),
+                },
+                "rows": {
+                    "type": "array",
+                    "items": {"type": "object"},
+                    "description": "The full dataset, one object per row.",
+                },
+            },
+            "required": ["filename", "rows"],
+        },
+    },
 ]
 
 ASK_ACTION_TOOL_NAMES = {t["name"] for t in ASK_ACTION_TOOLS}

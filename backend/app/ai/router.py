@@ -230,6 +230,19 @@ def _execute_read_tool(
             default=str,
         )
 
+    if name == "export_csv":
+        fname = str(args.get("filename") or "export.csv")
+        if not fname.lower().endswith(".csv"):
+            fname += ".csv"
+        data_rows = args.get("rows") or []
+        csv_text = reports.rows_to_csv(data_rows, args.get("columns"))
+        if artifacts is not None:
+            artifacts.append({"filename": fname, "csv": csv_text})
+        return json.dumps(
+            {"filename": fname, "rows": len(data_rows), "download": "ready"},
+            default=str,
+        )
+
     raise ValueError(f"unknown read tool: {name}")
 
 
@@ -446,8 +459,12 @@ def ai_ask(req: AskRequest) -> AskResponse:
         " bulk) — validate symbols are tradable before adding. For themed/sector"
         " lists (e.g. 'top 10 pharma stocks') name the tickers from your own"
         " knowledge, then validate. generate_report builds a downloadable CSV"
-        " (positions/orders/activities/pnl) — tell the user it's ready to"
-        " download rather than pasting the rows."
+        " for the standard account reports (positions/orders/activities/pnl)."
+        " For ANY other readable data the user wants exported — price history"
+        " (call get_bars first), quotes, news, watchlist, movers, a custom"
+        " table — fetch it then call export_csv with the COMPLETE rows. Either"
+        " way, tell the user the file is ready to download rather than pasting"
+        " the rows."
     )
     # Internal-first: the model must use its own tools/knowledge by default and
     # only treat web search as a last resort (and only when it's enabled).

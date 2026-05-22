@@ -218,9 +218,11 @@ instant); **violet = real Claude API call** (Anthropic credits, slow).
   not ChartBot): `add_to_watchlist`/`remove_from_watchlist` (bulk, validate
   tradability first — themed lists like "top 10 pharma" come from model
   knowledge, with `web_search` for current/ranked lists) and
-  `generate_report` (positions/orders/activities/pnl → CSV surfaced as a
-  download via `AskResponse.reports`; built in `backend/app/ai/reports.py`).
-  These live in `ask_tools()`, not `TOOLS`. Multi-turn within a session:
+  `generate_report` (positions/orders/activities/pnl → CSV) and `export_csv`
+  (any other readable data — bars/quotes/news/custom tables — the model fetches
+  then passes as rows). Both surface as a download via `AskResponse.reports`;
+  CSVs are built in `backend/app/ai/reports.py`. These live in `ask_tools()`,
+  not `TOOLS`. Multi-turn within a session:
   `CmdBar` keeps a running `apiHistory` and sends prior fallback Q&A as
   `history` so follow-ups have context; it's session-only (reset on close).
 - **AI market summary** (`hooks/useMarketSummary.ts` + `MarketSummaryCard`,

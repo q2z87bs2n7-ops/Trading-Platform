@@ -32,6 +32,25 @@ def _to_csv(header: list[str], rows: list[list]) -> str:
     return buf.getvalue()
 
 
+def rows_to_csv(rows: list, columns: list[str] | None = None) -> str:
+    """Serialize arbitrary model-supplied rows (list of objects) to CSV. Used
+    by the general export_csv tool. Column order is the given `columns`, else
+    the union of keys in first-seen order."""
+    dicts = [r for r in rows if isinstance(r, dict)]
+    if columns is None:
+        columns = []
+        for r in dicts:
+            for k in r.keys():
+                if k not in columns:
+                    columns.append(str(k))
+    buf = io.StringIO()
+    w = csv.DictWriter(buf, fieldnames=columns, extrasaction="ignore")
+    w.writeheader()
+    for r in dicts:
+        w.writerow({c: r.get(c, "") for c in columns})
+    return buf.getvalue()
+
+
 def _suffix(scope: str) -> str:
     return "account" if scope == "all" else scope
 
