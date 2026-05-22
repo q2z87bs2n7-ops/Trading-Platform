@@ -14,6 +14,9 @@ interface Props {
 export default function TradeBar({ symbol }: Props) {
   const [open, setOpen] = useState(false);
   const [side, setSide] = useState<"buy" | "sell">("buy");
+  // Mobile: the bar collapses to a floating FAB that expands to Buy/Sell,
+  // so it doesn't eat a full-width strip or clash with the ChartBot launcher.
+  const [expanded, setExpanded] = useState(false);
   const isMobile = useMobile();
   const symUpper = symbol.trim().toUpperCase();
   const { quotes } = useLiveQuotes(symUpper ? [symUpper] : []);
@@ -21,7 +24,123 @@ export default function TradeBar({ symbol }: Props) {
 
   function openSheet(s: "buy" | "sell") {
     setSide(s);
+    setExpanded(false);
     setOpen(true);
+  }
+
+  if (isMobile) {
+    const pill = (s: "buy" | "sell") => (
+      <button
+        type="button"
+        onClick={() => openSheet(s)}
+        disabled={!symUpper}
+        className="cursor-pointer border-0 font-semibold"
+        style={{
+          background: s === "buy" ? "var(--pos)" : "var(--neg)",
+          color: "white",
+          minHeight: "var(--mob-tap)",
+          width: 132,
+          borderRadius: 999,
+          fontSize: 15,
+          boxShadow: "var(--shadow-lg)",
+          opacity: symUpper ? 1 : 0.5,
+        }}
+      >
+        {s === "buy" ? "Buy" : "Sell"}
+      </button>
+    );
+    return (
+      <>
+        {!open &&
+          (expanded ? (
+            <>
+              <div
+                onClick={() => setExpanded(false)}
+                style={{ position: "fixed", inset: 0, zIndex: 34 }}
+              />
+              <div
+                style={{
+                  position: "fixed",
+                  right: 16,
+                  bottom: "calc(var(--safe-bottom) + 16px)",
+                  zIndex: 35,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10,
+                  alignItems: "flex-end",
+                }}
+              >
+                {symUpper && (
+                  <span
+                    className="font-mono tabular-nums"
+                    style={{
+                      background: "var(--text)",
+                      color: "var(--bg)",
+                      borderRadius: 999,
+                      padding: "6px 14px",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      boxShadow: "var(--shadow-lg)",
+                    }}
+                  >
+                    {symUpper}
+                    {quote ? ` · ${money(quote.mid)}` : ""}
+                  </span>
+                )}
+                {pill("buy")}
+                {pill("sell")}
+                <button
+                  type="button"
+                  aria-label="Close trade bar"
+                  onClick={() => setExpanded(false)}
+                  className="cursor-pointer border-0"
+                  style={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: 999,
+                    background: "var(--text)",
+                    color: "var(--bg)",
+                    fontSize: 20,
+                    boxShadow: "var(--shadow-lg)",
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+            </>
+          ) : (
+            <button
+              type="button"
+              aria-label="Trade"
+              onClick={() => setExpanded(true)}
+              disabled={!symUpper}
+              className="cursor-pointer border-0"
+              style={{
+                position: "fixed",
+                right: 16,
+                bottom: "calc(var(--safe-bottom) + 16px)",
+                zIndex: 35,
+                width: 52,
+                height: 52,
+                borderRadius: 999,
+                background: "var(--text)",
+                color: "var(--bg)",
+                fontSize: 22,
+                boxShadow: "var(--shadow-lg)",
+                opacity: symUpper ? 1 : 0.5,
+              }}
+            >
+              ⇅
+            </button>
+          ))}
+        <OrderSheet
+          open={open}
+          symbol={symUpper}
+          defaultSide={side}
+          onClose={() => setOpen(false)}
+        />
+      </>
+    );
   }
 
   return (

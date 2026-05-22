@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from "react";
 import { useTheme } from "../hooks/useTheme";
 import { useSettings } from "../hooks/useSettings";
 import { updateSettings } from "../lib/settings";
+import { disableServiceWorker } from "../lib/service-worker";
 
 interface Props {
   open: boolean;
@@ -117,6 +118,12 @@ export default function MobileNavDrawer({ open, onClose, onOpenHub, version }: P
           label="AI Ask anything"
           right={settings.cmdbarAiEnabled ? "On" : "Off"}
           onClick={() => updateSettings({ cmdbarAiEnabled: !settings.cmdbarAiEnabled })}
+        />
+
+        <DrawerItem
+          icon="⟳"
+          label="Disable service worker"
+          onClick={() => void disableServiceWorker()}
         />
 
         <div

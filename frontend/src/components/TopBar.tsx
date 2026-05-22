@@ -228,15 +228,14 @@ function MobileStatusStrip({
             marginLeft: "auto",
             display: "inline-flex",
             gap: 8,
-            alignItems: "baseline",
+            alignItems: "center",
             background: "transparent",
             border: 0,
-            padding: 0,
+            padding: "6px 2px",
             cursor: "pointer",
-            minHeight: "var(--mob-tap)",
           }}
         >
-          <span className="tabular-nums" style={{ fontWeight: 600 }}>
+          <span className="tabular-nums" style={{ fontWeight: 600, fontSize: 13 }}>
             ${money0(acct.equity)}
           </span>
           <span
