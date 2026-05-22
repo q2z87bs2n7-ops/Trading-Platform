@@ -103,6 +103,7 @@ export interface TVChartApi {
   ) => Promise<boolean>;
   setChartType: (type: number, callback?: () => void) => void;
   setVisibleRange: (range: { from: number; to: number }) => Promise<void>;
+  timeScale: () => { fitContent: () => void };
   symbol: () => string;
   resolution: () => string;
   onSymbolChanged: () => TVSubscription;

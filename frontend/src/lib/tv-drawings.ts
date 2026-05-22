@@ -529,17 +529,25 @@ export function setChartType(type: string): void {
 export async function setChartVisibleRange(from: number, to: number): Promise<void> {
   // setVisibleRange can still throw "Value is null" if the time scale hasn't
   // finished indexing bars after a resolution change, even after the
-  // setResolution callback fires. Retry with backoff to cover that window.
+  // setResolution callback fires. Retry with backoff; fall back to fitContent
+  // (no args, always safe) so the chart at least shows loaded bars.
   const chart = requireChart();
   for (let i = 0; i < 4; i++) {
     try {
       await chart.setVisibleRange({ from, to });
       return;
     } catch {
-      if (i === 3) throw new Error("setVisibleRange failed after retries: time scale not ready");
+      if (i === 3) {
+        chart.timeScale().fitContent();
+        return;
+      }
       await new Promise(r => setTimeout(r, 250 * (i + 1)));
     }
   }
+}
+
+export function fitChartContent(): void {
+  requireChart().timeScale().fitContent();
 }
 
 // --- Trading visualization (session-only; not persisted) --------------------
