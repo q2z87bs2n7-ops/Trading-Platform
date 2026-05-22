@@ -152,59 +152,6 @@ export const postAiAsk = (
 ): Promise<AiAskResponse> =>
   sendJSON<AiAskResponse>("POST", "/api/ai/ask", { message, history });
 
-// SSE events emitted by /api/ai/ask/stream.
-export type AskStreamEvent =
-  | { type: "tool_call"; name: string; ok: boolean }
-  | { type: "text"; delta: string }
-  | { type: "done"; backend_stopped: "" | "max_iterations" }
-  | { type: "error"; message: string };
-
-export async function* streamAiAsk(
-  message: string,
-  history: AiAskMessage[] = [],
-  signal?: AbortSignal,
-): AsyncGenerator<AskStreamEvent, void, unknown> {
-  const response = await fetch(`${API_BASE}/api/ai/ask/stream`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, history }),
-    signal,
-  });
-
-  if (!response.ok) {
-    const detail = await response.json().catch(() => ({}));
-    throw new Error(
-      (detail as { detail?: string }).detail ??
-        `Request failed: ${response.status}`,
-    );
-  }
-
-  const reader = response.body!.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-      for (const line of lines) {
-        if (line.startsWith("data: ")) {
-          try {
-            yield JSON.parse(line.slice(6)) as AskStreamEvent;
-          } catch {
-            // ignore malformed SSE frame
-          }
-        }
-      }
-    }
-  } finally {
-    reader.cancel();
-  }
-}
-
 export const getMarketNews = (limit = 20) =>
   getJSON<MarketNewsResponse>(`/api/market-news?limit=${limit}`);
 

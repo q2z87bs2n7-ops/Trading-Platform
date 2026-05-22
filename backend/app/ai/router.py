@@ -15,7 +15,6 @@ from typing import Any, Literal
 import anthropic
 from anthropic import APIError as AnthropicAPIError
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from .. import alpaca, market_news
@@ -285,11 +284,11 @@ def ai_chat(req: ChatRequest) -> ChatResponse:
     )
 
 
-# --- Ask anything endpoints --------------------------------------------------
+# --- ⌘K general-purpose ask endpoint ----------------------------------------
 # Smaller surface area than /api/ai/chat: no frontend tools, no per-request
-# chart context. One-shot Q&A with backend reads grounding the answer.
-# Two variants: /api/ai/ask (legacy, full response) and
-# /api/ai/ask/stream (SSE: tool_call → text deltas → done).
+# chart context, no streaming. One-shot Q&A with backend reads grounding the
+# answer. The modal clears its transcript on close, so history is bounded
+# in practice — we still trim defensively.
 
 
 class AskRequest(BaseModel):
@@ -386,80 +385,4 @@ def ai_ask(req: AskRequest) -> AskResponse:
         tool_calls=tool_calls,
         usage=None,
         backend_stopped="max_iterations",
-    )
-
-
-def _ask_stream_generator(req: AskRequest, s: Any, client: anthropic.Anthropic):
-    """SSE generator for /api/ai/ask/stream.
-
-    Tool-use iterations run synchronously; the final text response uses
-    client.messages.stream() so tokens reach the browser as they arrive.
-    Event shape: {"type": "tool_call"|"text"|"done"|"error", ...}
-    """
-    system = prompt.build_general_system()
-    tool_list = tools.read_only_tools()
-    messages = _trim_history(
-        list(req.history) + [{"role": "user", "content": req.message}]
-    )
-
-    for _ in range(s.ai_max_tool_iterations):
-        try:
-            with client.messages.stream(
-                model=s.anthropic_model,
-                max_tokens=s.ai_max_tokens,
-                system=system,
-                tools=tool_list,
-                thinking={"type": "disabled"},
-                messages=messages,
-            ) as stream:
-                for text in stream.text_stream:
-                    yield f"data: {json.dumps({'type': 'text', 'delta': text})}\n\n"
-                final = stream.get_final_message()
-        except anthropic.AuthenticationError as e:
-            yield f"data: {json.dumps({'type': 'error', 'message': f'API key invalid or revoked: {e}'})}\n\n"
-            return
-        except AnthropicAPIError as e:
-            yield f"data: {json.dumps({'type': 'error', 'message': f'Anthropic error: {e}'})}\n\n"
-            return
-
-        if final.stop_reason != "tool_use":
-            yield f"data: {json.dumps({'type': 'done', 'backend_stopped': ''})}\n\n"
-            return
-
-        content_dicts = [_block_to_dict(b) for b in final.content]
-        tool_uses = [b for b in final.content if b.type == "tool_use"]
-        results: list[dict[str, Any]] = []
-
-        for tu in tool_uses:
-            try:
-                result_str = _execute_read_tool(tu.name, dict(tu.input))
-                results.append(
-                    {"type": "tool_result", "tool_use_id": tu.id, "content": result_str}
-                )
-                yield f"data: {json.dumps({'type': 'tool_call', 'name': tu.name, 'ok': True})}\n\n"
-            except Exception as exc:  # noqa: BLE001
-                results.append(
-                    {
-                        "type": "tool_result",
-                        "tool_use_id": tu.id,
-                        "content": f"error: {exc}",
-                        "is_error": True,
-                    }
-                )
-                yield f"data: {json.dumps({'type': 'tool_call', 'name': tu.name, 'ok': False})}\n\n"
-
-        messages.append({"role": "assistant", "content": content_dicts})
-        messages.append({"role": "user", "content": results})
-
-    yield f"data: {json.dumps({'type': 'done', 'backend_stopped': 'max_iterations'})}\n\n"
-
-
-@router.post("/api/ai/ask/stream", dependencies=[Depends(require_ai_enabled)])
-def ai_ask_stream(req: AskRequest) -> StreamingResponse:
-    s = get_settings()
-    client = anthropic.Anthropic(api_key=s.anthropic_api_key, timeout=60.0)
-    return StreamingResponse(
-        _ask_stream_generator(req, s, client),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
