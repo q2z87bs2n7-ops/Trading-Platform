@@ -1,13 +1,19 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { postAiAsk, type AiAskReport, type AiAskResponse } from "../../../api";
+import {
+  postAiAsk,
+  type AiAskMessage,
+  type AiAskReport,
+  type AiAskResponse,
+} from "../../../api";
 import { qk } from "../../../data/queryClient";
 import { useSettings } from "../../../hooks/useSettings";
 import type { AssetClass } from "../../../lib/cmd-intent";
 import CmdResultCard from "../CmdResultCard";
 
 type OnAiResponse = (resp: AiAskResponse) => void;
+type OnExchange = (userText: string, assistantText: string) => void;
 
 function downloadCsv(report: AiAskReport) {
   const blob = new Blob([report.csv], { type: "text/csv;charset=utf-8" });
@@ -46,11 +52,15 @@ function FallbackCard({ text }: { text: string }) {
 function AiAskCard({
   text,
   assetClass,
+  history = [],
   onAiResponse,
+  onExchange,
 }: {
   text: string;
   assetClass: AssetClass;
+  history?: AiAskMessage[];
   onAiResponse?: OnAiResponse;
+  onExchange?: OnExchange;
 }) {
   const [resp, setResp] = useState<AiAskResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -62,12 +72,13 @@ function AiAskCard({
     setPending(true);
     setErr(null);
     setResp(null);
-    postAiAsk(text, [], assetClass)
+    postAiAsk(text, history, assetClass)
       .then((r) => {
         if (cancelled) return;
         setResp(r);
         setPending(false);
         onAiResponse?.(r);
+        if (r.text) onExchange?.(text, r.text);
         // The bot may have mutated the watchlist server-side; refresh both
         // lists so the Discover view reflects it.
         if (
@@ -175,15 +186,25 @@ function AiAskCard({
 export function FallbackOrAiCard({
   text,
   assetClass,
+  history = [],
   onAiResponse,
+  onExchange,
 }: {
   text: string;
   assetClass: AssetClass;
+  history?: AiAskMessage[];
   onAiResponse?: OnAiResponse;
+  onExchange?: OnExchange;
 }) {
   const settings = useSettings();
   return settings.cmdbarAiEnabled ? (
-    <AiAskCard text={text} assetClass={assetClass} onAiResponse={onAiResponse} />
+    <AiAskCard
+      text={text}
+      assetClass={assetClass}
+      history={history}
+      onAiResponse={onAiResponse}
+      onExchange={onExchange}
+    />
   ) : (
     <FallbackCard text={text} />
   );

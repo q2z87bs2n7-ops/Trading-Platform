@@ -220,7 +220,9 @@ instant); **violet = real Claude API call** (Anthropic credits, slow).
   knowledge, with `web_search` for current/ranked lists) and
   `generate_report` (positions/orders/activities/pnl → CSV surfaced as a
   download via `AskResponse.reports`; built in `backend/app/ai/reports.py`).
-  These live in `ask_tools()`, not `TOOLS`. Transcript is session-only.
+  These live in `ask_tools()`, not `TOOLS`. Multi-turn within a session:
+  `CmdBar` keeps a running `apiHistory` and sends prior fallback Q&A as
+  `history` so follow-ups have context; it's session-only (reset on close).
 - **AI market summary** (`hooks/useMarketSummary.ts` + `MarketSummaryCard`,
   Discover hero). Auto-generates a per-window summary via `/api/ai/ask`
   (real Claude call; same gating as above). Per silo: **stocks** uses US

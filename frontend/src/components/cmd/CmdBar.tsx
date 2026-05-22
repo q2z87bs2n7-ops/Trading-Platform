@@ -1,6 +1,6 @@
 import { useMemo, useEffect, useRef, useState } from "react";
 
-import type { AiAskResponse } from "../../api";
+import type { AiAskMessage, AiAskResponse } from "../../api";
 import {
   parseIntent,
   extractSymbols,
@@ -15,7 +15,13 @@ interface Turn {
   id: number;
   query: string;
   intent: Intent;
+  // Snapshot of the AI conversation as of this turn, passed to the fallback
+  // bot so it can see earlier exchanges in the same modal session.
+  history: AiAskMessage[];
 }
+
+// Keep the trailing N messages so multi-turn context stays bounded.
+const HISTORY_CAP = 16;
 
 // Display label for a symbol — strips the /USD quote off crypto pairs.
 const coin = (s: string) => (s.includes("/") ? s.split("/")[0] : s);
@@ -139,6 +145,8 @@ export default function CmdBar({ open, assetClass, onClose, onOpenInWorkspace }:
   const [text, setText] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [lastAiResp, setLastAiResp] = useState<AiAskResponse | null>(null);
+  // Running AI conversation for the fallback bot (session-only).
+  const apiHistory = useRef<AiAskMessage[]>([]);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const counter = useRef(0);
@@ -180,6 +188,7 @@ export default function CmdBar({ open, assetClass, onClose, onOpenInWorkspace }:
     setText("");
     setTurns([]);
     setLastAiResp(null);
+    apiHistory.current = [];
   }, [open]);
 
   // ESC closes.
@@ -212,6 +221,16 @@ export default function CmdBar({ open, assetClass, onClose, onOpenInWorkspace }:
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [turns.length]);
 
+  // Append a completed AI exchange so later fallback turns have context.
+  function recordExchange(userText: string, assistantText: string) {
+    const next: AiAskMessage[] = [
+      ...apiHistory.current,
+      { role: "user", content: userText },
+      { role: "assistant", content: assistantText },
+    ];
+    apiHistory.current = next.slice(-HISTORY_CAP);
+  }
+
   function submit(value: string) {
     const trimmed = value.trim();
     if (!trimmed) return;
@@ -219,7 +238,13 @@ export default function CmdBar({ open, assetClass, onClose, onOpenInWorkspace }:
     setLastAiResp(null);
     setTurns((t) => [
       ...t,
-      { id: counter.current, query: trimmed, intent: parseIntent(trimmed, assetClass) },
+      {
+        id: counter.current,
+        query: trimmed,
+        intent: parseIntent(trimmed, assetClass),
+        // Snapshot the conversation so far for this turn's AI call.
+        history: [...apiHistory.current],
+      },
     ]);
     setText("");
     // Refocus so the user can keep typing follow-ups without re-clicking.
@@ -345,12 +370,14 @@ export default function CmdBar({ open, assetClass, onClose, onOpenInWorkspace }:
                   <CmdResult
                     intent={turn.intent}
                     assetClass={assetClass}
+                    history={turn.history}
                     onClose={onClose}
                     onOpenInWorkspace={(sym) => {
                       onOpenInWorkspace(sym);
                       onClose();
                     }}
                     onAiResponse={setLastAiResp}
+                    onExchange={recordExchange}
                   />
                 </div>
               ))}

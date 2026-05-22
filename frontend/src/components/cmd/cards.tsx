@@ -1,4 +1,4 @@
-import type { AiAskResponse } from "../../api";
+import type { AiAskMessage, AiAskResponse } from "../../api";
 import type { AssetClass, Intent } from "../../lib/cmd-intent";
 import { ChartCard } from "./cards/ChartCard";
 import { CloseCard } from "./cards/CloseCard";
@@ -13,15 +13,19 @@ import { PortfolioCard } from "./cards/PortfolioCard";
 export function CmdResult({
   intent,
   assetClass,
+  history = [],
   onClose,
   onOpenInWorkspace,
   onAiResponse,
+  onExchange,
 }: {
   intent: Intent;
   assetClass: AssetClass;
+  history?: AiAskMessage[];
   onClose: () => void;
   onOpenInWorkspace: (symbol: string) => void;
   onAiResponse?: (resp: AiAskResponse) => void;
+  onExchange?: (userText: string, assistantText: string) => void;
 }) {
   switch (intent.type) {
     case "order":
@@ -59,7 +63,9 @@ export function CmdResult({
         <FallbackOrAiCard
           text={intent.text}
           assetClass={assetClass}
+          history={history}
           onAiResponse={onAiResponse}
+          onExchange={onExchange}
         />
       );
   }
