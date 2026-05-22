@@ -3,7 +3,13 @@ import { useMemo, useState } from "react";
 import type { Position } from "../../types";
 import { DONUT_COLORS, buildArc } from "./util";
 
-export function AllocationCard({ positions }: { positions: Position[] | undefined }) {
+export function AllocationCard({
+  positions,
+  colors = DONUT_COLORS,
+}: {
+  positions: Position[] | undefined;
+  colors?: string[];
+}) {
   const [hovered, setHovered] = useState<string | null>(null);
 
   const open = (positions || []).filter((p) => p.market_value > 0);
@@ -20,11 +26,11 @@ export function AllocationCard({ positions }: { positions: Position[] | undefine
       return {
         symbol: p.symbol,
         share: p.market_value / total,
-        color: DONUT_COLORS[i % DONUT_COLORS.length],
+        color: colors[i % colors.length],
         d: buildArc(65, 65, 55, 36, a0, a1),
       };
     });
-  }, [open, total]);
+  }, [open, total, colors]);
 
   return (
     <div

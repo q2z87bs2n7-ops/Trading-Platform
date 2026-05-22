@@ -55,7 +55,8 @@ export function buildArc(
   return `M ${x1} ${y1} A ${R} ${R} 0 ${large} 1 ${x2} ${y2} L ${x3} ${y3} A ${r} ${r} 0 ${large} 0 ${x4} ${y4} Z`;
 }
 
-// Monochrome teal luminance steps for the allocation donut.
+// Monochrome luminance steps for the allocation donut. Blue (hue 200) is the
+// default / crypto ramp; green (hue 155, matching --pos) is used for stocks.
 export const DONUT_COLORS = [
   "oklch(38% 0.07 200)",
   "oklch(48% 0.07 200)",
@@ -65,4 +66,15 @@ export const DONUT_COLORS = [
   "oklch(78% 0.05 200)",
   "oklch(84% 0.04 200)",
   "oklch(90% 0.03 200)",
+];
+
+export const DONUT_COLORS_GREEN = [
+  "oklch(40% 0.10 155)",
+  "oklch(48% 0.10 155)",
+  "oklch(56% 0.10 155)",
+  "oklch(64% 0.09 155)",
+  "oklch(72% 0.08 155)",
+  "oklch(78% 0.06 155)",
+  "oklch(84% 0.05 155)",
+  "oklch(90% 0.03 155)",
 ];

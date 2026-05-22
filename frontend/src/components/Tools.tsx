@@ -16,6 +16,7 @@ import {
 import { showToast } from "../lib/toast";
 import type { Position, Snapshot } from "../types";
 import { AllocationCard } from "./discover/AllocationCard";
+import { DONUT_COLORS_GREEN } from "./discover/util";
 import { BalanceCard } from "./discover/BalanceCard";
 import { CardsRow } from "./discover/CardsRow";
 import { ChartCard } from "./discover/ChartCard";
@@ -145,7 +146,7 @@ export default function Tools({
           unrealizedPct={unrealizedPct}
           buyingPower={account.data?.buying_power ?? 0}
         />
-        <AllocationCard positions={stockPositions} />
+        <AllocationCard positions={stockPositions} colors={DONUT_COLORS_GREEN} />
       </div>
 
       {/* AI market summary — auto-generated per time window, dismissible */}
