@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useConfig, useCryptoWatchlist, useWatchlist } from "./data/hooks";
+import { useCryptoWatchlist, useWatchlist } from "./data/hooks";
 import { useTheme } from "./hooks/useTheme";
 import Positions from "./components/Positions";
 import Orders from "./components/Orders";
@@ -25,22 +25,6 @@ function readAssetClassMode(): AssetClassMode | null {
   const raw = localStorage.getItem("asset_class_mode");
   if (raw === "stocks" || raw === "crypto") return raw;
   return null;
-}
-
-function readPlatformMode(): PlatformMode {
-  const raw = localStorage.getItem("platform_mode");
-  // Calm v2 mode renames: trading → portfolio, chartbot → chart (and the
-  // pre-ChartBot legacy "tv" value collapses straight to chart).
-  if (raw === "trading") {
-    localStorage.setItem("platform_mode", "portfolio");
-    return "portfolio";
-  }
-  if (raw === "chartbot" || raw === "tv") {
-    localStorage.setItem("platform_mode", "chart");
-    return "chart";
-  }
-  if (raw === "discover" || raw === "portfolio" || raw === "chart") return raw;
-  return "discover";
 }
 
 const MODES: { value: PlatformMode; label: string }[] = [
@@ -161,15 +145,16 @@ function ThemeToggle({
 }
 
 export default function App() {
-  const { data: cfg } = useConfig();
   const { data: wl } = useWatchlist();
   const { data: cryptoWl } = useCryptoWatchlist();
-  const meta = cfg ? { feed: cfg.feed, paper: cfg.paper } : null;
   const [selected, setSelected] = useState<string>("");
-  const [mode, setMode] = useState<PlatformMode>(readPlatformMode);
+  const [mode, setMode] = useState<PlatformMode>("discover");
   const [assetClassMode, setAssetClassMode] = useState<AssetClassMode | null>(readAssetClassMode);
   const [cmdOpen, setCmdOpen] = useState(false);
   const [hubOpen, setHubOpen] = useState(false);
+  // The platform always lands on the market-picker / account overview, so
+  // this starts open on every load (no last-page restore).
+  const [landingOpen, setLandingOpen] = useState(true);
   const { theme, toggle: toggleTheme } = useTheme();
 
   const activeClass: AssetClassMode = assetClassMode ?? "stocks";
@@ -193,7 +178,6 @@ export default function App() {
 
   function switchMode(m: PlatformMode) {
     setMode(m);
-    localStorage.setItem("platform_mode", m);
   }
 
   function switchAssetClass(m: AssetClassMode) {
@@ -202,8 +186,10 @@ export default function App() {
     localStorage.setItem("asset_class_mode", m);
   }
 
-  function selectFromHub(m: AssetClassMode) {
+  // Picking a market from the landing/hub enters the platform.
+  function enterMarket(m: AssetClassMode) {
     switchAssetClass(m);
+    setLandingOpen(false);
     setHubOpen(false);
   }
 
@@ -211,13 +197,22 @@ export default function App() {
     setCmdOpen(true);
   }
 
-  // Show splash on first load (no asset class chosen yet).
-  if (assetClassMode === null) {
-    return <AssetClassSplash onSelect={switchAssetClass} />;
-  }
+  // Per-silo accent: stocks → green, crypto → default (blue). Overriding the
+  // accent tokens here recolours selection borders, button highlights and
+  // accent headers without touching the --pos/--neg P/L colours. The splash
+  // is rendered outside this wrapper so its own green/blue cards are unaffected.
+  const siloAccent =
+    activeClass === "stocks"
+      ? ({
+          "--accent": "var(--pos)",
+          "--accent-2": "var(--pos)",
+          "--accent-bg": "var(--pos-bg)",
+        } as React.CSSProperties)
+      : undefined;
 
   return (
-    <div className="app">
+    <>
+    <div className="app" style={siloAccent}>
       <header>
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3 min-w-0">
@@ -242,7 +237,6 @@ export default function App() {
                 style={{ color: "var(--mute)" }}
               >
                 v{__APP_VERSION__}
-                {meta && ` · ${meta.paper ? "PAPER" : "LIVE"} · ${meta.feed.toUpperCase()}`}
               </span>
             </div>
             <AssetClassToggle mode={activeClass} onChange={switchAssetClass} />
@@ -328,18 +322,21 @@ export default function App() {
         }}
       />
 
-      {/* Account hub — whole-account overview, re-opened from the brand mark.
-         The first-visit splash above is the same component without onClose. */}
-      {hubOpen && (
-        <AssetClassSplash
-          onSelect={selectFromHub}
-          onClose={() => setHubOpen(false)}
-          currentClass={activeClass}
-        />
-      )}
-
       {/* Non-intrusive toast surface — bottom-right, auto-dismiss. */}
       <Toaster />
     </div>
+
+      {/* Market picker / account hub. Always shown on load (landing); also
+         re-opened from the brand mark (hub, with a close button). Rendered
+         outside .app so the per-silo accent override doesn't tint its own
+         green/blue market cards. */}
+      {(landingOpen || hubOpen) && (
+        <AssetClassSplash
+          onSelect={enterMarket}
+          onClose={landingOpen ? undefined : () => setHubOpen(false)}
+          currentClass={assetClassMode ?? undefined}
+        />
+      )}
+    </>
   );
 }

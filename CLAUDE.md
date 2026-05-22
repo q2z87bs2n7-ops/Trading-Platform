@@ -47,15 +47,19 @@ separate silos behind a shared account.
 ## Architecture (high level)
 
 - **Frontend:** React 18 + TypeScript + Vite, single-page (no router).
-  On first visit `AssetClassSplash.tsx` prompts the user to pick
-  **Stocks** or **Crypto**; the choice persists to
-  `localStorage('asset_class_mode')` and is switchable from a header
-  toggle at any time. That same component doubles as the **Account Hub**
-  (re-opened by clicking the header brand mark): a whole-account overview
-  (total equity, day P/L, buying power, stocks-vs-crypto-vs-cash split)
-  that is intentionally the *only* cross-silo balance surface — every
-  other balance view is filtered to the active silo. The header pill then switches between three modes,
-  persisted to `localStorage('platform_mode')`:
+  On **every load** `AssetClassSplash.tsx` is shown as the landing screen,
+  prompting the user to pick **Stocks** or **Crypto** (the app never
+  restores a last page/silo — `App.tsx` always lands here). The chosen
+  silo persists to `localStorage('asset_class_mode')` only to highlight the
+  last-used card and seed the header toggle; it is switchable at any time.
+  That same component doubles as the **Account Hub** (re-opened by clicking
+  the header brand mark): a whole-account overview (total equity, day P/L,
+  buying power, stocks-vs-crypto-vs-cash split) that is intentionally the
+  *only* cross-silo balance surface — every other balance view is filtered
+  to the active silo. Per-silo accent: stocks recolours the `--accent`
+  tokens to green (`--pos`), crypto keeps the default blue; `--pos`/`--neg`
+  P/L colours are untouched. The header pill switches between three modes
+  (session-only — not persisted):
   - **Discover** (default)
     - *Stocks* — `Tools.tsx`: holdings + allocation hero (stock positions
       only; `BalanceCard` headline is silo holdings, with silo day P/L and
@@ -154,8 +158,7 @@ separate silos behind a shared account.
 
 | Key | Writer | Read by | Notes |
 | --- | ------ | ------- | ----- |
-| `asset_class_mode` | `App.tsx` | `App.tsx` | `"stocks" \| "crypto"`. Absent on first visit → `AssetClassSplash` shown. |
-| `platform_mode` | `App.tsx` | `App.tsx` | `"discover" \| "portfolio" \| "chart"`. Migrates legacy `"trading"` → `"portfolio"` and `"chartbot"` / `"tv"` → `"chart"` on first load. |
+| `asset_class_mode` | `App.tsx` | `App.tsx` | `"stocks" \| "crypto"`. Last-used silo, used only to highlight the landing card / seed the toggle. The landing picker shows on every load regardless. |
 | `theme` | `hooks/useTheme.ts` + `index.html` bootstrap | both | `"light" \| "dark"`. Defaults to OS preference. |
 | `chartbot_session` | `useChatSession` | `useChatSession` | Serialised turns + apiHistory, capped at 256 KB. |
 | `ai_drawings_v1` | `tv-drawings.ts` | `tv-drawings.ts` | Per-symbol drawing UUIDs replayed on chart load. |

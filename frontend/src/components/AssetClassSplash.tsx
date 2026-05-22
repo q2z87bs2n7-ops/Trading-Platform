@@ -268,7 +268,7 @@ export default function AssetClassSplash({
             onClick={() => onSelect("stocks")}
           />
           <Card
-            title="B"
+            title="₿"
             subtitle="Crypto"
             detail="BTC · ETH · SOL · XRP · DOGE · 24/7 trading"
             accent="var(--accent)"
@@ -276,10 +276,6 @@ export default function AssetClassSplash({
             onClick={() => onSelect("crypto")}
           />
         </div>
-
-        <p className="text-[12px]" style={{ color: "var(--mute)" }}>
-          Paper trading only · Alpaca · You can switch markets anytime from the header
-        </p>
       </div>
     </div>
   );
