@@ -137,11 +137,13 @@ def _execute_read_tool(
     if name == "find_symbol":
         query = str(args["query"])
         limit = min(int(args.get("limit", 10)), 25)
+        # Explicit arg (cross-silo question) wins; otherwise the active silo.
+        req_ac = args.get("asset_class") or asset_class
         search_class = (
             "crypto"
-            if asset_class == "crypto"
+            if req_ac == "crypto"
             else "us_equity"
-            if asset_class == "stocks"
+            if req_ac == "stocks"
             else ""
         )
         return json.dumps(
@@ -162,7 +164,9 @@ def _execute_read_tool(
         return json.dumps({"calendar": alpaca.get_calendar(start, end)}, default=str)
 
     if name == "get_watchlist":
-        wl_class = "crypto" if asset_class == "crypto" else ""
+        # Explicit arg (cross-silo question) wins; otherwise the active silo.
+        req_ac = args.get("asset_class") or asset_class
+        wl_class = "crypto" if req_ac == "crypto" else ""
         return json.dumps(alpaca.get_watchlist(wl_class), default=str)
 
     if name == "get_corporate_actions":
@@ -361,20 +365,27 @@ def ai_ask(req: AskRequest) -> AskResponse:
 
     now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     context = f"Current time: {now_utc}."
-    if req.asset_class == "crypto":
+    if req.asset_class:
+        active = "crypto" if req.asset_class == "crypto" else "stocks (US equities)"
+        other = "stocks (US equities)" if req.asset_class == "crypto" else "crypto"
         context += (
-            " The user is in the CRYPTO silo: prefer crypto pair symbols like"
-            " BTC/USD or ETH/USD, use crypto/BTC news, and do NOT call"
-            " get_movers (Alpaca has no crypto screener)."
+            f" The user is in the {active} silo; default every answer to {active}"
+            f" — prefer {active} symbols, watchlist and news. The structured"
+            " shortcuts are silo-specific by design. You CAN still answer"
+            f" cross-silo or whole-account questions: get_positions, get_orders"
+            " and get_account already cover the whole account, and get_watchlist"
+            " / find_symbol take an asset_class argument to target the other"
+            f" silo. Only reach into {other} when the user explicitly asks about"
+            f" it or the overall account — never pull {other} data proactively"
+            f" during normal {active} questions."
         )
-    elif req.asset_class == "stocks":
-        context += " The user is in the STOCKS (US equities) silo."
+        if req.asset_class == "crypto":
+            context += (
+                " get_movers returns STOCK movers only (Alpaca has no crypto"
+                " screener) — call it only if the user asks about stocks."
+            )
     system = prompt.build_general_system(context=context)
     tool_list = tools.read_only_tools(web_search=s.ai_web_search_enabled)
-    if req.asset_class == "crypto":
-        # Equity-only / irrelevant tools for the 24/7 crypto silo.
-        _crypto_drop = {"get_movers", "get_corporate_actions", "get_calendar", "get_clock"}
-        tool_list = [t for t in tool_list if t.get("name") not in _crypto_drop]
     messages = _trim_history(
         list(req.history) + [{"role": "user", "content": req.message}]
     )

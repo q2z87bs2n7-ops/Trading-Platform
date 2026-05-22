@@ -209,8 +209,12 @@ instant); **violet = real Claude API call** (Anthropic credits, slow).
   optionally POST to `/api/ai/ask` (gated by `cmdbarAiEnabled` in
   `app_settings_v1`, default on; trimmed tool set —
   `read_only_tools()` in `backend/app/ai/tools.py`; the active `asset_class`
-  is sent so the model steers to the right symbols/news). Transcript is
-  session-only.
+  is sent so the model steers to the right symbols/news). The fallback bot
+  defaults to the active silo but **can** answer cross-silo / whole-account
+  questions on request — `get_positions`/`get_orders`/`get_account` are
+  whole-account, and `get_watchlist`/`find_symbol` take an `asset_class`
+  arg to target the other silo; the system context tells it not to pull the
+  other silo proactively. Transcript is session-only.
 - **AI market summary** (`hooks/useMarketSummary.ts` + `MarketSummaryCard`,
   Discover hero). Auto-generates a per-window summary via `/api/ai/ask`
   (real Claude call; same gating as above). Per silo: **stocks** uses US

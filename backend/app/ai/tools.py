@@ -241,6 +241,15 @@ TOOLS: list[dict[str, Any]] = [
                     "maximum": 25,
                     "description": "Max matches (default 10).",
                 },
+                "asset_class": {
+                    "type": "string",
+                    "enum": ["stocks", "crypto"],
+                    "description": (
+                        "Which silo to search. Omit to use the user's active "
+                        "silo; set explicitly only when they ask about the "
+                        "other asset class."
+                    ),
+                },
             },
             "required": ["query"],
         },
@@ -308,7 +317,20 @@ TOOLS: list[dict[str, Any]] = [
             "'my watchlist' or 'how are my watched stocks doing'; then call "
             "get_snapshot on the returned symbols for current prices."
         ),
-        "input_schema": {"type": "object", "properties": {}},
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "asset_class": {
+                    "type": "string",
+                    "enum": ["stocks", "crypto"],
+                    "description": (
+                        "Which watchlist to fetch. Omit to use the user's "
+                        "active silo; set explicitly only when they ask about "
+                        "the other asset class."
+                    ),
+                },
+            },
+        },
     },
     {
         "name": "get_corporate_actions",
