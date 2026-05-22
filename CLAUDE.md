@@ -40,8 +40,9 @@ separate silos behind a shared account.
    the user explicitly asks otherwise. Minor hotfix commits made
    directly on `main` (e.g. a one-line bug fix) bump **Z** by 1.
    **X** is bumped manually.
-   Backend reads `VERSION` at startup; frontend syncs to `package.json`
-   via `npm run sync-version` (auto-run pre-build).
+   Backend reads `VERSION` at startup (layout-tolerant + crash-proof —
+   see `docs/landmines.md`); frontend syncs to `package.json` via
+   `npm run sync-version` (auto-run pre-build).
 6. **No rewrites** — targeted edits only.
 
 ## Architecture (high level)
@@ -175,10 +176,14 @@ Watchlists are not in localStorage — server-side via `/api/watchlist`.
    integration is intentionally disabled (`vercel.json`
    `git.deploymentEnabled=false`) — do not re-enable.
 2. **Render — always-on relay**, from `render.yaml` (Blueprint),
-   single Docker instance from `backend/Dockerfile`. The *only* host
-   that can hold the Alpaca WebSocket open for `/api/stream`. Never
-   run >1 instance — `QuoteHub` and `CryptoQuoteHub` are process-local
-   with no external pub/sub.
+   single Docker instance from `backend/Dockerfile`. Built from the
+   **repo-root context** (`dockerContext: .`) so the image ships the
+   root `VERSION` file the backend reads at startup; a root
+   `.dockerignore` keeps that context lean (must exclude `frontend/`).
+   The *only* host that can hold the Alpaca WebSocket open for
+   `/api/stream`. Never run >1 instance — `QuoteHub` and
+   `CryptoQuoteHub` are process-local with no external pub/sub. See
+   `docs/landmines.md`.
 3. **GitHub Pages — dev previews**, via `preview-pages.yml`. Static
    frontend only; talks to the Vercel prod backend. Auto-publishes to
    `gh-pages` on every `claude/**` push. Cannot trigger a Vercel

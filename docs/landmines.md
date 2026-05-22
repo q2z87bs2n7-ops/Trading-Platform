@@ -61,6 +61,25 @@ Vercel's serverless Python builder forces **Python 3.14** and ignores
   `lint-backend.yml`) diffs the two files and fails the build on
   divergence; `uvicorn` is intentionally backend-only and excluded.
 
+## Render relay (Docker image)
+
+The relay image is built from `backend/Dockerfile`. Two things bit us:
+
+- **Build context is the repo ROOT, not `backend/`.** `app/main.py` reads the
+  repo-root `VERSION` at import. With `dockerContext: ./backend` the file was
+  never in the build context, so it never entered the image — inside the
+  container `main.py` lives at `/app/app/main.py`, resolved `/VERSION`, and
+  crashed every boot with `FileNotFoundError`. Fix: `render.yaml` sets
+  `dockerContext: .`, the Dockerfile `COPY`s `backend/...` + `VERSION`, and a
+  root `.dockerignore` keeps the (now whole-repo) context lean — it MUST
+  exclude `frontend/` (the committed 37 MB charting library) and `**/.env*`.
+- **VERSION read is layout-tolerant + crash-proof.** `_read_version()` tries
+  the repo-root layout (local/Vercel: three levels up) and the flattened
+  container layout (`/app/VERSION`), then falls back to `$APP_VERSION` and
+  finally `"0.0.0"`. Don't reduce it back to a single hard-coded path — the
+  three deploy layouts (local, Vercel, Render) put the file in different
+  places, and the relay must boot even if it can't be read.
+
 ## Symbols with slashes (crypto path params)
 
 Alpaca crypto symbols contain a slash (`BTC/USD`). This breaks standard

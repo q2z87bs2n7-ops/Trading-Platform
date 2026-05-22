@@ -9,20 +9,24 @@ cancel, close positions) with a positions/orders/activities blotter.
 Supports **US equities** and **crypto** in separate silos. Paper account
 only — there is no live-trading path.
 
-On first visit an **asset class splash** asks whether to start in Stocks or
-Crypto. The choice persists across sessions and can be changed from the
-header toggle at any time. Both sides share the same three-pill mode
-toggle:
+On **every load** an **asset class splash** is shown as the landing screen —
+pick Stocks or Crypto to enter (the app never restores a last page/silo). It
+doubles as an **Account Hub** (re-opened from the header brand mark) showing a
+whole-account overview: total equity, day P/L, buying power, and a
+stocks-vs-crypto-vs-cash split. The last-used silo is remembered only to
+highlight its card. The active silo also tints the accent (green for Stocks,
+blue for Crypto). Both sides share the same three-pill mode toggle:
 
 - **Discover** (default)
-  - *Stocks* — portfolio balance + allocation donut, indices marquee ticker,
-    watchlist sparkline cards, inline chart, tabbed gainers / losers +
+  - *Stocks* — silo holdings + allocation donut (green), indices marquee
+    ticker, watchlist sparkline cards, inline chart, tabbed gainers / losers +
     most-active volume, market news feed.
-  - *Crypto* — live crypto price marquee, balance + allocation hero (crypto
-    positions only), crypto watchlist sparkline cards, inline chart, BTC
+  - *Crypto* — live crypto price marquee, holdings + allocation hero (crypto
+    positions only, blue), crypto watchlist sparkline cards, inline chart, BTC
     news. No movers/most-active (Alpaca has no crypto screener).
-- **Portfolio** — positions strip (one card per position, filtered to the
-  active asset class), open-orders table, equity-curve sparkline, and
+- **Portfolio** — siloed value + day P/L hero with a reconstructed per-silo
+  **net P/L curve** (from `/api/pnl-history`), positions strip (one card per
+  position, filtered to the active asset class), open-orders table, and
   account activity. Order entry is the floating bottom-centre **TradeBar**
   pill that opens a bottom-sheet order ticket.
 - **Chart** — full TradingView Charting Library terminal wrapped in a
@@ -161,8 +165,10 @@ as a separate deployment and the frontend falls back to polling whenever it
 is unreachable.
 
 1. **Deploy the relay.** Any container host works (Render, Fly, Railway, a
-   VM). Build `backend/Dockerfile` and set the same Alpaca env vars used in
-   Vercel (`ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `ALPACA_PAPER=true`,
+   VM). Build `backend/Dockerfile` **from the repo root** (so the image can
+   `COPY` the root `VERSION` file the backend reads at startup — `render.yaml`
+   sets `dockerContext: .`) and set the same Alpaca env vars used in Vercel
+   (`ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `ALPACA_PAPER=true`,
    `ALPACA_DATA_FEED=iex`). Run a **single** instance — the hubs keep one
    shared upstream stream per process.
 2. **Point the frontend at it** with the relay's public URL (e.g.
@@ -189,9 +195,9 @@ paid Alpaca data plan for the full consolidated tape.
 - Keys live only in `backend/.env`, which is gitignored. Never commit it.
 - Default watchlist symbols are configurable via `DEFAULT_SYMBOLS` in `.env`.
 - Browser state is in `localStorage`: `asset_class_mode` (stocks / crypto,
-  absent on first visit → splash shown), `platform_mode` (discover /
-  portfolio / chart, with one-shot migration from legacy values),
-  `theme` (light / dark), `chartbot_session` (256 KB byte budget —
+  the last-used silo used only to highlight the landing card — the splash
+  shows on every load), `theme` (light / dark), `chartbot_session` (256 KB
+  byte budget —
   oldest user+assistant pairs drop once the budget is exceeded),
   `ai_drawings_v1` (per-symbol drawing UUIDs replayed on chart load),
   `chart_blotter_collapsed`, `app_settings_v1`.
