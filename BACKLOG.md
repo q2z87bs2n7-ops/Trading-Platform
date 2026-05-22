@@ -87,7 +87,7 @@
 
 ## Mobile
 
-The phased mobile redesign (P0–P6, v0.40.2–0.40.8; spec in
+The phased mobile redesign (P0–P6 + UAT fixes, v0.40.2–0.41.0; spec in
 `Handover Mobile Trading.html`) shipped behind the ≤640px breakpoint.
 Two follow-ups were deliberately left:
 
