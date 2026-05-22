@@ -66,6 +66,7 @@ class ReplaceOrderRequest(BaseModel):
 class OrderOut(BaseModel):
     id: str
     symbol: str
+    asset_class: str | None = None
     side: str
     type: str
     order_class: str | None = None
@@ -81,6 +82,7 @@ class OrderOut(BaseModel):
 
 class PositionOut(BaseModel):
     symbol: str
+    asset_class: str
     qty: float
     side: str
     avg_entry_price: float
@@ -89,6 +91,8 @@ class PositionOut(BaseModel):
     cost_basis: float
     unrealized_pl: float
     unrealized_plpc: float
+    unrealized_intraday_pl: float
+    unrealized_intraday_plpc: float
     change_today: float
 
 
@@ -106,6 +110,13 @@ class AssetOut(BaseModel):
 
 class PositionsOut(BaseModel):
     positions: list[PositionOut]
+
+
+class PnlHistoryOut(BaseModel):
+    # Daily cumulative net P/L curve for one asset-class silo, reconstructed
+    # from fills (FIFO) + historical daily closes. `t` is unix seconds.
+    t: list[int]
+    pnl: list[float]
 
 
 class CancelledOrders(BaseModel):

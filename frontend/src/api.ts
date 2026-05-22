@@ -11,6 +11,7 @@ import type {
   MoversResponse,
   NewsItem,
   Order,
+  PnlHistory,
   PortfolioHistory,
   Position,
   Quote,
@@ -115,6 +116,11 @@ export const getClock = () => getJSON<MarketClock>("/api/clock");
 export const getPortfolioHistory = (period = "1M", timeframe = "1D") =>
   getJSON<PortfolioHistory>(
     `/api/portfolio/history?period=${period}&timeframe=${timeframe}`,
+  );
+
+export const getPnlHistory = (assetClass: "stocks" | "crypto", period = "ALL") =>
+  getJSON<PnlHistory>(
+    `/api/pnl-history?asset_class=${assetClass}&period=${period}`,
   );
 
 export const getCalendar = (start?: string, end?: string) =>

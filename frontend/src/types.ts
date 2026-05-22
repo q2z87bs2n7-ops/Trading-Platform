@@ -40,6 +40,8 @@ export interface Position {
   cost_basis: number;
   unrealized_pl: number;
   unrealized_plpc: number;
+  unrealized_intraday_pl: number;
+  unrealized_intraday_plpc: number;
   change_today: number;
 }
 
@@ -107,6 +109,13 @@ export interface PortfolioHistory {
   profit_loss_pct: number[];
   base_value: number;
   timeframe: string;
+}
+
+// Daily cumulative net P/L curve for one asset-class silo (see
+// backend/app/alpaca/pnl.py). `t` is unix seconds.
+export interface PnlHistory {
+  t: number[];
+  pnl: number[];
 }
 
 export interface CalendarDay {

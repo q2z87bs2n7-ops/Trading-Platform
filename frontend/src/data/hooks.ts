@@ -114,6 +114,13 @@ export const usePortfolioHistory = (period = "1M", timeframe = "1D") =>
     refetchInterval: 60000,
   });
 
+export const usePnlHistory = (assetClass: "stocks" | "crypto", period = "ALL") =>
+  useQuery({
+    queryKey: qk.pnlHistory(assetClass, period),
+    queryFn: () => api.getPnlHistory(assetClass, period),
+    refetchInterval: 60000,
+  });
+
 // Single-asset metadata (tradable/fractionable/shortable). Effectively
 // static, so cache hard and skip auto-refetch. The order-ticket hook
 // debounces the symbol it passes in to avoid a lookup per keystroke.

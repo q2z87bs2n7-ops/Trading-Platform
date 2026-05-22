@@ -113,6 +113,13 @@ export default function Tools({
     0,
   );
   const unrealizedPct = totalCostBasis > 0 ? unrealized / totalCostBasis : 0;
+  // Silo day P/L: sum of intraday unrealized P/L, as a % of prior-close value.
+  const dayPl = stockPositions.reduce(
+    (s: number, p: Position) => s + p.unrealized_intraday_pl,
+    0,
+  );
+  const dayBasis = invested - dayPl;
+  const dayPlPct = dayBasis > 0 ? dayPl / dayBasis : 0;
 
   // Quote map drives watchlist sparkline cards.
   const quotes: Record<string, Snapshot> = {};
@@ -130,9 +137,13 @@ export default function Tools({
       <div className="grid gap-4 mb-6 grid-cols-1 lg:grid-cols-[1.4fr_1fr]">
         <BalanceCard
           account={account.data}
-          invested={invested}
+          title="Stocks"
+          value={invested}
+          dayPl={dayPl}
+          dayPlPct={dayPlPct}
           unrealized={unrealized}
           unrealizedPct={unrealizedPct}
+          buyingPower={account.data?.buying_power ?? 0}
         />
         <AllocationCard positions={stockPositions} />
       </div>

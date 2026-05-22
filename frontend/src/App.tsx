@@ -169,6 +169,7 @@ export default function App() {
   const [mode, setMode] = useState<PlatformMode>(readPlatformMode);
   const [assetClassMode, setAssetClassMode] = useState<AssetClassMode | null>(readAssetClassMode);
   const [cmdOpen, setCmdOpen] = useState(false);
+  const [hubOpen, setHubOpen] = useState(false);
   const { theme, toggle: toggleTheme } = useTheme();
 
   const activeClass: AssetClassMode = assetClassMode ?? "stocks";
@@ -201,6 +202,11 @@ export default function App() {
     localStorage.setItem("asset_class_mode", m);
   }
 
+  function selectFromHub(m: AssetClassMode) {
+    switchAssetClass(m);
+    setHubOpen(false);
+  }
+
   function openCmdBar() {
     setCmdOpen(true);
   }
@@ -215,7 +221,15 @@ export default function App() {
       <header>
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3 min-w-0">
-            <BrandMark />
+            <button
+              type="button"
+              onClick={() => setHubOpen(true)}
+              aria-label="Open account overview"
+              title="Account overview"
+              className="border-0 bg-transparent p-0 cursor-pointer"
+            >
+              <BrandMark />
+            </button>
             <div className="flex flex-col min-w-0">
               <span
                 className="text-[15px] font-semibold leading-tight truncate"
@@ -283,7 +297,7 @@ export default function App() {
          entry now comes from the floating TradeBar (mounted below). */}
       {mode === "portfolio" && (
         <div className="max-w-[1280px] mx-auto pt-2">
-          <PortfolioHero />
+          <PortfolioHero assetClass={activeClass} />
 
           <SectionHeading label="Positions" />
           <Positions variant="strip" onSelect={setSelected} assetClass={activeClass} />
@@ -313,6 +327,16 @@ export default function App() {
           switchMode("chart");
         }}
       />
+
+      {/* Account hub — whole-account overview, re-opened from the brand mark.
+         The first-visit splash above is the same component without onClose. */}
+      {hubOpen && (
+        <AssetClassSplash
+          onSelect={selectFromHub}
+          onClose={() => setHubOpen(false)}
+          currentClass={activeClass}
+        />
+      )}
 
       {/* Non-intrusive toast surface — bottom-right, auto-dismiss. */}
       <Toaster />

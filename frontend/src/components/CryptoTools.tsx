@@ -170,6 +170,12 @@ export default function CryptoTools({
   const unrealized = cryptoPositions.reduce((s: number, p: Position) => s + p.unrealized_pl, 0);
   const totalCostBasis = cryptoPositions.reduce((s: number, p: Position) => s + p.cost_basis, 0);
   const unrealizedPct = totalCostBasis > 0 ? unrealized / totalCostBasis : 0;
+  const dayPl = cryptoPositions.reduce(
+    (s: number, p: Position) => s + p.unrealized_intraday_pl,
+    0,
+  );
+  const dayBasis = invested - dayPl;
+  const dayPlPct = dayBasis > 0 ? dayPl / dayBasis : 0;
 
   const quotes: Record<string, Snapshot> = {};
   (snaps.data?.snapshots || []).forEach((s: Snapshot) => {
@@ -185,10 +191,13 @@ export default function CryptoTools({
       <div className="grid gap-4 mb-6 grid-cols-1 lg:grid-cols-[1.4fr_1fr]">
         <BalanceCard
           account={account.data}
-          invested={invested}
+          title="Crypto"
+          value={invested}
+          dayPl={dayPl}
+          dayPlPct={dayPlPct}
           unrealized={unrealized}
           unrealizedPct={unrealizedPct}
-          buyingPower={account.data?.non_marginable_buying_power}
+          buyingPower={account.data?.non_marginable_buying_power ?? 0}
         />
         <AllocationCard positions={cryptoPositions} />
       </div>

@@ -60,6 +60,41 @@ def get_bars(symbol: str, timeframe: str, limit: int) -> list[dict]:
     return out
 
 
+def get_daily_closes(symbols: list[str], start: datetime) -> dict[str, dict[str, float]]:
+    """Daily close prices per symbol from `start` to now, keyed by ISO date.
+
+    Equities and crypto hit different Alpaca endpoints, so they are batched
+    into one multi-symbol request each. Used to value historical open lots
+    when rebuilding the per-silo P/L curve.
+    """
+    out: dict[str, dict[str, float]] = {}
+    if not symbols:
+        return out
+    tf = timeframe_from_str("1Day")
+    equities = [s.upper() for s in symbols if not is_crypto(s)]
+    cryptos = [s.upper() for s in symbols if is_crypto(s)]
+
+    if equities:
+        req = StockBarsRequest(
+            symbol_or_symbols=equities, timeframe=tf, start=start, feed=_feed()
+        )
+        data = data_client().get_stock_bars(req).data
+        for sym in equities:
+            out[sym] = {
+                bar.timestamp.date().isoformat(): float(bar.close)
+                for bar in data.get(sym, [])
+            }
+    if cryptos:
+        req = CryptoBarsRequest(symbol_or_symbols=cryptos, timeframe=tf, start=start)
+        data = crypto_data_client().get_crypto_bars(req).data
+        for sym in cryptos:
+            out[sym] = {
+                bar.timestamp.date().isoformat(): float(bar.close)
+                for bar in data.get(sym, [])
+            }
+    return out
+
+
 def normalize_quote(symbol: str, q) -> dict:
     """Shared quote shape for both the poll path (here) and the SSE
     stream (``stream.py``). Single-sourced so the load-bearing

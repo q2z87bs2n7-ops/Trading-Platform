@@ -17,6 +17,7 @@ from .schemas import (
     AssetOut,
     CancelledOrders,
     OrderOut,
+    PnlHistoryOut,
     PositionOut,
     PositionsOut,
     ReplaceOrderRequest,
@@ -118,6 +119,18 @@ def portfolio_history(
     timeframe: str = Query("1D"),
 ) -> dict:
     return alpaca.get_portfolio_history(period, timeframe)
+
+
+@app.get(
+    "/api/pnl-history",
+    dependencies=[Depends(require_configured)],
+    response_model=PnlHistoryOut,
+)
+def pnl_history(
+    asset_class: str = Query("stocks"),
+    period: str = Query("ALL"),
+) -> dict:
+    return alpaca.get_pnl_history(asset_class, period)
 
 
 @app.get("/api/orders", dependencies=[Depends(require_configured)])

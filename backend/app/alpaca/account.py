@@ -55,6 +55,8 @@ def _position_dict(p) -> dict:
         "cost_basis": float(p.cost_basis or 0),
         "unrealized_pl": float(p.unrealized_pl or 0),
         "unrealized_plpc": float(p.unrealized_plpc or 0),
+        "unrealized_intraday_pl": float(p.unrealized_intraday_pl or 0),
+        "unrealized_intraday_plpc": float(p.unrealized_intraday_plpc or 0),
         "change_today": float(p.change_today or 0),
     }
 

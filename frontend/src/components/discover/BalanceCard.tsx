@@ -3,16 +3,22 @@ import { money, pct } from "../../lib/format";
 
 export function BalanceCard({
   account,
-  invested,
+  title,
+  value,
+  dayPl,
+  dayPlPct,
   unrealized,
   unrealizedPct,
   buyingPower,
 }: {
   account: ReturnType<typeof useAccount>["data"];
-  invested: number;
+  title: string;
+  value: number;
+  dayPl: number;
+  dayPlPct: number;
   unrealized: number;
   unrealizedPct: number;
-  buyingPower?: number;
+  buyingPower: number;
 }) {
   if (!account) {
     return (
@@ -32,9 +38,6 @@ export function BalanceCard({
     );
   }
 
-  const dayPl = account.equity - account.equity_at_market_open;
-  const dayPlPct =
-    account.equity_at_market_open > 0 ? dayPl / account.equity_at_market_open : 0;
   const dayUp = dayPl >= 0;
   const allUp = unrealized >= 0;
 
@@ -51,7 +54,7 @@ export function BalanceCard({
         className="text-[12px]"
         style={{ color: "var(--mute)", letterSpacing: "0.02em" }}
       >
-        Total balance
+        {title} holdings
       </span>
       <div
         className="font-semibold tabular-nums"
@@ -61,7 +64,7 @@ export function BalanceCard({
           lineHeight: 1,
         }}
       >
-        {money(account.equity)}
+        {money(value)}
       </div>
       <div className="flex gap-3.5 items-baseline flex-wrap">
         <span
@@ -83,26 +86,10 @@ export function BalanceCard({
       <div className="flex gap-6 mt-1 flex-wrap">
         <div className="flex flex-col">
           <small className="text-[12px]" style={{ color: "var(--mute)" }}>
-            Cash
-          </small>
-          <strong className="font-medium text-[16px] tabular-nums">
-            {money(account.cash)}
-          </strong>
-        </div>
-        <div className="flex flex-col">
-          <small className="text-[12px]" style={{ color: "var(--mute)" }}>
-            Invested
-          </small>
-          <strong className="font-medium text-[16px] tabular-nums">
-            {money(invested)}
-          </strong>
-        </div>
-        <div className="flex flex-col">
-          <small className="text-[12px]" style={{ color: "var(--mute)" }}>
             Buying power
           </small>
           <strong className="font-medium text-[16px] tabular-nums">
-            {money(buyingPower ?? account.buying_power)}
+            {money(buyingPower)}
           </strong>
         </div>
       </div>

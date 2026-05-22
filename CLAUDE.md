@@ -50,19 +50,28 @@ separate silos behind a shared account.
   On first visit `AssetClassSplash.tsx` prompts the user to pick
   **Stocks** or **Crypto**; the choice persists to
   `localStorage('asset_class_mode')` and is switchable from a header
-  toggle at any time. The header pill then switches between three modes,
+  toggle at any time. That same component doubles as the **Account Hub**
+  (re-opened by clicking the header brand mark): a whole-account overview
+  (total equity, day P/L, buying power, stocks-vs-crypto-vs-cash split)
+  that is intentionally the *only* cross-silo balance surface — every
+  other balance view is filtered to the active silo. The header pill then switches between three modes,
   persisted to `localStorage('platform_mode')`:
   - **Discover** (default)
-    - *Stocks* — `Tools.tsx`: balance + allocation hero, indices
-      marquee ticker, watchlist sparkline cards, inline chart,
-      gainers/losers tabbed card (with most-active volume), market news.
+    - *Stocks* — `Tools.tsx`: holdings + allocation hero (stock positions
+      only; `BalanceCard` headline is silo holdings, with silo day P/L and
+      stock buying power — no shared cash), indices marquee ticker,
+      watchlist sparkline cards, inline chart, gainers/losers tabbed card
+      (with most-active volume), market news.
     - *Crypto* — `CryptoTools.tsx`: crypto price marquee ticker,
-      balance + allocation hero (crypto positions only), crypto watchlist
-      sparkline cards, inline chart, BTC news feed. No movers/most-active
-      (Alpaca has no crypto screener).
-  - **Portfolio** — `PortfolioHero` + `Positions` (strip variant, filtered
-    by asset class) + `Orders` (filtered) + `Activities`. `TopBar` status
-    strip mounts here and in Chart mode.
+      holdings + allocation hero (crypto positions only;
+      `non_marginable_buying_power`), crypto watchlist sparkline cards,
+      inline chart, BTC news feed. No movers/most-active (Alpaca has no
+      crypto screener).
+  - **Portfolio** — `PortfolioHero` (siloed: silo holdings + day P/L +
+    unrealized + a reconstructed **net P/L curve** from `/api/pnl-history`)
+    + `Positions` (strip variant, filtered by asset class) + `Orders`
+    (filtered) + `Activities`. `TopBar` status strip mounts here and in
+    Chart mode.
   - **Chart** — `TVPlatform.tsx` wraps the full TradingView Charting
     Library (`frontend/public/charting_library/`, committed — private
     repo only) in our own chrome: `ChartTopBar`, `IndicatorPillsRow`,
@@ -88,7 +97,7 @@ separate silos behind a shared account.
 - **Backend:** FastAPI + `alpaca-py`. Real code in `backend/app/`;
   `api/index.py` is the Vercel shim. Endpoints under `/api/`: health,
   config, account, bars, quotes, snapshots, stream, orders, positions,
-  portfolio/history, activities, clock, calendar, assets, news,
+  portfolio/history, pnl-history, activities, clock, calendar, assets, news,
   watchlist, movers, most-active, indices, market-news, crypto/tickers,
   ai/chat, ai/ask (last two gated by `AI_CHAT_ENABLED`; require
   `ANTHROPIC_API_KEY`). `/api/indices` and `/api/market-news` hit
@@ -107,7 +116,15 @@ separate silos behind a shared account.
   **Positions:** `_position_dict` normalises crypto symbols from
   `BTCUSD` back to `BTC/USD` (Alpaca strips the slash in its positions
   endpoint) and includes `asset_class`. Use `asset_class === "crypto"`
-  — not `symbol.includes("/")` — to filter positions.
+  — not `symbol.includes("/")` — to filter positions. `_position_dict`
+  also exposes `unrealized_intraday_pl` (silo day-P/L source); `PositionOut`
+  and `OrderOut` both carry `asset_class` (they used to strip it, so the
+  per-silo filters had been quietly surviving on the `/` fallback).
+  **Per-silo P/L curve:** Alpaca has no per-asset-class portfolio history,
+  so `alpaca/pnl.py` (`/api/pnl-history`) rebuilds it from FILL activities
+  (FIFO lots → realized P/L) valued against historical daily closes; the
+  curve is anchored on open-position cost (deposits ignored) and its live
+  tip uses current position market value.
 - **Data feed:** IEX (free, ~2-3% of volume). `sip` (paid) via
   `ALPACA_DATA_FEED` env — no code change.
 - **Streaming:** `backend/app/stream.py` holds two hub singletons:
