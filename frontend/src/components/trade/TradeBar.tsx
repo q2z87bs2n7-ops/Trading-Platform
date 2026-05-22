@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { useLiveQuotes } from "../../data/useLiveQuotes";
+import { useMobile } from "../../hooks/useMobile";
 import OrderSheet from "./OrderSheet";
 
 const money = (n: number) =>
@@ -13,6 +14,7 @@ interface Props {
 export default function TradeBar({ symbol }: Props) {
   const [open, setOpen] = useState(false);
   const [side, setSide] = useState<"buy" | "sell">("buy");
+  const isMobile = useMobile();
   const symUpper = symbol.trim().toUpperCase();
   const { quotes } = useLiveQuotes(symUpper ? [symUpper] : []);
   const quote = quotes[symUpper];
@@ -27,7 +29,7 @@ export default function TradeBar({ symbol }: Props) {
       <div
         className="fixed z-30 flex items-center gap-3 text-[13.5px] font-medium left-4 right-4 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 justify-between sm:justify-start"
         style={{
-          bottom: 20,
+          bottom: isMobile ? "calc(var(--safe-bottom) + 16px)" : 20,
           background: "var(--text)",
           color: "var(--bg)",
           padding: "6px 6px 6px 16px",
@@ -59,10 +61,10 @@ export default function TradeBar({ symbol }: Props) {
           style={{
             background: "var(--pos)",
             color: "white",
-            height: 32,
-            padding: "0 16px",
+            height: isMobile ? 44 : 32,
+            padding: isMobile ? "0 22px" : "0 16px",
             borderRadius: 7,
-            fontSize: 13,
+            fontSize: isMobile ? 14 : 13,
             letterSpacing: "-0.005em",
             opacity: symUpper ? 1 : 0.5,
           }}
@@ -77,10 +79,10 @@ export default function TradeBar({ symbol }: Props) {
           style={{
             background: "var(--neg)",
             color: "white",
-            height: 32,
-            padding: "0 16px",
+            height: isMobile ? 44 : 32,
+            padding: isMobile ? "0 22px" : "0 16px",
             borderRadius: 7,
-            fontSize: 13,
+            fontSize: isMobile ? 14 : 13,
             letterSpacing: "-0.005em",
             opacity: symUpper ? 1 : 0.5,
           }}

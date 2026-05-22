@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 
 import { useAccount } from "../../data/hooks";
+import { useMobile } from "../../hooks/useMobile";
 import {
   useOrderTicket,
   type OType,
@@ -151,6 +152,7 @@ export default function OrderSheet({
 }: Props) {
   const t = useOrderTicket(symbol);
   const { data: account } = useAccount();
+  const isMobile = useMobile();
 
   // Mirror caller-supplied defaults each time the sheet (re-)opens.
   useEffect(() => {
@@ -208,11 +210,39 @@ export default function OrderSheet({
         : bp + t.estNotional
       : null;
 
+  const submitButton = (
+    <button
+      type="button"
+      disabled={!!t.clientError || t.submit.isPending}
+      onClick={() => t.trySubmit()}
+      className="w-full text-[15px] font-semibold cursor-pointer border-0"
+      style={{
+        padding: "14px",
+        minHeight: "var(--mob-tap)",
+        borderRadius: "var(--r)",
+        background: t.side === "buy" ? "var(--pos)" : "var(--neg)",
+        color: "white",
+        opacity: t.clientError || t.submit.isPending ? 0.55 : 1,
+      }}
+    >
+      {t.submit.isPending
+        ? "Submitting…"
+        : t.clientError
+          ? t.clientError
+          : `${t.side === "buy" ? "Buy" : "Sell"} ${t.qty || "—"} ${t.symbol || "—"}` +
+            (t.estNotional ? ` · ${money(t.estNotional)}` : "")}
+    </button>
+  );
+
   return (
     <div
       role="dialog"
       aria-modal
-      className="fixed inset-0 z-50 flex items-end justify-center"
+      className={
+        isMobile
+          ? "fixed inset-0 z-50 flex"
+          : "fixed inset-0 z-50 flex items-end justify-center"
+      }
       style={{
         background: "rgba(20, 22, 28, 0.45)",
         backdropFilter: "blur(4px)",
@@ -221,20 +251,36 @@ export default function OrderSheet({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-[1000px] max-h-[92vh] overflow-y-auto"
-        style={{
-          background: "var(--panel)",
-          borderTopLeftRadius: "var(--r-xl)",
-          borderTopRightRadius: "var(--r-xl)",
-          boxShadow: "var(--shadow-lg)",
-          padding: "24px 28px 28px",
-          animation: "sheet-up 220ms ease",
-        }}
+        className={
+          isMobile
+            ? "w-full flex flex-col"
+            : "w-full max-w-[1000px] max-h-[92vh] overflow-y-auto"
+        }
+        style={
+          isMobile
+            ? {
+                height: "100dvh",
+                background: "var(--panel)",
+                boxShadow: "var(--shadow-lg)",
+                paddingTop: "max(var(--safe-top), 12px)",
+              }
+            : {
+                background: "var(--panel)",
+                borderTopLeftRadius: "var(--r-xl)",
+                borderTopRightRadius: "var(--r-xl)",
+                boxShadow: "var(--shadow-lg)",
+                padding: "24px 28px 28px",
+                animation: "sheet-up 220ms ease",
+              }
+        }
       >
         <style>{`@keyframes sheet-up{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-5">
+        <div
+          className="flex items-center justify-between mb-5"
+          style={isMobile ? { padding: "0 16px" } : undefined}
+        >
           <div>
             <div
               className="text-[11px] font-medium uppercase mb-0.5"
@@ -279,6 +325,10 @@ export default function OrderSheet({
           </button>
         </div>
 
+        <div
+          className={isMobile ? "flex-1 min-h-0 overflow-y-auto" : ""}
+          style={isMobile ? { padding: "0 16px" } : undefined}
+        >
         <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
           {/* ── Left column ── */}
           <div className="flex flex-col gap-4">
@@ -605,29 +655,48 @@ export default function OrderSheet({
               </div>
             )}
 
-            <button
-              type="button"
-              disabled={!!t.clientError || t.submit.isPending}
-              onClick={() => t.trySubmit()}
-              className="w-full text-[15px] font-semibold cursor-pointer border-0"
-              style={{
-                padding: "14px",
-                borderRadius: "var(--r)",
-                background:
-                  t.side === "buy" ? "var(--pos)" : "var(--neg)",
-                color: "white",
-                opacity: t.clientError || t.submit.isPending ? 0.55 : 1,
-              }}
-            >
-              {t.submit.isPending
-                ? "Submitting…"
-                : t.clientError
-                  ? t.clientError
-                  : `${t.side === "buy" ? "Buy" : "Sell"} ${t.qty || "—"} ${t.symbol || "—"}` +
-                    (t.estNotional ? ` · ${money(t.estNotional)}` : "")}
-            </button>
+            {!isMobile && submitButton}
           </div>
         </div>
+        </div>
+
+        {/* Mobile sticky footer — summary always visible + pinned CTA. */}
+        {isMobile && (
+          <div
+            style={{
+              borderTop: "1px solid var(--hairline)",
+              padding: "12px 16px",
+              paddingBottom: "max(var(--safe-bottom), 12px)",
+              background: "var(--panel)",
+            }}
+          >
+            <div className="flex justify-between text-[12.5px] mb-1.5">
+              <span style={{ color: "var(--mute)" }}>
+                Est. {t.side === "buy" ? "cost" : "proceeds"}
+              </span>
+              <span className="font-mono tabular-nums">
+                {t.estNotional != null ? money(t.estNotional) : "—"}
+              </span>
+            </div>
+            {afterOrder != null && (
+              <div className="flex justify-between text-[12.5px] mb-2.5">
+                <span style={{ color: "var(--mute)" }}>BP after</span>
+                <span
+                  className="font-mono tabular-nums"
+                  style={{ color: afterOrder < 0 ? "var(--neg)" : "var(--text)" }}
+                >
+                  {money(afterOrder)}
+                </span>
+              </div>
+            )}
+            {t.submit.error && (
+              <div className="mb-2">
+                <ErrorBanner message={(t.submit.error as Error).message} />
+              </div>
+            )}
+            {submitButton}
+          </div>
+        )}
       </div>
     </div>
   );
