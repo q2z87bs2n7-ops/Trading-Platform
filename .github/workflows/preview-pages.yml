@@ -65,6 +65,10 @@ jobs:
               done
             echo '</body></html>'
           } > _preview_index/index.html
+          # Prevent Vercel from attempting a preview deploy of gh-pages: the
+          # branch carries no vercel.json so without this Vercel ignores
+          # deploymentEnabled=false and errors on every gh-pages push.
+          echo '{"git":{"deploymentEnabled":false}}' > _preview_index/vercel.json
       - name: Publish preview index
         uses: peaceiris/actions-gh-pages@v4
         with:
