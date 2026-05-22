@@ -5,6 +5,45 @@ import type { Mover } from "../../types";
 
 type Tab = "gainers" | "losers";
 
+// Single screener row — shared by the desktop MoversCard and the mobile
+// MoversCombinedCard so the markup stays in one place.
+export function MoverRow({
+  m,
+  rank,
+  onSelect,
+}: {
+  m: Mover;
+  rank: number;
+  onSelect: (s: string) => void;
+}) {
+  const up = m.percent_change >= 0;
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(m.symbol)}
+      className="w-full text-left grid items-center gap-2.5 py-2 cursor-pointer bg-transparent border-0"
+      style={{
+        gridTemplateColumns: "32px 1fr auto auto",
+        borderTop: rank === 0 ? "none" : "1px solid var(--border)",
+      }}
+    >
+      <span className="font-mono text-[12px]" style={{ color: "var(--mute)" }}>
+        {String(rank + 1).padStart(2, "0")}
+      </span>
+      <div className="min-w-0">
+        <div className="font-semibold text-[14px]">{m.symbol}</div>
+      </div>
+      <span className="font-mono text-[13px] tabular-nums">{money(m.price)}</span>
+      <span
+        className="font-mono text-[13px] tabular-nums text-right min-w-[64px]"
+        style={{ color: up ? "var(--pos)" : "var(--neg)" }}
+      >
+        {pct(m.percent_change)}
+      </span>
+    </button>
+  );
+}
+
 export function MoversCard({
   gainers,
   losers,
@@ -53,40 +92,9 @@ export function MoversCard({
         </span>
       </div>
       <div>
-        {movers.map((m, i) => {
-          const up = m.percent_change >= 0;
-          return (
-            <button
-              key={m.symbol}
-              type="button"
-              onClick={() => onSelect(m.symbol)}
-              className="w-full text-left grid items-center gap-2.5 py-2 cursor-pointer bg-transparent border-0"
-              style={{
-                gridTemplateColumns: "32px 1fr auto auto",
-                borderTop: i === 0 ? "none" : "1px solid var(--border)",
-              }}
-            >
-              <span
-                className="font-mono text-[12px]"
-                style={{ color: "var(--mute)" }}
-              >
-                {String(i + 1).padStart(2, "0")}
-              </span>
-              <div className="min-w-0">
-                <div className="font-semibold text-[14px]">{m.symbol}</div>
-              </div>
-              <span className="font-mono text-[13px] tabular-nums">
-                {money(m.price)}
-              </span>
-              <span
-                className="font-mono text-[13px] tabular-nums text-right min-w-[64px]"
-                style={{ color: up ? "var(--pos)" : "var(--neg)" }}
-              >
-                {pct(m.percent_change)}
-              </span>
-            </button>
-          );
-        })}
+        {movers.map((m, i) => (
+          <MoverRow key={m.symbol} m={m} rank={i} onSelect={onSelect} />
+        ))}
       </div>
     </div>
   );

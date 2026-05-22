@@ -28,9 +28,11 @@ import { BalanceCard } from "./discover/BalanceCard";
 import { CardsRow } from "./discover/CardsRow";
 import { ChartCard } from "./discover/ChartCard";
 import { CryptoTicker } from "./discover/CryptoTicker";
+import { HeroCardMobile } from "./discover/HeroCardMobile";
 import { IndicesTicker } from "./discover/IndicesTicker";
 import { MostActiveCard, MostActiveCardSkeleton } from "./discover/MostActiveCard";
 import { MoversCard, MoversCardSkeleton } from "./discover/MoversCard";
+import { MoversCombinedCard } from "./discover/MoversCombinedCard";
 import { NewsCard, NewsCardSkeleton } from "./discover/NewsCard";
 import { SparkCard, SparkCardSkeleton } from "./discover/SparkCard";
 import { coinLabel, DONUT_COLORS_GREEN } from "./discover/util";
@@ -167,27 +169,48 @@ export default function DiscoverPage({
         ? tickers.data && <CryptoTicker tickers={tickers.data.tickers} />
         : indices.data && <IndicesTicker indices={indices.data.indices} />}
 
-      {/* Hero row */}
-      <div className="grid gap-4 mb-6 grid-cols-1 lg:grid-cols-[1.4fr_1fr]">
-        <BalanceCard
-          account={account.data}
-          title={isCrypto ? "Crypto" : "Stocks"}
-          value={invested}
-          dayPl={dayPl}
-          dayPlPct={dayPlPct}
-          unrealized={unrealized}
-          unrealizedPct={unrealizedPct}
-          buyingPower={
-            isCrypto
-              ? account.data?.non_marginable_buying_power ?? 0
-              : account.data?.buying_power ?? 0
-          }
-        />
-        <AllocationCard
-          positions={siloPositions}
-          colors={isCrypto ? undefined : DONUT_COLORS_GREEN}
-        />
-      </div>
+      {/* Hero row — combined single card on mobile, two-card grid on desktop */}
+      {isMobile ? (
+        <div className="mb-6">
+          <HeroCardMobile
+            account={account.data}
+            title={isCrypto ? "Crypto" : "Stocks"}
+            value={invested}
+            dayPl={dayPl}
+            dayPlPct={dayPlPct}
+            unrealized={unrealized}
+            unrealizedPct={unrealizedPct}
+            buyingPower={
+              isCrypto
+                ? account.data?.non_marginable_buying_power ?? 0
+                : account.data?.buying_power ?? 0
+            }
+            positions={siloPositions}
+            colors={isCrypto ? undefined : DONUT_COLORS_GREEN}
+          />
+        </div>
+      ) : (
+        <div className="grid gap-4 mb-6 grid-cols-1 lg:grid-cols-[1.4fr_1fr]">
+          <BalanceCard
+            account={account.data}
+            title={isCrypto ? "Crypto" : "Stocks"}
+            value={invested}
+            dayPl={dayPl}
+            dayPlPct={dayPlPct}
+            unrealized={unrealized}
+            unrealizedPct={unrealizedPct}
+            buyingPower={
+              isCrypto
+                ? account.data?.non_marginable_buying_power ?? 0
+                : account.data?.buying_power ?? 0
+            }
+          />
+          <AllocationCard
+            positions={siloPositions}
+            colors={isCrypto ? undefined : DONUT_COLORS_GREEN}
+          />
+        </div>
+      )}
 
       {/* AI market summary — auto-generated per time window, dismissible */}
       <MarketSummaryCard
@@ -361,20 +384,30 @@ export default function DiscoverPage({
                 <MostActiveCardSkeleton />
               </div>
             )}
-          {movers.data && mostActiveVolume.data && mostActiveTrades.data && (
-            <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
-              <MoversCard
+          {movers.data &&
+            mostActiveVolume.data &&
+            mostActiveTrades.data &&
+            (isMobile ? (
+              <MoversCombinedCard
                 gainers={movers.data.gainers}
                 losers={movers.data.losers}
+                active={mostActiveVolume.data.most_actives}
                 onSelect={onSelect}
               />
-              <MostActiveCard
-                volumeData={mostActiveVolume.data.most_actives}
-                tradesData={mostActiveTrades.data.most_actives}
-                onSelect={onSelect}
-              />
-            </div>
-          )}
+            ) : (
+              <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
+                <MoversCard
+                  gainers={movers.data.gainers}
+                  losers={movers.data.losers}
+                  onSelect={onSelect}
+                />
+                <MostActiveCard
+                  volumeData={mostActiveVolume.data.most_actives}
+                  tradesData={mostActiveTrades.data.most_actives}
+                  onSelect={onSelect}
+                />
+              </div>
+            ))}
         </>
       )}
 

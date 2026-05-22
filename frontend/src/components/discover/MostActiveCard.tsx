@@ -5,6 +5,42 @@ import type { MostActive } from "../../types";
 
 type By = "volume" | "trades";
 
+// Single screener row — shared by the desktop MostActiveCard and the mobile
+// MoversCombinedCard so the markup stays in one place.
+export function MostActiveRow({
+  item,
+  rank,
+  by,
+  onSelect,
+}: {
+  item: MostActive;
+  rank: number;
+  by: By;
+  onSelect: (s: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(item.symbol)}
+      className="w-full text-left grid items-center gap-2.5 py-2 cursor-pointer bg-transparent border-0"
+      style={{
+        gridTemplateColumns: "32px 1fr auto",
+        borderTop: rank === 0 ? "none" : "1px solid var(--border)",
+      }}
+    >
+      <span className="font-mono text-[12px]" style={{ color: "var(--mute)" }}>
+        {String(rank + 1).padStart(2, "0")}
+      </span>
+      <div className="min-w-0">
+        <div className="font-semibold text-[14px]">{item.symbol}</div>
+      </div>
+      <span className="font-mono text-[13px] tabular-nums text-right">
+        {compact(by === "volume" ? item.volume : item.trade_count)}
+      </span>
+    </button>
+  );
+}
+
 export function MostActiveCard({
   volumeData,
   tradesData,
@@ -54,29 +90,13 @@ export function MostActiveCard({
       </div>
       <div>
         {items.map((item, i) => (
-          <button
+          <MostActiveRow
             key={item.symbol}
-            type="button"
-            onClick={() => onSelect(item.symbol)}
-            className="w-full text-left grid items-center gap-2.5 py-2 cursor-pointer bg-transparent border-0"
-            style={{
-              gridTemplateColumns: "32px 1fr auto",
-              borderTop: i === 0 ? "none" : "1px solid var(--border)",
-            }}
-          >
-            <span
-              className="font-mono text-[12px]"
-              style={{ color: "var(--mute)" }}
-            >
-              {String(i + 1).padStart(2, "0")}
-            </span>
-            <div className="min-w-0">
-              <div className="font-semibold text-[14px]">{item.symbol}</div>
-            </div>
-            <span className="font-mono text-[13px] tabular-nums text-right">
-              {compact(by === "volume" ? item.volume : item.trade_count)}
-            </span>
-          </button>
+            item={item}
+            rank={i}
+            by={by}
+            onSelect={onSelect}
+          />
         ))}
       </div>
     </div>

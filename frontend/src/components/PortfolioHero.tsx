@@ -206,7 +206,7 @@ function ValueCard({
       <div
         className="font-semibold tabular-nums"
         style={{
-          fontSize: "clamp(34px, 5.4vw, 48px)",
+          fontSize: "var(--mob-hero-value, clamp(34px, 5.4vw, 48px))",
           letterSpacing: "-0.028em",
           lineHeight: 1,
         }}
