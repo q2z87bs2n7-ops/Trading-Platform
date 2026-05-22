@@ -10,6 +10,7 @@ import {
 import { isCryptoPosition } from "../../lib/asset-class";
 import type { Position } from "../../types";
 import { useCryptoWatchlist, usePositions, useWatchlist } from "../../data/hooks";
+import { useMobile } from "../../hooks/useMobile";
 import { CmdResult } from "./cards";
 
 interface Turn {
@@ -152,6 +153,7 @@ export default function CmdBar({ open, assetClass, onClose, onOpenInWorkspace }:
   const { data: posData } = usePositions();
   const { data: wl } = useWatchlist();
   const { data: cryptoWl } = useCryptoWatchlist();
+  const isMobile = useMobile();
 
   const siloPositions = useMemo(
     () =>
@@ -266,12 +268,14 @@ export default function CmdBar({ open, assetClass, onClose, onOpenInWorkspace }:
         onClick={(e) => e.stopPropagation()}
         className="mx-auto flex flex-col"
         style={{
-          marginTop: "10vh",
-          maxWidth: 680,
-          width: "calc(100% - 32px)",
-          maxHeight: "80vh",
+          marginTop: isMobile ? 0 : "10vh",
+          maxWidth: isMobile ? "100%" : 680,
+          width: isMobile ? "100%" : "calc(100% - 32px)",
+          maxHeight: isMobile ? "100dvh" : "80vh",
+          height: isMobile ? "100dvh" : "auto",
+          paddingTop: isMobile ? "var(--safe-top)" : undefined,
           background: "var(--panel)",
-          borderRadius: "var(--r-xl)",
+          borderRadius: isMobile ? 0 : "var(--r-xl)",
           boxShadow: "var(--shadow-lg)",
           overflow: "hidden",
           animation: "cmd-up 180ms ease",
@@ -337,7 +341,10 @@ export default function CmdBar({ open, assetClass, onClose, onOpenInWorkspace }:
                     onClick={() => submit(s)}
                     className="text-[13px] cursor-pointer transition-colors"
                     style={{
-                      padding: "8px 12px",
+                      padding: isMobile ? "12px 14px" : "8px 12px",
+                      minHeight: isMobile ? "var(--mob-tap)" : undefined,
+                      width: isMobile ? "100%" : "auto",
+                      textAlign: isMobile ? "left" : "center",
                       background: "var(--panel)",
                       border: "1px solid var(--border)",
                       color: "var(--text-2)",
@@ -422,8 +429,12 @@ export default function CmdBar({ open, assetClass, onClose, onOpenInWorkspace }:
         {/* Composer — pinned at the bottom of the modal. Enter submits;
            Shift+Enter inserts a newline. */}
         <div
-          className="flex items-end gap-2 px-4 py-3"
-          style={{ borderTop: "1px solid var(--hairline)" }}
+          className="flex items-end gap-2 px-4"
+          style={{
+            paddingTop: 12,
+            paddingBottom: isMobile ? "max(var(--safe-bottom), 14px)" : 12,
+            borderTop: "1px solid var(--hairline)",
+          }}
         >
           <textarea
             ref={inputRef}
@@ -458,11 +469,11 @@ export default function CmdBar({ open, assetClass, onClose, onOpenInWorkspace }:
             style={{
               background: "var(--accent)",
               color: "white",
-              padding: "0 14px",
-              height: 36,
+              padding: isMobile ? "0 18px" : "0 14px",
+              height: isMobile ? 44 : 36,
               borderRadius: "var(--r)",
               opacity: text.trim() ? 1 : 0.5,
-              fontSize: 13,
+              fontSize: isMobile ? 14 : 13,
             }}
           >
             Send
