@@ -22,6 +22,7 @@ const RESOLUTION_MAP: Record<string, string> = {
   "15": "15Min",
   "30": "30Min",
   "60": "1Hour",
+  "240": "4Hour",
   "D": "1Day",
   "1D": "1Day",
   "W": "1Week",
@@ -37,7 +38,7 @@ export function createDatafeed() {
     onReady(callback: (config: object) => void) {
       setTimeout(() =>
         callback({
-          supported_resolutions: ["1", "5", "15", "30", "60", "D", "W"],
+          supported_resolutions: ["1", "5", "15", "30", "60", "240", "D", "W"],
           supports_search: true,
           supports_group_request: false,
           supports_marks: false,
@@ -91,7 +92,7 @@ export function createDatafeed() {
             minmov: 1,
             pricescale: 100,
             has_intraday: true,
-            supported_resolutions: ["1", "5", "15", "30", "60", "D", "W"],
+            supported_resolutions: ["1", "5", "15", "30", "60", "240", "D", "W"],
             volume_precision: 0,
             data_status: "streaming",
           });

@@ -18,8 +18,11 @@ _TIMEFRAMES: dict[str, TimeFrame] = {
     "1Min": TimeFrame(1, TimeFrameUnit.Minute),
     "5Min": TimeFrame(5, TimeFrameUnit.Minute),
     "15Min": TimeFrame(15, TimeFrameUnit.Minute),
+    "30Min": TimeFrame(30, TimeFrameUnit.Minute),
     "1Hour": TimeFrame(1, TimeFrameUnit.Hour),
+    "4Hour": TimeFrame(4, TimeFrameUnit.Hour),
     "1Day": TimeFrame(1, TimeFrameUnit.Day),
+    "1Week": TimeFrame(1, TimeFrameUnit.Week),
 }
 
 
