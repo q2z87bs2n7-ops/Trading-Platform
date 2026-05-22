@@ -138,12 +138,21 @@ def get_pnl_history(asset_class: str, period: str = "ALL") -> dict:
     last_close: dict[str, float] = {}
     t_out: list[int] = []
     pnl_out: list[float] = []
+    opening_value: float | None = None
     cur = window_start
     while cur <= today:
         while fi < n and parsed[fi][0].date() <= cur:
             _, sym, side, qty, price = parsed[fi]
             apply_fill(sym, side, qty, price)
             fi += 1
+
+        # Cost-valued baseline of the first populated day. Prepended below so
+        # that an account that only traded today still draws an entry→now line
+        # (a single daily point can't, and the daily axis lags intraday).
+        if opening_value is None:
+            opening_value = (
+                sum(lot[0] * lot[1] for dq in lots.values() for lot in dq) + realized
+            )
 
         iso = cur.isoformat()
         if cur == today:
@@ -167,5 +176,11 @@ def get_pnl_history(asset_class: str, period: str = "ALL") -> dict:
         t_out.append(int(_start_dt(cur).timestamp()))
         pnl_out.append(round(market_value + realized, 2))
         cur += timedelta(days=1)
+
+    # Prepend the entry-cost anchor so the curve starts at notional invested
+    # and always has ≥2 points once there is any trade history.
+    if opening_value is not None:
+        t_out.insert(0, int(_start_dt(window_start).timestamp()))
+        pnl_out.insert(0, round(opening_value, 2))
 
     return {"t": t_out, "pnl": pnl_out}
