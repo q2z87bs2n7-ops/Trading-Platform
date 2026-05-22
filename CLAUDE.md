@@ -12,7 +12,8 @@ A serious hobby-grade paper-trading platform on the
 [Alpaca](https://alpaca.markets/) API. Full paper trading: orders
 (market/limit/stop/stop-limit/trailing, bracket/OCO), cancel/replace,
 close positions, portfolio & P/L, persisted watchlists, asset search,
-real-time streaming.
+real-time streaming. Supports both **US equities** and **crypto** in
+separate silos behind a shared account.
 
 **Hard rules — do not cross without an explicit, deliberate decision:**
 
@@ -46,25 +47,39 @@ real-time streaming.
 ## Architecture (high level)
 
 - **Frontend:** React 18 + TypeScript + Vite, single-page (no router).
-  A header pill toggle switches between three modes, persisted to
-  `localStorage('platform_mode')`:
-  - **Discover** (default) — `Tools.tsx`: balance + allocation hero,
-    indices/watchlist sparkline rows, inline chart, gainers/losers,
-    market news.
-  - **Portfolio** — `PortfolioHero` + `Positions` (strip variant) +
-    `Orders` + `Activities`. `TopBar` status strip mounts here and in
-    Chart mode (TV's Account Manager is suppressed).
+  On first visit `AssetClassSplash.tsx` prompts the user to pick
+  **Stocks** or **Crypto**; the choice persists to
+  `localStorage('asset_class_mode')` and is switchable from a header
+  toggle at any time. The header pill then switches between three modes,
+  persisted to `localStorage('platform_mode')`:
+  - **Discover** (default)
+    - *Stocks* — `Tools.tsx`: balance + allocation hero, indices
+      marquee ticker, watchlist sparkline cards, inline chart,
+      gainers/losers tabbed card (with most-active volume), market news.
+    - *Crypto* — `CryptoTools.tsx`: crypto price marquee ticker,
+      balance + allocation hero (crypto positions only), crypto watchlist
+      sparkline cards, inline chart, BTC news feed. No movers/most-active
+      (Alpaca has no crypto screener).
+  - **Portfolio** — `PortfolioHero` + `Positions` (strip variant, filtered
+    by asset class) + `Orders` (filtered) + `Activities`. `TopBar` status
+    strip mounts here and in Chart mode.
   - **Chart** — `TVPlatform.tsx` wraps the full TradingView Charting
     Library (`frontend/public/charting_library/`, committed — private
     repo only) in our own chrome: `ChartTopBar`, `IndicatorPillsRow`,
-    `ChartBlotter`, floating `TradeBar`. TV's native top header and
-    trading UI are suppressed via `disabled_features`; the broker
-    stays wired so price-line overlays for open orders/positions
-    draw. Datafeed: `lib/tv-datafeed.ts`. Broker: `lib/tv-broker.ts`.
-    ChartBot side panel mounts here when `AI_CHAT_ENABLED=true`.
+    `ChartBlotter` (filtered by asset class), floating `TradeBar`. TV's
+    native top header and trading UI are suppressed via
+    `disabled_features`; the broker stays wired so price-line overlays
+    for open orders/positions draw. Datafeed: `lib/tv-datafeed.ts`.
+    Broker: `lib/tv-broker.ts`. ChartBot side panel mounts here when
+    `AI_CHAT_ENABLED=true`.
 - **Order entry.** `hooks/useOrderTicket.ts` owns all form state
   (symbol/side/type/qty/limit/stop/trail/TIF/ext-hours) plus asset
   lookup, live quote, est notional, validation, and submission.
+  Crypto constraints are enforced here: TIF limited to `gtc`/`ioc`;
+  no `trailing_stop`; no extended hours; `non_marginable_buying_power`
+  used (not `buying_power`) since Alpaca doesn't extend margin for crypto.
+  `isCrypto` is detected synchronously via `symbol.includes("/")` so
+  constraints apply before the async asset fetch resolves.
   UI surfaces in `components/trade/`: `OrderSheet` (bottom-sheet
   form), `TradeBar` (floating Buy/Sell pill, mounted in every mode),
   `ClosePositionCard`, `ModifyOrderCard`, `ConfirmCard`. The Ask
@@ -74,21 +89,39 @@ real-time streaming.
   `api/index.py` is the Vercel shim. Endpoints under `/api/`: health,
   config, account, bars, quotes, snapshots, stream, orders, positions,
   portfolio/history, activities, clock, calendar, assets, news,
-  watchlist, movers, most-active, indices, market-news, ai/chat,
-  ai/ask (last two gated by `AI_CHAT_ENABLED`; require
+  watchlist, movers, most-active, indices, market-news, crypto/tickers,
+  ai/chat, ai/ask (last two gated by `AI_CHAT_ENABLED`; require
   `ANTHROPIC_API_KEY`). `/api/indices` and `/api/market-news` hit
   Yahoo Finance directly via `requests` (no yfinance, no C extensions
   — Python 3.14 safe). `/api/news`, `/api/most-active`, `/api/assets`
   are still served but only consumed by the AI tool loop — don't
   delete them.
+  **Path params with slashes:** `/api/assets/{symbol:path}`,
+  `/api/positions/{symbol:path}`, and `/api/watchlist/{symbol:path}`
+  use FastAPI's `:path` converter so `BTC/USD` passes through without
+  breaking routing. Frontend never calls `encodeURIComponent` on symbol
+  path segments (symbols are `[A-Z0-9/.]` only).
+  **Account fields:** `get_account()` returns `buying_power` (may
+  include margin) and `non_marginable_buying_power` (cash-only; correct
+  figure for crypto trades). Use the latter in crypto contexts.
+  **Positions:** `_position_dict` normalises crypto symbols from
+  `BTCUSD` back to `BTC/USD` (Alpaca strips the slash in its positions
+  endpoint) and includes `asset_class`. Use `asset_class === "crypto"`
+  — not `symbol.includes("/")` — to filter positions.
 - **Data feed:** IEX (free, ~2-3% of volume). `sip` (paid) via
   `ALPACA_DATA_FEED` env — no code change.
-- **Streaming:** One shared Alpaca `StockDataStream` per process,
-  fanned to browsers over hand-rolled SSE (`backend/app/stream.py` →
-  `/api/stream`). Watchlist prefers stream and **auto-falls-back to
-  polling `/api/quotes`** when stream is unreachable — load-bearing.
+- **Streaming:** `backend/app/stream.py` holds two hub singletons:
+  `hub` (`QuoteHub` — Alpaca `StockDataStream`) and `crypto_hub`
+  (`CryptoQuoteHub` — Alpaca `CryptoDataStream`). Both follow the same
+  fan-out SSE pattern. `/api/stream` detects `all("/" in s for s in syms)`
+  and routes to the appropriate hub. The watchlist **auto-falls-back to
+  polling `/api/quotes`** when the stream is unreachable — load-bearing.
   See `docs/landmines.md` for buffering, `VITE_STREAM_BASE`, and CORS
   details.
+- **Watchlists:** Two named Alpaca watchlists per account — `"primary"`
+  (stocks) and `"primary-crypto"` (crypto, seeded with BTC/ETH/SOL).
+  All three `/api/watchlist` routes accept `?asset_class=crypto` to
+  target the crypto list.
 - **PWA:** `vite-plugin-pwa`. NetworkFirst for API, CacheFirst for
   static; charting library excluded from precache.
 - **Persistence:** Backlogged Postgres (Supabase/Neon). Today Alpaca
@@ -104,6 +137,7 @@ real-time streaming.
 
 | Key | Writer | Read by | Notes |
 | --- | ------ | ------- | ----- |
+| `asset_class_mode` | `App.tsx` | `App.tsx` | `"stocks" \| "crypto"`. Absent on first visit → `AssetClassSplash` shown. |
 | `platform_mode` | `App.tsx` | `App.tsx` | `"discover" \| "portfolio" \| "chart"`. Migrates legacy `"trading"` → `"portfolio"` and `"chartbot"` / `"tv"` → `"chart"` on first load. |
 | `theme` | `hooks/useTheme.ts` + `index.html` bootstrap | both | `"light" \| "dark"`. Defaults to OS preference. |
 | `chartbot_session` | `useChatSession` | `useChatSession` | Serialised turns + apiHistory, capped at 256 KB. |
@@ -111,7 +145,7 @@ real-time streaming.
 | `chart_blotter_collapsed` | `ChartBlotter` | `ChartBlotter` | `"1"` collapsed. |
 | `app_settings_v1` | `lib/settings.ts` | `useSettings` + `SettingsMenu` | JSON-encoded `AppSettings`. Today: `cmdbarAiEnabled` (default `true`). |
 
-Watchlist is not in localStorage — server-side via `/api/watchlist`.
+Watchlists are not in localStorage — server-side via `/api/watchlist`.
 
 ## Three deploy targets (do not conflate)
 
@@ -123,8 +157,8 @@ Watchlist is not in localStorage — server-side via `/api/watchlist`.
 2. **Render — always-on relay**, from `render.yaml` (Blueprint),
    single Docker instance from `backend/Dockerfile`. The *only* host
    that can hold the Alpaca WebSocket open for `/api/stream`. Never
-   run >1 instance — `QuoteHub` is process-local with no external
-   pub/sub.
+   run >1 instance — `QuoteHub` and `CryptoQuoteHub` are process-local
+   with no external pub/sub.
 3. **GitHub Pages — dev previews**, via `preview-pages.yml`. Static
    frontend only; talks to the Vercel prod backend. Auto-publishes to
    `gh-pages` on every `claude/**` push. Cannot trigger a Vercel

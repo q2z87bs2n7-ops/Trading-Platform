@@ -11,6 +11,12 @@ area.
   over **hand-rolled SSE** (`backend/app/stream.py` → `/api/stream`). No
   `sse-starlette` dep; `alpaca-py` ships the stream client. Don't add
   streaming deps casually.
+- Crypto streaming uses a parallel `CryptoQuoteHub` subclass that
+  overrides `_make_stream()` to return `CryptoDataStream` instead of
+  `StockDataStream`. The `/api/stream` endpoint detects
+  `all("/" in s for s in syms)` and routes to the correct hub. Both hubs
+  are module-level singletons — never instantiate more than one of each.
+  `CryptoDataStream` does **not** take a `feed` parameter; omit it.
 - Watchlist **prefers the stream and auto-falls-back to polling
   `/api/quotes`** when the stream is unreachable (Vercel/Pages have no
   relay). Load-bearing — keep it. `EventSource` auto-reconnect is
@@ -54,6 +60,39 @@ Vercel's serverless Python builder forces **Python 3.14** and ignores
   or prod 500s on the first import. CI (`check-requirements-sync` in
   `lint-backend.yml`) diffs the two files and fails the build on
   divergence; `uvicorn` is intentionally backend-only and excluded.
+
+## Symbols with slashes (crypto path params)
+
+Alpaca crypto symbols contain a slash (`BTC/USD`). This breaks standard
+FastAPI path parameters:
+
+- **Backend:** any route whose `{symbol}` might be a crypto pair must
+  use `{symbol:path}` (FastAPI's path converter). Currently applied to
+  `/api/assets/{symbol:path}`, `/api/positions/{symbol:path}`, and
+  `/api/watchlist/{symbol:path}`.
+- **Frontend:** never call `encodeURIComponent` on a symbol used in a
+  path segment. Alpaca symbols are `[A-Z0-9/.]` only — pass them
+  literally. `encodeURIComponent("BTC/USD")` → `BTC%2FUSD` which the
+  server receives as two path segments → 404.
+- **Positions endpoint:** Alpaca's REST API strips the slash from crypto
+  position symbols (`BTC/USD` → `BTCUSD`). `_position_dict` in
+  `backend/app/alpaca/account.py` re-inserts it. Never rely on
+  `position.symbol.includes("/")` in the frontend to detect crypto —
+  use `position.asset_class === "crypto"` instead (the field is
+  included in the position response).
+
+## Crypto order constraints
+
+Alpaca paper crypto has narrower order support than equities:
+
+- **TIF:** only `gtc` and `ioc` are valid. `day`, `opg`, `cls`, `fok`
+  all 422. `useOrderTicket` detects crypto synchronously via
+  `symbol.includes("/")` (before the async asset fetch) and defaults
+  TIF to `gtc`.
+- **Order types:** `trailing_stop` is not supported for crypto.
+- **Margin:** Alpaca does not extend margin for crypto. Use
+  `non_marginable_buying_power` (not `buying_power`) for buying-power
+  display and after-order estimates in crypto contexts.
 
 ## Chart mode (TradingView bridge)
 
@@ -111,6 +150,12 @@ places TV interface.
   direction prop → `setSymbol` effect has an equality guard so an
   in-TV change round-tripping through App doesn't refire `setSymbol`
   and rebuild drawings pointlessly.
+- **Crypto symbols in the TV datafeed.** `resolveSymbol` sets
+  `session: "24x7"`, `timezone: "UTC"`, `type: "crypto"`, and
+  `exchange: "CRYPTO"` when `asset_class === "crypto"`. These differ
+  from equity defaults and are required for TV to render the chart
+  correctly. Detection uses `data.asset_class` from the asset API
+  response (not the symbol slash) to avoid any normalisation mismatch.
 - **Themed left toolbar via `custom_css_url`.** TV's drawing rail
   stays TV-native; `frontend/public/tv-themed.css` re-tunes its CSS
   variables against the Calm palette. Don't hand-roll a React drawing

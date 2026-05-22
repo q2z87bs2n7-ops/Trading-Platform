@@ -6,30 +6,37 @@ A paper-trading dashboard built on the [Alpaca](https://alpaca.markets/) API.
 watchlist, candlestick charts, asset search, market clock, and the full
 order path (market/limit/stop/stop-limit/trailing, bracket/OCO, replace,
 cancel, close positions) with a positions/orders/activities blotter.
-Paper account only — there is no live-trading path.
+Supports **US equities** and **crypto** in separate silos. Paper account
+only — there is no live-trading path.
 
-A three-pill header toggle switches between UI modes:
-- **Discover** (default) — market overview: a portfolio balance + monochrome
-  teal allocation donut hero, horizontal-scroll sparkline cards for indices
-  and the user watchlist, an inline chart card, top gainers / losers, and
-  a flat market news feed.
-- **Portfolio** — positions strip (one card per position), open-orders
-  table, equity-curve sparkline, and account activity. Order entry is
-  the floating bottom-center **TradeBar** pill that opens a bottom-sheet
-  order ticket.
+On first visit an **asset class splash** asks whether to start in Stocks or
+Crypto. The choice persists across sessions and can be changed from the
+header toggle at any time. Both sides share the same three-pill mode
+toggle:
+
+- **Discover** (default)
+  - *Stocks* — portfolio balance + allocation donut, indices marquee ticker,
+    watchlist sparkline cards, inline chart, tabbed gainers / losers +
+    most-active volume, market news feed.
+  - *Crypto* — live crypto price marquee, balance + allocation hero (crypto
+    positions only), crypto watchlist sparkline cards, inline chart, BTC
+    news. No movers/most-active (Alpaca has no crypto screener).
+- **Portfolio** — positions strip (one card per position, filtered to the
+  active asset class), open-orders table, equity-curve sparkline, and
+  account activity. Order entry is the floating bottom-centre **TradeBar**
+  pill that opens a bottom-sheet order ticket.
 - **Chart** — full TradingView Charting Library terminal wrapped in a
   custom Calm chrome: own top toolbar with TF / chart-type / indicator
   popovers, TV's native drawing rail on the left (themed), and a tabbed
-  Positions / Orders / Activity blotter below. Order entry is the same
-  floating **TradeBar** pill used in Portfolio. Includes an optional
+  Positions / Orders / Activity blotter below (filtered by asset class).
+  Order entry is the same floating **TradeBar** pill. Includes an optional
   **ChartBot side panel** (violet · AI chat — see *AI chat* below).
 
-A **⌘K command bar** (centered modal, teal accent) is available from
-every mode — press `⌘K` (or `Ctrl+K`), or click the "Ask anything" pill
-in the top nav. It's a local regex-based intent parser (no LLM, no
-Anthropic credits) that handles orders ("buy 50 AMD at market"),
-portfolio queries, movers, news, open orders, and inline symbol previews
-that can open in the Chart workspace.
+A **⌘K command bar** (centred modal, teal accent) is available from every
+mode — press `⌘K` (or `Ctrl+K`), or click the "Ask anything" pill in the
+top nav. It is a local regex-based intent parser (no LLM, no Anthropic
+credits) that handles orders ("buy 50 AMD at market"), portfolio queries,
+movers, news, open orders, and inline symbol previews.
 
 Theme switches between light and dark via the moon / sun toggle in the
 top nav; preference persists in `localStorage`.
@@ -38,6 +45,8 @@ top nav; preference persists in `localStorage`.
 
 - **Backend:** FastAPI + `alpaca-py` (REST reads + a real-time quote stream
   over Server-Sent Events, with REST polling as automatic fallback).
+  Separate `StockDataStream` and `CryptoDataStream` hubs; the SSE endpoint
+  auto-routes based on symbol format.
 - **Frontend:** React + TypeScript (Vite) + Tailwind on the Calm v2 token
   set (light + dark in oklch, Inter + IBM Plex Mono). Three modes —
   Discover, Portfolio, and Chart (the full Charting Library at
@@ -145,16 +154,16 @@ preview perfectly; backend API changes only take effect once merged to
 
 ### Real-time streaming (persistent relay)
 
-`/api/stream` is a Server-Sent Events endpoint backed by a single shared
-Alpaca WebSocket (`backend/app/stream.py`). It needs an **always-on**
+`/api/stream` is a Server-Sent Events endpoint backed by shared Alpaca
+WebSocket hubs (`backend/app/stream.py`). It needs an **always-on**
 process, which Vercel's serverless functions are not — so the stream runs
 as a separate deployment and the frontend falls back to polling whenever it
-is unreachable (which is what happens on Vercel/Pages until a relay exists).
+is unreachable.
 
 1. **Deploy the relay.** Any container host works (Render, Fly, Railway, a
    VM). Build `backend/Dockerfile` and set the same Alpaca env vars used in
    Vercel (`ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `ALPACA_PAPER=true`,
-   `ALPACA_DATA_FEED=iex`). Run a **single** instance — the hub keeps one
+   `ALPACA_DATA_FEED=iex`). Run a **single** instance — the hubs keep one
    shared upstream stream per process.
 2. **Point the frontend at it** with the relay's public URL (e.g.
    `https://trading-relay-xxxx.onrender.com`). It is read at build time, so
@@ -179,7 +188,8 @@ paid Alpaca data plan for the full consolidated tape.
   the Portfolio mode `TopBar` indicates when the stream is unavailable.
 - Keys live only in `backend/.env`, which is gitignored. Never commit it.
 - Default watchlist symbols are configurable via `DEFAULT_SYMBOLS` in `.env`.
-- Browser state is in `localStorage`: `platform_mode` (discover /
+- Browser state is in `localStorage`: `asset_class_mode` (stocks / crypto,
+  absent on first visit → splash shown), `platform_mode` (discover /
   portfolio / chart, with one-shot migration from legacy values),
   `theme` (light / dark), `chartbot_session` (256 KB byte budget —
   oldest user+assistant pairs drop once the budget is exceeded),

@@ -55,10 +55,7 @@
   recreates the widget on theme toggle because this build's
   `changeTheme` isn't reliable. Drawings + studies + active TF all
   reset across the swap. Move to `changeTheme()` once available.
-- **Account equity in TV header** — `accountInfo()` returns buying power
-  and equity, and the Account Manager summary row updates live via
-  `WatchedValue`s. TV's header strip is now hidden (`disabled_features:
-  header_widget`), so this is moot unless we un-hide the header strip.
+
 ## AI chart assistant — deferred
 
 - **Multi-pane chart layouts** — TV exposes `setLayout()` /
@@ -70,7 +67,7 @@
 - **AI saveChart / loadChart** — TV's `saveChart()` / `loadChart()` can
   persist whole chart layouts (symbol, drawings, studies, view state).
   Needs a storage layer; do this on top of the Postgres persistence
-  layer above. Naming convention TBD (per-user named views).
+  layer above.
 - **Discover-mode AI** — the ChartBot panel is Chart-mode-only today.
   Extending to Discover needs a mode-aware system prompt, a trimmed
   tool set (no chart-only tools), and a new UI surface. The ⌘K bar
@@ -79,3 +76,13 @@
 - **`createAlert` integration** — TV has a native alert API but no
   notification path exists in this app; defer until alerts have
   somewhere to go.
+
+## Crypto
+
+- **Crypto movers / screener** — Alpaca has no gainers/losers or
+  most-active endpoint for crypto. A Yahoo Finance or CoinGecko fallback
+  could fill this gap on the CryptoTools Discover page.
+- **Crypto streaming on Render relay** — `CryptoQuoteHub` is wired but
+  only tested locally. Verify the Render deployment holds both
+  `StockDataStream` and `CryptoDataStream` connections simultaneously
+  without OOM.
