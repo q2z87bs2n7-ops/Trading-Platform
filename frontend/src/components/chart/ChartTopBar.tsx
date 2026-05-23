@@ -72,16 +72,26 @@ interface Props {
   symbol: string;
   onChartBotClick?: () => void;
   onSelectSymbol?: (s: string) => void;
+  assetClass?: "stocks" | "crypto";
 }
 
 export default function ChartTopBar({
   symbol,
   onChartBotClick,
   onSelectSymbol,
+  assetClass,
 }: Props) {
   const [resolution, setResolution] = useState<string>("D");
   const [typeOpen, setTypeOpen] = useState(false);
   const [indOpen, setIndOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  // Search the active silo so results match the mode you're in.
+  const searchSilo =
+    assetClass === "crypto"
+      ? "crypto"
+      : assetClass === "stocks"
+        ? "us_equity"
+        : "";
   const [tvReady, setTvReady] = useState(!!getTVWidget());
   const { quotes } = useLiveQuotes(symbol ? [symbol] : []);
   const quote = quotes[symbol];
@@ -152,6 +162,7 @@ export default function ChartTopBar({
 
   if (isMobile) {
     return (
+      <>
       <div
         style={{
           display: "flex",
@@ -163,6 +174,29 @@ export default function ChartTopBar({
           borderBottom: "1px solid var(--hairline)",
         }}
       >
+        {/* Symbol search (full-screen sheet — the scrolling row would clip a
+            dropdown) */}
+        {onSelectSymbol && (
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            aria-label="Search symbol"
+            style={{
+              fontSize: 14,
+              lineHeight: 1,
+              padding: "5px 10px",
+              borderRadius: 999,
+              whiteSpace: "nowrap",
+              background: "transparent",
+              color: "var(--text-2)",
+              border: "1px solid var(--border)",
+              cursor: "pointer",
+            }}
+          >
+            🔍
+          </button>
+        )}
+
         {/* Compact symbol + live price */}
         <span
           className="font-semibold"
@@ -210,6 +244,57 @@ export default function ChartTopBar({
         {/* ⋯ overflow — chart type + indicators */}
         <OverflowMenu onPickType={setType} onAddIndicator={addIndicator} tvReady={tvReady} />
       </div>
+
+      {searchOpen && onSelectSymbol && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50"
+          style={{ background: "rgba(20,22,28,0.45)" }}
+          onClick={() => setSearchOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              top: 0,
+              background: "var(--panel)",
+              borderBottomLeftRadius: 18,
+              borderBottomRightRadius: 18,
+              boxShadow: "var(--shadow-lg)",
+              padding: "16px",
+              paddingTop: "max(var(--safe-top), 16px)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+            }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="text-[14px] font-semibold">Search symbol</div>
+              <button
+                type="button"
+                onClick={() => setSearchOpen(false)}
+                className="text-[13px] cursor-pointer"
+                style={{ color: "var(--text-2)", background: "transparent", border: 0 }}
+              >
+                Cancel
+              </button>
+            </div>
+            <AssetSearch
+              variant="sheet"
+              autoFocus
+              assetClass={searchSilo}
+              onChoose={(s) => {
+                onSelectSymbol(s);
+                setSearchOpen(false);
+              }}
+            />
+          </div>
+        </div>
+      )}
+      </>
     );
   }
 
@@ -237,7 +322,11 @@ export default function ChartTopBar({
 
       {/* Symbol search — swaps the chart to any catalogue instrument */}
       {onSelectSymbol && (
-        <AssetSearch assetClass="" align="left" onChoose={onSelectSymbol} />
+        <AssetSearch
+          assetClass={searchSilo}
+          align="left"
+          onChoose={onSelectSymbol}
+        />
       )}
 
       <div
