@@ -18,13 +18,26 @@ from .alpaca.trading import get_all_assets_for_seed
 _log = logging.getLogger(__name__)
 
 
-def enrich_stocks(symbols: list[str], force: bool = False) -> dict:
-    """Enrich the given us_equity rows from FMP (single-symbol, ~250/day cap).
-    Skips already-enriched symbols unless ``force``."""
+def enrich_stocks(
+    symbols: list[str] | None = None,
+    exchange: str = "",
+    limit: int = 100,
+    force: bool = False,
+) -> dict:
+    """Enrich us_equity rows from FMP (single-symbol, ~250/day cap). Either an
+    explicit ``symbols`` list, or auto-pull the next ``limit`` un-enriched rows
+    for ``exchange`` (real/options-listed first). Skips already-enriched unless
+    ``force``."""
     if not db.db_enabled():
         return {"error": "DATABASE_URL not configured"}
     if not fmp.configured():
         return {"error": "FMP_API_KEY not configured"}
+
+    if not symbols and exchange:
+        symbols = db.unenriched_stock_symbols(exchange.upper(), limit)
+    symbols = symbols or []
+    if not symbols:
+        return {"error": "no symbols (pass symbols=... or exchange=...)"}
 
     t0 = time.monotonic()
     already = set() if force else db.enriched_stock_symbols()

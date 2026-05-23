@@ -190,6 +190,27 @@ def enriched_stock_symbols() -> set[str]:
         return {row[0] for row in cur.fetchall()}
 
 
+def unenriched_stock_symbols(exchange: str, limit: int) -> list[str]:
+    """Next un-enriched us_equity symbols for an exchange, options-listed
+    (real, liquid companies) first so budget isn't spent on SPACs/warrants
+    until the tail."""
+    with _connect() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT symbol FROM assets
+            WHERE asset_class = 'us_equity'
+              AND exchange = %s
+              AND enrichment_source IS NULL
+            ORDER BY (attributes @> ARRAY['has_options']::text[]) DESC NULLS LAST,
+                     symbol
+            LIMIT %s
+            """,
+            (exchange, limit),
+        )
+        return [row[0] for row in cur.fetchall()]
+
+
 def upsert_stock_enrichment(e: dict) -> None:
     """Write FMP stock-enrichment columns for one us_equity row."""
     with _connect() as conn:

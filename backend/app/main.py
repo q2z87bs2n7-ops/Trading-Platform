@@ -371,15 +371,19 @@ def seed_assets(force: bool = Query(False), base: bool = Query(True)) -> dict:
 
 
 @app.post("/api/_dev/enrich-stocks", dependencies=[Depends(require_configured)])
-def enrich_stocks(symbols: str = Query(""), force: bool = Query(False)) -> dict:
-    """Enrich specific us_equity rows from FMP. Dev tool; Render-only.
-    Single-symbol + 250/day on the free tier, so pass a budgeted list:
-    curl -X POST 'https://<render-url>/api/_dev/enrich-stocks?symbols=AAPL,MSFT'"""
+def enrich_stocks(
+    symbols: str = Query(""),
+    exchange: str = Query(""),
+    limit: int = Query(100),
+    force: bool = Query(False),
+) -> dict:
+    """Enrich us_equity rows from FMP. Dev tool; Render-only. Single-symbol +
+    250/day on the free tier. Either an explicit list or auto-pull the next
+    un-enriched rows for an exchange (real/options-listed first):
+    curl -X POST 'https://<render-url>/api/_dev/enrich-stocks?exchange=NASDAQ&limit=100'"""
     syms = [s.strip().upper() for s in symbols.split(",") if s.strip()]
-    if not syms:
-        return {"error": "pass ?symbols=AAPL,MSFT,..."}
     from .seed import enrich_stocks as _enrich
-    return _enrich(syms, force=force)
+    return _enrich(symbols=syms or None, exchange=exchange, limit=min(limit, 250), force=force)
 
 
 @app.get("/api/stream")
