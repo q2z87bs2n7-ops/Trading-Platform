@@ -365,7 +365,9 @@ READ_TOOLS: list[dict[str, Any]] = [
                     "type": "string",
                     "description": (
                         "Stocks only. Partial industry match, e.g. "
-                        "'Biotechnology', 'Banks', 'Semiconductors'."
+                        "'Biotechnology', 'Banks', 'Semiconductors'. Uses FMP's "
+                        "labels; on a no-match the result lists real "
+                        "industry_suggestions to retry with."
                     ),
                 },
                 "asset_type": {
@@ -408,6 +410,19 @@ READ_TOOLS: list[dict[str, Any]] = [
                 "ipo_before": {
                     "type": "string",
                     "description": "Stocks only. IPO on/before this date (YYYY-MM-DD).",
+                },
+                "sort_by": {
+                    "type": "string",
+                    "enum": [
+                        "market_cap_desc", "market_cap_asc", "beta_desc",
+                        "beta_asc", "ipo_newest", "ipo_oldest",
+                    ],
+                    "description": (
+                        "Result ordering (default 'market_cap_desc' = biggest "
+                        "first). Use 'market_cap_asc' for smallest/cheapest "
+                        "first. beta_* and ipo_* are stocks-only; crypto "
+                        "supports only the market_cap sorts."
+                    ),
                 },
                 "limit": {
                     "type": "integer",

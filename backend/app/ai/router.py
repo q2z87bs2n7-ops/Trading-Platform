@@ -194,6 +194,7 @@ def _execute_read_tool(
                 exchange=args.get("exchange"),
                 ipo_after=args.get("ipo_after"),
                 ipo_before=args.get("ipo_before"),
+                sort_by=args.get("sort_by"),
                 limit=args.get("limit", 20),
             )
         except db.DbUnavailable:

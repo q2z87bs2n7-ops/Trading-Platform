@@ -257,6 +257,31 @@ _SCREEN_SECTORS = frozenset({
 })
 _SCREEN_EXCHANGES = frozenset({"NASDAQ", "NYSE", "ARCA", "BATS", "AMEX", "OTC"})
 
+# Whitelisted sort keys -> fixed ORDER BY fragments. Values never come from the
+# caller, so the fragment is safe to inline; the model only picks a key.
+_SORT_MAP = {
+    "market_cap_desc": "market_cap DESC NULLS LAST",
+    "market_cap_asc":  "market_cap ASC NULLS LAST",
+    "beta_desc":       "beta DESC NULLS LAST",
+    "beta_asc":        "beta ASC NULLS LAST",
+    "ipo_newest":      "ipo_date DESC NULLS LAST",
+    "ipo_oldest":      "ipo_date ASC NULLS LAST",
+}
+_CRYPTO_SORTS = frozenset({"market_cap_desc", "market_cap_asc"})  # crypto rows have no beta/ipo
+
+
+def _resolve_sort(sort_by, is_crypto):
+    """Pure: map a sort key -> (order_sql, resolved_key, ignored_note|None).
+    Unknown keys, or stocks-only keys on a crypto screen, fall back to
+    market_cap_desc and report why via the note."""
+    key = sort_by or "market_cap_desc"
+    if key not in _SORT_MAP:
+        note = f"sort_by={sort_by}" if sort_by else None
+        return _SORT_MAP["market_cap_desc"], "market_cap_desc", note
+    if is_crypto and key not in _CRYPTO_SORTS:
+        return _SORT_MAP["market_cap_desc"], "market_cap_desc", f"sort_by={key} (stocks-only)"
+    return _SORT_MAP[key], key, None
+
 
 def _clampf(v, lo=None, hi=None):
     """Coerce to float, reject NaN/inf, clamp to [lo, hi]; None on bad input."""
@@ -374,7 +399,7 @@ def screen_assets(*, asset_class="us_equity", sector=None, industry=None,
                   asset_type="stock", category=None, market_cap_min=None,
                   market_cap_max=None, beta_min=None, beta_max=None,
                   exchange=None, ipo_after=None, ipo_before=None,
-                  limit=20) -> dict:
+                  sort_by=None, limit=20) -> dict:
     """Structured screen over the catalogue — visibility-filtered (enriched +
     tradable), parameterised, capped. Returns a count + top-N-by-market-cap
     envelope; crypto results collapse to one row per base coin (preferring the
@@ -392,6 +417,9 @@ def screen_assets(*, asset_class="us_equity", sector=None, industry=None,
         exchange, ipo_after, ipo_before,
     )
     is_crypto = ac == "crypto"
+    order_sql, sorted_key, sort_ignored = _resolve_sort(sort_by, is_crypto)
+    if sort_ignored:
+        ignored.append(sort_ignored)
 
     with _connect() as conn:
         cur = conn.cursor()
@@ -406,7 +434,7 @@ def screen_assets(*, asset_class="us_equity", sector=None, industry=None,
                 " SELECT DISTINCT ON (split_part(symbol, '/', 1)) symbol, name,"
                 " market_cap, market_cap_rank FROM assets WHERE " + where_sql +
                 " ORDER BY split_part(symbol, '/', 1), (right(symbol, 4) = '/USD') DESC,"
-                " symbol) t ORDER BY market_cap DESC NULLS LAST, symbol LIMIT %s",
+                " symbol) t ORDER BY " + order_sql + ", symbol LIMIT %s",
                 params + [lim],
             )
             cols = ("symbol", "name", "market_cap", "market_cap_rank")
@@ -417,7 +445,7 @@ def screen_assets(*, asset_class="us_equity", sector=None, industry=None,
             cur.execute(
                 "SELECT symbol, COALESCE(name, symbol), sector, industry, market_cap,"
                 " beta FROM assets WHERE " + where_sql +
-                " ORDER BY market_cap DESC NULLS LAST, symbol LIMIT %s",
+                " ORDER BY " + order_sql + ", symbol LIMIT %s",
                 params + [lim],
             )
             cols = ("symbol", "name", "sector", "industry", "market_cap", "beta")
@@ -427,7 +455,7 @@ def screen_assets(*, asset_class="us_equity", sector=None, industry=None,
             "total_matches": total,
             "returned": len(results),
             "has_more": total > len(results),
-            "sorted_by": "market_cap_desc",
+            "sorted_by": sorted_key,
             "asset_class": ac,
             "filters_applied": applied,
             "results": results,
@@ -440,6 +468,23 @@ def screen_assets(*, asset_class="us_equity", sector=None, industry=None,
                 " filter, or set asset_type='any'. Only enriched, tradable assets are"
                 " screenable (large & options-listed US names + major crypto)."
             )
+            # Industry is a free-text partial match; a miss usually means the
+            # caller guessed FMP's label wrong (e.g. 'Pharma' vs 'Drug
+            # Manufacturers'). Hand back the real values so it can retry.
+            if not is_crypto and "industry" in applied:
+                sug_where = ("tradable = true AND enrichment_source IS NOT NULL"
+                             " AND asset_class = 'us_equity' AND industry IS NOT NULL")
+                sug_params: list = []
+                if "sector" in applied:
+                    sug_where += " AND sector = %s"; sug_params.append(applied["sector"])
+                cur.execute(
+                    "SELECT DISTINCT industry FROM assets WHERE " + sug_where
+                    + " ORDER BY industry", sug_params,
+                )
+                all_inds = [r[0] for r in cur.fetchall()]
+                toks = [t for t in str(industry).lower().replace("-", " ").replace("/", " ").split() if t]
+                ranked = sorted(all_inds, key=lambda s: (0 if any(t in s.lower() for t in toks) else 1, s))
+                out["industry_suggestions"] = ranked[:15]
         elif not is_crypto and out["has_more"] and "sector" not in applied:
             cur.execute(
                 "SELECT COALESCE(sector, '(unknown)'), COUNT(*) FROM assets WHERE "

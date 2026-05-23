@@ -229,9 +229,10 @@ the user should verify against their own criteria.
     supply, ATH). Use for fundamentals/classification of a specific symbol; \
     use `find_symbol` to resolve a vague name first.
   - `screen_assets` — filter the catalogue by structured criteria (sector, \
-    industry, market-cap range, beta, crypto category) and rank by market \
-    cap. Use when the user wants a SET of assets by attributes ('large-cap \
-    healthcare stocks', 'DeFi coins'), not a single named one. Screens the \
+    industry, market-cap range, beta, crypto category) and sort (default \
+    biggest market cap first; `sort_by='market_cap_asc'` for smallest). Use \
+    when the user wants a SET of assets by attributes ('large-cap healthcare \
+    stocks', 'DeFi coins'), not a single named one. Screens the \
     curated/enriched universe; stock screens exclude ETFs unless asset_type \
     is set.
   - `get_activities` — trade fills, dividends, fees; use for history and \
