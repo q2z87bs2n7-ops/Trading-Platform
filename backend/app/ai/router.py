@@ -503,14 +503,26 @@ def ai_ask(req: AskRequest) -> AskResponse:
     context += (
         " You can edit the watchlist (add_to_watchlist / remove_from_watchlist,"
         " bulk) — validate symbols are tradable before adding. For themed/sector"
-        " lists (e.g. 'top 10 pharma stocks') name the tickers from your own"
-        " knowledge, then validate. generate_report builds a downloadable CSV"
+        " watchlist requests (e.g. 'add some large-cap pharma names'), use"
+        " screen_assets to pull tradable, enriched candidates from the catalogue,"
+        " then add_to_watchlist; only name tickers from your own knowledge when"
+        " the request can't be expressed as a screen (e.g. a specific named"
+        " list). generate_report builds a downloadable CSV"
         " for the standard account reports (positions/orders/activities/pnl)."
         " For ANY other readable data the user wants exported — price history"
         " (call get_bars first), quotes, news, watchlist, movers, a custom"
         " table — fetch it then call export_csv with the COMPLETE rows. Either"
         " way, tell the user the file is ready to download rather than pasting"
         " the rows."
+    )
+    # Catalogue-first: for sets/fundamentals, hit the catalogue tools rather
+    # than reciting names/figures from training data.
+    context += (
+        " For a SET of assets by attributes (sector, market cap, beta, crypto"
+        " theme) use screen_assets instead of listing names from memory; for one"
+        " named symbol's fundamentals — or to compare a few named symbols — call"
+        " get_asset_profile for each. These hit the live catalogue, so prefer"
+        " them over recalling sectors/market caps from training data."
     )
     # Internal-first: the model must use its own tools/knowledge by default and
     # only treat web search as a last resort (and only when it's enabled).
