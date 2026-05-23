@@ -92,6 +92,21 @@ curl -X POST "https://<render-url>/api/_dev/enrich-stocks?symbols=AAPL,MSFT,NVDA
 
 ---
 
+## Visibility rule (search = enriched only)
+
+`db.search_assets` (the single search brain behind the watchlist autocomplete,
+chart search, and the bot's `find_symbol`) returns only **tradable + enriched**
+rows (`enrichment_source IS NOT NULL`). So the un-enriched long tail (SPAC
+shells, warrants, dead OTC tickers) is hidden from discovery, and enrichment
+status doubles as the curation filter — enrich a symbol and it becomes
+searchable, with no code change. This is **search-only**: `get_asset` (direct
+resolution, with Alpaca fallback) and anything the user already references
+(positions, watchlist, open charts) are never filtered, so existing holdings
+always render. To widen the visible universe, enrich more rows; to show
+everything, drop the one clause.
+
+---
+
 ## Secrets (set in Render + Vercel env, never commit)
 
 - **`DATABASE_URL`** — Supabase **Session pooler** URI (IPv4):

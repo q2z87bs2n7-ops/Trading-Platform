@@ -151,11 +151,21 @@ def get_asset(symbol: str) -> dict | None:
 def search_assets(query: str, asset_class: str, limit: int) -> list[dict]:
     """Symbol/name search over the catalogue, ranked by market cap (so the
     likely-intended name surfaces first). ``asset_class``: '' = all,
-    'us_equity', or 'crypto'. Empty query returns the top rows by market cap."""
+    'us_equity', or 'crypto'. Empty query returns the top rows by market cap.
+
+    Visibility rule: only **tradable + enriched** rows are returned, so the
+    un-enriched long tail (SPAC shells, warrants, dead OTC tickers) stays out
+    of discovery. This is search-only — direct resolution (`get_asset`) and
+    things the user already references (positions/watchlist) are never hidden.
+    """
     q = query.strip()
     like = f"%{q}%"
     prefix = f"{q}%"
-    where = ["tradable = true", "(symbol ILIKE %s OR name ILIKE %s)"]
+    where = [
+        "tradable = true",
+        "enrichment_source IS NOT NULL",
+        "(symbol ILIKE %s OR name ILIKE %s)",
+    ]
     params: list = [like, like]
     if asset_class in ("us_equity", "crypto"):
         where.insert(0, "asset_class = %s")
