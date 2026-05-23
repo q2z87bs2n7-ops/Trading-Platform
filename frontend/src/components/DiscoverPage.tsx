@@ -301,6 +301,7 @@ export default function DiscoverPage({
                 selected={sym === selected}
                 onSelect={() => onSelect(sym)}
                 onRemove={() => removeWatchlistSymbol(sym)}
+                isCrypto={isCrypto}
               />
             );
           })}

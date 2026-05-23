@@ -12,6 +12,17 @@ export function relTime(ts: number): string {
 export const money = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD" });
 
+export function fmtCryptoPrice(n: number): string {
+  const abs = Math.abs(n);
+  const dec = abs >= 1 ? 2 : abs >= 0.01 ? 4 : abs >= 0.0001 ? 6 : 8;
+  return n.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: dec,
+    maximumFractionDigits: dec,
+  });
+}
+
 export const pct = (n: number) =>
   `${n >= 0 ? "+" : ""}${(n * 100).toFixed(2)}%`;
 

@@ -1,4 +1,4 @@
-import { pct } from "../../lib/format";
+import { fmtCryptoPrice, pct } from "../../lib/format";
 import { fmtPrice, sparkPath } from "./util";
 
 export function SparkCard({
@@ -9,6 +9,7 @@ export function SparkCard({
   selected,
   onSelect,
   onRemove,
+  isCrypto,
 }: {
   symbol: string;
   name: string;
@@ -17,6 +18,7 @@ export function SparkCard({
   selected: boolean;
   onSelect: () => void;
   onRemove?: () => void;
+  isCrypto?: boolean;
 }) {
   const up = changePct >= 0;
   const stroke = up ? "var(--pos)" : "var(--neg)";
@@ -61,7 +63,7 @@ export function SparkCard({
         {name}
       </div>
       <div className="font-mono text-[16px] font-medium mt-2 tabular-nums">
-        {fmtPrice(price)}
+        {isCrypto ? fmtCryptoPrice(price) : fmtPrice(price)}
       </div>
       <div
         className="font-mono text-[12px] mt-px tabular-nums"

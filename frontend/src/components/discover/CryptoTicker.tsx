@@ -1,13 +1,6 @@
 import type { Snapshot } from "../../types";
+import { fmtCryptoPrice } from "../../lib/format";
 import { coinLabel } from "./util";
-
-const money = (n: number, decimals = 2) =>
-  n.toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
 
 // Live crypto price strip — the crypto silo's equivalent of the equity
 // indices marquee. Duplicates the list so the marquee scrolls seamlessly.
@@ -45,7 +38,6 @@ export function CryptoTicker({ tickers }: { tickers: Snapshot[] }) {
               const changePct = prev ? (last - prev) / prev : 0;
               const up = changePct >= 0;
               const color = up ? "var(--pos)" : "var(--neg)";
-              const decimals = last < 1 ? 4 : last < 10 ? 3 : 2;
               return (
                 <span
                   key={i}
@@ -59,7 +51,7 @@ export function CryptoTicker({ tickers }: { tickers: Snapshot[] }) {
                     {coinLabel(t.symbol)}
                   </span>
                   <span className="text-[13px] font-semibold tabular-nums">
-                    {money(last, decimals)}
+                    {fmtCryptoPrice(last)}
                   </span>
                   <span
                     className="text-[12px] tabular-nums font-medium"

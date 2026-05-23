@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useCloseAllPositions, usePositions } from "../data/hooks";
 import { useMobile } from "../hooks/useMobile";
 import { isCryptoPosition } from "../lib/asset-class";
+import { fmtCryptoPrice } from "../lib/format";
 import { showToast } from "../lib/toast";
 import type { Position } from "../types";
 import ErrorBanner from "./ErrorBanner";
@@ -94,7 +95,7 @@ function StripRow({
       </span>
       <div className="text-right">
         <div className="font-mono text-[14px] tabular-nums">
-          {money(p.current_price)}
+          {isCryptoPosition(p) ? fmtCryptoPrice(p.current_price) : money(p.current_price)}
         </div>
         <div
           className="font-mono text-[11px] tabular-nums"
@@ -112,7 +113,7 @@ function StripRow({
           className="font-mono text-[11px] tabular-nums"
           style={{ color: "var(--mute)" }}
         >
-          avg {money(p.avg_entry_price)}
+          avg {isCryptoPosition(p) ? fmtCryptoPrice(p.avg_entry_price) : money(p.avg_entry_price)}
         </div>
       </div>
       <div className="text-right">
@@ -209,11 +210,11 @@ function StripRowMobile({
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
         <StripStat
           k="Mark"
-          v={money(p.current_price)}
+          v={isCryptoPosition(p) ? fmtCryptoPrice(p.current_price) : money(p.current_price)}
           sub={pct(p.change_today)}
           tone={dayUp ? "pos" : "neg"}
         />
-        <StripStat k="Avg" v={money(p.avg_entry_price)} sub="cost" />
+        <StripStat k="Avg" v={isCryptoPosition(p) ? fmtCryptoPrice(p.avg_entry_price) : money(p.avg_entry_price)} sub="cost" />
         <StripStat
           k="P/L"
           v={(plUp ? "+" : "") + money(p.unrealized_pl)}
