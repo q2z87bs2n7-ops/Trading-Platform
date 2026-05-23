@@ -106,6 +106,10 @@ class AssetOut(BaseModel):
     marginable: bool = False
     shortable: bool = False
     fractionable: bool = False
+    # Catalogue enrichment (present when served from the DB; null from Alpaca).
+    sector: str | None = None
+    logo_url: str | None = None
+    market_cap: int | None = None
 
 
 class PositionsOut(BaseModel):

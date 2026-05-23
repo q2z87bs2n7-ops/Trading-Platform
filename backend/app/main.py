@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from . import alpaca
+from . import db
 from . import indices as market_indices
 from . import market_news
 from . import stream as quote_stream
@@ -264,6 +265,13 @@ def assets_search(
     asset_class: str = Query("", description="us_equity or crypto"),
     limit: int = Query(25, ge=1, le=100),
 ) -> list[dict]:
+    # Prefer the catalogue (indexed, ranked, enriched). Fall back to Alpaca's
+    # full-list substring scan when the DB is unconfigured/unreachable.
+    if db.db_enabled():
+        try:
+            return db.search_assets(search, asset_class, limit)
+        except db.DbUnavailable:
+            pass
     return alpaca.search_assets(search, limit, asset_class)
 
 

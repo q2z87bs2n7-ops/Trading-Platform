@@ -134,6 +134,9 @@ export interface Asset {
   marginable: boolean;
   shortable: boolean;
   fractionable: boolean;
+  sector?: string | null;
+  logo_url?: string | null;
+  market_cap?: number | null;
 }
 
 export interface Snapshot {

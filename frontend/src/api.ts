@@ -131,6 +131,14 @@ export const getCalendar = (start?: string, end?: string) =>
 export const getAsset = (symbol: string) =>
   getJSON<Asset>(`/api/assets/${symbol}`);
 
+// Symbol/name search over the catalogue (DB-backed; ranked by market cap).
+// assetClass: "" = all, "us_equity", or "crypto".
+export const searchAssets = (query: string, assetClass = "") =>
+  getJSON<Asset[]>(
+    `/api/assets?search=${encodeURIComponent(query)}` +
+      (assetClass ? `&asset_class=${assetClass}` : ""),
+  );
+
 export const getIndices = () => getJSON<IndicesResponse>("/api/indices");
 
 // ── Ask anything AI ────────────────────────────────────────────────────────

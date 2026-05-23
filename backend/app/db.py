@@ -121,6 +121,43 @@ def bulk_upsert_assets(assets: list[dict], chunk_size: int = 500) -> int:
     return total
 
 
+_SEARCH_COLS = (
+    "symbol", "name", "exchange", "asset_class", "status", "tradable",
+    "marginable", "shortable", "fractionable", "sector", "logo_url",
+    "market_cap",
+)
+
+
+def search_assets(query: str, asset_class: str, limit: int) -> list[dict]:
+    """Symbol/name search over the catalogue, ranked by market cap (so the
+    likely-intended name surfaces first). ``asset_class``: '' = all,
+    'us_equity', or 'crypto'. Empty query returns the top rows by market cap."""
+    q = query.strip()
+    like = f"%{q}%"
+    prefix = f"{q}%"
+    where = ["tradable = true", "(symbol ILIKE %s OR name ILIKE %s)"]
+    params: list = [like, like]
+    if asset_class in ("us_equity", "crypto"):
+        where.insert(0, "asset_class = %s")
+        params.insert(0, asset_class)
+    params.extend([prefix, limit])
+    sql = (
+        "SELECT symbol, COALESCE(name, symbol) AS name, COALESCE(exchange, '') "
+        "AS exchange, asset_class, COALESCE(status, '') AS status, tradable, "
+        "COALESCE(marginable, false) AS marginable, "
+        "COALESCE(shortable, false) AS shortable, "
+        "COALESCE(fractionable, false) AS fractionable, "
+        "sector, logo_url, market_cap "
+        "FROM assets WHERE " + " AND ".join(where) +
+        " ORDER BY (symbol ILIKE %s) DESC, market_cap DESC NULLS LAST, symbol "
+        "LIMIT %s"
+    )
+    with _connect() as conn:
+        cur = conn.cursor()
+        cur.execute(sql, params)
+        return [dict(zip(_SEARCH_COLS, row)) for row in cur.fetchall()]
+
+
 def crypto_symbols() -> set[str]:
     """All crypto symbols in the catalogue — used by enrich-only seed runs."""
     with _connect() as conn:

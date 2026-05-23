@@ -23,6 +23,7 @@ import { useMobile } from "../hooks/useMobile";
 import { isCryptoPosition } from "../lib/asset-class";
 import { showToast } from "../lib/toast";
 import type { Snapshot } from "../types";
+import { AssetSearch } from "./AssetSearch";
 import { AllocationCard } from "./discover/AllocationCard";
 import { BalanceCard } from "./discover/BalanceCard";
 import { CardsRow } from "./discover/CardsRow";
@@ -92,14 +93,12 @@ export default function DiscoverPage({
   const snaps = useSnapshots(wlSymbols);
   const marketSummary = useMarketSummary(wlSymbols, assetClass);
 
-  const [wlInput, setWlInput] = useState("");
   const [adding, setAdding] = useState(false);
   const isMobile = useMobile();
   const [addSheetOpen, setAddSheetOpen] = useState(false);
 
-  async function submitAddWatchlist(e: React.FormEvent) {
-    e.preventDefault();
-    const v = wlInput.trim().toUpperCase();
+  async function addSymbol(raw: string) {
+    const v = raw.trim().toUpperCase();
     if (!v || adding) return;
     if (wlSymbols.includes(v)) {
       showToast(`${v} is already on your watchlist`, "info");
@@ -122,7 +121,6 @@ export default function DiscoverPage({
     }
     addToWatchlist.mutate(v, {
       onSuccess: () => {
-        setWlInput("");
         setAdding(false);
         setAddSheetOpen(false);
         showToast(`${v} added to watchlist`, "success");
@@ -232,45 +230,11 @@ export default function DiscoverPage({
         }
         ctxRight={
           isMobile ? undefined : (
-            <form
-              onSubmit={submitAddWatchlist}
-              className="inline-flex items-center gap-1"
-            >
-              <input
-                value={wlInput}
-                onChange={(e) => setWlInput(e.target.value.toUpperCase())}
-                placeholder={isCrypto ? "+ BTC/USD" : "+ SYMBOL"}
-                aria-label={
-                  isCrypto
-                    ? "Add crypto pair to watchlist"
-                    : "Add symbol to watchlist"
-                }
-                className="font-mono text-[11.5px] tabular-nums"
-                style={{
-                  background: "var(--panel-2)",
-                  border: "1px solid var(--border)",
-                  borderRadius: 6,
-                  color: "var(--text)",
-                  padding: "3px 8px",
-                  width: 110,
-                }}
-              />
-              <button
-                type="submit"
-                disabled={!wlInput.trim() || adding}
-                className="text-[12px] cursor-pointer"
-                style={{
-                  background: "var(--accent-bg)",
-                  color: "var(--accent)",
-                  border: "1px solid var(--accent)",
-                  borderRadius: 6,
-                  padding: "3px 8px",
-                  opacity: wlInput.trim() && !adding ? 1 : 0.5,
-                }}
-              >
-                {adding ? "…" : "Add"}
-              </button>
-            </form>
+            <AssetSearch
+              assetClass={isCrypto ? "crypto" : "us_equity"}
+              onChoose={addSymbol}
+              disabled={adding}
+            />
           )
         }
       />
@@ -462,9 +426,8 @@ export default function DiscoverPage({
           style={{ background: "rgba(20,22,28,0.45)" }}
           onClick={() => setAddSheetOpen(false)}
         >
-          <form
+          <div
             onClick={(e) => e.stopPropagation()}
-            onSubmit={submitAddWatchlist}
             style={{
               position: "absolute",
               left: 0,
@@ -484,40 +447,14 @@ export default function DiscoverPage({
             <div className="text-[14px] font-semibold">
               Add {isCrypto ? "crypto pair" : "symbol"} to watchlist
             </div>
-            <input
+            <AssetSearch
+              variant="sheet"
               autoFocus
-              value={wlInput}
-              onChange={(e) => setWlInput(e.target.value.toUpperCase())}
-              placeholder={isCrypto ? "BTC/USD" : "SYMBOL"}
-              aria-label={
-                isCrypto ? "Add crypto pair to watchlist" : "Add symbol to watchlist"
-              }
-              className="font-mono tabular-nums"
-              style={{
-                background: "var(--panel-2)",
-                border: "1px solid var(--border)",
-                borderRadius: 8,
-                color: "var(--text)",
-                padding: "12px 14px",
-                fontSize: 16,
-                minHeight: "var(--mob-tap)",
-              }}
+              assetClass={isCrypto ? "crypto" : "us_equity"}
+              onChoose={addSymbol}
+              disabled={adding}
             />
-            <button
-              type="submit"
-              disabled={!wlInput.trim() || adding}
-              className="text-[15px] font-semibold cursor-pointer border-0"
-              style={{
-                minHeight: "var(--mob-tap)",
-                borderRadius: 8,
-                background: "var(--accent)",
-                color: "white",
-                opacity: wlInput.trim() && !adding ? 1 : 0.5,
-              }}
-            >
-              {adding ? "Adding…" : "Add"}
-            </button>
-          </form>
+          </div>
         </div>
       )}
     </div>
