@@ -360,13 +360,14 @@ def watchlist_remove(symbol: str, asset_class: str = Query("")) -> dict:
 
 
 @app.post("/api/_dev/seed-assets", dependencies=[Depends(require_configured)])
-def seed_assets(force: bool = Query(False)) -> dict:
+def seed_assets(force: bool = Query(False), base: bool = Query(True)) -> dict:
     """Populate the assets table from Alpaca + CoinGecko. One-shot dev tool.
     Re-runs skip already-enriched crypto rows; pass ?force=true to re-enrich all.
+    Pass ?base=false to skip the slow Alpaca base upsert and only enrich crypto.
     Vercel will timeout — call via the Render URL:
     curl -X POST https://<render-url>/api/_dev/seed-assets"""
     from .seed import run_seed
-    return run_seed(force=force)
+    return run_seed(force=force, base=base)
 
 
 @app.get("/api/stream")

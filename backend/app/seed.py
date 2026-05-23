@@ -18,29 +18,34 @@ from .alpaca.trading import get_all_assets_for_seed
 _log = logging.getLogger(__name__)
 
 
-def run_seed(force: bool = False) -> dict:
+def run_seed(force: bool = False, base: bool = True) -> dict:
     """Seed the catalogue. By default crypto rows already enriched are skipped
-    so a re-run only fills gaps; ``force=True`` re-enriches every crypto pair."""
+    so a re-run only fills gaps; ``force=True`` re-enriches every crypto pair.
+    ``base=False`` skips the slow full Alpaca base upsert and only (re)enriches
+    crypto from the rows already in the catalogue."""
     if not db.db_enabled():
         return {"error": "DATABASE_URL not configured"}
 
     t0 = time.monotonic()
+    seeded = 0
 
-    _log.info("seed: fetching all Alpaca assets")
-    assets = get_all_assets_for_seed()
-    _log.info("seed: fetched %d assets", len(assets))
-
-    seeded = db.bulk_upsert_assets(assets)
-    _log.info("seed: upserted %d rows", seeded)
+    if base:
+        _log.info("seed: fetching all Alpaca assets")
+        assets = get_all_assets_for_seed()
+        _log.info("seed: fetched %d assets", len(assets))
+        seeded = db.bulk_upsert_assets(assets)
+        _log.info("seed: upserted %d rows", seeded)
+        crypto_syms = sorted(a["symbol"] for a in assets if a["asset_class"] == "crypto")
+    else:
+        crypto_syms = sorted(db.crypto_symbols())
+        _log.info("seed: base skipped; enriching %d crypto rows from DB", len(crypto_syms))
 
     already_enriched = set() if force else db.enriched_crypto_symbols()
-    crypto = [a for a in assets if a["asset_class"] == "crypto"]
     enriched = skipped = failed = resumed = 0
     delay = coingecko.call_delay()
     profile_cache: dict[str, dict] = {}  # cg_id → CoinGecko payload (many pairs share a coin)
 
-    for asset in crypto:
-        symbol = asset["symbol"]
+    for symbol in crypto_syms:
         if symbol in already_enriched:
             resumed += 1
             continue
