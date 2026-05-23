@@ -24,7 +24,7 @@ from .config import get_settings
 _log = logging.getLogger(__name__)
 
 _HEADERS = {
-    "User-Agent": "Mozilla/5.0 (compatible; company-profile-widget/1.0)",
+    "User-Agent": "Mozilla/5.0 (compatible; trading-platform/1.0)",
     "Accept": "application/json",
 }
 _MODULES = "assetProfile,summaryDetail,price,defaultKeyStatistics,financialData"
