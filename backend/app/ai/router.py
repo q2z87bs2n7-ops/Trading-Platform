@@ -18,7 +18,7 @@ from anthropic import APIError as AnthropicAPIError
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from .. import alpaca, market_news
+from .. import alpaca, db, market_news
 from ..config import get_settings
 from . import prompt, reports, tools
 
@@ -150,9 +150,17 @@ def _execute_read_tool(
             if req_ac == "stocks"
             else ""
         )
-        return json.dumps(
-            {"matches": alpaca.search_assets(query, limit, search_class)}, default=str
-        )
+        # Prefer the catalogue (ranked by market cap, name-searchable, enriched);
+        # fall back to Alpaca's substring scan when the DB is unset/unreachable.
+        matches = None
+        if db.db_enabled():
+            try:
+                matches = db.search_assets(query, search_class, limit)
+            except db.DbUnavailable:
+                matches = None
+        if matches is None:
+            matches = alpaca.search_assets(query, limit, search_class)
+        return json.dumps({"matches": matches}, default=str)
 
     if name == "get_activities":
         activity_type = args.get("activity_type")
