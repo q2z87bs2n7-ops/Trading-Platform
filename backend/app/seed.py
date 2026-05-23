@@ -12,10 +12,50 @@ from __future__ import annotations
 import logging
 import time
 
-from . import coingecko, db
+from . import coingecko, db, fmp
 from .alpaca.trading import get_all_assets_for_seed
 
 _log = logging.getLogger(__name__)
+
+
+def enrich_stocks(symbols: list[str], force: bool = False) -> dict:
+    """Enrich the given us_equity rows from FMP (single-symbol, ~250/day cap).
+    Skips already-enriched symbols unless ``force``."""
+    if not db.db_enabled():
+        return {"error": "DATABASE_URL not configured"}
+    if not fmp.configured():
+        return {"error": "FMP_API_KEY not configured"}
+
+    t0 = time.monotonic()
+    already = set() if force else db.enriched_stock_symbols()
+    enriched = skipped = not_found = failed = 0
+
+    for sym in symbols:
+        if sym in already:
+            skipped += 1
+            continue
+        try:
+            data = fmp.fetch_profile(sym)
+            if not data:
+                _log.info("enrich-stocks: no FMP profile for %s", sym)
+                not_found += 1
+                continue
+            db.upsert_stock_enrichment(fmp.map_stock_enrichment(sym, data))
+            enriched += 1
+            _log.info("enrich-stocks: enriched %s", sym)
+        except Exception as exc:
+            _log.warning("enrich-stocks: FMP failed for %s: %s", sym, exc)
+            failed += 1
+        time.sleep(fmp.CALL_DELAY)
+
+    return {
+        "requested":        len(symbols),
+        "stocks_enriched":  enriched,
+        "stocks_already":   skipped,
+        "stocks_not_found": not_found,
+        "stocks_failed":    failed,
+        "duration_seconds": round(time.monotonic() - t0, 1),
+    }
 
 
 def run_seed(force: bool = False, base: bool = True) -> dict:

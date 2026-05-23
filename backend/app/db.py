@@ -179,6 +179,61 @@ def enriched_crypto_symbols() -> set[str]:
         return {row[0] for row in cur.fetchall()}
 
 
+def enriched_stock_symbols() -> set[str]:
+    """us_equity symbols already enriched — lets the stock seeder resume."""
+    with _connect() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT symbol FROM assets "
+            "WHERE asset_class = 'us_equity' AND enrichment_source IS NOT NULL"
+        )
+        return {row[0] for row in cur.fetchall()}
+
+
+def upsert_stock_enrichment(e: dict) -> None:
+    """Write FMP stock-enrichment columns for one us_equity row."""
+    with _connect() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            UPDATE assets SET
+                description         = %s,
+                website             = %s,
+                logo_url            = %s,
+                market_cap          = %s,
+                sector              = %s,
+                industry            = %s,
+                country             = %s,
+                city                = %s,
+                state               = %s,
+                ipo_date            = %s,
+                isin                = %s,
+                cik                 = %s,
+                is_etf              = %s,
+                is_adr              = %s,
+                is_fund             = %s,
+                is_actively_trading = %s,
+                ceo                 = %s,
+                employees           = %s,
+                phone               = %s,
+                beta                = %s,
+                enriched_at         = now(),
+                enrichment_source   = %s
+            WHERE symbol = %s
+            """,
+            (
+                e.get("description"), e.get("website"), e.get("logo_url"),
+                e.get("market_cap"), e.get("sector"), e.get("industry"),
+                e.get("country"), e.get("city"), e.get("state"),
+                e.get("ipo_date"), e.get("isin"), e.get("cik"),
+                e.get("is_etf"), e.get("is_adr"), e.get("is_fund"),
+                e.get("is_actively_trading"), e.get("ceo"), e.get("employees"),
+                e.get("phone"), e.get("beta"),
+                e.get("enrichment_source"), e["symbol"],
+            ),
+        )
+
+
 def upsert_asset_enrichment(e: dict) -> None:
     """Write enrichment columns for one asset row."""
     with _connect() as conn:
