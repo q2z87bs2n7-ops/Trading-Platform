@@ -30,8 +30,8 @@ class Settings(BaseSettings):
     # pooler endpoint trips hostname/cert checks; TLS stays on either way.
     database_ssl_insecure: bool = False
     # Financial Modeling Prep API key — stock enrichment for the assets
-    # catalogue (sector/industry/market cap/etc.). Free tier: single-symbol,
-    # 250 calls/day. Used by the /api/_dev/enrich-stocks seeder.
+    # catalogue (sector/industry/market cap/etc.). Paid Starter tier:
+    # single-symbol, 300/min. Used by the /api/_dev/enrich-stocks seeder.
     fmp_api_key: str = ""
     # CoinGecko Demo API key — crypto enrichment for the assets catalogue.
     # Optional: unset falls back to the keyless public tier (rate-limited,

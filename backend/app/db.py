@@ -128,6 +128,13 @@ _SEARCH_COLS = (
     "marginable", "shortable", "fractionable", "sector", "logo_url",
     "market_cap",
 )
+# SELECT projection matching _SEARCH_COLS, shared by get_asset + search_assets.
+_SEARCH_SELECT = (
+    "symbol, COALESCE(name, symbol) AS name, COALESCE(exchange, '') AS exchange, "
+    "asset_class, COALESCE(status, '') AS status, COALESCE(tradable, false) AS tradable, "
+    "COALESCE(marginable, false) AS marginable, COALESCE(shortable, false) AS shortable, "
+    "COALESCE(fractionable, false) AS fractionable, sector, logo_url, market_cap"
+)
 
 
 def get_asset(symbol: str) -> dict | None:
@@ -136,14 +143,7 @@ def get_asset(symbol: str) -> dict | None:
     with _connect() as conn:
         cur = conn.cursor()
         cur.execute(
-            "SELECT symbol, COALESCE(name, symbol) AS name, "
-            "COALESCE(exchange, '') AS exchange, asset_class, "
-            "COALESCE(status, '') AS status, COALESCE(tradable, false) AS tradable, "
-            "COALESCE(marginable, false) AS marginable, "
-            "COALESCE(shortable, false) AS shortable, "
-            "COALESCE(fractionable, false) AS fractionable, "
-            "sector, logo_url, market_cap "
-            "FROM assets WHERE symbol = %s",
+            "SELECT " + _SEARCH_SELECT + " FROM assets WHERE symbol = %s",
             (symbol.strip().upper(),),
         )
         row = cur.fetchone()
@@ -208,13 +208,7 @@ def search_assets(query: str, asset_class: str, limit: int) -> list[dict]:
         params.insert(0, asset_class)
     params.extend([prefix, limit])
     sql = (
-        "SELECT symbol, COALESCE(name, symbol) AS name, COALESCE(exchange, '') "
-        "AS exchange, asset_class, COALESCE(status, '') AS status, tradable, "
-        "COALESCE(marginable, false) AS marginable, "
-        "COALESCE(shortable, false) AS shortable, "
-        "COALESCE(fractionable, false) AS fractionable, "
-        "sector, logo_url, market_cap "
-        "FROM assets WHERE " + " AND ".join(where) +
+        "SELECT " + _SEARCH_SELECT + " FROM assets WHERE " + " AND ".join(where) +
         " ORDER BY (symbol ILIKE %s) DESC, market_cap DESC NULLS LAST, symbol "
         "LIMIT %s"
     )
@@ -495,34 +489,33 @@ def screen_assets(*, asset_class="us_equity", sector=None, industry=None,
     return out
 
 
-def crypto_symbols() -> set[str]:
-    """All crypto symbols in the catalogue — used by enrich-only seed runs."""
+def _symbols(asset_class: str, enriched: bool | None) -> set[str]:
+    """Catalogue symbols for one asset class, optionally filtered by enrichment
+    state (None = all, True = enriched, False = un-enriched)."""
+    where = "asset_class = %s"
+    if enriched is True:
+        where += " AND enrichment_source IS NOT NULL"
+    elif enriched is False:
+        where += " AND enrichment_source IS NULL"
     with _connect() as conn:
         cur = conn.cursor()
-        cur.execute("SELECT symbol FROM assets WHERE asset_class = 'crypto'")
+        cur.execute("SELECT symbol FROM assets WHERE " + where, (asset_class,))
         return {row[0] for row in cur.fetchall()}
+
+
+def crypto_symbols() -> set[str]:
+    """All crypto symbols in the catalogue — used by enrich-only seed runs."""
+    return _symbols("crypto", None)
 
 
 def enriched_crypto_symbols() -> set[str]:
     """Crypto symbols that already carry enrichment — lets the seeder resume."""
-    with _connect() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT symbol FROM assets "
-            "WHERE asset_class = 'crypto' AND enrichment_source IS NOT NULL"
-        )
-        return {row[0] for row in cur.fetchall()}
+    return _symbols("crypto", True)
 
 
 def enriched_stock_symbols() -> set[str]:
     """us_equity symbols already enriched — lets the stock seeder resume."""
-    with _connect() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT symbol FROM assets "
-            "WHERE asset_class = 'us_equity' AND enrichment_source IS NOT NULL"
-        )
-        return {row[0] for row in cur.fetchall()}
+    return _symbols("us_equity", True)
 
 
 def unenriched_stock_symbols(limit: int) -> list[str]:
