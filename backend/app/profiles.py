@@ -61,8 +61,8 @@ def _reset_crumb() -> None:
 
 
 def _fetch_fmp(symbol: str) -> dict:
-    url = f"https://financialmodelingprep.com/api/v3/profile/{symbol}"
-    params = {"apikey": get_settings().fmp_api_key}
+    url = "https://financialmodelingprep.com/stable/profile"
+    params = {"symbol": symbol, "apikey": get_settings().fmp_api_key}
     r = requests.get(url, params=params, headers=_HEADERS, timeout=10)
     r.raise_for_status()
     result = r.json() or []
@@ -81,7 +81,7 @@ def _map_fmp(symbol: str, data: dict) -> dict:
         "market_cap": int(data.get("marketCap")) if data.get("marketCap") else None,
         "description": data.get("description"),
         "website": data.get("website"),
-        "employees": None,  # FMP doesn't provide employee count
+        "employees": int(data["fullTimeEmployees"]) if data.get("fullTimeEmployees") else None,
         "logo_url": data.get("image"),
         "fundamentals": {},  # FMP doesn't provide the same fundamentals shape
     }

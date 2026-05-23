@@ -50,7 +50,8 @@ GET /api/assets/{symbol}/profile
 ### Profile shape
 `symbol, name, exchange, sector, industry, market_cap, description, website,
 employees, logo_url, fundamentals (jsonb), updated_at`. FMP fills
-`logo_url` but leaves `employees`/`fundamentals` empty; Yahoo is the reverse.
+`logo_url` + `employees` but leaves `fundamentals` empty; Yahoo fills
+`employees` + `fundamentals` but no `logo_url`.
 
 ---
 
@@ -70,11 +71,17 @@ What that means for verification status:
 - **DB write-through path: UNRUN.** Only `SELECT 1` was run in Supabase's web
   editor. The pg8000 code has never connected from anywhere (sandbox + local
   both block 5432).
-- **Yahoo: confirmed broken** from the local machine — `getcrumb` returns
-  **406**, a real, well-documented Yahoo anti-scraping issue (not the sandbox).
-  Correct to keep it only as a fallback.
-- **FMP: UNTESTED anywhere.** Implemented but never successfully called. The key
-  exists but its validity/plan is unconfirmed.
+- **Yahoo: confirmed broken** from both the local machine and the cloud sandbox
+  — `getcrumb` returns **406**, a real, well-documented Yahoo anti-scraping
+  issue (not the sandbox egress). It is now the **primary** provider (per the
+  owner's request) but fails in every datacenter/local environment tested, so in
+  practice FMP serves every request. Revisit the order if Yahoo can't be made to
+  work.
+- **FMP: confirmed working** from the cloud sandbox (HTTPS egress now open).
+  Legacy v3 returns **403 ("Legacy Endpoint")**; the **stable** endpoint returns
+  200 with full data (`name/exchange/sector/industry/market_cap/description/
+  website/logo_url/employees`). `_fetch_fmp` now uses `stable` — fix applied and
+  verified for AAPL/NVDA/TSLA + an unknown-symbol → `ProfileNotFound` check.
 
 > Earlier in this thread a cloud agent mis-diagnosed Yahoo's "Host not in
 > allowlist" as *Yahoo blocking datacenter IPs*. That was wrong — it was the
@@ -83,16 +90,15 @@ What that means for verification status:
 
 ---
 
-## ⚠️ Do this first — the most likely real bug
+## ✅ Resolved — the FMP endpoint bug
 
-`profiles._fetch_fmp` calls FMP's **legacy** endpoint:
-`https://financialmodelingprep.com/api/v3/profile/{symbol}`.
-FMP moved **free-tier** keys to the new **stable** API:
-`https://financialmodelingprep.com/stable/profile?symbol={symbol}`.
-The legacy v3 path commonly returns **403 ("Legacy Endpoint")** for new free
-keys. **Verify which endpoint your key works with and switch `_fetch_fmp`
-accordingly** (the JSON field names are the same: `companyName`, `exchange`,
-`sector`, `industry`, `marketCap`, `description`, `website`, `image`).
+`profiles._fetch_fmp` used FMP's **legacy** endpoint
+(`/api/v3/profile/{symbol}`), which returns **403 ("Legacy Endpoint")** for new
+free-tier keys. Switched to the **stable** API
+(`/stable/profile?symbol={symbol}`) — confirmed 200 with the free key. JSON
+field names are identical (`companyName`, `exchange`, `sector`, `industry`,
+`marketCap`, `description`, `website`, `image`), and `stable` additionally
+returns `fullTimeEmployees`, now mapped to `employees`.
 
 ---
 
