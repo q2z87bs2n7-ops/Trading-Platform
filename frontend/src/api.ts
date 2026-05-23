@@ -76,6 +76,26 @@ async function sendJSON<T>(
 export const getConfig = () =>
   getJSON<{ symbols: string[]; feed: string; paper: boolean }>("/api/config");
 
+// TEMPORARY dev tool — verify the Supabase write-through path in prod (see
+// /api/_dev/db-check). Remove with the Settings "Database check" row.
+export interface DbCheckResult {
+  db: {
+    configured: boolean;
+    reachable?: boolean;
+    host?: string;
+    port?: number;
+    server_version?: string;
+    row_count?: number;
+    error?: string;
+  };
+  fmp_configured: boolean;
+  profile_fetch_ok?: boolean;
+  served_from_db?: boolean;
+  profile_error?: string;
+}
+
+export const dbCheck = () => getJSON<DbCheckResult>("/api/_dev/db-check");
+
 export const getAccount = () => getJSON<Account>("/api/account");
 
 export const getBars = (symbol: string, timeframe = "1Day", limit = 120) =>

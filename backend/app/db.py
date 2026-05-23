@@ -108,6 +108,34 @@ def _ensure_schema(cur) -> None:
         _schema_ready = True
 
 
+def diagnostics() -> dict:
+    """Temporary dev probe — report whether the DB is configured and reachable,
+    creating the schema as a side effect. Never raises; status is returned as
+    data so a diagnostic endpoint can render it. The password is never exposed.
+    """
+    out: dict = {"configured": db_enabled()}
+    if not out["configured"]:
+        return out
+    u = urlparse(get_settings().database_url)
+    out["host"], out["port"] = u.hostname, u.port or 5432
+    try:
+        with _connect() as conn:
+            cur = conn.cursor()
+            _ensure_schema(cur)
+            cur.execute("select version()")
+            out["server_version"] = cur.fetchone()[0]
+            cur.execute("select count(*) from company_profiles")
+            out["row_count"] = cur.fetchone()[0]
+        out["reachable"] = True
+    except DbUnavailable as exc:
+        out["reachable"] = False
+        out["error"] = str(exc)
+    except Exception as exc:  # connected, but a query/DDL failed
+        out["reachable"] = True
+        out["error"] = f"query failed: {exc}"
+    return out
+
+
 def fetch_profile(symbol: str) -> dict | None:
     with _connect() as conn:
         cur = conn.cursor()

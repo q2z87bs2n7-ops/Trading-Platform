@@ -4,6 +4,7 @@ import IconButton from "./IconButton";
 import { useSettings } from "../hooks/useSettings";
 import { updateSettings } from "../lib/settings";
 import { disableServiceWorker } from "../lib/service-worker";
+import { dbCheck, type DbCheckResult } from "../api";
 
 function GearIcon() {
   return (
@@ -61,6 +62,85 @@ function Toggle({
         }}
       />
     </button>
+  );
+}
+
+// TEMPORARY dev tool — confirms the Supabase write-through path works in prod
+// (Postgres :5432 is unreachable from local/sandbox). Remove once verified.
+function DbCheckRow() {
+  const [state, setState] = useState<"idle" | "loading">("idle");
+  const [result, setResult] = useState<DbCheckResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function run() {
+    setState("loading");
+    setError(null);
+    try {
+      setResult(await dbCheck());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setResult(null);
+    } finally {
+      setState("idle");
+    }
+  }
+
+  const ok = result?.db.reachable && result?.served_from_db;
+
+  return (
+    <div
+      className="px-3 py-3 flex flex-col gap-2"
+      style={{ borderTop: "1px solid var(--hairline)" }}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-[13px] font-medium">Database check (dev)</span>
+        <button
+          type="button"
+          onClick={() => void run()}
+          disabled={state === "loading"}
+          className="text-[12px] font-medium cursor-pointer"
+          style={{
+            padding: "5px 10px",
+            background: "transparent",
+            border: "1px solid var(--accent)",
+            color: "var(--accent)",
+            borderRadius: "var(--r)",
+            opacity: state === "loading" ? 0.6 : 1,
+          }}
+        >
+          {state === "loading" ? "Checking…" : "Run check"}
+        </button>
+      </div>
+
+      {error && (
+        <span className="text-[12px]" style={{ color: "var(--neg)" }}>
+          {error}
+        </span>
+      )}
+
+      {result && (
+        <div
+          className="text-[12px] leading-relaxed font-mono"
+          style={{ color: "var(--mute)" }}
+        >
+          <div style={{ color: ok ? "var(--pos)" : "var(--neg)" }}>
+            {ok ? "✓ DB reachable, served from cache" : "✗ DB not serving cache"}
+          </div>
+          <div>db.configured: {String(result.db.configured)}</div>
+          <div>db.reachable: {String(result.db.reachable ?? false)}</div>
+          {result.db.row_count !== undefined && (
+            <div>rows: {result.db.row_count}</div>
+          )}
+          {result.db.server_version && (
+            <div>pg: {result.db.server_version.split(" ")[1] ?? "?"}</div>
+          )}
+          <div>fmp.configured: {String(result.fmp_configured)}</div>
+          <div>served_from_db: {String(result.served_from_db ?? false)}</div>
+          {result.db.error && <div>db.error: {result.db.error}</div>}
+          {result.profile_error && <div>profile.error: {result.profile_error}</div>}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -164,6 +244,8 @@ export default function SettingsMenu() {
               Disable
             </button>
           </div>
+
+          <DbCheckRow />
         </div>
       )}
     </div>

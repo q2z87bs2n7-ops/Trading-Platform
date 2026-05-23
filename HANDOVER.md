@@ -119,9 +119,21 @@ Edit the environment (cloud icon → **Network access**) → set **Full**, or
 likely still won't.
 
 ### Full path (DB write-through): only in prod
-Deploy to Render/Vercel with env vars set, then hit
-`/api/assets/AAPL/profile` twice and confirm the 2nd call's `updated_at` is
-unchanged (served from cache), and a row exists in the Supabase table editor.
+Postgres :5432/:6543 are unreachable from both the sandbox (confirmed: TCP
+times out; only :443 is open) and the owner's local network, so prod is the
+only place the DB integration runs. Two ways to verify there:
+
+1. **Temporary dev tool (easiest).** Open **Settings → Database check (dev)** →
+   **Run check**, or hit `GET /api/_dev/db-check` directly. It reports
+   `db.reachable`, `row_count`, the Postgres version, and `served_from_db`
+   (true = the AAPL profile came back through the cache, not a live fallback).
+   Green ("DB reachable, served from cache") means the whole path works.
+   **This tool is temporary — remove it once verified** (endpoint
+   `dev_db_check` in `main.py`, `db.diagnostics()`, the `dbCheck`/`DbCheckResult`
+   export in `frontend/src/api.ts`, and the `DbCheckRow` in `SettingsMenu.tsx`).
+2. **Manual.** Hit `/api/assets/AAPL/profile` twice and confirm the 2nd call's
+   `updated_at` is unchanged (served from cache), and a row exists in the
+   Supabase table editor.
 
 ---
 
