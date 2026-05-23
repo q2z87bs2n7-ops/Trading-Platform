@@ -30,7 +30,7 @@ persistence layer — this is that work starting.
 | File | Role |
 | --- | --- |
 | `backend/app/db.py` | pg8000 (pure-Python, 3.14/Vercel-safe) Postgres layer. Per-operation connections from `DATABASE_URL`. `DbUnavailable` when unset/unreachable. `fetch_profile` / `upsert_profile`; `company_profiles` table auto-created via `_ensure_schema` on first use. |
-| `backend/app/profiles.py` | `get_company_profile(symbol)` — DB-cached write-through (7-day TTL). **Provider order: Yahoo first, FMP fallback (when `FMP_API_KEY` set).** Raises `ProfileNotFound` for unknown symbols. |
+| `backend/app/profiles.py` | `get_company_profile(symbol)` — DB-cached write-through (7-day TTL). **Provider: Financial Modeling Prep only** (`stable/profile`); requires `FMP_API_KEY`. Raises `ProfileNotFound` for unknown symbols, `ProfileUnavailable` (→ 503) when the key is unset. |
 | `backend/app/config.py` | Added `database_url`, `database_ssl_insecure`, `fmp_api_key` (+ `db_configured` / `fmp_configured` properties). |
 | `backend/app/main.py` | `GET /api/assets/{symbol:path}/profile` — declared **before** the catch-all `{symbol:path}` route so `:path` doesn't swallow `/profile`. No Alpaca keys required (independent, like `/api/indices`). |
 | `backend/sql/001_company_profiles.sql` | `company_profiles` schema (mirrors the inline `_ensure_schema` SQL; for manual run in the Supabase SQL editor). |
@@ -42,16 +42,16 @@ persistence layer — this is that work starting.
 GET /api/assets/{symbol}/profile
   → get_company_profile(symbol)
      1. DB cache hit & fresh (<7d)?  → return it
-     2. live fetch:  Yahoo (_fetch_yahoo/_map); on-error → FMP (_fetch_fmp/_map_fmp) if key set
+     2. live fetch:  FMP stable/profile (_fetch_fmp/_map_fmp)
      3. write-through to company_profiles (if DB reachable)
      4. return profile
 ```
 
 ### Profile shape
 `symbol, name, exchange, sector, industry, market_cap, description, website,
-employees, logo_url, fundamentals (jsonb), updated_at`. FMP fills
-`logo_url` + `employees` but leaves `fundamentals` empty; Yahoo fills
-`employees` + `fundamentals` but no `logo_url`.
+employees, logo_url, fundamentals (jsonb), updated_at`. FMP populates
+everything except `fundamentals` (the `stable/profile` endpoint carries no
+fundamentals block — left `{}` for a later source).
 
 ---
 
@@ -59,7 +59,7 @@ employees, logo_url, fundamentals (jsonb), updated_at`. FMP fills
 
 Three different environments, three different limits — this is the crux:
 
-| Environment | HTTPS (FMP/Yahoo) | Postgres :5432 | Notes |
+| Environment | HTTPS (FMP) | Postgres :5432 | Notes |
 | --- | --- | --- | --- |
 | **Cloud agent sandbox** (Claude Code on web) | ❌ blocked by egress **allowlist** ("Host not in allowlist") unless the env network policy is set to **Full/Custom** | ❌ raw TCP times out (not proxied; likely stays blocked even on Full) | Default policy is "Trusted". |
 | **Owner's local machine** | ✅ open | ❌ corporate firewall blocks 5432 | Can test providers, not the DB write. |
@@ -71,22 +71,17 @@ What that means for verification status:
 - **DB write-through path: UNRUN.** Only `SELECT 1` was run in Supabase's web
   editor. The pg8000 code has never connected from anywhere (sandbox + local
   both block 5432).
-- **Yahoo: confirmed broken** from both the local machine and the cloud sandbox
-  — `getcrumb` returns **406**, a real, well-documented Yahoo anti-scraping
-  issue (not the sandbox egress). It is now the **primary** provider (per the
-  owner's request) but fails in every datacenter/local environment tested, so in
-  practice FMP serves every request. Revisit the order if Yahoo can't be made to
-  work.
+- **Yahoo: removed.** It was the original provider but `getcrumb` returns **406**
+  (anti-scraping, IP-reputation based) from both the local machine and the cloud
+  sandbox, and would fail the same way from Render/Vercel. Dropped entirely — FMP
+  is now the sole provider.
 - **FMP: confirmed working** from the cloud sandbox (HTTPS egress now open).
   Legacy v3 returns **403 ("Legacy Endpoint")**; the **stable** endpoint returns
   200 with full data (`name/exchange/sector/industry/market_cap/description/
-  website/logo_url/employees`). `_fetch_fmp` now uses `stable` — fix applied and
-  verified for AAPL/NVDA/TSLA + an unknown-symbol → `ProfileNotFound` check.
-
-> Earlier in this thread a cloud agent mis-diagnosed Yahoo's "Host not in
-> allowlist" as *Yahoo blocking datacenter IPs*. That was wrong — it was the
-> **sandbox egress allowlist** (confirmed: `google.com`/`example.com` also
-> return it; `pypi.org` is allowed). Don't repeat that conclusion.
+  website/logo_url/employees`). `_fetch_fmp` uses `stable` — verified for
+  AAPL/NVDA/TSLA, an unknown-symbol → `ProfileNotFound`, and unset-key →
+  `ProfileUnavailable` (503). The DB write-through layer around it is still
+  UNRUN (5432 blocked everywhere but prod).
 
 ---
 
@@ -104,7 +99,7 @@ returns `fullTimeEmployees`, now mapped to `employees`.
 
 ## How to test
 
-### Locally (validates FMP + Yahoo, NOT the DB write)
+### Locally (validates FMP, NOT the DB write)
 ```bash
 cd backend
 python3 -m venv .venv && source .venv/bin/activate
@@ -119,9 +114,9 @@ code falls back to a live (uncached) fetch — so a successful curl proves the
 
 ### From a cloud agent (only if the env network policy is loosened)
 Edit the environment (cloud icon → **Network access**) → set **Full**, or
-**Custom** + allow `financialmodelingprep.com`, `query1/2.finance.yahoo.com`,
-`fc.yahoo.com`. Start a **fresh session** (running sandboxes don't pick up the
-change). HTTPS will then work; 5432 likely still won't.
+**Custom** + allow `financialmodelingprep.com`. Start a **fresh session**
+(running sandboxes don't pick up the change). HTTPS will then work; 5432
+likely still won't.
 
 ### Full path (DB write-through): only in prod
 Deploy to Render/Vercel with env vars set, then hit

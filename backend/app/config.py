@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     # pooler endpoint trips hostname/cert checks; TLS stays on either way.
     database_ssl_insecure: bool = False
     # Financial Modeling Prep API key for company profile enrichment.
-    # Free tier; datacenter-friendly. When set, preferred over Yahoo.
+    # Free tier; datacenter-friendly. Required for /api/assets/{symbol}/profile.
     fmp_api_key: str = ""
     # Browser origins allowed to call this API. The GitHub Pages origin is
     # included so the dev-branch previews can reach the Vercel backend.

@@ -184,14 +184,16 @@ def calendar(
 
 @app.get("/api/assets/{symbol:path}/profile")
 def asset_profile(symbol: str) -> dict:
-    """Enriched company info (Yahoo Finance + Postgres write-through cache).
-    No Alpaca keys required — independent of the trading client, like
+    """Enriched company info (Financial Modeling Prep + Postgres write-through
+    cache). No Alpaca keys required — independent of the trading client, like
     /api/indices and /api/market-news. Declared before the catch-all asset
     route so the ``:path`` converter doesn't swallow the ``/profile`` suffix."""
     try:
         return profiles.get_company_profile(symbol)
     except profiles.ProfileNotFound:
         raise HTTPException(404, f"No company profile for {symbol.upper()}")
+    except profiles.ProfileUnavailable as exc:
+        raise HTTPException(503, str(exc))
 
 
 @app.get("/api/assets/{symbol:path}", dependencies=[Depends(require_configured)])
