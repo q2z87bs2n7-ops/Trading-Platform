@@ -224,7 +224,7 @@ export default function TVPlatform({ symbol, onSymbolChange, assetClass }: Props
 
   return (
     <div className="flex flex-col gap-2" style={{ width: "100%" }}>
-      <ChartTopBar symbol={symbol || "AAPL"} />
+      <ChartTopBar symbol={symbol || "AAPL"} onSelectSymbol={selectSym} />
       <IndicatorPillsRow />
       <div
         ref={containerRef}

@@ -4,12 +4,15 @@ import * as api from "../api";
 import type { Asset } from "../types";
 
 interface Props {
-  // API param value: "us_equity" | "crypto" (drives the search silo).
+  // API param value: "us_equity" | "crypto", or "" to search all silos.
   assetClass: string;
   onChoose: (symbol: string) => void;
   disabled?: boolean;
   autoFocus?: boolean;
   variant?: "inline" | "sheet";
+  // Which edge the dropdown anchors to (so it never runs off-screen). Use
+  // "right" when the input sits at the right of its row, "left" otherwise.
+  align?: "left" | "right";
 }
 
 // Debounced symbol/name autocomplete over the catalogue. Picking a result (or
@@ -20,6 +23,7 @@ export function AssetSearch({
   disabled = false,
   autoFocus = false,
   variant = "inline",
+  align = "right",
 }: Props) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<Asset[]>([]);
@@ -122,11 +126,13 @@ export function AssetSearch({
             boxShadow: "var(--shadow-lg)",
             maxHeight: 280,
             overflowY: "auto",
-            // Sheet spans the wrapper; inline anchors to the input's right edge
-            // and grows left so it never runs off the right of the screen.
+            // Sheet spans the wrapper; inline anchors to one edge of the input
+            // and grows the other way so it never runs off-screen.
             ...(sheet
               ? { left: 0, right: 0 }
-              : { right: 0, width: 300, maxWidth: "90vw" }),
+              : align === "left"
+                ? { left: 0, width: 300, maxWidth: "90vw" }
+                : { right: 0, width: 300, maxWidth: "90vw" }),
           }}
         >
           {loading && results.length === 0 ? (

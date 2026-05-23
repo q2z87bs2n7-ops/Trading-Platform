@@ -7,6 +7,7 @@ import {
   subscribeTVWidget,
   type TVChartApi,
 } from "../../lib/tv-widget-handle";
+import { AssetSearch } from "../AssetSearch";
 
 const TFS: { label: string; res: string }[] = [
   { label: "1m", res: "1" },
@@ -70,9 +71,14 @@ function useClickOutside(
 interface Props {
   symbol: string;
   onChartBotClick?: () => void;
+  onSelectSymbol?: (s: string) => void;
 }
 
-export default function ChartTopBar({ symbol, onChartBotClick }: Props) {
+export default function ChartTopBar({
+  symbol,
+  onChartBotClick,
+  onSelectSymbol,
+}: Props) {
   const [resolution, setResolution] = useState<string>("D");
   const [typeOpen, setTypeOpen] = useState(false);
   const [indOpen, setIndOpen] = useState(false);
@@ -228,6 +234,11 @@ export default function ChartTopBar({ symbol, onChartBotClick }: Props) {
           </span>
         )}
       </div>
+
+      {/* Symbol search — swaps the chart to any catalogue instrument */}
+      {onSelectSymbol && (
+        <AssetSearch assetClass="" align="left" onChoose={onSelectSymbol} />
+      )}
 
       <div
         className="self-stretch w-px"
