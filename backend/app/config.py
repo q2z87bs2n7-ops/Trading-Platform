@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     # Financial Modeling Prep API key for company profile enrichment.
     # Free tier; datacenter-friendly. Required for /api/assets/{symbol}/profile.
     fmp_api_key: str = ""
+    # CoinGecko Demo API key for crypto enrichment. Optional — unset falls back
+    # to the keyless public tier (rate-limited, unstable under load). The free
+    # Demo key lifts limits to ~30 calls/min, 10k/month.
+    coingecko_api_key: str = ""
     # Browser origins allowed to call this API. The GitHub Pages origin is
     # included so the dev-branch previews can reach the Vercel backend.
     cors_origins: str = (

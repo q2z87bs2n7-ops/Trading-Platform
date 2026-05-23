@@ -160,6 +160,17 @@ def bulk_upsert_assets(assets: list[dict], chunk_size: int = 500) -> int:
     return total
 
 
+def enriched_crypto_symbols() -> set[str]:
+    """Crypto symbols that already carry enrichment — lets the seeder resume."""
+    with _connect() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT symbol FROM assets "
+            "WHERE asset_class = 'crypto' AND enrichment_source IS NOT NULL"
+        )
+        return {row[0] for row in cur.fetchall()}
+
+
 def upsert_asset_enrichment(e: dict) -> None:
     """Write enrichment columns for one asset row."""
     with _connect() as conn:

@@ -6,11 +6,26 @@ import time
 
 import requests
 
+from .config import get_settings
+
 _log = logging.getLogger(__name__)
 
 _BASE = "https://api.coingecko.com/api/v3"
 _HEADERS = {"Accept": "application/json", "User-Agent": "trading-platform/1.0"}
-CALL_DELAY = 4.0  # seconds between calls; free keyless tier is ~15/min max
+
+
+def _headers() -> dict:
+    """Base headers plus the Demo API key header when configured."""
+    h = dict(_HEADERS)
+    key = get_settings().coingecko_api_key
+    if key:
+        h["x-cg-demo-api-key"] = key
+    return h
+
+
+def call_delay() -> float:
+    """Inter-call spacing. The Demo key allows ~30/min; keyless is much lower."""
+    return 2.5 if get_settings().coingecko_api_key else 4.0
 
 # Static map: crypto base ticker → CoinGecko coin ID. Alpaca lists each coin
 # against several quote currencies (BTC/USD, BTC/USDC, BTC/USDT) but the
@@ -63,7 +78,7 @@ def coingecko_id_for(symbol: str) -> str | None:
     return _BASE_MAP.get(base)
 
 
-def fetch_coin_profile(cg_id: str, *, _retry: int = 1) -> dict:
+def fetch_coin_profile(cg_id: str, *, _retry: int = 3) -> dict:
     r = requests.get(
         f"{_BASE}/coins/{cg_id}",
         params={
@@ -73,12 +88,13 @@ def fetch_coin_profile(cg_id: str, *, _retry: int = 1) -> dict:
             "community_data": "false",
             "developer_data": "false",
         },
-        headers=_HEADERS,
+        headers=_headers(),
         timeout=15,
     )
     if r.status_code == 429 and _retry > 0:
-        _log.warning("CoinGecko rate limited on %s; waiting 30s", cg_id)
-        time.sleep(30)
+        wait = 15 * (4 - _retry)  # 15s, 30s, 45s
+        _log.warning("CoinGecko rate limited on %s; waiting %ds", cg_id, wait)
+        time.sleep(wait)
         return fetch_coin_profile(cg_id, _retry=_retry - 1)
     r.raise_for_status()
     return r.json()
