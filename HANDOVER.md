@@ -4,11 +4,12 @@
 know exactly where things stand. Read `CLAUDE.md` first for repo-wide rules.
 
 - **Branch:** `claude/alpacas-asset-api-catalogue-noWg1`
-- **VERSION:** 0.41.6
-- **One-line status:** Phase 1 code is written and committed, but **NOT yet
-  verified end-to-end through the actual code path** (DB write + provider
-  fetch). The blockers are environmental, not code — see "Why nothing is
-  verified."
+- **VERSION:** 0.41.14
+- **One-line status:** **Phase 1 COMPLETE — verified live in prod.** The full
+  path (pg8000 → Supabase connect, schema auto-create, FMP fetch, write-through
+  cache, read-back) runs end-to-end on Vercel/Render against Postgres 17.6.
+  `DATABASE_URL` + `FMP_API_KEY` are set on both. No UI consumer yet — the
+  endpoint exists but nothing in the app displays profiles (see "Next phases").
 
 ---
 
@@ -55,9 +56,10 @@ fundamentals block — left `{}` for a later source).
 
 ---
 
-## Why nothing is verified end-to-end (environment, not code)
+## Environments & verification status
 
-Three different environments, three different limits — this is the crux:
+Three different environments, three different limits — this is why the DB path
+could only be confirmed in prod:
 
 | Environment | HTTPS (FMP) | Postgres :5432 | Notes |
 | --- | --- | --- | --- |
@@ -122,19 +124,14 @@ likely still won't.
 ### Full path (DB write-through): only in prod
 Postgres :5432/:6543 are unreachable from both the sandbox (confirmed: TCP
 times out; only :443 is open) and the owner's local network, so prod is the
-only place the DB integration runs. Two ways to verify there:
+only place the DB integration runs. To re-verify after a change: hit
+`/api/assets/AAPL/profile` twice and confirm the 2nd call's `updated_at` is
+unchanged (served from cache), and a row exists in the Supabase table editor.
 
-1. **Temporary dev tool (easiest).** Open **Settings → Database check (dev)** →
-   **Run check**, or hit `GET /api/_dev/db-check` directly. It reports
-   `db.reachable`, `row_count`, the Postgres version, and `served_from_db`
-   (true = the AAPL profile came back through the cache, not a live fallback).
-   Green ("DB reachable, served from cache") means the whole path works.
-   **This tool is temporary — remove it once verified** (endpoint
-   `dev_db_check` in `main.py`, `db.diagnostics()`, the `dbCheck`/`DbCheckResult`
-   export in `frontend/src/api.ts`, and the `DbCheckRow` in `SettingsMenu.tsx`).
-2. **Manual.** Hit `/api/assets/AAPL/profile` twice and confirm the 2nd call's
-   `updated_at` is unchanged (served from cache), and a row exists in the
-   Supabase table editor.
+> A temporary `/api/_dev/db-check` endpoint + a Settings "Database check" row
+> were used for the original prod verification (Postgres 17.6,
+> `served_from_db: true`) and have since been **removed**. Don't re-add them to
+> the repo; rebuild a throwaway probe on a scratch branch if you ever need one.
 
 ---
 
@@ -184,14 +181,26 @@ was also created — delete whichever you're not using.)
 
 ---
 
-## Next phases (not started)
+## Next phases
 
-1. **Finish + verify Phase 1:** fix the FMP endpoint, deploy, confirm
-   write-through caching works in prod.
-2. **Phase 2 — DB-backed Ask-bot tools:** add `get_company_profile` /
+1. ✅ **Phase 1 — DONE.** FMP stable endpoint, Postgres write-through cache,
+   verified in prod. The cache is **self-populating**: each cache-miss on
+   `/api/assets/{symbol}/profile` writes one row (no manual seeding — see
+   "How it populates" below).
+2. **Make Phase 1 useful (not started):** nothing consumes the endpoint yet.
+   Either surface profile data in the UI (a company card on Discover / Chart)
+   and/or move to Phase 2.
+3. **Phase 2 — DB-backed Ask-bot tools:** add `get_company_profile` /
    `screen_assets` to the Ask-anything tool set (`backend/app/ai/tools_read.py`
    + assembler `ai/tools.py`; executed in `ai/router.py`). Lets the bot answer
    "find healthcare stocks over $10B" from SQL instead of web_search.
-3. **Phase 3 — pgvector RAG:** enable the `vector` extension, embed company
+4. **Phase 3 — pgvector RAG:** enable the `vector` extension, embed company
    descriptions/news, add semantic "similar to X" retrieval.
-4. **Catalogue/screener UI:** front-end surface over the enriched universe.
+5. **Catalogue/screener UI:** front-end surface over the enriched universe.
+
+### How it populates
+We never write to Postgres directly (5432 is firewalled from the sandbox + the
+owner's laptop). The **deployed app** does all writing, lazily: a request for a
+symbol checks the cache, and on a miss/stale (>7d) fetches FMP and
+`upsert`s the row. So the table fills organically as symbols are requested.
+Bulk seeding = drive the deployed endpoint over a symbol list, not raw SQL.

@@ -131,14 +131,16 @@ separate silos behind a shared account.
 - **Backend:** FastAPI + `alpaca-py`. Real code in `backend/app/`;
   `api/index.py` is the Vercel shim. Endpoints under `/api/`: health,
   config, account, bars, quotes, snapshots, stream, orders, positions,
-  portfolio/history, pnl-history, activities, clock, calendar, assets, news,
-  watchlist, movers, most-active, indices, market-news, crypto/tickers,
-  ai/chat, ai/ask (last two gated by `AI_CHAT_ENABLED`; require
-  `ANTHROPIC_API_KEY`). `/api/indices` and `/api/market-news` hit
-  Yahoo Finance directly via `requests` (no yfinance, no C extensions
-  — Python 3.14 safe). `/api/news`, `/api/most-active`, `/api/assets`
-  are still served but only consumed by the AI tool loop — don't
-  delete them.
+  portfolio/history, pnl-history, activities, clock, calendar, assets,
+  assets/{symbol}/profile, news, watchlist, movers, most-active, indices,
+  market-news, crypto/tickers, ai/chat, ai/ask (last two gated by
+  `AI_CHAT_ENABLED`; require `ANTHROPIC_API_KEY`). `/api/indices` and
+  `/api/market-news` hit Yahoo Finance directly via `requests` (no yfinance,
+  no C extensions — Python 3.14 safe). `/api/news`, `/api/most-active`,
+  `/api/assets` are still served but only consumed by the AI tool loop — don't
+  delete them. `/api/assets/{symbol}/profile` is the Postgres-backed company
+  enrichment cache (FMP provider; needs `DATABASE_URL` + `FMP_API_KEY`) —
+  see "Company profiles" below and `HANDOVER.md`.
   **Path params with slashes:** `/api/assets/{symbol:path}`,
   `/api/positions/{symbol:path}`, and `/api/watchlist/{symbol:path}`
   use FastAPI's `:path` converter so `BTC/USD` passes through without
@@ -185,8 +187,21 @@ separate silos behind a shared account.
   the AI `find_symbol` path relies on; don't fold it into `coerce_silo`.
 - **PWA:** `vite-plugin-pwa`. NetworkFirst for API, CacheFirst for
   static; charting library excluded from precache.
-- **Persistence:** Backlogged Postgres (Supabase/Neon). Today Alpaca
-  is queried directly; UI prefs in `localStorage`.
+- **Persistence:** Postgres (Supabase) is **live for the company-profile
+  enrichment cache** (Phase 1 — `backend/app/db.py` + `profiles.py`, behind
+  `/api/assets/{symbol}/profile`). pure-Python `pg8000` (3.14/Vercel-safe),
+  per-op connections from `DATABASE_URL`, `company_profiles` table
+  auto-created on first use, 7-day write-through TTL, graceful `DbUnavailable`
+  → live fallback when unset. Everything else (trade journal, server-side
+  watchlists, finer P/L history) is still direct-Alpaca + `localStorage` —
+  backlogged. The DB write path only runs in prod (Postgres :5432 is
+  firewalled from the sandbox + the owner's laptop). See `docs/landmines.md`
+  → "Company profiles" and `HANDOVER.md`.
+- **Company profiles:** `profiles.get_company_profile()` is FMP-only (the
+  **stable** endpoint — legacy v3 403s for new keys; Yahoo's quoteSummary 406s
+  from datacenters, so it was dropped). Provider key `FMP_API_KEY`; raises
+  `ProfileUnavailable` (→ 503) when unset. Cache self-populates lazily on
+  cache-miss — never seed via raw SQL, drive the deployed endpoint.
 - **Styling:** Tailwind + a Calm v2 oklch token set in
   `frontend/src/index.css` (light default, dark under
   `html[data-theme="dark"]`, switched by `hooks/useTheme.ts` with a

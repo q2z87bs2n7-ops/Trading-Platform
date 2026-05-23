@@ -2,9 +2,19 @@
 
 ## Existing
 
-- **Postgres persistence layer** — trade journal, server-side watchlists,
-  analytics history. Replaces direct-Alpaca-only reads + `localStorage`
-  prefs. Free tier (Supabase/Neon).
+- **Postgres persistence layer** — free-tier Supabase. **Phase 1 shipped:**
+  the company-profile enrichment cache (`/api/assets/{symbol}/profile`,
+  `db.py` + `profiles.py`, FMP provider) is live and verified in prod (see
+  `HANDOVER.md`). Still backlogged on this layer: trade journal, server-side
+  watchlists, finer analytics/P&L history. Phase-1 follow-ups:
+  - **Make it useful** — nothing consumes the profile endpoint yet; surface
+    company data in the UI (a profile card on Discover / Chart).
+  - **Phase 2 — DB-backed Ask-bot tools** — `get_company_profile` /
+    `screen_assets` in the Ask-anything tool set (`ai/tools_read.py` +
+    `ai/tools.py`, executed in `ai/router.py`) so the bot screens from SQL
+    instead of web search.
+  - **Phase 3 — pgvector RAG** — embed descriptions/news for "similar to X".
+  - **Catalogue / screener UI** over the enriched universe.
 - **Per-silo P/L curve granularity** — `/api/pnl-history` (`alpaca/pnl.py`)
   reconstructs the curve from FILL activities (FIFO) valued at *daily*
   closes, with a cost anchor + live tip. Intraday shape between trades is

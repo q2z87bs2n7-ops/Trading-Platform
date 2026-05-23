@@ -103,6 +103,25 @@ The **Ask anything** bar (teal accent, all modes) is a separate, purely
 local intent parser — orders, portfolio queries, movers, news, charts.
 It works without any Anthropic key and costs nothing to run.
 
+### 1c. Company profiles (optional)
+
+`GET /api/assets/{symbol}/profile` serves Postgres-cached company info
+(name, sector, market cap, description, logo, employees) from
+[Financial Modeling Prep](https://financialmodelingprep.com/). It degrades
+gracefully (503) when unconfigured, so it's optional. To enable, add a free
+FMP key and a Supabase Postgres URL to `backend/.env`:
+
+```
+FMP_API_KEY=...
+DATABASE_URL=postgresql://...@...pooler.supabase.com:5432/postgres
+```
+
+The `company_profiles` table auto-creates on first request; results are
+cached write-through with a 7-day TTL. **Note:** the DB write path needs
+outbound TCP to Postgres :5432, which many local/corporate networks block —
+in that case the endpoint still works but serves uncached live data. See
+`HANDOVER.md` and `docs/landmines.md` for the full story.
+
 ### 2. Backend
 
 ```bash
@@ -154,7 +173,9 @@ only in Vercel (never in GitHub).
 3. **Alpaca env in Vercel:** in the new Vercel project → Settings →
    Environment Variables (Production), add `ALPACA_API_KEY`,
    `ALPACA_SECRET_KEY`, `ALPACA_PAPER=true`, `ALPACA_DATA_FEED=iex`, then
-   re-run the prod workflow so it picks them up.
+   re-run the prod workflow so it picks them up. *(Optional: add
+   `FMP_API_KEY` + `DATABASE_URL` here too — and on the relay host — to enable
+   the company-profile cache. Paste only the value, no trailing newline.)*
 4. **GitHub repo variable** (same page → *Variables*): `VERCEL_PROD_URL` =
    `https://trading-platform.vercel.app` (shown in the deploy job summary).
    Baked into Pages builds so previews know where the backend is.
