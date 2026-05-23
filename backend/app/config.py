@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     # Skip TLS cert verification on the DB connection. Only flip if the
     # pooler endpoint trips hostname/cert checks; TLS stays on either way.
     database_ssl_insecure: bool = False
+    # Financial Modeling Prep API key for company profile enrichment.
+    # Free tier; datacenter-friendly. When set, preferred over Yahoo.
+    fmp_api_key: str = ""
     # Browser origins allowed to call this API. The GitHub Pages origin is
     # included so the dev-branch previews can reach the Vercel backend.
     cors_origins: str = (
@@ -56,6 +59,10 @@ class Settings(BaseSettings):
     @property
     def db_configured(self) -> bool:
         return bool(self.database_url)
+
+    @property
+    def fmp_configured(self) -> bool:
+        return bool(self.fmp_api_key)
 
 
 @lru_cache

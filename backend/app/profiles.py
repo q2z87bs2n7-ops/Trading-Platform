@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 import requests
 
 from . import db
+from .config import get_settings
 
 _log = logging.getLogger(__name__)
 
@@ -57,6 +58,33 @@ def _ensure_crumb() -> None:
 def _reset_crumb() -> None:
     global _session, _crumb
     _session, _crumb = None, None
+
+
+def _fetch_fmp(symbol: str) -> dict:
+    url = f"https://financialmodelingprep.com/api/v3/profile/{symbol}"
+    params = {"apikey": get_settings().fmp_api_key}
+    r = requests.get(url, params=params, headers=_HEADERS, timeout=10)
+    r.raise_for_status()
+    result = r.json() or []
+    if not result:
+        raise ProfileNotFound(symbol)
+    return result[0]
+
+
+def _map_fmp(symbol: str, data: dict) -> dict:
+    return {
+        "symbol": symbol,
+        "name": data.get("companyName"),
+        "exchange": data.get("exchange"),
+        "sector": data.get("sector"),
+        "industry": data.get("industry"),
+        "market_cap": int(data.get("marketCap")) if data.get("marketCap") else None,
+        "description": data.get("description"),
+        "website": data.get("website"),
+        "employees": None,  # FMP doesn't provide employee count
+        "logo_url": data.get("image"),
+        "fundamentals": {},  # FMP doesn't provide the same fundamentals shape
+    }
 
 
 def _fetch_yahoo(symbol: str) -> dict:
@@ -127,11 +155,13 @@ def _fresh(updated_at) -> bool:
 
 
 def get_company_profile(symbol: str) -> dict:
-    """DB-cached company profile (write-through). Falls back to live Yahoo when
-    the DB is unset/unreachable. Raises ``ProfileNotFound`` for unknown symbols.
+    """DB-cached company profile (write-through). Prefers FMP when available,
+    falls back to Yahoo. Falls back to cached profile when live fetch fails.
+    Raises ``ProfileNotFound`` for unknown symbols.
     """
     sym = symbol.strip().upper()
     use_db = db.db_enabled()
+    fmp_configured = get_settings().fmp_configured
 
     if use_db:
         try:
@@ -142,7 +172,14 @@ def get_company_profile(symbol: str) -> dict:
             _log.warning("profile cache read failed: %s", exc)
             use_db = False
 
-    profile = _map(sym, _fetch_yahoo(sym))
+    if fmp_configured:
+        try:
+            profile = _map_fmp(sym, _fetch_fmp(sym))
+        except Exception as exc:
+            _log.warning("FMP fetch failed (%s), falling back to Yahoo", exc)
+            profile = _map(sym, _fetch_yahoo(sym))
+    else:
+        profile = _map(sym, _fetch_yahoo(sym))
 
     if use_db:
         try:
