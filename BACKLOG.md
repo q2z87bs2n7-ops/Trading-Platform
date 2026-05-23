@@ -10,15 +10,22 @@
   watchlist autocomplete, chart search, and the bot's `find_symbol`; stock
   enrichment backfills via `enrich-stocks?limit=N`. Still backlogged on this
   layer: trade journal, server-side watchlists, finer analytics/P&L history.
-  Follow-ups:
+  **Shipped since:** `get_asset_profile` + `screen_assets` (structured catalogue
+  filter with `sort_by` + industry did-you-mean) in the Ask-anything/ChartBot
+  read-tool set (`ai/tools_read.py`, executed in `ai/router.py`). See
+  `docs/database.md`. Follow-ups (all **parked by decision, May 2026**):
   - **Refresh policy** — backfill exists, but there's no automated re-enrich /
-    new-listing refresh (no TTL; `enriched_at` is visibility-only). Decide
-    when/whether to refresh stale rows given the FMP cap.
-  - **`screen_assets` tool** — a structured catalogue filter in the Ask-anything
-    tool set (`ai/tools_read.py` + `ai/tools.py`, executed in `ai/router.py`) so
-    the bot screens by sector/market-cap from SQL; plus a catalogue/screener UI +
-    company card over the enriched universe.
-  - **pgvector RAG** — embed descriptions/news for "similar to X".
+    new-listing refresh (no TTL; `enriched_at` is visibility-only). Now feasible
+    on the paid FMP Starter tier (~1.5–2.5 h full re-enrich, under 300/min);
+    parked by choice — slow-moving fields, low-stakes staleness.
+  - **Catalogue/screener UI + company card** — Discover/Chart surface over the
+    enriched universe; backend (`get_asset_profile`/`screen_assets`) is done, this
+    is the remaining frontend piece.
+  - **"Similar to X"** — a cheap structured-peers SQL tool (sector/industry +
+    market-cap/beta proximity) or full pgvector RAG over stored descriptions;
+    prefer the structured version first.
+  - **Catalogue-grounded market summary** — parked: the catalogue is static (no
+    price/time-series), so it adds little to the movers+news summary.
 - **Per-silo P/L curve granularity** — `/api/pnl-history` (`alpaca/pnl.py`)
   reconstructs the curve from FILL activities (FIFO) valued at *daily*
   closes, with a cost anchor + live tip. Intraday shape between trades is

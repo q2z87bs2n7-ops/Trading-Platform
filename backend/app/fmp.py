@@ -1,8 +1,10 @@
 """Financial Modeling Prep — stock profile enrichment (stable endpoint).
 
-Single-symbol only on the free tier (no batch/bulk — both 402) and capped at
-250 calls/day, so callers must budget. ``dcf``/``dcf_diff`` are not in the
-stable profile response (separate endpoint) and stay null for now.
+Single-symbol only: ``profile-bulk`` and the constituent lists 402 below the
+higher tiers. On the paid **Starter** plan the ceiling is 300/min (no 250/day
+free cap), so a full-universe re-enrich is ~1.5–2.5 h, gated by per-symbol
+latency rather than the rate limit. ``dcf``/``dcf_diff`` are not in the stable
+profile response (separate endpoint) and stay null for now.
 """
 from __future__ import annotations
 
@@ -15,7 +17,7 @@ _HEADERS = {
     "User-Agent": "Mozilla/5.0 (compatible; trading-platform/1.0)",
     "Accept": "application/json",
 }
-CALL_DELAY = 0.3  # gentle spacing; the real limit is 250/day, not per-second
+CALL_DELAY = 0.3  # courtesy spacing; Starter allows 300/min, so this isn't the ceiling
 
 
 def configured() -> bool:

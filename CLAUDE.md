@@ -210,8 +210,9 @@ separate silos behind a shared account.
   (`get_all_assets_for_seed` → `db.bulk_upsert_assets`); crypto enrichment from
   CoinGecko (`coingecko.py` — keyless or the `COINGECKO_API_KEY` Demo key,
   static base-ticker→id map); stock enrichment from FMP's **stable** profile
-  endpoint (`fmp.py` — single-symbol, 250 calls/day on the free tier; bulk + the
-  constituent lists are paid). Both seeders are resumable (skip already-enriched);
+  endpoint (`fmp.py` — single-symbol on the paid **Starter** tier, 300/min, same
+  key; no 250/day free cap. `profile-bulk` + the constituent lists need a higher
+  tier still — 402 on Starter). Both seeders are resumable (skip already-enriched);
   `enrich-stocks` takes an explicit `?symbols=` list or `?limit=N` to backfill
   the next N un-enriched stocks (options-listed first). **Visibility rule:**
   `db.search_assets` only returns `tradable` + enriched rows, so the un-enriched

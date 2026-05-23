@@ -66,9 +66,9 @@ curl -X POST "https://<render-url>/api/_dev/enrich-stocks?symbols=AAPL,MSFT,NVDA
 curl -X POST "https://<render-url>/api/_dev/enrich-stocks?limit=2500"
 ```
 
-FMP free tier = single-symbol, 250/day. A paid **Starter** tier (300/min, same
-key) enriches the whole universe in repeated `?limit=` chunks (~1.5–2.5 hr total
-— sequential per-symbol latency, not the rate ceiling, is the floor).
+We're on the paid FMP **Starter** tier: single-symbol, 300/min (no 250/day free
+cap). It enriches the whole universe in repeated `?limit=` chunks (~1.5–2.5 hr
+total — sequential per-symbol latency, not the rate ceiling, is the floor).
 
 For current row counts and coverage, run the verification queries below rather
 than trusting a number in this doc (it would drift).
@@ -149,7 +149,7 @@ one clause.
 | Limit | Detail |
 | --- | --- |
 | Postgres :5432 | Reachable **only from prod** (Render/Vercel). Not the sandbox, not the laptop — verify via the Supabase SQL editor or deployed seeders. |
-| FMP free tier | **Single-symbol, 250 calls/day.** No comma-batch (`[]`); `profile-bulk` + `sp500-constituent` are 402 (paid). Paid Starter = 300/min, same key. |
+| FMP (Starter, paid) | **Single-symbol, 300/min** (no 250/day free cap). No comma-batch (`[]`); `profile-bulk` + `sp500-constituent` are 402 (need a higher tier). |
 | CoinGecko | Keyless ~5–15/min (429s under load). Demo key → ~30/min, 10k/mo. |
 | Supabase free | 500MB / 2 connections — fine at this scale (per-op connections respect the 2-conn cap). |
 
@@ -195,14 +195,25 @@ FROM assets WHERE enrichment_source='fmp' GROUP BY sector ORDER BY 2 DESC;
 
 ---
 
-## Roadmap (not yet built)
+## Roadmap (parked — deferred by decision, May 2026)
 
-1. **Refresh policy.** No TTL — `enriched_at` exists for visibility only. Decide
-   when to re-enrich stale rows and pick up new listings (the *backfill*
-   mechanism exists; an automated *refresh schedule* does not).
-2. **pgvector semantic search** — embed descriptions/news for "similar to X".
-3. **Catalogue/screener UI** — a Discover/Chart company card + screener surface
-   on top of `get_asset_profile` / `screen_assets` (optional).
+1. **Refresh policy.** No TTL — `enriched_at` exists for visibility only; the
+   *backfill* mechanism exists, an automated *refresh schedule* does not. Now
+   **feasible** on the paid Starter tier (a full re-enrich is ~1.5–2.5 h, well
+   under the 300/min ceiling) — parked by choice, not cost. market_cap/beta/IPO
+   drift slowly and only feed screening buckets (not trades), so staleness is
+   low-stakes; revisit a scheduled top-N (or full) refresh if it ever bites.
+2. **"Similar to X."** Two ways: a cheap **structured peers** query (same
+   sector/industry, nearest market-cap/beta — pure SQL, no new infra) or full
+   **pgvector** semantic search over the stored FMP/CoinGecko descriptions (adds
+   an embedding provider + key + backfill). Parked; prefer the structured version
+   first if revived.
+3. **Catalogue-grounded market summary.** Parked — the catalogue is *static*
+   (no price/time-series), so it can't surface "what moved today"; the Discover
+   summary already has movers + news. Marginal value.
+4. **Catalogue/screener UI** — a Discover/Chart company card + screener surface
+   on top of `get_asset_profile` / `screen_assets`. Parked (backend is complete;
+   this is the only frontend piece).
 
 History: this catalogue replaced an earlier lazy `company_profiles` cache
 (FMP-only, 7-day TTL, behind `GET /api/assets/{symbol}/profile`). That table,
