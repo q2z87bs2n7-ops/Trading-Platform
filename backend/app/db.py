@@ -10,8 +10,10 @@ a 503-style fallback, mirroring the Alpaca-keys seam.
 from __future__ import annotations
 
 import logging
+import math
 import ssl
 from contextlib import contextmanager
+from datetime import date
 from urllib.parse import unquote, urlparse
 
 import pg8000.dbapi
@@ -220,6 +222,230 @@ def search_assets(query: str, asset_class: str, limit: int) -> list[dict]:
         cur = conn.cursor()
         cur.execute(sql, params)
         return [dict(zip(_SEARCH_COLS, row)) for row in cur.fetchall()]
+
+
+# ---- screen_assets (structured catalogue filter) ----------------------------
+
+# Canonical crypto-category keys -> the raw CoinGecko tag(s) each maps to. The
+# screener exposes only these curated keys: the raw `categories` array is ~54%
+# index / VC-portfolio / "X Ecosystem" noise (see DBHandover "Research"). KEEP
+# THE KEYS IN SYNC with the `category` enum in ai/tools_read.py.
+CRYPTO_CATEGORY_MAP: dict[str, list[str]] = {
+    "defi":           ["Decentralized Finance (DeFi)"],
+    "layer1":         ["Layer 1 (L1)", "Smart Contract Platform"],
+    "dex":            ["Decentralized Exchange (DEX)", "Automated Market Maker (AMM)"],
+    "meme":           ["Meme", "Dog-Themed", "4chan-Themed"],
+    "stablecoin":     ["Stablecoin", "Fiat-backed Stablecoin", "Stablecoin Issuer"],
+    "ai":             ["Artificial Intelligence (AI)"],
+    "rwa":            ["Real World Assets (RWA)", "RWA Protocol"],
+    "depin":          ["DePIN"],
+    "governance":     ["Governance"],
+    "yield":          ["Yield Farming", "Yield Aggregator"],
+    "exchange_token": ["Exchange-based Tokens"],
+    "pos":            ["Proof of Stake (PoS)"],
+    "pow":            ["Proof of Work (PoW)"],
+    "btc_fork":       ["Bitcoin Fork"],
+    "infrastructure": ["Infrastructure"],
+}
+
+# GICS sectors (FMP) and the exchanges seen in the catalogue — validated server
+# side so a stray value never silently returns a confusing empty set.
+_SCREEN_SECTORS = frozenset({
+    "Basic Materials", "Communication Services", "Consumer Cyclical",
+    "Consumer Defensive", "Energy", "Financial Services", "Healthcare",
+    "Industrials", "Real Estate", "Technology", "Utilities",
+})
+_SCREEN_EXCHANGES = frozenset({"NASDAQ", "NYSE", "ARCA", "BATS", "AMEX", "OTC"})
+
+
+def _clampf(v, lo=None, hi=None):
+    """Coerce to float, reject NaN/inf, clamp to [lo, hi]; None on bad input."""
+    if v is None:
+        return None
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    if math.isnan(f) or math.isinf(f):
+        return None
+    if lo is not None and f < lo:
+        f = lo
+    if hi is not None and f > hi:
+        f = hi
+    return f
+
+
+def _parse_iso_date(s):
+    try:
+        y, m, d = str(s).strip().split("-")
+        return date(int(y), int(m), int(d))
+    except Exception:
+        return None
+
+
+def _screen_filters(
+    asset_class, sector, industry, asset_type, category,
+    market_cap_min, market_cap_max, beta_min, beta_max,
+    exchange, ipo_after, ipo_before,
+):
+    """Pure filter builder -> (where_sql, params, applied, ignored, resolved
+    class). No DB access. The security boundary lives here: every value is
+    enum-validated or numerically clamped, then bound as a %s parameter — the
+    SQL template is fixed and never sees a model-supplied value inline.
+    """
+    ac = asset_class if asset_class in ("us_equity", "crypto") else "us_equity"
+    is_crypto = ac == "crypto"
+    where = ["tradable = true", "enrichment_source IS NOT NULL", "asset_class = %s"]
+    params: list = [ac]
+    applied: dict = {"asset_class": ac}
+    ignored: list = []
+
+    mn = _clampf(market_cap_min, lo=0)
+    if mn is not None:
+        where.append("market_cap >= %s"); params.append(mn); applied["market_cap_min"] = mn
+    mx = _clampf(market_cap_max, lo=0)
+    if mx is not None:
+        where.append("market_cap <= %s"); params.append(mx); applied["market_cap_max"] = mx
+
+    if is_crypto:
+        if category:
+            raw = CRYPTO_CATEGORY_MAP.get(str(category).lower())
+            if raw:
+                where.append("categories && %s::text[]"); params.append(raw)
+                applied["category"] = str(category).lower()
+            else:
+                ignored.append(f"category={category}")
+        for label, val in (("sector", sector), ("industry", industry),
+                           ("asset_type", asset_type if asset_type != "stock" else None),
+                           ("exchange", exchange), ("beta_min", beta_min),
+                           ("beta_max", beta_max), ("ipo_after", ipo_after),
+                           ("ipo_before", ipo_before)):
+            if val not in (None, ""):
+                ignored.append(f"{label} (stocks-only)")
+    else:
+        at = asset_type if asset_type in ("stock", "etf", "adr", "any") else "stock"
+        if at == "stock":
+            where.append("is_etf IS NOT TRUE AND is_fund IS NOT TRUE")
+        elif at == "etf":
+            where.append("is_etf IS TRUE")
+        elif at == "adr":
+            where.append("is_adr IS TRUE")
+        applied["asset_type"] = at
+
+        if sector:
+            if sector in _SCREEN_SECTORS:
+                where.append("sector = %s"); params.append(sector); applied["sector"] = sector
+            else:
+                ignored.append(f"sector={sector}")
+        if industry:
+            where.append("industry ILIKE %s"); params.append(f"%{industry}%")
+            applied["industry"] = industry
+        if exchange:
+            ex = str(exchange).upper()
+            if ex in _SCREEN_EXCHANGES:
+                where.append("exchange = %s"); params.append(ex); applied["exchange"] = ex
+            else:
+                ignored.append(f"exchange={exchange}")
+        bmn = _clampf(beta_min, lo=-100, hi=100)
+        if bmn is not None:
+            where.append("beta >= %s"); params.append(bmn); applied["beta_min"] = bmn
+        bmx = _clampf(beta_max, lo=-100, hi=100)
+        if bmx is not None:
+            where.append("beta <= %s"); params.append(bmx); applied["beta_max"] = bmx
+
+        lo = _parse_iso_date(ipo_after) if ipo_after else None
+        hi = _parse_iso_date(ipo_before) if ipo_before else None
+        if lo or hi:
+            floor = date(1980, 1, 1)  # guard against epoch-garbage ipo_date
+            lo = max(lo or floor, floor)
+            where.append("ipo_date >= %s"); params.append(lo); applied["ipo_after"] = lo.isoformat()
+            if hi:
+                where.append("ipo_date <= %s"); params.append(hi); applied["ipo_before"] = hi.isoformat()
+
+        if category:
+            ignored.append("category (crypto-only)")
+
+    return " AND ".join(where), params, applied, ignored, ac
+
+
+def screen_assets(*, asset_class="us_equity", sector=None, industry=None,
+                  asset_type="stock", category=None, market_cap_min=None,
+                  market_cap_max=None, beta_min=None, beta_max=None,
+                  exchange=None, ipo_after=None, ipo_before=None,
+                  limit=20) -> dict:
+    """Structured screen over the catalogue — visibility-filtered (enriched +
+    tradable), parameterised, capped. Returns a count + top-N-by-market-cap
+    envelope; crypto results collapse to one row per base coin (preferring the
+    /USD pair). See DBHandover "Research" for the design rationale.
+    """
+    try:
+        lim = int(limit)
+    except (TypeError, ValueError):
+        lim = 20
+    lim = max(1, min(lim, 50))
+
+    where_sql, params, applied, ignored, ac = _screen_filters(
+        asset_class, sector, industry, asset_type, category,
+        market_cap_min, market_cap_max, beta_min, beta_max,
+        exchange, ipo_after, ipo_before,
+    )
+    is_crypto = ac == "crypto"
+
+    with _connect() as conn:
+        cur = conn.cursor()
+        if is_crypto:
+            cur.execute(
+                "SELECT COUNT(DISTINCT split_part(symbol, '/', 1)) FROM assets WHERE "
+                + where_sql, params,
+            )
+            total = int(cur.fetchone()[0])
+            cur.execute(
+                "SELECT symbol, COALESCE(name, symbol), market_cap, market_cap_rank FROM ("
+                " SELECT DISTINCT ON (split_part(symbol, '/', 1)) symbol, name,"
+                " market_cap, market_cap_rank FROM assets WHERE " + where_sql +
+                " ORDER BY split_part(symbol, '/', 1), (right(symbol, 4) = '/USD') DESC,"
+                " symbol) t ORDER BY market_cap DESC NULLS LAST, symbol LIMIT %s",
+                params + [lim],
+            )
+            cols = ("symbol", "name", "market_cap", "market_cap_rank")
+            results = [dict(zip(cols, r)) for r in cur.fetchall()]
+        else:
+            cur.execute("SELECT COUNT(*) FROM assets WHERE " + where_sql, params)
+            total = int(cur.fetchone()[0])
+            cur.execute(
+                "SELECT symbol, COALESCE(name, symbol), sector, industry, market_cap,"
+                " beta FROM assets WHERE " + where_sql +
+                " ORDER BY market_cap DESC NULLS LAST, symbol LIMIT %s",
+                params + [lim],
+            )
+            cols = ("symbol", "name", "sector", "industry", "market_cap", "beta")
+            results = [dict(zip(cols, r)) for r in cur.fetchall()]
+
+        out: dict = {
+            "total_matches": total,
+            "returned": len(results),
+            "has_more": total > len(results),
+            "sorted_by": "market_cap_desc",
+            "asset_class": ac,
+            "filters_applied": applied,
+            "results": results,
+        }
+        if ignored:
+            out["ignored_filters"] = ignored
+        if total == 0:
+            out["suggestion"] = (
+                "No matches. Widen the market-cap bounds, drop the sector/industry"
+                " filter, or set asset_type='any'. Only enriched, tradable assets are"
+                " screenable (large & options-listed US names + major crypto)."
+            )
+        elif not is_crypto and out["has_more"] and "sector" not in applied:
+            cur.execute(
+                "SELECT COALESCE(sector, '(unknown)'), COUNT(*) FROM assets WHERE "
+                + where_sql + " GROUP BY sector ORDER BY COUNT(*) DESC LIMIT 12",
+                params,
+            )
+            out["bucket_counts_by_sector"] = {row[0]: int(row[1]) for row in cur.fetchall()}
+    return out
 
 
 def crypto_symbols() -> set[str]:

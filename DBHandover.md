@@ -157,7 +157,13 @@ GROUP BY sector ORDER BY COUNT(*) DESC;
   and the bot's `find_symbol`. `get_asset` (`/api/assets/{symbol}`) is DB-backed
   too (clean enum values, sector/logo/market_cap).
 - **Stock backfill path** — `enrich-stocks?limit=N` (resumable, options-listed
-  first); pairs with a paid FMP tier to enrich the universe.
+  first); pairs with a paid FMP tier to enrich the universe. FMP queries now
+  translate the dot-class form to a dash (`BRK.B`→`BRK-B`) so those rows enrich.
+- **AI catalogue tools** — `get_asset_profile` (full single-symbol profile) and
+  `screen_assets` (structured, parameterised, visibility-filtered filter with a
+  count + top-N envelope; curated crypto-category whitelist; stock screens
+  exclude ETFs by default via `asset_type`). Both live in `ai/tools_read.py` and
+  execute in `ai/router.py`, exposed to ChartBot and the Ask-anything bot.
 
 ## Deferred (next decisions, not yet built)
 
@@ -177,8 +183,9 @@ GROUP BY sector ORDER BY COUNT(*) DESC;
 
 A data audit (live DB counts 2026-05-23; 88-symbol FMP profile sample mirroring
 `map_stock_enrichment`; CoinGecko sample; screener-design literature review)
-behind the deferred `screen_assets` work. **No code written yet** — this is the
-spec a later session executes.
+behind the `screen_assets` work. **Phases 1–2 are now shipped** (`get_asset_profile`
++ `screen_assets`, both AI surfaces — see "Shipped" above); the spec below is
+retained as the design rationale and for the remaining phases.
 
 ### Headline findings (ground these, don't re-assume)
 

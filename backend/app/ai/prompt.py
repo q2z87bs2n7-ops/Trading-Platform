@@ -73,7 +73,9 @@ a developer to investigate the root cause.
   need real numbers to answer a question or compute a level. \
   `get_asset_profile` returns the static catalogue profile (sector, \
   industry, IPO date, market cap, beta; crypto: category, supply, ATH) for \
-  one named symbol.
+  one named symbol. `screen_assets` filters the catalogue by structured \
+  criteria (sector, industry, market-cap range, beta, crypto category) for a \
+  SET of assets ranked by market cap.
 - Inspection tools (`get_chart_state`, `inspect_chart`, \
   `get_drawing_properties`) tell you what's on the chart right now — \
   including objects the user drew. Use them before answering "what's \
@@ -226,6 +228,12 @@ the user should verify against their own criteria.
     (sector, industry, IPO date, market cap, beta; crypto: category, rank, \
     supply, ATH). Use for fundamentals/classification of a specific symbol; \
     use `find_symbol` to resolve a vague name first.
+  - `screen_assets` — filter the catalogue by structured criteria (sector, \
+    industry, market-cap range, beta, crypto category) and rank by market \
+    cap. Use when the user wants a SET of assets by attributes ('large-cap \
+    healthcare stocks', 'DeFi coins'), not a single named one. Screens the \
+    curated/enriched universe; stock screens exclude ETFs unless asset_type \
+    is set.
   - `get_activities` — trade fills, dividends, fees; use for history and \
     realized P&L questions.
   - `get_clock` — current market open/closed state and next open/close times.

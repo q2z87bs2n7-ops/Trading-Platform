@@ -20,6 +20,7 @@ READ_TOOL_NAMES = {
     "get_movers",
     "find_symbol",
     "get_asset_profile",
+    "screen_assets",
     "get_activities",
     "get_clock",
     "get_calendar",
@@ -325,6 +326,96 @@ READ_TOOLS: list[dict[str, Any]] = [
                 },
             },
             "required": ["symbol"],
+        },
+    },
+    {
+        "name": "screen_assets",
+        "description": (
+            "Screen the asset catalogue by structured criteria and return the "
+            "top matches ranked by market cap. Use when the user describes a "
+            "SET of assets by attributes rather than naming one (e.g. 'large-cap "
+            "healthcare stocks', 'biotech under $2B', 'high-beta tech names', "
+            "'DeFi coins', 'meme coins'). For a single named ticker use "
+            "get_asset_profile; to resolve a vague NAME to a ticker use "
+            "find_symbol. Screens only the curated, enriched universe (large & "
+            "options-listed US stocks + major crypto), not every listed "
+            "security. Stock screens EXCLUDE ETFs/funds unless asset_type is "
+            "set. Returns total_matches + a capped result list (has_more flags "
+            "overflow)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "asset_class": {
+                    "type": "string",
+                    "enum": ["stocks", "crypto"],
+                    "description": "Which silo to screen. Omit to use the active silo.",
+                },
+                "sector": {
+                    "type": "string",
+                    "enum": [
+                        "Basic Materials", "Communication Services",
+                        "Consumer Cyclical", "Consumer Defensive", "Energy",
+                        "Financial Services", "Healthcare", "Industrials",
+                        "Real Estate", "Technology", "Utilities",
+                    ],
+                    "description": "Stocks only. GICS sector.",
+                },
+                "industry": {
+                    "type": "string",
+                    "description": (
+                        "Stocks only. Partial industry match, e.g. "
+                        "'Biotechnology', 'Banks', 'Semiconductors'."
+                    ),
+                },
+                "asset_type": {
+                    "type": "string",
+                    "enum": ["stock", "etf", "adr", "any"],
+                    "description": (
+                        "Stocks only. 'stock' (default) = operating companies "
+                        "+ ADRs, no ETFs/funds; 'etf' / 'adr' to target those; "
+                        "'any' for no type filter."
+                    ),
+                },
+                "category": {
+                    "type": "string",
+                    "enum": [
+                        "defi", "layer1", "dex", "meme", "stablecoin", "ai",
+                        "rwa", "depin", "governance", "yield", "exchange_token",
+                        "pos", "pow", "btc_fork", "infrastructure",
+                    ],
+                    "description": "Crypto only. Theme/category filter.",
+                },
+                "market_cap_min": {
+                    "type": "number",
+                    "description": "Minimum market cap in USD, e.g. 1e10 for $10B.",
+                },
+                "market_cap_max": {
+                    "type": "number",
+                    "description": "Maximum market cap in USD.",
+                },
+                "beta_min": {"type": "number", "description": "Stocks only. Minimum beta."},
+                "beta_max": {"type": "number", "description": "Stocks only. Maximum beta."},
+                "exchange": {
+                    "type": "string",
+                    "enum": ["NASDAQ", "NYSE", "ARCA", "BATS", "AMEX", "OTC"],
+                    "description": "Stocks only. Listing exchange.",
+                },
+                "ipo_after": {
+                    "type": "string",
+                    "description": "Stocks only. IPO on/after this date (YYYY-MM-DD).",
+                },
+                "ipo_before": {
+                    "type": "string",
+                    "description": "Stocks only. IPO on/before this date (YYYY-MM-DD).",
+                },
+                "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 50,
+                    "description": "Max rows to return (default 20).",
+                },
+            },
         },
     },
 ]

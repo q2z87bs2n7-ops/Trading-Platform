@@ -176,6 +176,30 @@ def _execute_read_tool(
                 pass
         return json.dumps(alpaca.get_asset(symbol), default=str)
 
+    if name == "screen_assets":
+        # Active silo defaults the screen; an explicit arg (cross-silo) wins.
+        req_ac = args.get("asset_class") or asset_class
+        screen_class = "crypto" if req_ac == "crypto" else "us_equity"
+        try:
+            result = db.screen_assets(
+                asset_class=screen_class,
+                sector=args.get("sector"),
+                industry=args.get("industry"),
+                asset_type=args.get("asset_type", "stock"),
+                category=args.get("category"),
+                market_cap_min=args.get("market_cap_min"),
+                market_cap_max=args.get("market_cap_max"),
+                beta_min=args.get("beta_min"),
+                beta_max=args.get("beta_max"),
+                exchange=args.get("exchange"),
+                ipo_after=args.get("ipo_after"),
+                ipo_before=args.get("ipo_before"),
+                limit=args.get("limit", 20),
+            )
+        except db.DbUnavailable:
+            result = {"error": "catalogue unavailable", "results": []}
+        return json.dumps(result, default=str)
+
     if name == "get_activities":
         activity_type = args.get("activity_type")
         limit = min(int(args.get("limit", 25)), 100)
