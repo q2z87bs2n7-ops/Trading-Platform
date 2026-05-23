@@ -167,8 +167,137 @@ GROUP BY sector ORDER BY COUNT(*) DESC;
 2. **`screen_assets` tool** — a structured catalogue filter (sector / industry /
    market-cap range / category) in the Ask-anything set (`ai/tools_read.py` +
    `ai/tools.py`, executed in `ai/router.py`) so the bot screens from SQL, plus
-   a catalogue/screener UI + company card on Discover/Chart.
+   a catalogue/screener UI + company card on Discover/Chart. **Designed & data-
+   audited — see "Research" below.**
 3. **pgvector RAG** — embed descriptions/news for "similar to X".
+
+---
+
+## Research — `screen_assets` & DB×bot opportunities (data-grounded)
+
+A data audit (live DB counts 2026-05-23; 88-symbol FMP profile sample mirroring
+`map_stock_enrichment`; CoinGecko sample; screener-design literature review)
+behind the deferred `screen_assets` work. **No code written yet** — this is the
+spec a later session executes.
+
+### Headline findings (ground these, don't re-assume)
+
+- **ETFs poison stock `sector`.** 1,532 of 4,822 enriched stocks are ETFs, and
+  **1,522 are mislabelled `sector="Financial Services"`** by FMP (so the raw
+  "Financial Services" bucket is 2,026 but only ~504 are real fin-services
+  companies). Every sector filter MUST separate ETFs via `is_etf`. ETF
+  `market_cap` is AUM, not company cap; ETFs cluster into the `industry`
+  "Asset Management*" rows (~1,591) and the ARCA exchange (918).
+- **Crypto `categories` is 54% noise.** 189 distinct tags across 36 base coins;
+  **103 are "X Ecosystem/Native" tags** and the loudest are index/VC-portfolio
+  membership ("Coinbase 50 Index" 51, "GMCI Index" 50, "a16z Portfolio" 16).
+  Useless raw → a **curated whitelist** is mandatory.
+- **`has_options` has zero variance** (4,822/4,822 — backfill does options-listed
+  first). Do NOT expose it as a filter until enrichment extends past the options
+  universe.
+- **Dot-class symbols are un-enriched** (`BRK.A`/`BRK.B`/`BF.B` all
+  `enrichment_source=null`) — FMP's stable profile expects `BRK-B`, not `BRK.B`,
+  so the single-symbol fetch returns `[]`. Coverage gap. (`SPY` is also
+  un-enriched as of the audit — alphabetical backfill hasn't reached "S"; that
+  one is transient.)
+- **`ipo_date` has 107 pre-1980 rows incl. epoch garbage** (e.g. SPAC-merged
+  `DJT` = 1970-01-02). Clamp to ≥1980 before any "recent IPO" filter (574 rows
+  are ≥2023).
+
+### Screenable fields (coverage of the 4,822 enriched stocks / 73 crypto rows)
+
+- **Stocks — strong:** `market_cap` 100% (micro<300M 1,443 / small 1,367 / mid
+  1,111 / large 837 / mega>200B 64), `beta` 100%, `sector` 99.9% (11 clean GICS
+  values, *after* ETF separation), `ipo_date` 99.96% (clamp garbage),
+  `is_etf`/`is_adr`/`is_fund` 100% non-null (1,532 / 208 / 21 true), `country`
+  99.9%, `exchange` (NASDAQ 2,113 / NYSE 1,425 / ARCA 918 / BATS 224 / OTC 73 /
+  AMEX 69). **Weak/skip:** `employees` 68%, `state` ~84%, `has_options` (no
+  variance).
+- **Crypto — strong:** `market_cap` / `market_cap_rank` 100%, `categories` 100%
+  present (whitelist only). **Profile-only:** `max_supply` 66%,
+  `whitepaper_url`/`github_url` 86%/84%. **Too sparse:** `genesis_date` /
+  `hashing_algorithm` 27%. **Quote-pair duplication:** 73 rows = 36 coins × ~2
+  pairs carrying identical categories — a screener MUST collapse to one row per
+  base coin (prefer `/USD`).
+- Useful crypto themes that survive the noise: Smart Contract Platform, Layer 1,
+  DeFi, DEX/AMM, Meme/Dog-Themed, Stablecoin, AI, RWA, DePIN, Governance,
+  PoW/PoS, Yield Farming, Exchange Tokens, Bitcoin Fork.
+
+### `screen_assets` spec
+
+- **Filters (data-supported):** common — `asset_class` (omit → active silo),
+  `market_cap_min`/`max` (USD), `limit` (default 20, hard cap 50), `sort_by`
+  (default `market_cap_desc`). Stocks — `sector` (enum, 11 GICS),
+  **`asset_type` enum `["stock","etf","adr","any"]`, default `stock`** (this is
+  the ETF fix), `beta_min`/`max`, `ipo_after`/`before` (clamp ≥1980), `exchange`
+  (enum), `industry` (optional free-text validated server-side vs `DISTINCT
+  industry` — 153 values, too many for a schema enum). Crypto — `category` (enum
+  of ~15 curated theme keys mapped server-side to raw CoinGecko tags, e.g.
+  `meme`→{Meme,Dog-Themed,4chan-Themed}); index/VC/ecosystem tags never exposed.
+- **Response shape (token-economy):** count + top-N on a relevance key, lean
+  columns, explicit overflow — `{total_matches, returned, has_more, sorted_by,
+  filters_applied, results[]}`. ~6 cols/row × 20 rows ≈ 1–2k tokens (vs ~50k for
+  a full dump). Crypto collapses to one row per base coin. Over-broad → add
+  `bucket_counts` (by sector / cap tier). Empty → `suggestion` naming the
+  too-tight filter + valid values.
+- **Surfaces:** append to `ai/tools_read.py` `READ_TOOLS` (END, before
+  `DRAW_TOOLS`) + `READ_TOOL_NAMES` → auto-exposed to **both** ChartBot (`TOOLS`)
+  and Ask-anything (`read_only_tools()`), routed backend via `is_read_tool`,
+  preserving read-before-draw. The teal regex parser needs no change (screening
+  queries already fall through to `fallback` → `/api/ai/ask`). Adding any tool
+  forces a one-time prefix-cache re-warm (tools precede the system breakpoint) —
+  acceptable; the "ordering is load-bearing" rule is about not *reordering*
+  existing tools, which appending doesn't do.
+- **Prompt guidance:** teach the find/screen/profile boundary — `find_symbol`
+  = resolve a *known* name/ticker; `screen_assets` = filter a *set* by
+  attributes (state it screens only the curated/enriched universe and excludes
+  ETFs unless `asset_type` says otherwise); each with a "do NOT use when…" line.
+- **Security (parameterized-only):** model supplies values, never SQL. Validate
+  enums against the known set, coerce+clamp numerics (≥0, reject NaN/inf) and
+  dates (≥1980), cap `limit` at 50, assemble WHERE from a fixed whitelist with
+  pg8000 placeholders, keep the visibility rule. Avoids the LangChain/LlamaIndex
+  P2SQL classes (CVE-2025-1793) that came from letting the model shape query
+  *structure*.
+
+### Broader DB×bot opportunities (ranked value × effort)
+
+1. **`get_asset_profile` tool — highest value / lowest effort.** `db.get_asset`
+   returns only 12 search cols today; a full-row read answers "what
+   sector/industry/CEO/IPO date is X", "BTC max supply / ATH / rank". One indexed
+   lookup, near-zero tokens, very high hit-rate. **Ship first** (cheaper than
+   `screen_assets`).
+2. **`screen_assets`** — high / medium (the anchor above).
+3. **Catalogue-grounded comparisons** — med-high / low; emergent from #1 +
+   prompt ("compare NVDA vs AMD fundamentals" = two profile reads).
+4. **Catalogue-driven watchlist suggestions** — med / low; emergent from #2 +
+   existing `add_to_watchlist` (tradable-verified names vs model guesses).
+5. **Catalogue-grounded AI market summary** — med / med.
+6. **pgvector semantic search ("coins like Chainlink")** — high / high; defer.
+7. **Refresh/freshness policy** — low-med / low; already deferred (#1 above).
+
+### Phased plan (later coding session)
+
+- **Phase 0 (hygiene, no tool):** build the crypto category whitelist dict from
+  this audit; optional `fmp.fetch_profile` dash-symbol special-case
+  (`BRK.B`→`BRK-B`) to close the dot-class gap; continue stock backfill toward
+  ~6k so `SPY` et al. become searchable; ETF policy handled in-tool via
+  `asset_type` (no migration).
+- **Phase 1:** `get_asset_profile` (full-row `db` read + tool + dispatch +
+  one prompt line). Smallest shippable win.
+- **Phase 2:** `screen_assets` (parameterized builder, validation/clamping,
+  base-coin dedupe, response envelope, schema, prompt guidance) → both surfaces.
+- **Phase 3 (prompt-only):** comparisons + watchlist suggestions; optional
+  Discover screener UI / company card.
+- **Phase 4 (deferred):** pgvector semantic similarity; refresh schedule.
+
+**Token economy:** screening/profile queries today fall to `/api/ai/ask` where
+the bot guesses from training data or burns a `web_search` (multi-k tokens +
+latency, 400s if the org hasn't enabled it). These tools replace that with one
+deterministic ~1–2k-token call grounded in the *tradable* universe — est. 1–2
+fewer `web_search` round-trips per query, plus better accuracy.
+
+> ⚠️ The `FMP_API_KEY` used for the sampling is a live paid key that was pasted
+> in chat during this research — rotate it (per "Secrets" above).
 
 ---
 
