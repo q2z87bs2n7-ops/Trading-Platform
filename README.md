@@ -103,24 +103,28 @@ The **Ask anything** bar (teal accent, all modes) is a separate, purely
 local intent parser — orders, portfolio queries, movers, news, charts.
 It works without any Anthropic key and costs nothing to run.
 
-### 1c. Company profiles (optional)
+### 1c. Asset catalogue (optional)
 
-`GET /api/assets/{symbol}/profile` serves Postgres-cached company info
-(name, sector, market cap, description, logo, employees) from
-[Financial Modeling Prep](https://financialmodelingprep.com/). It degrades
-gracefully (503) when unconfigured, so it's optional. To enable, add a free
-FMP key and a Supabase Postgres URL to `backend/.env`:
+A Postgres (Supabase) `assets` table holds the full Alpaca universe
+(~13.8k us_equity + crypto rows) plus per-source enrichment: crypto from
+[CoinGecko](https://www.coingecko.com/) and stocks from
+[Financial Modeling Prep](https://financialmodelingprep.com/). It's optional —
+nothing in the app requires it yet, and DB-backed code degrades gracefully
+(503) when unconfigured. To enable, create the table once by running
+`backend/sql/002_assets.sql` in the Supabase SQL editor, then add to
+`backend/.env`:
 
 ```
-FMP_API_KEY=...
 DATABASE_URL=postgresql://...@...pooler.supabase.com:5432/postgres
+FMP_API_KEY=...          # stock enrichment (free tier: single-symbol, 250/day)
+COINGECKO_API_KEY=...    # optional Demo key; unset = keyless (rate-limited)
 ```
 
-The `company_profiles` table auto-creates on first request; results are
-cached write-through with a 7-day TTL. **Note:** the DB write path needs
-outbound TCP to Postgres :5432, which many local/corporate networks block —
-in that case the endpoint still works but serves uncached live data. See
-`HANDOVER.md` and `docs/landmines.md` for the full story.
+Populate it with the Render-only dev seeders: `POST /api/_dev/seed-assets`
+(Alpaca base + CoinGecko crypto) and `POST /api/_dev/enrich-stocks?symbols=…`
+(FMP stocks). **Note:** the DB write path needs outbound TCP to Postgres
+:5432, which many local/corporate networks block — so seeding only runs from
+prod/Render. See `DBHandover.md` and `docs/landmines.md` for the full story.
 
 ### 2. Backend
 
@@ -174,8 +178,9 @@ only in Vercel (never in GitHub).
    Environment Variables (Production), add `ALPACA_API_KEY`,
    `ALPACA_SECRET_KEY`, `ALPACA_PAPER=true`, `ALPACA_DATA_FEED=iex`, then
    re-run the prod workflow so it picks them up. *(Optional: add
-   `FMP_API_KEY` + `DATABASE_URL` here too — and on the relay host — to enable
-   the company-profile cache. Paste only the value, no trailing newline.)*
+   `DATABASE_URL` + `FMP_API_KEY` + `COINGECKO_API_KEY` here too — and on the
+   relay host — to enable the asset catalogue. Paste only the value, no
+   trailing newline.)*
 4. **GitHub repo variable** (same page → *Variables*): `VERCEL_PROD_URL` =
    `https://trading-platform.vercel.app` (shown in the deploy job summary).
    Baked into Pages builds so previews know where the backend is.

@@ -80,29 +80,43 @@ The relay image is built from `backend/Dockerfile`. Two things bit us:
   three deploy layouts (local, Vercel, Render) put the file in different
   places, and the relay must boot even if it can't be read.
 
-## Company profiles / Postgres (Supabase) — Phase 1
+## Asset catalogue / Postgres (Supabase)
 
-The `/api/assets/{symbol}/profile` enrichment cache (`backend/app/db.py` +
-`profiles.py`). Each item cost a round of debugging:
+The `assets` table (`backend/app/db.py`, enriched via `coingecko.py` + `fmp.py`,
+seeded through the `/api/_dev/seed-assets` and `/api/_dev/enrich-stocks` dev
+tools). Each item cost a round of debugging:
 
 - **Postgres :5432/:6543 is unreachable except from prod.** The sandbox blocks
   raw TCP (only :443 is open even on a loosened egress policy) and the owner's
   laptop is behind a corporate firewall that blocks 5432. So the DB write path
   **cannot be tested locally or in a cloud agent — only on Vercel/Render.**
-  Don't burn time trying to connect from a dev machine; verify in prod (hit the
-  endpoint twice, check `updated_at` is stable + a row exists in Supabase).
-- **FMP free keys only work on the `stable` endpoint.** The legacy
-  `/api/v3/profile/{symbol}` path returns **403 ("Legacy Endpoint")** for keys
-  issued after Aug 2025. Use `/stable/profile?symbol=` (`_fetch_fmp`). Field
-  names match; `stable` also returns `fullTimeEmployees` → mapped to `employees`.
+  Don't burn time connecting from a dev machine; verify via the Supabase SQL
+  editor or by hitting the deployed seeders.
+- **The table is created by `002_assets.sql`, not auto-created.** Run it once in
+  the Supabase SQL editor (the old `company_profiles` auto-create was removed).
+- **Alpaca SDK enums stringify to the member NAME, not the value.**
+  `str(AssetClass.CRYPTO)` → `"AssetClass.CRYPTO"`, not `"crypto"` — same for
+  `AssetExchange`/`AssetStatus`, and it holds even on a pydantic model field.
+  Persist `.value` (`_enum_value` in `alpaca/trading.py`) or every
+  `asset_class`/`exchange`/`status` is polluted and `WHERE asset_class='crypto'`
+  matches nothing. (The position/order paths survive `str()` only because the
+  frontend falls back to the `/` in crypto symbols.)
+- **FMP free tier: single-symbol only, 250 calls/day.** Comma-separated
+  `symbol=A,B,C` returns `[]` (treated as one bad ticker); `profile-bulk` and
+  `sp500-constituent` are **402 (paid)**. So a backfill is single-symbol +
+  budgeted. Use the **stable** endpoint (`/stable/profile?symbol=`) — legacy
+  `/api/v3/profile` 403s for keys issued after Aug 2025. `dcf`/`dcf_diff` aren't
+  in the stable response (separate endpoint) and are left null.
+- **CoinGecko keyless tier rate-limits hard.** Under load it drops to ~5/min and
+  429s, silently failing enrichment (a 33-min run with 21 failures). Set a free
+  **Demo key** (`COINGECKO_API_KEY` → `x-cg-demo-api-key` header) for ~30/min.
+  The symbol→id map is keyed on the **base ticker** (BTC/USD, BTC/USDT … all →
+  `bitcoin`) because CoinGecko's `symbol` field isn't unique across 17k coins;
+  ids are hardcoded + verified against the live API.
 - **Yahoo quoteSummary is dead from datacenters.** `getcrumb` returns **406**
   (anti-scraping, IP-reputation based) from the sandbox, the owner's laptop, and
-  any Render/Vercel IP. It was the original provider and was removed entirely —
-  don't re-add it as a fallback expecting it to work server-side.
-- **The profile route must precede the catch-all.** `GET
-  /api/assets/{symbol:path}/profile` is declared **before**
-  `/api/assets/{symbol:path}` in `main.py`, or the `:path` converter swallows
-  `/profile`. FastAPI matches in definition order.
+  any Render/Vercel IP. It was an early profile provider and was removed —
+  don't re-add it server-side expecting it to work.
 - **`pg8000`, not `psycopg`.** Pure-Python, no C extension (Python 3.14 /
   Vercel safe), and in **both** requirements files (dual-requirements trap).
 - **`DATABASE_URL` = Supabase Session pooler (IPv4), not Direct/IPv6 or the
@@ -111,11 +125,10 @@ The `/api/assets/{symbol}/profile` enrichment cache (`backend/app/db.py` +
   pooler trips cert verification (TLS stays on regardless).
 - **Env-var value gotcha:** paste only the *value* into Vercel/Render — pasting
   the whole `NAME = value` line (or a trailing newline) gets sent verbatim as
-  the FMP apikey and 401s. Bit us once in prod.
-- **The cache self-populates; never write raw SQL.** `get_company_profile`
-  upserts on each cache-miss from the deployed app. Bulk seeding = loop the
-  deployed endpoint over a symbol list, not direct INSERTs (which can't reach
-  5432 from dev anyway).
+  the apikey and 401s. Bit us once in prod.
+- **The base upsert is slow (~14 min for ~13.8k rows)** — row-by-row over the
+  pooler. `seed-assets?base=false` skips it to (re)enrich crypto only (~45s);
+  both seeders are resumable (skip already-enriched).
 
 ## Symbols with slashes (crypto path params)
 

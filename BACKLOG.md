@@ -2,19 +2,20 @@
 
 ## Existing
 
-- **Postgres persistence layer** — free-tier Supabase. **Phase 1 shipped:**
-  the company-profile enrichment cache (`/api/assets/{symbol}/profile`,
-  `db.py` + `profiles.py`, FMP provider) is live and verified in prod (see
-  `HANDOVER.md`). Still backlogged on this layer: trade journal, server-side
-  watchlists, finer analytics/P&L history. Phase-1 follow-ups:
-  - **Make it useful** — nothing consumes the profile endpoint yet; surface
-    company data in the UI (a profile card on Discover / Chart).
-  - **Phase 2 — DB-backed Ask-bot tools** — `get_company_profile` /
-    `screen_assets` in the Ask-anything tool set (`ai/tools_read.py` +
-    `ai/tools.py`, executed in `ai/router.py`) so the bot screens from SQL
-    instead of web search.
-  - **Phase 3 — pgvector RAG** — embed descriptions/news for "similar to X".
-  - **Catalogue / screener UI** over the enriched universe.
+- **Postgres persistence layer** — free-tier Supabase. **Shipped:** the
+  `assets` catalogue (`db.py` + `coingecko.py` + `fmp.py`, seeded via the
+  `/api/_dev/seed-assets` and `/api/_dev/enrich-stocks` dev tools) — full
+  Alpaca universe with CoinGecko crypto + FMP stock enrichment, live in prod
+  (see `DBHandover.md`). Still backlogged on this layer: trade journal,
+  server-side watchlists, finer analytics/P&L history. Follow-ups:
+  - **Seeding strategy** — there's no proactive backfill yet; symbols are fed
+    explicitly. Decide what/when to seed (S&P 500? lazy on-demand? scheduled
+    refresh?) given the FMP 250/day free-tier cap.
+  - **Use the data** — `screen_assets` / `get_company_profile` in the
+    Ask-anything tool set (`ai/tools_read.py` + `ai/tools.py`, executed in
+    `ai/router.py`) so the bot screens from SQL instead of web search; and a
+    catalogue/screener UI + company card over the enriched universe.
+  - **pgvector RAG** — embed descriptions/news for "similar to X".
 - **Per-silo P/L curve granularity** — `/api/pnl-history` (`alpaca/pnl.py`)
   reconstructs the curve from FILL activities (FIFO) valued at *daily*
   closes, with a cost anchor + live tip. Intraday shape between trades is

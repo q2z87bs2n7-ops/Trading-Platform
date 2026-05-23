@@ -11,7 +11,6 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from . import alpaca
 from . import indices as market_indices
 from . import market_news
-from . import profiles
 from . import stream as quote_stream
 from .ai import router as ai_router
 from .config import get_settings
@@ -180,20 +179,6 @@ def calendar(
     end: str = Query(""),
 ) -> dict:
     return {"calendar": alpaca.get_calendar(start or None, end or None)}
-
-
-@app.get("/api/assets/{symbol:path}/profile")
-def asset_profile(symbol: str) -> dict:
-    """Enriched company info (Financial Modeling Prep + Postgres write-through
-    cache). No Alpaca keys required — independent of the trading client, like
-    /api/indices and /api/market-news. Declared before the catch-all asset
-    route so the ``:path`` converter doesn't swallow the ``/profile`` suffix."""
-    try:
-        return profiles.get_company_profile(symbol)
-    except profiles.ProfileNotFound:
-        raise HTTPException(404, f"No company profile for {symbol.upper()}")
-    except profiles.ProfileUnavailable as exc:
-        raise HTTPException(503, str(exc))
 
 
 @app.get("/api/assets/{symbol:path}", dependencies=[Depends(require_configured)])
@@ -371,19 +356,15 @@ def seed_assets(force: bool = Query(False), base: bool = Query(True)) -> dict:
 
 
 @app.post("/api/_dev/enrich-stocks", dependencies=[Depends(require_configured)])
-def enrich_stocks(
-    symbols: str = Query(""),
-    exchange: str = Query(""),
-    limit: int = Query(100),
-    force: bool = Query(False),
-) -> dict:
-    """Enrich us_equity rows from FMP. Dev tool; Render-only. Single-symbol +
-    250/day on the free tier. Either an explicit list or auto-pull the next
-    un-enriched rows for an exchange (real/options-listed first):
-    curl -X POST 'https://<render-url>/api/_dev/enrich-stocks?exchange=NASDAQ&limit=100'"""
+def enrich_stocks(symbols: str = Query(""), force: bool = Query(False)) -> dict:
+    """Enrich specific us_equity rows from FMP. Dev tool; Render-only.
+    Single-symbol + 250/day on the free tier, so pass a budgeted list:
+    curl -X POST 'https://<render-url>/api/_dev/enrich-stocks?symbols=AAPL,MSFT'"""
     syms = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+    if not syms:
+        return {"error": "pass ?symbols=AAPL,MSFT,..."}
     from .seed import enrich_stocks as _enrich
-    return _enrich(symbols=syms or None, exchange=exchange, limit=min(limit, 250), force=force)
+    return _enrich(syms, force=force)
 
 
 @app.get("/api/stream")

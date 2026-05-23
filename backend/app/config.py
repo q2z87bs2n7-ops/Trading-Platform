@@ -29,12 +29,13 @@ class Settings(BaseSettings):
     # Skip TLS cert verification on the DB connection. Only flip if the
     # pooler endpoint trips hostname/cert checks; TLS stays on either way.
     database_ssl_insecure: bool = False
-    # Financial Modeling Prep API key for company profile enrichment.
-    # Free tier; datacenter-friendly. Required for /api/assets/{symbol}/profile.
+    # Financial Modeling Prep API key — stock enrichment for the assets
+    # catalogue (sector/industry/market cap/etc.). Free tier: single-symbol,
+    # 250 calls/day. Used by the /api/_dev/enrich-stocks seeder.
     fmp_api_key: str = ""
-    # CoinGecko Demo API key for crypto enrichment. Optional — unset falls back
-    # to the keyless public tier (rate-limited, unstable under load). The free
-    # Demo key lifts limits to ~30 calls/min, 10k/month.
+    # CoinGecko Demo API key — crypto enrichment for the assets catalogue.
+    # Optional: unset falls back to the keyless public tier (rate-limited,
+    # unstable under load). The free Demo key lifts limits to ~30 calls/min.
     coingecko_api_key: str = ""
     # Browser origins allowed to call this API. The GitHub Pages origin is
     # included so the dev-branch previews can reach the Vercel backend.

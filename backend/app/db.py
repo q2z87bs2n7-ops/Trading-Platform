@@ -9,10 +9,8 @@ a 503-style fallback, mirroring the Alpaca-keys seam.
 
 from __future__ import annotations
 
-import json
 import logging
 import ssl
-import threading
 from contextlib import contextmanager
 from urllib.parse import unquote, urlparse
 
@@ -21,32 +19,6 @@ import pg8000.dbapi
 from .config import get_settings
 
 _log = logging.getLogger(__name__)
-
-_SCHEMA_SQL = """
-create table if not exists company_profiles (
-    symbol       text primary key,
-    name         text,
-    exchange     text,
-    sector       text,
-    industry     text,
-    market_cap   bigint,
-    description  text,
-    website      text,
-    employees    integer,
-    logo_url     text,
-    fundamentals jsonb       not null default '{}'::jsonb,
-    updated_at   timestamptz not null default now()
-)
-"""
-
-_COLS = (
-    "symbol", "name", "exchange", "sector", "industry", "market_cap",
-    "description", "website", "employees", "logo_url", "fundamentals",
-    "updated_at",
-)
-
-_schema_ready = False
-_schema_lock = threading.Lock()
 
 
 class DbUnavailable(RuntimeError):
@@ -95,17 +67,6 @@ def _connect():
         raise
     finally:
         conn.close()
-
-
-def _ensure_schema(cur) -> None:
-    global _schema_ready
-    if _schema_ready:
-        return
-    with _schema_lock:
-        if _schema_ready:
-            return
-        cur.execute(_SCHEMA_SQL)
-        _schema_ready = True
 
 
 # ---- assets table -----------------------------------------------------------
@@ -188,27 +149,6 @@ def enriched_stock_symbols() -> set[str]:
             "WHERE asset_class = 'us_equity' AND enrichment_source IS NOT NULL"
         )
         return {row[0] for row in cur.fetchall()}
-
-
-def unenriched_stock_symbols(exchange: str, limit: int) -> list[str]:
-    """Next un-enriched us_equity symbols for an exchange, options-listed
-    (real, liquid companies) first so budget isn't spent on SPACs/warrants
-    until the tail."""
-    with _connect() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            """
-            SELECT symbol FROM assets
-            WHERE asset_class = 'us_equity'
-              AND exchange = %s
-              AND enrichment_source IS NULL
-            ORDER BY (attributes @> ARRAY['has_options']::text[]) DESC NULLS LAST,
-                     symbol
-            LIMIT %s
-            """,
-            (exchange, limit),
-        )
-        return [row[0] for row in cur.fetchall()]
 
 
 def upsert_stock_enrichment(e: dict) -> None:
@@ -295,62 +235,4 @@ def upsert_asset_enrichment(e: dict) -> None:
                 e.get("atl_usd"), e.get("atl_date"),
                 e.get("enrichment_source"), e["symbol"],
             ),
-        )
-
-
-# ---- company_profiles table (Phase 1 legacy — kept until migrated) ----------
-
-def fetch_profile(symbol: str) -> dict | None:
-    with _connect() as conn:
-        cur = conn.cursor()
-        _ensure_schema(cur)
-        cur.execute(
-            "select " + ", ".join(_COLS) + " from company_profiles where symbol = %s",
-            (symbol,),
-        )
-        row = cur.fetchone()
-        if row is None:
-            return None
-        return dict(zip(_COLS, row))
-
-
-def upsert_profile(profile: dict) -> None:
-    fundamentals = json.dumps(profile.get("fundamentals") or {})
-    values = (
-        profile.get("symbol"),
-        profile.get("name"),
-        profile.get("exchange"),
-        profile.get("sector"),
-        profile.get("industry"),
-        profile.get("market_cap"),
-        profile.get("description"),
-        profile.get("website"),
-        profile.get("employees"),
-        profile.get("logo_url"),
-        fundamentals,
-    )
-    with _connect() as conn:
-        cur = conn.cursor()
-        _ensure_schema(cur)
-        cur.execute(
-            """
-            insert into company_profiles
-                (symbol, name, exchange, sector, industry, market_cap,
-                 description, website, employees, logo_url, fundamentals,
-                 updated_at)
-            values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, now())
-            on conflict (symbol) do update set
-                name         = excluded.name,
-                exchange     = excluded.exchange,
-                sector       = excluded.sector,
-                industry     = excluded.industry,
-                market_cap   = excluded.market_cap,
-                description  = excluded.description,
-                website      = excluded.website,
-                employees    = excluded.employees,
-                logo_url     = excluded.logo_url,
-                fundamentals = excluded.fundamentals,
-                updated_at   = now()
-            """,
-            values,
         )

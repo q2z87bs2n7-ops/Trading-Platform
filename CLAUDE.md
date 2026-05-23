@@ -132,15 +132,16 @@ separate silos behind a shared account.
   `api/index.py` is the Vercel shim. Endpoints under `/api/`: health,
   config, account, bars, quotes, snapshots, stream, orders, positions,
   portfolio/history, pnl-history, activities, clock, calendar, assets,
-  assets/{symbol}/profile, news, watchlist, movers, most-active, indices,
+  news, watchlist, movers, most-active, indices,
   market-news, crypto/tickers, ai/chat, ai/ask (last two gated by
   `AI_CHAT_ENABLED`; require `ANTHROPIC_API_KEY`). `/api/indices` and
   `/api/market-news` hit Yahoo Finance directly via `requests` (no yfinance,
   no C extensions — Python 3.14 safe). `/api/news`, `/api/most-active`,
   `/api/assets` are still served but only consumed by the AI tool loop — don't
-  delete them. `/api/assets/{symbol}/profile` is the Postgres-backed company
-  enrichment cache (FMP provider; needs `DATABASE_URL` + `FMP_API_KEY`) —
-  see "Company profiles" below and `HANDOVER.md`.
+  delete them. The Postgres **asset catalogue** is filled by two Render-only
+  dev seeders — `POST /api/_dev/seed-assets` (Alpaca base + CoinGecko crypto)
+  and `POST /api/_dev/enrich-stocks` (FMP stock enrichment) — see "Asset
+  catalogue" below and `DBHandover.md`.
   **Path params with slashes:** `/api/assets/{symbol:path}`,
   `/api/positions/{symbol:path}`, and `/api/watchlist/{symbol:path}`
   use FastAPI's `:path` converter so `BTC/USD` passes through without
@@ -187,21 +188,27 @@ separate silos behind a shared account.
   the AI `find_symbol` path relies on; don't fold it into `coerce_silo`.
 - **PWA:** `vite-plugin-pwa`. NetworkFirst for API, CacheFirst for
   static; charting library excluded from precache.
-- **Persistence:** Postgres (Supabase) is **live for the company-profile
-  enrichment cache** (Phase 1 — `backend/app/db.py` + `profiles.py`, behind
-  `/api/assets/{symbol}/profile`). pure-Python `pg8000` (3.14/Vercel-safe),
-  per-op connections from `DATABASE_URL`, `company_profiles` table
-  auto-created on first use, 7-day write-through TTL, graceful `DbUnavailable`
-  → live fallback when unset. Everything else (trade journal, server-side
-  watchlists, finer P/L history) is still direct-Alpaca + `localStorage` —
-  backlogged. The DB write path only runs in prod (Postgres :5432 is
-  firewalled from the sandbox + the owner's laptop). See `docs/landmines.md`
-  → "Company profiles" and `HANDOVER.md`.
-- **Company profiles:** `profiles.get_company_profile()` is FMP-only (the
-  **stable** endpoint — legacy v3 403s for new keys; Yahoo's quoteSummary 406s
-  from datacenters, so it was dropped). Provider key `FMP_API_KEY`; raises
-  `ProfileUnavailable` (→ 503) when unset. Cache self-populates lazily on
-  cache-miss — never seed via raw SQL, drive the deployed endpoint.
+- **Persistence:** Postgres (Supabase) backs the **asset catalogue** — a
+  single `assets` table holding the full Alpaca universe (~13.8k us_equity +
+  crypto rows) plus per-source enrichment. Pure-Python `pg8000`
+  (3.14/Vercel-safe), per-op connections from `DATABASE_URL`, graceful
+  `DbUnavailable` → 503-style fallback when unset. The table is created by
+  `backend/sql/002_assets.sql`, run **once** in the Supabase SQL editor (no
+  auto-create). Writes only run from prod/Render (Postgres :5432 is firewalled
+  from the sandbox + the owner's laptop). Everything else (trade journal,
+  server-side watchlists, finer P/L history) is still direct-Alpaca +
+  `localStorage` — backlogged. See `docs/landmines.md` → "Asset catalogue"
+  and `DBHandover.md`.
+- **Asset catalogue:** one `assets` table; each row's `asset_class` drives its
+  enrichment source (no mixing). Base identity comes from Alpaca
+  (`get_all_assets_for_seed` → `db.bulk_upsert_assets`); crypto enrichment from
+  CoinGecko (`coingecko.py` — keyless or the `COINGECKO_API_KEY` Demo key,
+  static base-ticker→id map); stock enrichment from FMP's **stable** profile
+  endpoint (`fmp.py` — single-symbol, 250 calls/day free tier; bulk + the
+  constituent lists are paid). Both seeders are resumable (skip
+  already-enriched). There is **no proactive seeding strategy yet** — symbols
+  are fed explicitly to `enrich-stocks`; a broader backfill strategy is
+  deferred (see `DBHandover.md`).
 - **Styling:** Tailwind + a Calm v2 oklch token set in
   `frontend/src/index.css` (light default, dark under
   `html[data-theme="dark"]`, switched by `hooks/useTheme.ts` with a
