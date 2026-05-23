@@ -128,6 +128,26 @@ _SEARCH_COLS = (
 )
 
 
+def get_asset(symbol: str) -> dict | None:
+    """Single catalogue row (static identity + enrichment), or None if the
+    symbol isn't seeded yet."""
+    with _connect() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT symbol, COALESCE(name, symbol) AS name, "
+            "COALESCE(exchange, '') AS exchange, asset_class, "
+            "COALESCE(status, '') AS status, COALESCE(tradable, false) AS tradable, "
+            "COALESCE(marginable, false) AS marginable, "
+            "COALESCE(shortable, false) AS shortable, "
+            "COALESCE(fractionable, false) AS fractionable, "
+            "sector, logo_url, market_cap "
+            "FROM assets WHERE symbol = %s",
+            (symbol.strip().upper(),),
+        )
+        row = cur.fetchone()
+        return dict(zip(_SEARCH_COLS, row)) if row else None
+
+
 def search_assets(query: str, asset_class: str, limit: int) -> list[dict]:
     """Symbol/name search over the catalogue, ranked by market cap (so the
     likely-intended name surfaces first). ``asset_class``: '' = all,

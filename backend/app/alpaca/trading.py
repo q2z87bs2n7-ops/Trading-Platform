@@ -189,9 +189,9 @@ def _asset_dict(a) -> dict:
     return {
         "symbol": a.symbol,
         "name": a.name,
-        "exchange": str(a.exchange),
-        "asset_class": str(a.asset_class),
-        "status": str(a.status),
+        "exchange": _enum_value(a.exchange),
+        "asset_class": _enum_value(a.asset_class),
+        "status": _enum_value(a.status),
         "tradable": a.tradable,
         "marginable": a.marginable,
         "shortable": a.shortable,

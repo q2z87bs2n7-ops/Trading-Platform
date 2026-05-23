@@ -184,6 +184,16 @@ def calendar(
 
 @app.get("/api/assets/{symbol:path}", dependencies=[Depends(require_configured)])
 def asset(symbol: str) -> dict:
+    # Static identity/enrichment from the catalogue (clean enum values, sector,
+    # logo). Fall back to Alpaca for symbols not yet seeded or when the DB is
+    # unconfigured. Live price/bars/quotes are never sourced here.
+    if db.db_enabled():
+        try:
+            row = db.get_asset(symbol)
+            if row is not None:
+                return row
+        except db.DbUnavailable:
+            pass
     return alpaca.get_asset(symbol)
 
 
