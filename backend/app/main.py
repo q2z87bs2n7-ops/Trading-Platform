@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from . import alpaca
 from . import indices as market_indices
 from . import market_news
+from . import profiles
 from . import stream as quote_stream
 from .ai import router as ai_router
 from .config import get_settings
@@ -179,6 +180,18 @@ def calendar(
     end: str = Query(""),
 ) -> dict:
     return {"calendar": alpaca.get_calendar(start or None, end or None)}
+
+
+@app.get("/api/assets/{symbol:path}/profile")
+def asset_profile(symbol: str) -> dict:
+    """Enriched company info (Yahoo Finance + Postgres write-through cache).
+    No Alpaca keys required — independent of the trading client, like
+    /api/indices and /api/market-news. Declared before the catch-all asset
+    route so the ``:path`` converter doesn't swallow the ``/profile`` suffix."""
+    try:
+        return profiles.get_company_profile(symbol)
+    except profiles.ProfileNotFound:
+        raise HTTPException(404, f"No company profile for {symbol.upper()}")
 
 
 @app.get("/api/assets/{symbol:path}", dependencies=[Depends(require_configured)])

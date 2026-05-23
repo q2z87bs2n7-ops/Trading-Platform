@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     # API 400s. Set AI_WEB_SEARCH_ENABLED=true only if your org supports it; the
     # bot self-heals (drops the tool and retries) if it's on but unsupported.
     ai_web_search_enabled: bool = False
+    # Postgres (Supabase) connection URI. Empty => DB-backed features degrade
+    # gracefully (503), mirroring the Alpaca-keys seam.
+    database_url: str = ""
+    # Skip TLS cert verification on the DB connection. Only flip if the
+    # pooler endpoint trips hostname/cert checks; TLS stays on either way.
+    database_ssl_insecure: bool = False
     # Browser origins allowed to call this API. The GitHub Pages origin is
     # included so the dev-branch previews can reach the Vercel backend.
     cors_origins: str = (
@@ -46,6 +52,10 @@ class Settings(BaseSettings):
     @property
     def ai_configured(self) -> bool:
         return bool(self.anthropic_api_key)
+
+    @property
+    def db_configured(self) -> bool:
+        return bool(self.database_url)
 
 
 @lru_cache
