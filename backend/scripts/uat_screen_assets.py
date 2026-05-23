@@ -27,7 +27,11 @@ CASES = [
     ("crypto: invalid category ignored",  dict(asset_class="crypto", category="bogus"), {}),
     ("stock: large-cap healthcare",       dict(sector="Healthcare", market_cap_min=1e10), {}),
     ("stock: industry Biotechnology",     dict(industry="Biotechnology"), {}),
-    ("stock: industry miss (Pharma)",     dict(sector="Healthcare", industry="Pharma"), {"empty": True, "suggest": True}),
+    # "Oncology" is a true miss: no FMP healthcare *industry* label contains it
+    # (cancer names live under Biotechnology / Drug Manufacturers), so the
+    # did-you-mean path fires. NB: "Pharma" is NOT a miss — it substring-matches
+    # "Medical - Pharmaceuticals" (and misses the big "Drug Manufacturers" names).
+    ("stock: industry miss (Oncology)",   dict(sector="Healthcare", industry="Oncology"), {"empty": True, "suggest": True}),
     ("stock: high-beta tech, beta_desc",  dict(sector="Technology", beta_min=1.5, sort_by="beta_desc"), {}),
     ("stock: ipo>=2020, ipo_newest",      dict(ipo_after="2020-01-01", sort_by="ipo_newest"), {}),
     ("stock: exchange NYSE",              dict(exchange="NYSE", market_cap_min=1e10), {}),
