@@ -121,10 +121,13 @@ COINGECKO_API_KEY=...    # optional Demo key; unset = keyless (rate-limited)
 ```
 
 Populate it with the Render-only dev seeders: `POST /api/_dev/seed-assets`
-(Alpaca base + CoinGecko crypto) and `POST /api/_dev/enrich-stocks?symbols=…`
-(FMP stocks). **Note:** the DB write path needs outbound TCP to Postgres
-:5432, which many local/corporate networks block — so seeding only runs from
-prod/Render. See `DBHandover.md` and `docs/landmines.md` for the full story.
+(Alpaca base + CoinGecko crypto) and `POST /api/_dev/enrich-stocks` (FMP
+stocks — `?symbols=AAPL,…` or `?limit=N` to backfill the next N un-enriched).
+Search only surfaces enriched + tradable rows (the visibility rule), so the
+catalogue is whatever you've chosen to enrich. **Note:** the DB write path
+needs outbound TCP to Postgres :5432, which many local/corporate networks
+block — so seeding only runs from prod/Render. See `DBHandover.md` and
+`docs/landmines.md` for the full story.
 
 ### 2. Backend
 

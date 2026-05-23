@@ -129,6 +129,17 @@ tools). Each item cost a round of debugging:
 - **The base upsert is slow (~14 min for ~13.8k rows)** — row-by-row over the
   pooler. `seed-assets?base=false` skips it to (re)enrich crypto only (~45s);
   both seeders are resumable (skip already-enriched).
+- **Stock enrich is sequential, not rate-limit-bound.** Each symbol is one FMP
+  fetch + pacing + a fresh DB connection, so real throughput is ~100/min even on
+  a paid 300/min tier — the whole universe is ~1.5–2.5 hr. Run `enrich-stocks
+  ?limit=N` in chunks (resumable); don't expect the rate ceiling.
+- **Crypto's "exchange" is the pseudo-value `CRYPTO`.** `_asset_dict`/`get_asset`
+  return `exchange="CRYPTO"` for crypto, which duplicates the asset-class label
+  in UI (we hide the exchange span when it's `CRYPTO` — see `PriceChart.tsx`).
+- **Search hides un-enriched rows by design** (the visibility rule in
+  `db.search_assets`: `tradable` + `enrichment_source IS NOT NULL`). "Why isn't
+  symbol X in search?" → it isn't enriched yet. Direct resolution (`get_asset`)
+  and positions/watchlist are *not* filtered, so existing holdings still render.
 
 ## Symbols with slashes (crypto path params)
 

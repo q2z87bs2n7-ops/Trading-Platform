@@ -6,15 +6,18 @@
   `assets` catalogue (`db.py` + `coingecko.py` + `fmp.py`, seeded via the
   `/api/_dev/seed-assets` and `/api/_dev/enrich-stocks` dev tools) — full
   Alpaca universe with CoinGecko crypto + FMP stock enrichment, live in prod
-  (see `DBHandover.md`). Still backlogged on this layer: trade journal,
-  server-side watchlists, finer analytics/P&L history. Follow-ups:
-  - **Seeding strategy** — there's no proactive backfill yet; symbols are fed
-    explicitly. Decide what/when to seed (S&P 500? lazy on-demand? scheduled
-    refresh?) given the FMP 250/day free-tier cap.
-  - **Use the data** — `screen_assets` / `get_company_profile` in the
-    Ask-anything tool set (`ai/tools_read.py` + `ai/tools.py`, executed in
-    `ai/router.py`) so the bot screens from SQL instead of web search; and a
-    catalogue/screener UI + company card over the enriched universe.
+  (see `DBHandover.md`). The DB-backed, visibility-filtered search now powers the
+  watchlist autocomplete, chart search, and the bot's `find_symbol`; stock
+  enrichment backfills via `enrich-stocks?limit=N`. Still backlogged on this
+  layer: trade journal, server-side watchlists, finer analytics/P&L history.
+  Follow-ups:
+  - **Refresh policy** — backfill exists, but there's no automated re-enrich /
+    new-listing refresh (no TTL; `enriched_at` is visibility-only). Decide
+    when/whether to refresh stale rows given the FMP cap.
+  - **`screen_assets` tool** — a structured catalogue filter in the Ask-anything
+    tool set (`ai/tools_read.py` + `ai/tools.py`, executed in `ai/router.py`) so
+    the bot screens by sector/market-cap from SQL; plus a catalogue/screener UI +
+    company card over the enriched universe.
   - **pgvector RAG** — embed descriptions/news for "similar to X".
 - **Per-silo P/L curve granularity** — `/api/pnl-history` (`alpaca/pnl.py`)
   reconstructs the curve from FILL activities (FIFO) valued at *daily*

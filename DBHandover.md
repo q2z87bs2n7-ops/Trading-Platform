@@ -5,9 +5,11 @@ you know exactly where the DB stands. Read `CLAUDE.md` first for repo-wide rules
 and `docs/landmines.md` → "Asset catalogue" for the gotchas.
 
 - **One-line status:** A Supabase Postgres `assets` table holds the full Alpaca
-  universe (base identity) plus per-source enrichment — **crypto fully enriched,
-  the Nasdaq-100 enriched for stocks, the rest of the stock universe un-enriched
-  by design.** Nothing in the app reads it yet; that's the next phase.
+  universe (base identity) plus per-source enrichment — **crypto fully enriched;
+  stock universe enrichment backfilling via FMP (Nasdaq-100 + ongoing).** The
+  catalogue now powers live app features: the watchlist autocomplete, chart
+  search, and the bot's `find_symbol` all read `db.search_assets`, which only
+  surfaces enriched + tradable rows (the **visibility rule**).
 
 ---
 
@@ -43,11 +45,12 @@ which enrichment source fills it — **sources never mix within a row.**
 
 | File | Role |
 | --- | --- |
-| `backend/app/db.py` | pg8000 (pure-Python, 3.14/Vercel-safe) access. Per-op connections from `DATABASE_URL`; `DbUnavailable` when unset. `bulk_upsert_assets`, `upsert_asset_enrichment` (crypto), `upsert_stock_enrichment` (FMP), `crypto_symbols`, `enriched_crypto_symbols`, `enriched_stock_symbols`. |
+| `backend/app/db.py` | pg8000 (pure-Python, 3.14/Vercel-safe) access. Per-op connections from `DATABASE_URL`; `DbUnavailable` when unset. Writes: `bulk_upsert_assets`, `upsert_asset_enrichment` (crypto), `upsert_stock_enrichment` (FMP). Reads: `search_assets` (visibility-filtered), `get_asset`, `crypto_symbols`, `enriched_/unenriched_stock_symbols`, `enriched_crypto_symbols`. |
 | `backend/app/alpaca/trading.py` | `get_all_assets_for_seed()` → full us_equity + crypto list; `_full_asset_dict` captures base fields. `_enum_value` extracts the wire value from Alpaca SDK enums (see landmines). |
 | `backend/app/coingecko.py` | Crypto enrichment. Static **base-ticker → coingecko-id** map (BTC/USD, BTC/USDT … → `bitcoin`), Demo-key header when `COINGECKO_API_KEY` set, 429 backoff. |
 | `backend/app/fmp.py` | Stock enrichment via FMP's **stable** `/profile` (single-symbol). Maps ~20 columns. |
-| `backend/app/seed.py` | `run_seed(force, base)` — Alpaca base upsert + CoinGecko crypto enrich; `enrich_stocks(symbols, force)` — FMP stock enrich. Both resumable. |
+| `backend/app/seed.py` | `run_seed(force, base)` — Alpaca base upsert + CoinGecko crypto enrich; `enrich_stocks(symbols, limit, force)` — FMP stock enrich (explicit list or next `limit` un-enriched). Both resumable. |
+| `backend/app/main.py` | Endpoints: `/api/assets` (search), `/api/assets/{symbol}` (both DB-backed w/ Alpaca fallback), and the dev seeders below. |
 | `backend/sql/002_assets.sql` | The `assets` schema + indexes. Drops the legacy `company_profiles` table. |
 
 ---
@@ -66,9 +69,15 @@ curl -X POST "https://<render-url>/api/_dev/seed-assets"
 # re-enrich rows already done.
 curl -X POST "https://<render-url>/api/_dev/seed-assets?base=false"
 
-# Stock enrich — explicit, budgeted symbol list (FMP free tier = 250/day).
+# Stock enrich — explicit symbol list...
 curl -X POST "https://<render-url>/api/_dev/enrich-stocks?symbols=AAPL,MSFT,NVDA"
+# ...or backfill the next N un-enriched stocks (options-listed first), repeat.
+curl -X POST "https://<render-url>/api/_dev/enrich-stocks?limit=2500"
 ```
+
+FMP free tier = single-symbol, 250/day. A paid **Starter** tier (300/min, same
+key) enriches the whole universe in repeated `?limit=` chunks (~1.5–2.5 hr total
+— sequential per-symbol latency, not the rate ceiling, is the floor).
 
 ---
 
@@ -76,8 +85,9 @@ curl -X POST "https://<render-url>/api/_dev/enrich-stocks?symbols=AAPL,MSFT,NVDA
 
 - **Base:** 13,802 rows (13,729 us_equity + 73 crypto), clean enum values.
 - **Crypto:** 73/73 enriched (CoinGecko), all columns validated.
-- **Stocks:** the Nasdaq-100 (~101 securities incl. GOOGL/GOOG) enriched (FMP).
-  The remaining ~13.6k us_equity rows are base-only by design.
+- **Stocks:** universe enrichment **backfilling** (Nasdaq-100 done first, then
+  options-listed names via `?limit=` chunks). Un-enriched rows stay base-only
+  and are hidden from search by the visibility rule until enriched.
 
 ---
 
@@ -139,17 +149,25 @@ GROUP BY sector ORDER BY COUNT(*) DESC;
 
 ---
 
+## Shipped since the catalogue landed
+
+- **Search is DB-backed and visibility-filtered.** `db.search_assets` (ranked by
+  market cap, name-searchable, enriched + tradable only) powers `/api/assets`,
+  the watchlist autocomplete, the chart-tab search (desktop box + phone sheet),
+  and the bot's `find_symbol`. `get_asset` (`/api/assets/{symbol}`) is DB-backed
+  too (clean enum values, sector/logo/market_cap).
+- **Stock backfill path** — `enrich-stocks?limit=N` (resumable, options-listed
+  first); pairs with a paid FMP tier to enrich the universe.
+
 ## Deferred (next decisions, not yet built)
 
-1. **Seeding strategy.** There is intentionally **no proactive backfill** — the
-   stock seeder takes explicit symbols. Decide what/when to seed (S&P 500? whole
-   exchanges? lazy on-demand? scheduled refresh?) and how to prioritise within
-   the FMP 250/day cap. Also decide a staleness/refresh policy (there is no TTL
-   anymore — `enriched_at` exists for visibility only).
-2. **Use the data (app code).** `screen_assets` + `get_company_profile` tools in
-   the Ask-anything set (`ai/tools_read.py` + `ai/tools.py`, executed in
-   `ai/router.py`) so the bot screens from SQL; a catalogue/screener UI + a
-   company card on Discover/Chart.
+1. **Refresh policy.** No TTL — `enriched_at` exists for visibility only. Decide
+   when/whether to re-enrich stale rows and pick up new listings (the seeding
+   *backfill* mechanism exists; an automated *refresh schedule* does not).
+2. **`screen_assets` tool** — a structured catalogue filter (sector / industry /
+   market-cap range / category) in the Ask-anything set (`ai/tools_read.py` +
+   `ai/tools.py`, executed in `ai/router.py`) so the bot screens from SQL, plus
+   a catalogue/screener UI + company card on Discover/Chart.
 3. **pgvector RAG** — embed descriptions/news for "similar to X".
 
 ---

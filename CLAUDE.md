@@ -136,12 +136,15 @@ separate silos behind a shared account.
   market-news, crypto/tickers, ai/chat, ai/ask (last two gated by
   `AI_CHAT_ENABLED`; require `ANTHROPIC_API_KEY`). `/api/indices` and
   `/api/market-news` hit Yahoo Finance directly via `requests` (no yfinance,
-  no C extensions — Python 3.14 safe). `/api/news`, `/api/most-active`,
-  `/api/assets` are still served but only consumed by the AI tool loop — don't
-  delete them. The Postgres **asset catalogue** is filled by two Render-only
-  dev seeders — `POST /api/_dev/seed-assets` (Alpaca base + CoinGecko crypto)
-  and `POST /api/_dev/enrich-stocks` (FMP stock enrichment) — see "Asset
-  catalogue" below and `DBHandover.md`.
+  no C extensions — Python 3.14 safe). `/api/news` and `/api/most-active` are
+  served but only consumed by the AI tool loop — don't delete them. `/api/assets`
+  (search) and `/api/assets/{symbol}` are **DB-backed** off the catalogue (clean
+  enum values, sector/logo/market_cap; Alpaca fallback) and power the watchlist
+  autocomplete, chart search, and the bot's `find_symbol`. The Postgres **asset
+  catalogue** is filled by two Render-only dev seeders — `POST
+  /api/_dev/seed-assets` (Alpaca base + CoinGecko crypto) and `POST
+  /api/_dev/enrich-stocks` (FMP stock enrichment) — see "Asset catalogue" below
+  and `DBHandover.md`.
   **Path params with slashes:** `/api/assets/{symbol:path}`,
   `/api/positions/{symbol:path}`, and `/api/watchlist/{symbol:path}`
   use FastAPI's `:path` converter so `BTC/USD` passes through without
@@ -185,7 +188,10 @@ separate silos behind a shared account.
   uses the same two-state silo param and echoes the resolved
   `asset_class` in `PnlHistoryOut`. **`/api/assets` is different** — a
   three-state asset-universe filter (`""`=all / `us_equity` / `crypto`)
-  the AI `find_symbol` path relies on; don't fold it into `coerce_silo`.
+  the watchlist/chart search and the AI `find_symbol` path rely on; don't fold
+  it into `coerce_silo`. It's DB-backed (`db.search_assets`) and applies the
+  **visibility rule** — only `tradable` + enriched rows show in search (see
+  "Asset catalogue").
 - **PWA:** `vite-plugin-pwa`. NetworkFirst for API, CacheFirst for
   static; charting library excluded from precache.
 - **Persistence:** Postgres (Supabase) backs the **asset catalogue** — a
@@ -204,11 +210,16 @@ separate silos behind a shared account.
   (`get_all_assets_for_seed` → `db.bulk_upsert_assets`); crypto enrichment from
   CoinGecko (`coingecko.py` — keyless or the `COINGECKO_API_KEY` Demo key,
   static base-ticker→id map); stock enrichment from FMP's **stable** profile
-  endpoint (`fmp.py` — single-symbol, 250 calls/day free tier; bulk + the
-  constituent lists are paid). Both seeders are resumable (skip
-  already-enriched). There is **no proactive seeding strategy yet** — symbols
-  are fed explicitly to `enrich-stocks`; a broader backfill strategy is
-  deferred (see `DBHandover.md`).
+  endpoint (`fmp.py` — single-symbol, 250 calls/day on the free tier; bulk + the
+  constituent lists are paid). Both seeders are resumable (skip already-enriched);
+  `enrich-stocks` takes an explicit `?symbols=` list or `?limit=N` to backfill
+  the next N un-enriched stocks (options-listed first). **Visibility rule:**
+  `db.search_assets` only returns `tradable` + enriched rows, so the un-enriched
+  long tail (SPAC shells, warrants, dead OTC) stays out of discovery and
+  enrichment status doubles as the curation filter — enrich a symbol and it
+  becomes searchable. Search-only; direct resolution (`get_asset`, Alpaca
+  fallback) and user-referenced data (positions/watchlist/charts) are never
+  filtered. See `DBHandover.md`.
 - **Styling:** Tailwind + a Calm v2 oklch token set in
   `frontend/src/index.css` (light default, dark under
   `html[data-theme="dark"]`, switched by `hooks/useTheme.ts` with a
