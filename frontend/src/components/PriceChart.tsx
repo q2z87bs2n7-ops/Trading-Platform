@@ -164,7 +164,11 @@ export default function PriceChart({ symbol }: { symbol: string }) {
       {/* Attribute chips (replaces standalone InstrumentInfo card) */}
       {asset && (
         <div className="flex items-center gap-2 text-xs text-muted mb-2 flex-wrap">
-          <span>{asset.exchange}</span>
+          {/* Crypto's pseudo-exchange is "CRYPTO", which would duplicate the
+              asset-class pill below — show it only for real exchanges. */}
+          {asset.exchange && asset.exchange !== "CRYPTO" && (
+            <span>{asset.exchange}</span>
+          )}
           <Pill status={asset.asset_class} tone="neutral" />
           {asset.tradable && (
             <>
