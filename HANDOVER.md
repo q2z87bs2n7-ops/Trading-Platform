@@ -30,7 +30,7 @@ persistence layer — this is that work starting.
 | File | Role |
 | --- | --- |
 | `backend/app/db.py` | pg8000 (pure-Python, 3.14/Vercel-safe) Postgres layer. Per-operation connections from `DATABASE_URL`. `DbUnavailable` when unset/unreachable. `fetch_profile` / `upsert_profile`; `company_profiles` table auto-created via `_ensure_schema` on first use. |
-| `backend/app/profiles.py` | `get_company_profile(symbol)` — DB-cached write-through (7-day TTL). **Provider order: FMP first (when `FMP_API_KEY` set), Yahoo fallback.** Raises `ProfileNotFound` for unknown symbols. |
+| `backend/app/profiles.py` | `get_company_profile(symbol)` — DB-cached write-through (7-day TTL). **Provider order: Yahoo first, FMP fallback (when `FMP_API_KEY` set).** Raises `ProfileNotFound` for unknown symbols. |
 | `backend/app/config.py` | Added `database_url`, `database_ssl_insecure`, `fmp_api_key` (+ `db_configured` / `fmp_configured` properties). |
 | `backend/app/main.py` | `GET /api/assets/{symbol:path}/profile` — declared **before** the catch-all `{symbol:path}` route so `:path` doesn't swallow `/profile`. No Alpaca keys required (independent, like `/api/indices`). |
 | `backend/sql/001_company_profiles.sql` | `company_profiles` schema (mirrors the inline `_ensure_schema` SQL; for manual run in the Supabase SQL editor). |
@@ -42,7 +42,7 @@ persistence layer — this is that work starting.
 GET /api/assets/{symbol}/profile
   → get_company_profile(symbol)
      1. DB cache hit & fresh (<7d)?  → return it
-     2. live fetch:  FMP (_fetch_fmp/_map_fmp) if key set, else/​on-error → Yahoo (_fetch_yahoo/_map)
+     2. live fetch:  Yahoo (_fetch_yahoo/_map); on-error → FMP (_fetch_fmp/_map_fmp) if key set
      3. write-through to company_profiles (if DB reachable)
      4. return profile
 ```

@@ -155,8 +155,8 @@ def _fresh(updated_at) -> bool:
 
 
 def get_company_profile(symbol: str) -> dict:
-    """DB-cached company profile (write-through). Prefers FMP when available,
-    falls back to Yahoo. Falls back to cached profile when live fetch fails.
+    """DB-cached company profile (write-through). Prefers Yahoo, falls back to
+    FMP when available. Falls back to cached profile when live fetch fails.
     Raises ``ProfileNotFound`` for unknown symbols.
     """
     sym = symbol.strip().upper()
@@ -172,14 +172,13 @@ def get_company_profile(symbol: str) -> dict:
             _log.warning("profile cache read failed: %s", exc)
             use_db = False
 
-    if fmp_configured:
-        try:
-            profile = _map_fmp(sym, _fetch_fmp(sym))
-        except Exception as exc:
-            _log.warning("FMP fetch failed (%s), falling back to Yahoo", exc)
-            profile = _map(sym, _fetch_yahoo(sym))
-    else:
+    try:
         profile = _map(sym, _fetch_yahoo(sym))
+    except Exception as exc:
+        if not fmp_configured:
+            raise
+        _log.warning("Yahoo fetch failed (%s), falling back to FMP", exc)
+        profile = _map_fmp(sym, _fetch_fmp(sym))
 
     if use_db:
         try:
