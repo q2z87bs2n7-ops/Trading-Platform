@@ -4,7 +4,7 @@ Writes are gated in ``main.py`` by the (currently no-op) write-auth seam;
 this module just maps our typed requests onto the alpaca-py SDK.
 """
 
-from alpaca.trading.enums import AssetClass, OrderClass, OrderSide, QueryOrderStatus, TimeInForce
+from alpaca.trading.enums import AssetClass, AssetStatus, OrderClass, OrderSide, QueryOrderStatus, TimeInForce
 from alpaca.trading.requests import (
     GetAssetsRequest,
     GetOrdersRequest,
@@ -147,6 +147,35 @@ def close_all_positions() -> dict:
 
 def get_asset(symbol: str) -> dict:
     return _asset_dict(trading_client().get_asset(symbol.upper()))
+
+
+def get_all_assets_for_seed() -> list[dict]:
+    """Full Alpaca asset list (us_equity + crypto, active status, all tradability)."""
+    out = []
+    for ac in (AssetClass.US_EQUITY, AssetClass.CRYPTO):
+        req = GetAssetsRequest(asset_class=ac, status=AssetStatus.ACTIVE)
+        for a in trading_client().get_all_assets(req):
+            out.append(_full_asset_dict(a))
+    return out
+
+
+def _full_asset_dict(a) -> dict:
+    return {
+        "symbol":               a.symbol,
+        "alpaca_id":            str(a.id) if a.id else None,
+        "name":                 a.name,
+        "asset_class":          str(a.asset_class),
+        "exchange":             str(a.exchange),
+        "status":               str(a.status),
+        "tradable":             a.tradable,
+        "marginable":           a.marginable,
+        "shortable":            a.shortable,
+        "fractionable":         a.fractionable,
+        "attributes":           list(a.attributes) if a.attributes else None,
+        "min_order_size":       float(a.min_order_size) if a.min_order_size is not None else None,
+        "min_trade_increment":  float(a.min_trade_increment) if a.min_trade_increment is not None else None,
+        "price_increment":      float(a.price_increment) if a.price_increment is not None else None,
+    }
 
 
 def _asset_dict(a) -> dict:

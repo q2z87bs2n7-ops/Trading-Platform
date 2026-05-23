@@ -359,6 +359,15 @@ def watchlist_remove(symbol: str, asset_class: str = Query("")) -> dict:
     return alpaca.remove_from_watchlist(symbol, alpaca.coerce_silo(asset_class))
 
 
+@app.post("/api/_dev/seed-assets", dependencies=[Depends(require_configured)])
+def seed_assets() -> dict:
+    """Populate the assets table from Alpaca + CoinGecko. One-shot dev tool.
+    Vercel will timeout — call via the Render URL:
+    curl -X POST https://<render-url>/api/_dev/seed-assets"""
+    from .seed import run_seed
+    return run_seed()
+
+
 @app.get("/api/stream")
 async def stream(
     request: Request,

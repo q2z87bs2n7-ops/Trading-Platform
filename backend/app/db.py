@@ -108,6 +108,103 @@ def _ensure_schema(cur) -> None:
         _schema_ready = True
 
 
+# ---- assets table -----------------------------------------------------------
+
+def bulk_upsert_assets(assets: list[dict], chunk_size: int = 500) -> int:
+    """Upsert Alpaca base identity data; returns total rows processed."""
+    if not assets:
+        return 0
+    total = 0
+    for i in range(0, len(assets), chunk_size):
+        chunk = assets[i : i + chunk_size]
+        with _connect() as conn:
+            cur = conn.cursor()
+            for a in chunk:
+                cur.execute(
+                    """
+                    INSERT INTO assets
+                        (symbol, alpaca_id, name, asset_class, exchange, status,
+                         tradable, marginable, shortable, fractionable,
+                         attributes, min_order_size, min_trade_increment,
+                         price_increment, seeded_at)
+                    VALUES
+                        (%s, %s::uuid, %s, %s, %s, %s,
+                         %s, %s, %s, %s,
+                         %s, %s, %s, %s, now())
+                    ON CONFLICT (symbol) DO UPDATE SET
+                        alpaca_id           = excluded.alpaca_id,
+                        name                = excluded.name,
+                        asset_class         = excluded.asset_class,
+                        exchange            = excluded.exchange,
+                        status              = excluded.status,
+                        tradable            = excluded.tradable,
+                        marginable          = excluded.marginable,
+                        shortable           = excluded.shortable,
+                        fractionable        = excluded.fractionable,
+                        attributes          = excluded.attributes,
+                        min_order_size      = excluded.min_order_size,
+                        min_trade_increment = excluded.min_trade_increment,
+                        price_increment     = excluded.price_increment,
+                        seeded_at           = now()
+                    """,
+                    (
+                        a["symbol"], a.get("alpaca_id"), a.get("name"),
+                        a["asset_class"], a.get("exchange"), a.get("status"),
+                        a.get("tradable"), a.get("marginable"), a.get("shortable"),
+                        a.get("fractionable"), a.get("attributes"),
+                        a.get("min_order_size"), a.get("min_trade_increment"),
+                        a.get("price_increment"),
+                    ),
+                )
+        total += len(chunk)
+    return total
+
+
+def upsert_asset_enrichment(e: dict) -> None:
+    """Write enrichment columns for one asset row."""
+    with _connect() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            UPDATE assets SET
+                description        = %s,
+                website            = %s,
+                logo_url           = %s,
+                market_cap         = %s,
+                coingecko_id       = %s,
+                hashing_algorithm  = %s,
+                genesis_date       = %s,
+                categories         = %s,
+                whitepaper_url     = %s,
+                github_url         = %s,
+                circulating_supply = %s,
+                total_supply       = %s,
+                max_supply         = %s,
+                market_cap_rank    = %s,
+                ath_usd            = %s,
+                ath_date           = %s,
+                atl_usd            = %s,
+                atl_date           = %s,
+                enriched_at        = now(),
+                enrichment_source  = %s
+            WHERE symbol = %s
+            """,
+            (
+                e.get("description"), e.get("website"), e.get("logo_url"),
+                e.get("market_cap"), e.get("coingecko_id"),
+                e.get("hashing_algorithm"), e.get("genesis_date"),
+                e.get("categories"), e.get("whitepaper_url"), e.get("github_url"),
+                e.get("circulating_supply"), e.get("total_supply"),
+                e.get("max_supply"), e.get("market_cap_rank"),
+                e.get("ath_usd"), e.get("ath_date"),
+                e.get("atl_usd"), e.get("atl_date"),
+                e.get("enrichment_source"), e["symbol"],
+            ),
+        )
+
+
+# ---- company_profiles table (Phase 1 legacy — kept until migrated) ----------
+
 def fetch_profile(symbol: str) -> dict | None:
     with _connect() as conn:
         cur = conn.cursor()
