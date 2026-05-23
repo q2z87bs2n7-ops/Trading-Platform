@@ -162,6 +162,20 @@ def _execute_read_tool(
             matches = alpaca.search_assets(query, limit, search_class)
         return json.dumps({"matches": matches}, default=str)
 
+    if name == "get_asset_profile":
+        symbol = str(args["symbol"]).upper()
+        # Prefer the rich catalogue row; fall back to Alpaca base identity when
+        # the symbol isn't seeded or the DB is unset/unreachable (mirrors the
+        # /api/assets/{symbol} endpoint).
+        if db.db_enabled():
+            try:
+                profile = db.get_asset_profile(symbol)
+                if profile is not None:
+                    return json.dumps(profile, default=str)
+            except db.DbUnavailable:
+                pass
+        return json.dumps(alpaca.get_asset(symbol), default=str)
+
     if name == "get_activities":
         activity_type = args.get("activity_type")
         limit = min(int(args.get("limit", 25)), 100)

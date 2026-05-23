@@ -19,6 +19,7 @@ READ_TOOL_NAMES = {
     "get_news",
     "get_movers",
     "find_symbol",
+    "get_asset_profile",
     "get_activities",
     "get_clock",
     "get_calendar",
@@ -301,6 +302,29 @@ READ_TOOLS: list[dict[str, Any]] = [
                     "description": "Max announcements to return (default 20).",
                 },
             },
+        },
+    },
+    {
+        "name": "get_asset_profile",
+        "description": (
+            "Full catalogue profile for ONE known symbol. Stocks: sector, "
+            "industry, country, CEO, employees, IPO date, market cap, beta, "
+            "description. Crypto: category tags, market-cap rank, "
+            "circulating/total/max supply, all-time high/low, description. Use "
+            "when the user names a specific ticker and asks about its "
+            "fundamentals, classification, or background (e.g. 'what sector is "
+            "NVDA', 'when did Coinbase IPO', 'what is BTC's max supply'). To "
+            "resolve a vague description to a ticker, use find_symbol instead."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symbol": {
+                    "type": "string",
+                    "description": "Exact ticker, e.g. AAPL or BTC/USD.",
+                },
+            },
+            "required": ["symbol"],
         },
     },
 ]

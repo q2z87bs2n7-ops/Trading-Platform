@@ -148,6 +148,40 @@ def get_asset(symbol: str) -> dict | None:
         return dict(zip(_SEARCH_COLS, row)) if row else None
 
 
+_PROFILE_COLS = (
+    "symbol", "name", "exchange", "asset_class", "status",
+    "tradable", "marginable", "shortable", "fractionable",
+    "description", "website", "logo_url", "market_cap",
+    "sector", "industry", "country", "city", "state", "ipo_date",
+    "isin", "cik", "is_etf", "is_adr", "is_fund", "is_actively_trading",
+    "ceo", "employees", "beta",
+    "coingecko_id", "hashing_algorithm", "genesis_date", "categories",
+    "whitepaper_url", "github_url", "circulating_supply", "total_supply",
+    "max_supply", "market_cap_rank", "ath_usd", "ath_date", "atl_usd", "atl_date",
+    "enriched_at", "enrichment_source",
+)
+
+
+def get_asset_profile(symbol: str) -> dict | None:
+    """Full catalogue row for one symbol — base identity plus every enrichment
+    column, with NULL-valued keys dropped (so a stock row never carries empty
+    crypto fields and vice versa). ``None`` if the symbol isn't seeded.
+
+    Not visibility-filtered: like ``get_asset`` this is direct resolution of a
+    user-named symbol, so an un-enriched row still returns its base identity.
+    """
+    with _connect() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT " + ", ".join(_PROFILE_COLS) + " FROM assets WHERE symbol = %s",
+            (symbol.strip().upper(),),
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        return {k: v for k, v in zip(_PROFILE_COLS, row) if v is not None}
+
+
 def search_assets(query: str, asset_class: str, limit: int) -> list[dict]:
     """Symbol/name search over the catalogue, ranked by market cap (so the
     likely-intended name surfaces first). ``asset_class``: '' = all,

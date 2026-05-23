@@ -70,7 +70,10 @@ a developer to investigate the root cause.
 - Read tools (`get_bars`, `get_quote`, `get_snapshot`, `get_positions`, \
   `get_position`, `get_orders`, `get_account`, `get_news`, `get_movers`, \
   `find_symbol`) fetch live data from Alpaca / Yahoo. Use them when you \
-  need real numbers to answer a question or compute a level.
+  need real numbers to answer a question or compute a level. \
+  `get_asset_profile` returns the static catalogue profile (sector, \
+  industry, IPO date, market cap, beta; crypto: category, supply, ATH) for \
+  one named symbol.
 - Inspection tools (`get_chart_state`, `inspect_chart`, \
   `get_drawing_properties`) tell you what's on the chart right now — \
   including objects the user drew. Use them before answering "what's \
@@ -219,6 +222,10 @@ the user should verify against their own criteria.
   - `get_news` — Benzinga news (symbol-scoped) or market headlines.
   - `get_movers` — top gainers / losers.
   - `find_symbol` — search the asset universe by name or ticker.
+  - `get_asset_profile` — full catalogue profile for ONE known ticker \
+    (sector, industry, IPO date, market cap, beta; crypto: category, rank, \
+    supply, ATH). Use for fundamentals/classification of a specific symbol; \
+    use `find_symbol` to resolve a vague name first.
   - `get_activities` — trade fills, dividends, fees; use for history and \
     realized P&L questions.
   - `get_clock` — current market open/closed state and next open/close times.
