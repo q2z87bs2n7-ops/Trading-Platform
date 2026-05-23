@@ -115,8 +115,6 @@ export function AssetSearch({
           style={{
             position: "absolute",
             top: "calc(100% + 4px)",
-            left: 0,
-            right: 0,
             zIndex: 60,
             background: "var(--panel)",
             border: "1px solid var(--border)",
@@ -124,7 +122,11 @@ export function AssetSearch({
             boxShadow: "var(--shadow-lg)",
             maxHeight: 280,
             overflowY: "auto",
-            minWidth: sheet ? undefined : 260,
+            // Sheet spans the wrapper; inline anchors to the input's right edge
+            // and grows left so it never runs off the right of the screen.
+            ...(sheet
+              ? { left: 0, right: 0 }
+              : { right: 0, width: 300, maxWidth: "90vw" }),
           }}
         >
           {loading && results.length === 0 ? (
