@@ -302,9 +302,11 @@ def _screen_filters(
 
     mn = _clampf(market_cap_min, lo=0)
     if mn is not None:
+        mn = int(mn)  # market_cap is BIGINT — bind an int, not a float
         where.append("market_cap >= %s"); params.append(mn); applied["market_cap_min"] = mn
     mx = _clampf(market_cap_max, lo=0)
     if mx is not None:
+        mx = int(mx)
         where.append("market_cap <= %s"); params.append(mx); applied["market_cap_max"] = mx
 
     if is_crypto:
