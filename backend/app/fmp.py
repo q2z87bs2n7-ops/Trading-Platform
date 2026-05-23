@@ -23,10 +23,15 @@ def configured() -> bool:
 
 
 def fetch_profile(symbol: str) -> dict | None:
-    """One company profile, or None if FMP has no record for the symbol."""
+    """One company profile, or None if FMP has no record for the symbol.
+
+    FMP uses a dash for class-share / exchange suffixes (``BRK.B`` -> ``BRK-B``)
+    where Alpaca uses a dot, so the dotted form returns ``[]``. Translate for
+    the query only; the caller still stores the row under the Alpaca symbol.
+    """
     r = requests.get(
         f"{_BASE}/profile",
-        params={"symbol": symbol, "apikey": get_settings().fmp_api_key},
+        params={"symbol": symbol.replace(".", "-"), "apikey": get_settings().fmp_api_key},
         headers=_HEADERS,
         timeout=15,
     )
