@@ -159,14 +159,21 @@ def get_all_assets_for_seed() -> list[dict]:
     return out
 
 
+def _enum_value(x):
+    """Alpaca SDK enums are ``(str, Enum)`` whose ``str()`` yields the member
+    name (``AssetClass.CRYPTO``), not the wire value (``crypto``). Extract the
+    value so catalogue rows store the canonical string."""
+    return getattr(x, "value", x) if x is not None else None
+
+
 def _full_asset_dict(a) -> dict:
     return {
         "symbol":               a.symbol,
         "alpaca_id":            str(a.id) if a.id else None,
         "name":                 a.name,
-        "asset_class":          str(a.asset_class),
-        "exchange":             str(a.exchange),
-        "status":               str(a.status),
+        "asset_class":          _enum_value(a.asset_class),
+        "exchange":             _enum_value(a.exchange),
+        "status":               _enum_value(a.status),
         "tradable":             a.tradable,
         "marginable":           a.marginable,
         "shortable":            a.shortable,
