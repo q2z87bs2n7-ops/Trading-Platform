@@ -126,7 +126,7 @@ stocks — `?symbols=AAPL,…` or `?limit=N` to backfill the next N un-enriched)
 Search only surfaces enriched + tradable rows (the visibility rule), so the
 catalogue is whatever you've chosen to enrich. **Note:** the DB write path
 needs outbound TCP to Postgres :5432, which many local/corporate networks
-block — so seeding only runs from prod/Render. See `DBHandover.md` and
+block — so seeding only runs from prod/Render. See `docs/database.md` and
 `docs/landmines.md` for the full story.
 
 ### 2. Backend

@@ -6,7 +6,7 @@
   `assets` catalogue (`db.py` + `coingecko.py` + `fmp.py`, seeded via the
   `/api/_dev/seed-assets` and `/api/_dev/enrich-stocks` dev tools) — full
   Alpaca universe with CoinGecko crypto + FMP stock enrichment, live in prod
-  (see `DBHandover.md`). The DB-backed, visibility-filtered search now powers the
+  (see `docs/database.md`). The DB-backed, visibility-filtered search now powers the
   watchlist autocomplete, chart search, and the bot's `find_symbol`; stock
   enrichment backfills via `enrich-stocks?limit=N`. Still backlogged on this
   layer: trade journal, server-side watchlists, finer analytics/P&L history.

@@ -228,7 +228,7 @@ def search_assets(query: str, asset_class: str, limit: int) -> list[dict]:
 
 # Canonical crypto-category keys -> the raw CoinGecko tag(s) each maps to. The
 # screener exposes only these curated keys: the raw `categories` array is ~54%
-# index / VC-portfolio / "X Ecosystem" noise (see DBHandover "Research"). KEEP
+# index / VC-portfolio / "X Ecosystem" noise (see docs/database.md). KEEP
 # THE KEYS IN SYNC with the `category` enum in ai/tools_read.py.
 CRYPTO_CATEGORY_MAP: dict[str, list[str]] = {
     "defi":           ["Decentralized Finance (DeFi)"],
@@ -378,7 +378,7 @@ def screen_assets(*, asset_class="us_equity", sector=None, industry=None,
     """Structured screen over the catalogue — visibility-filtered (enriched +
     tradable), parameterised, capped. Returns a count + top-N-by-market-cap
     envelope; crypto results collapse to one row per base coin (preferring the
-    /USD pair). See DBHandover "Research" for the design rationale.
+    /USD pair). See docs/database.md for the design rationale.
     """
     try:
         lim = int(limit)

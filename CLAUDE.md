@@ -144,7 +144,7 @@ separate silos behind a shared account.
   catalogue** is filled by two Render-only dev seeders — `POST
   /api/_dev/seed-assets` (Alpaca base + CoinGecko crypto) and `POST
   /api/_dev/enrich-stocks` (FMP stock enrichment) — see "Asset catalogue" below
-  and `DBHandover.md`.
+  and `docs/database.md`.
   **Path params with slashes:** `/api/assets/{symbol:path}`,
   `/api/positions/{symbol:path}`, and `/api/watchlist/{symbol:path}`
   use FastAPI's `:path` converter so `BTC/USD` passes through without
@@ -204,7 +204,7 @@ separate silos behind a shared account.
   from the sandbox + the owner's laptop). Everything else (trade journal,
   server-side watchlists, finer P/L history) is still direct-Alpaca +
   `localStorage` — backlogged. See `docs/landmines.md` → "Asset catalogue"
-  and `DBHandover.md`.
+  and `docs/database.md`.
 - **Asset catalogue:** one `assets` table; each row's `asset_class` drives its
   enrichment source (no mixing). Base identity comes from Alpaca
   (`get_all_assets_for_seed` → `db.bulk_upsert_assets`); crypto enrichment from
@@ -219,7 +219,7 @@ separate silos behind a shared account.
   enrichment status doubles as the curation filter — enrich a symbol and it
   becomes searchable. Search-only; direct resolution (`get_asset`, Alpaca
   fallback) and user-referenced data (positions/watchlist/charts) are never
-  filtered. See `DBHandover.md`.
+  filtered. See `docs/database.md`.
 - **Styling:** Tailwind + a Calm v2 oklch token set in
   `frontend/src/index.css` (light default, dark under
   `html[data-theme="dark"]`, switched by `hooks/useTheme.ts` with a
