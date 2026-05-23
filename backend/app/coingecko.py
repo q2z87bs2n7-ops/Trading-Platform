@@ -12,37 +12,55 @@ _BASE = "https://api.coingecko.com/api/v3"
 _HEADERS = {"Accept": "application/json", "User-Agent": "trading-platform/1.0"}
 CALL_DELAY = 4.0  # seconds between calls; free keyless tier is ~15/min max
 
-# Static map: Alpaca symbol → CoinGecko coin ID.
-# CoinGecko's symbol field is not unique across 17k+ coins so dynamic
-# resolution is unreliable; a hardcoded table is the safe approach.
-_SYMBOL_MAP: dict[str, str] = {
-    "BTC/USD":   "bitcoin",
-    "ETH/USD":   "ethereum",
-    "SOL/USD":   "solana",
-    "XRP/USD":   "ripple",
-    "DOGE/USD":  "dogecoin",
-    "AVAX/USD":  "avalanche-2",
-    "LINK/USD":  "chainlink",
-    "ADA/USD":   "cardano",
-    "LTC/USD":   "litecoin",
-    "UNI/USD":   "uniswap",
-    "AAVE/USD":  "aave",
-    "XLM/USD":   "stellar",
-    "MATIC/USD": "matic-network",
-    "DOT/USD":   "polkadot",
-    "SHIB/USD":  "shiba-inu",
-    "BCH/USD":   "bitcoin-cash",
-    "ETC/USD":   "ethereum-classic",
-    "ATOM/USD":  "cosmos",
-    "ALGO/USD":  "algorand",
-    "FIL/USD":   "filecoin",
-    "NEAR/USD":  "near",
-    "GRT/USD":   "the-graph",
+# Static map: crypto base ticker → CoinGecko coin ID. Alpaca lists each coin
+# against several quote currencies (BTC/USD, BTC/USDC, BTC/USDT) but the
+# CoinGecko profile is per coin, so we key on the base ticker (the part before
+# the slash). CoinGecko's symbol field is not unique across 17k+ coins so
+# dynamic resolution is unreliable; this hardcoded table is the safe approach.
+# IDs verified against the live CoinGecko API.
+_BASE_MAP: dict[str, str] = {
+    "AAVE":   "aave",
+    "ADA":    "cardano",
+    "ARB":    "arbitrum",
+    "AVAX":   "avalanche-2",
+    "BAT":    "basic-attention-token",
+    "BCH":    "bitcoin-cash",
+    "BONK":   "bonk",
+    "BTC":    "bitcoin",
+    "CRV":    "curve-dao-token",
+    "DOGE":   "dogecoin",
+    "DOT":    "polkadot",
+    "ETH":    "ethereum",
+    "FIL":    "filecoin",
+    "GRT":    "the-graph",
+    "HYPE":   "hyperliquid",
+    "LDO":    "lido-dao",
+    "LINK":   "chainlink",
+    "LTC":    "litecoin",
+    "ONDO":   "ondo-finance",
+    "PAXG":   "pax-gold",
+    "PEPE":   "pepe",
+    "POL":    "polygon-ecosystem-token",
+    "RENDER": "render-token",
+    "SHIB":   "shiba-inu",
+    "SKY":    "sky",
+    "SOL":    "solana",
+    "SUSHI":  "sushi",
+    "TRUMP":  "official-trump",
+    "UNI":    "uniswap",
+    "USDC":   "usd-coin",
+    "USDG":   "global-dollar",
+    "USDT":   "tether",
+    "WIF":    "dogwifcoin",
+    "XRP":    "ripple",
+    "XTZ":    "tezos",
+    "YFI":    "yearn-finance",
 }
 
 
 def coingecko_id_for(symbol: str) -> str | None:
-    return _SYMBOL_MAP.get(symbol.upper())
+    base = symbol.upper().split("/", 1)[0]
+    return _BASE_MAP.get(base)
 
 
 def fetch_coin_profile(cg_id: str, *, _retry: int = 1) -> dict:

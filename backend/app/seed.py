@@ -33,6 +33,7 @@ def run_seed() -> dict:
 
     crypto = [a for a in assets if a["asset_class"] == "crypto"]
     enriched = skipped = failed = 0
+    profile_cache: dict[str, dict] = {}  # cg_id → CoinGecko payload (many pairs share a coin)
 
     for asset in crypto:
         symbol = asset["symbol"]
@@ -42,14 +43,17 @@ def run_seed() -> dict:
             skipped += 1
             continue
         try:
-            data = coingecko.fetch_coin_profile(cg_id)
+            data = profile_cache.get(cg_id)
+            if data is None:
+                data = coingecko.fetch_coin_profile(cg_id)
+                profile_cache[cg_id] = data
+                time.sleep(coingecko.CALL_DELAY)
             db.upsert_asset_enrichment(coingecko.map_coin_enrichment(symbol, data))
             enriched += 1
             _log.info("seed: enriched %s", symbol)
         except Exception as exc:
             _log.warning("seed: CoinGecko failed for %s: %s", symbol, exc)
             failed += 1
-        time.sleep(coingecko.CALL_DELAY)
 
     return {
         "seeded":          seeded,
