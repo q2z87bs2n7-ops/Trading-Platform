@@ -9,7 +9,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from . import alpaca
-from . import db
 from . import indices as market_indices
 from . import market_news
 from . import profiles
@@ -109,29 +108,6 @@ def health() -> dict:
 def config() -> dict:
     s = get_settings()
     return {"symbols": s.symbols, "feed": s.alpaca_data_feed, "paper": s.alpaca_paper}
-
-
-@app.get("/api/_dev/db-check")
-def dev_db_check() -> dict:
-    """TEMPORARY dev tool — verify the Supabase write-through path in prod.
-    Postgres :5432 is unreachable from the sandbox and the owner's local
-    network, so prod is the only place the DB integration can be exercised.
-    Reports connectivity + runs the full profile read/fetch/write-through/read
-    cycle for AAPL. Remove once the integration is confirmed."""
-    out: dict = {
-        "db": db.diagnostics(),
-        "fmp_configured": get_settings().fmp_configured,
-    }
-    try:
-        profile = profiles.get_company_profile("AAPL")
-        out["profile_fetch_ok"] = bool(profile.get("name"))
-        # ``updated_at`` is only present when the row came back through the DB;
-        # a live fallback (DB unreachable) returns the mapped dict without it.
-        out["served_from_db"] = "updated_at" in profile
-    except Exception as exc:
-        out["profile_fetch_ok"] = False
-        out["profile_error"] = str(exc)
-    return out
 
 
 @app.get("/api/account", dependencies=[Depends(require_configured)])

@@ -68,20 +68,21 @@ Three different environments, three different limits — this is the crux:
 
 What that means for verification status:
 
-- **DB write-through path: UNRUN.** Only `SELECT 1` was run in Supabase's web
-  editor. The pg8000 code has never connected from anywhere (sandbox + local
-  both block 5432).
+- **DB write-through path: VERIFIED in prod.** The pg8000 → Supabase connection,
+  schema auto-create (`_ensure_schema`), and the full read → cache-miss → FMP
+  fetch → upsert → read-back cycle were all confirmed live (Postgres 17.6,
+  `served_from_db: true`) via the temporary `/api/_dev/db-check` tool, now
+  removed. 5432 stays blocked from the sandbox + local; prod (Vercel/Render) is
+  the only environment that reaches it.
 - **Yahoo: removed.** It was the original provider but `getcrumb` returns **406**
   (anti-scraping, IP-reputation based) from both the local machine and the cloud
   sandbox, and would fail the same way from Render/Vercel. Dropped entirely — FMP
   is now the sole provider.
-- **FMP: confirmed working** from the cloud sandbox (HTTPS egress now open).
-  Legacy v3 returns **403 ("Legacy Endpoint")**; the **stable** endpoint returns
-  200 with full data (`name/exchange/sector/industry/market_cap/description/
-  website/logo_url/employees`). `_fetch_fmp` uses `stable` — verified for
-  AAPL/NVDA/TSLA, an unknown-symbol → `ProfileNotFound`, and unset-key →
-  `ProfileUnavailable` (503). The DB write-through layer around it is still
-  UNRUN (5432 blocked everywhere but prod).
+- **FMP: confirmed working** (cloud sandbox + prod). Legacy v3 returns **403
+  ("Legacy Endpoint")**; the **stable** endpoint returns 200 with full data
+  (`name/exchange/sector/industry/market_cap/description/website/logo_url/
+  employees`). `_fetch_fmp` uses `stable` — verified for AAPL/NVDA/TSLA, an
+  unknown-symbol → `ProfileNotFound`, and unset-key → `ProfileUnavailable` (503).
 
 ---
 
