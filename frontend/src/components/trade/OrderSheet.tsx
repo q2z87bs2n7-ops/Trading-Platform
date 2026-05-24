@@ -13,7 +13,7 @@ import ErrorBanner from "../ErrorBanner";
 const money = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD" });
 
-const TYPE_LABEL: Record<OType, string> = {
+export const TYPE_LABEL: Record<OType, string> = {
   market: "Market",
   limit: "Limit",
   stop: "Stop",
@@ -21,7 +21,7 @@ const TYPE_LABEL: Record<OType, string> = {
   trailing_stop: "Trailing",
 };
 
-const TIF_LABEL: Record<TIF, string> = {
+export const TIF_LABEL: Record<TIF, string> = {
   day: "DAY",
   gtc: "GTC",
   opg: "OPG",
@@ -38,7 +38,7 @@ interface Props {
   onClose: () => void;
 }
 
-function Chip({
+export function Chip({
   active,
   onClick,
   children,
@@ -78,7 +78,7 @@ function Chip({
   );
 }
 
-function Stepper({
+export function Stepper({
   value,
   onChange,
   fractional,
@@ -144,7 +144,7 @@ function Stepper({
   );
 }
 
-function AmountToggle({
+export function AmountToggle({
   mode,
   onChange,
   unitLabel = "Shares",
@@ -183,7 +183,7 @@ function AmountToggle({
   );
 }
 
-function DollarInput({
+export function DollarInput({
   value,
   onChange,
   big = false,

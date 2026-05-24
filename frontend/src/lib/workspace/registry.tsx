@@ -5,12 +5,11 @@ import Orders from "../../components/Orders";
 import Activities from "../../components/Activities";
 import TVChartWidget from "../../components/TVChartWidget";
 import PriceChart from "../../components/PriceChart";
-import OrderSheet from "../../components/trade/OrderSheet";
+import OrderTicketInline from "../../components/trade/OrderTicketInline";
 import { NewsCard, NewsCardSkeleton } from "../../components/discover/NewsCard";
 import ErrorBanner from "../../components/ErrorBanner";
 import { useAccount, useMarketNews, useNews } from "../../data/hooks";
-import { useLiveQuotes } from "../../data/useLiveQuotes";
-import { money, fmtCryptoPrice } from "../../lib/format";
+import { money } from "../../lib/format";
 
 export type AssetClass = "stocks" | "crypto";
 
@@ -362,23 +361,13 @@ function AccountSummary({ assetClass }: { assetClass: AssetClass }) {
   );
 }
 
-// Compact order-entry panel: linked symbol + live quote + Buy/Sell. Reuses the
-// full OrderSheet ticket (and useOrderTicket inside it) rather than rebuilding
-// the form. On the "none" channel it shows account info instead.
+// Order-entry panel: a full inline order ticket on a symbol channel, or an
+// account summary on "none". Both reuse existing engines (useOrderTicket /
+// useAccount) — no rebuilt logic.
 function TradeWidget(props: IDockviewPanelProps) {
   const { getSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "main");
   const sym = channel === "none" ? "" : getSymbol(channel).toUpperCase();
-  const [open, setOpen] = useState(false);
-  const [side, setSide] = useState<"buy" | "sell">("buy");
-  const { quotes } = useLiveQuotes(sym ? [sym] : []);
-  const quote = quotes[sym];
-  const fmt = assetClass === "crypto" ? fmtCryptoPrice : money;
-
-  function openSheet(s: "buy" | "sell") {
-    setSide(s);
-    setOpen(true);
-  }
 
   return (
     <WidgetShell
@@ -395,49 +384,7 @@ function TradeWidget(props: IDockviewPanelProps) {
         <AccountSummary assetClass={assetClass} />
       ) : (
         <Pane pad>
-          <div className="flex flex-col gap-3">
-            <div className="flex items-baseline justify-between">
-              <span className="text-[15px] font-semibold">{sym}</span>
-              {quote && (
-                <span
-                  className="font-mono text-[13px] tabular-nums"
-                  style={{ color: "var(--text-2)" }}
-                >
-                  {fmt(quote.mid)}
-                </span>
-              )}
-            </div>
-            <div
-              className="grid gap-2"
-              style={{ gridTemplateColumns: "1fr 1fr" }}
-            >
-              {(["buy", "sell"] as const).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => openSheet(s)}
-                  className="text-[14px] font-semibold cursor-pointer border-0 capitalize"
-                  style={{
-                    padding: "12px 16px",
-                    borderRadius: "var(--r)",
-                    background: s === "buy" ? "var(--pos)" : "var(--neg)",
-                    color: "white",
-                  }}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-            <span className="text-[11px]" style={{ color: "var(--mute)" }}>
-              Opens the full order ticket.
-            </span>
-          </div>
-          <OrderSheet
-            open={open}
-            symbol={sym}
-            defaultSide={side}
-            onClose={() => setOpen(false)}
-          />
+          <OrderTicketInline symbol={sym} />
         </Pane>
       )}
     </WidgetShell>
