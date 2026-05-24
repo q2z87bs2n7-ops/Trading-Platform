@@ -149,15 +149,25 @@ Two follow-ups were deliberately left:
 ## Workspace
 
 Desktop-only dockable widget canvas (`components/Workspace.tsx` +
-`lib/workspace/registry.tsx`, Dockview). Shipped: dock / tab-stack / float /
-pop-out, per-silo layout persistence, add-widget toolbar + reset; widgets for
-chart (bare TradingView), mini chart (lightweight-charts), trade ticket,
-positions, orders, activity, news; symbol-linking channel groups; live
-quotes and bars each deduped through one shared ref-counted stream
-(`data/quoteStream.ts` + `data/barStream.ts`).
+`lib/workspace/registry.tsx` + `lib/workspace/presets.tsx`, Dockview).
+Shipped: dock / tab-stack / float / pop-out, per-silo layout persistence
+(`workspace_layouts_{silo}_v2` with v1 migration), a primary searchable
+**＋ Add widget** menu (grouped + icons), a live **Channels strip** with
+per-channel widget counts, named layout **presets** (Trader / Researcher /
+Watcher / Focus) via a Layouts menu, an empty-state overlay, Tab bars +
+Focus toggles (`Esc` exits Focus); widgets for chart (bare TradingView),
+mini chart (lightweight-charts), trade ticket, account, watchlist,
+positions, orders, activity, news; symbol-linking channel groups with a
+2px channel accent bar on every header + a channel dot on every panel
+tab; live quotes and bars each deduped through one shared ref-counted
+stream (`data/quoteStream.ts` + `data/barStream.ts`).
 
 Remaining:
 
+- **Named user layouts** — the v2 persistence shape reserves
+  `saved: Record<name, layout>` for "Save current as…". Build the Save /
+  Rename / Delete UI inside the Layouts menu (the popover already has the
+  card grid + Apply confirm to extend).
 - **AI layout module** — a violet (real Claude) module that builds/edits the
   Workspace from natural language ("give me a layout of the top 5 bio stocks").
   Add frontend-executed layout tools (`set_workspace_layout` / `add_workspace_

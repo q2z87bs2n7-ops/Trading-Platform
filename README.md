@@ -38,12 +38,17 @@ desktop-only):
   **ChartBot side panel** (violet · AI chat — see *AI chat* below).
 - **Workspace** (desktop only) — a dockable widget canvas (Dockview):
   drag-to-dock, tab-stack, float and pop-out panels, per-silo layout
-  persistence, a show/hide-tabs toggle, and a Focus toggle + full-bleed layout
-  that reclaim the chrome for a near-full-screen canvas. Widgets — bare
-  TradingView chart, lightweight mini chart, watchlist, inline trade ticket,
-  account overview, positions, orders, activity, news — each carry a colour
-  **link channel** that filters the widget to one instrument (or **None** for
-  whole-account info), with a click-to-search symbol picker in each header.
+  persistence, a Tab bars toggle, and a Focus toggle (`Esc` exits) + full-bleed
+  layout that reclaim the chrome for a near-full-screen canvas. Toolbar
+  surfaces a primary **+ Add widget** menu (320px, grouped + searchable), a
+  live **Channels strip** showing each colour channel's symbol and how many
+  widgets are bound to it, and a **Layouts ▾** picker with named presets
+  (Trader / Researcher / Watcher / Focus). Widgets — bare TradingView chart,
+  lightweight mini chart, watchlist, inline trade ticket, account overview,
+  positions, orders, activity, news — each carry a colour **link channel**
+  that filters the widget to one instrument (or **None** for whole-account
+  info), with a click-to-search symbol picker in each header and a coloured
+  accent bar + channel dot on the tab so the canvas reads at a glance.
   Widgets adapt to their panel size, and live quotes and bars are shared across
   them over single ref-counted streams.
 

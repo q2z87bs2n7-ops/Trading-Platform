@@ -95,16 +95,29 @@ separate silos behind a shared account.
     Broker: `lib/tv-broker.ts`. ChartBot side panel mounts here when
     `AI_CHAT_ENABLED=true`.
   - **Workspace** (desktop only — hidden on mobile) — a dockable
-    widget canvas (`components/Workspace.tsx` + `lib/workspace/registry.tsx`)
-    built on Dockview (`dockview-react`, lazy-loaded): drag-to-dock, tab-stack,
-    float and pop-out panels, per-silo layout persistence
-    (`workspace_layout_{stocks,crypto}_v1`), a single **＋ Add** widget menu
-    (a `<body>`-portaled popover, so the full-bleed canvas can't clip it) + reset +
-    a show/hide-tabs toggle (per-group header via Dockview) + a **Focus** toggle
-    (hides the app header for a near-full-screen canvas). The mode also goes
-    **full-bleed** (`.app.bleed` in `index.css` — no max-width/gutters, a
-    full-height flex column so the dock fills the viewport) and **drops the
-    `TopBar` equity strip** (account figures live in the Account widget).
+    widget canvas (`components/Workspace.tsx` + `lib/workspace/registry.tsx`
+    + `lib/workspace/presets.tsx`) built on Dockview (`dockview-react`,
+    lazy-loaded): drag-to-dock, tab-stack, float and pop-out panels, per-silo
+    layout persistence (`workspace_layouts_{stocks,crypto}_v2` —
+    `{ active: { name, layout }, saved: {} }`; a transparent migration from
+    the old `workspace_layout_{silo}_v1` runs on first load after upgrade).
+    Toolbar: a primary **＋ Add widget** menu (320px `<body>`-portaled popover
+    with a search input, grouped sections — Charts / Trade / Market data /
+    Activity — and inline single-stroke icons; ↑/↓/Enter/Esc), a live
+    **Channels strip** (one chip per symbol channel showing the channel
+    symbol + a count of widgets bound to it; click opens `AssetSearch` to
+    retarget the channel everywhere), a **Layouts ▾** picker that opens a
+    480px popover of named presets (Trader / Researcher / Watcher / Focus —
+    see `presets.tsx`; Trader = the old default, applied on first run; Apply
+    confirms then clobbers the canvas), a **Tab bars** toggle (per-group
+    header via Dockview), and a **Focus** toggle (hides the app header for a
+    near-full-screen canvas; `Esc` exits unless a `[role=dialog]` is focused).
+    When the canvas has zero panels an empty-state overlay shows ＋ Add
+    widget / Browse layouts CTAs that imperatively open the toolbar menus.
+    The mode also goes **full-bleed** (`.app.bleed` in `index.css` — no
+    max-width/gutters, a full-height flex column so the dock fills the
+    viewport) and **drops the `TopBar` equity strip** (account figures live
+    in the Account widget).
     Widgets reuse existing surfaces — the primary **Chart** is a **bare**
     TradingView chart (`components/TVChartWidget.tsx`: TV's native chrome only,
     *none* of the `TVPlatform` chrome; account manager off + object tree
@@ -127,11 +140,17 @@ separate silos behind a shared account.
     persisted in the panel's Dockview params): a symbol channel filters the
     widget to that one instrument (Positions/Orders/Activities take a `symbol`
     filter prop, news uses instrument-specific `useNews`); **None** shows
-    whole-account info (Trade and the chart widgets are symbol-only, no None).
-    "Main"
-    proxies the app's selected symbol. Each widget's header symbol is a
-    click-to-search picker (`AssetSearch`) that sets its channel's symbol, so any
-    widget — not just the TV chart — can switch the linked instrument. Live
+    whole-account info (Trade and the chart widgets are symbol-only, no None;
+    the Account widget is `lockedChannel` — always None, picker hidden).
+    "Main" proxies the app's selected symbol. The widget header (`LinkHeader`)
+    carries a 2px channel-coloured accent bar across the top, a primary mono
+    symbol label that doubles as a click-to-search picker (`AssetSearch`),
+    and a quiet `kind` label (e.g. `AAPL · Chart`); each panel tab also
+    renders a small channel-coloured dot via a custom Dockview
+    `tabComponents.default` (`TabWithChannel`, reads `params.channel` —
+    seeded on mount by `useChannel`). `useChannel` also reports up to the
+    Workspace context so the toolbar Channels strip can count widgets per
+    channel (Dockview emits no params-changed event). Live
     quotes and bars are deduped across all widgets through shared ref-counted
     streams (`data/quoteStream.ts`,
     `data/barStream.ts`); `useLiveQuotes` and `lib/tv-datafeed.ts` ride them.
@@ -351,7 +370,7 @@ Rules:
 | `chart_blotter_collapsed` | `ChartBlotter` | `ChartBlotter` | `"1"` collapsed. With no stored value, defaults collapsed on mobile (≤640px) and expanded on desktop. |
 | `market_summary_v1` / `crypto_market_summary_v1` | `useMarketSummary` | `useMarketSummary` + Ask-anything summary card | Per-silo cached AI market summary (window, date, content). |
 | `app_settings_v1` | `lib/settings.ts` | `useSettings` + `SettingsMenu` | JSON-encoded `AppSettings`. Today: `cmdbarAiEnabled` (default `true`). |
-| `workspace_layout_stocks_v1` / `workspace_layout_crypto_v1` | `components/Workspace.tsx` | `components/Workspace.tsx` | Per-silo serialized Dockview layout (`api.toJSON()`) for the desktop Workspace mode. Cleared by the in-canvas "Reset layout" button. |
+| `workspace_layouts_stocks_v2` / `workspace_layouts_crypto_v2` | `components/Workspace.tsx` | `components/Workspace.tsx` | Per-silo Workspace layouts — `{ active: { name, layout }, saved: {} }`. `active.layout` is the live Dockview `api.toJSON()`; `active.name` records the last-applied preset (Trader / Researcher / Watcher / Focus). `saved` is reserved for the future "Save current as…" UI. Migrates transparently from the old `workspace_layout_{silo}_v1` (raw layout) on first load after upgrade; the v1 key is then removed. Cleared by applying a preset from the in-canvas Layouts menu. |
 | `workspace_channels_v1` | `components/Workspace.tsx` | `components/Workspace.tsx` | Per-silo colour-channel symbols (`{stocks,crypto}` → channel → symbol). Seeded from `CHANNEL_DEFAULTS`; persists header-search picks across reloads. "main" is not stored here (it proxies the app's selected symbol). |
 
 Watchlists are not in localStorage — server-side via `/api/watchlist`.
