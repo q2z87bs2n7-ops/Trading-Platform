@@ -104,8 +104,10 @@ separate silos behind a shared account.
     TradingView chart (`components/TVChartWidget.tsx`: TV's native chrome only,
     *none* of the `TVPlatform` chrome; account manager off + object tree
     collapsed); an opt-in **Mini chart** offers the lighter lightweight-charts
-    `PriceChart` (no iframe) as an extra — the "bare-TV-only" rule governs the
-    primary Chart, not this explicit add-on. Plus an inline trade ticket
+    `PriceChart` (no iframe, `responsive` prop — sheds chrome + chart axes to
+    fit its panel via ResizeObserver) as an extra — the "bare-TV-only" rule
+    governs the primary Chart, not this explicit add-on. Plus an inline trade
+    ticket
     (`components/trade/OrderTicketInline.tsx` — reuses `useOrderTicket` + the
     OrderSheet inputs; account summary on the None channel), positions, orders,
     activity, news.
