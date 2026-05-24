@@ -6,6 +6,7 @@ import Activities from "../../components/Activities";
 import TVChartWidget from "../../components/TVChartWidget";
 import PriceChart from "../../components/PriceChart";
 import OrderTicketInline from "../../components/trade/OrderTicketInline";
+import { AssetSearch } from "../../components/AssetSearch";
 import { NewsCard, NewsCardSkeleton } from "../../components/discover/NewsCard";
 import ErrorBanner from "../../components/ErrorBanner";
 import { useAccount, useMarketNews, useNews } from "../../data/hooks";
@@ -105,29 +106,61 @@ function ChannelPicker({
   );
 }
 
-// Thin per-widget header: a left label (symbol or "Account") + channel dots.
+// Thin per-widget header: a left label that doubles as a click-to-search symbol
+// picker (writes to the widget's channel), plus link-channel dots on the right.
 function LinkHeader({
   label,
   channel,
   setChannel,
   includeNone,
+  assetClass,
+  onPickSymbol,
 }: {
   label: string;
   channel: Channel;
   setChannel: (c: Channel) => void;
   includeNone: boolean;
+  assetClass?: AssetClass;
+  onPickSymbol?: (sym: string) => void;
 }) {
+  const [searching, setSearching] = useState(false);
+  const canPick = channel !== "none" && !!onPickSymbol;
   return (
     <div
-      className="flex items-center justify-between shrink-0"
+      className="flex items-center justify-between shrink-0 gap-2"
       style={{ padding: "6px 10px", borderBottom: "1px solid var(--hairline)" }}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") setSearching(false);
+      }}
     >
-      <span
-        className="text-[12px] font-semibold tabular-nums"
-        style={{ color: "var(--text-2)" }}
-      >
-        {label}
-      </span>
+      {searching && canPick ? (
+        <AssetSearch
+          assetClass={assetClass === "crypto" ? "crypto" : "us_equity"}
+          align="left"
+          autoFocus
+          onChoose={(s) => {
+            onPickSymbol?.(s);
+            setSearching(false);
+          }}
+        />
+      ) : canPick ? (
+        <button
+          type="button"
+          onClick={() => setSearching(true)}
+          title="Change instrument"
+          className="text-[12px] font-semibold tabular-nums cursor-pointer bg-transparent border-0 p-0 text-left"
+          style={{ color: "var(--text-2)" }}
+        >
+          {label || "—"} ▾
+        </button>
+      ) : (
+        <span
+          className="text-[12px] font-semibold tabular-nums"
+          style={{ color: "var(--text-2)" }}
+        >
+          {label}
+        </span>
+      )}
       <ChannelPicker value={channel} onChange={setChannel} includeNone={includeNone} />
     </div>
   );
@@ -159,7 +192,7 @@ function WidgetShell({
 }
 
 function ChartWidget(props: IDockviewPanelProps) {
-  const { getSymbol, setSymbol } = useWorkspace();
+  const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "main");
   const symbol = getSymbol(channel);
   return (
@@ -170,6 +203,8 @@ function ChartWidget(props: IDockviewPanelProps) {
           channel={channel}
           setChannel={setChannel}
           includeNone={false}
+          assetClass={assetClass}
+          onPickSymbol={(s) => setSymbol(channel, s)}
         />
       }
     >
@@ -182,7 +217,7 @@ function ChartWidget(props: IDockviewPanelProps) {
 // no-iframe option for small panels / many-up grids. Symbol-linked like the TV
 // chart (no "none").
 function MiniChartWidget(props: IDockviewPanelProps) {
-  const { getSymbol } = useWorkspace();
+  const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "main");
   const symbol = getSymbol(channel);
   return (
@@ -193,6 +228,8 @@ function MiniChartWidget(props: IDockviewPanelProps) {
           channel={channel}
           setChannel={setChannel}
           includeNone={false}
+          assetClass={assetClass}
+          onPickSymbol={(s) => setSymbol(channel, s)}
         />
       }
     >
@@ -215,6 +252,8 @@ function PositionsWidget(props: IDockviewPanelProps) {
           channel={channel}
           setChannel={setChannel}
           includeNone
+          assetClass={assetClass}
+          onPickSymbol={(s) => setSymbol(channel, s)}
         />
       }
     >
@@ -231,7 +270,7 @@ function PositionsWidget(props: IDockviewPanelProps) {
 }
 
 function OrdersWidget(props: IDockviewPanelProps) {
-  const { getSymbol, assetClass } = useWorkspace();
+  const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "none");
   const symbol = channel === "none" ? undefined : getSymbol(channel);
   return (
@@ -242,6 +281,8 @@ function OrdersWidget(props: IDockviewPanelProps) {
           channel={channel}
           setChannel={setChannel}
           includeNone
+          assetClass={assetClass}
+          onPickSymbol={(s) => setSymbol(channel, s)}
         />
       }
     >
@@ -253,7 +294,7 @@ function OrdersWidget(props: IDockviewPanelProps) {
 }
 
 function ActivityWidget(props: IDockviewPanelProps) {
-  const { getSymbol } = useWorkspace();
+  const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "none");
   const symbol = channel === "none" ? undefined : getSymbol(channel);
   return (
@@ -264,6 +305,8 @@ function ActivityWidget(props: IDockviewPanelProps) {
           channel={channel}
           setChannel={setChannel}
           includeNone
+          assetClass={assetClass}
+          onPickSymbol={(s) => setSymbol(channel, s)}
         />
       }
     >
@@ -282,7 +325,7 @@ function newsTicker(channel: Channel, symbol: string, isCrypto: boolean): string
 }
 
 function NewsWidget(props: IDockviewPanelProps) {
-  const { getSymbol, assetClass } = useWorkspace();
+  const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "none");
   const isCrypto = assetClass === "crypto";
   const symbol = channel === "none" ? "" : getSymbol(channel);
@@ -302,6 +345,8 @@ function NewsWidget(props: IDockviewPanelProps) {
           channel={channel}
           setChannel={setChannel}
           includeNone
+          assetClass={assetClass}
+          onPickSymbol={(s) => setSymbol(channel, s)}
         />
       }
     >
@@ -365,7 +410,7 @@ function AccountSummary({ assetClass }: { assetClass: AssetClass }) {
 // account summary on "none". Both reuse existing engines (useOrderTicket /
 // useAccount) — no rebuilt logic.
 function TradeWidget(props: IDockviewPanelProps) {
-  const { getSymbol, assetClass } = useWorkspace();
+  const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "main");
   const sym = channel === "none" ? "" : getSymbol(channel).toUpperCase();
 
@@ -377,6 +422,8 @@ function TradeWidget(props: IDockviewPanelProps) {
           channel={channel}
           setChannel={setChannel}
           includeNone
+          assetClass={assetClass}
+          onPickSymbol={(s) => setSymbol(channel, s)}
         />
       }
     >
