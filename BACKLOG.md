@@ -151,25 +151,13 @@ Two follow-ups were deliberately left:
 Desktop-only dockable widget canvas (`components/Workspace.tsx` +
 `lib/workspace/registry.tsx`, Dockview). Shipped: dock / tab-stack / float /
 pop-out, per-silo layout persistence, add-widget toolbar + reset; widgets for
-chart, trade ticket, positions, orders, activity, news; live quotes deduped
-through one shared ref-counted stream (`data/quoteStream.ts`).
-
-**Standing rule:** chart widgets use the bare TradingView chart widget
-(`components/TVChartWidget.tsx`) — TV's own controls only, never the `TVPlatform`
-chrome (`ChartTopBar` / `IndicatorPillsRow` / `ChartBlotter` / floating
-`TradeBar`) and never a homegrown chart (`PriceChart.tsx` / lightweight-charts).
+chart (bare TradingView), trade ticket, positions, orders, activity, news;
+CMC-style symbol-linking channel groups; live quotes deduped through one shared
+ref-counted stream (`data/quoteStream.ts`).
 
 Remaining:
 
-- **Symbol-linking channel groups** — every widget shares one global symbol
-  today (App's `selected`). Add CMC-style coloured channel groups so widgets can
-  be linked into independent symbol sets: a per-panel channel picker in the tab
-  header, with the channel assignments persisted in the saved layout.
 - **Bar-stream dedupe** — `lib/tv-datafeed.ts` opens one `streamBars` SSE per
   chart subscription, so multiple chart widgets multiply bar connections on the
   single process-local relay. Give bars the same ref-counted single-connection
   treatment the quote stream got in `data/quoteStream.ts`.
-- **On-device / browser verification** — the canvas was typechecked +
-  production-built but not exercised live (no relay/keys in the sandbox). Smoke
-  test the Workspace pill, drag/dock/tab/float, persistence, and multi-widget
-  streaming before promoting to `main`.

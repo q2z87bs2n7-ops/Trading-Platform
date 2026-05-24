@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DockviewReact,
   themeLight,
@@ -13,6 +13,7 @@ import {
   WIDGET_CATALOG,
   WIDGET_TITLES,
   type AssetClass,
+  type Channel,
 } from "../lib/workspace/registry";
 
 interface Props {
@@ -88,6 +89,27 @@ export default function Workspace({ symbol, onSelect, assetClass, theme }: Props
   const apiRef = useRef<DockviewApi | null>(null);
   const disposableRef = useRef<{ dispose: () => void } | null>(null);
 
+  // Per-channel symbol. The "main" channel proxies the app's selected symbol
+  // (so Chart mode etc. stay in sync); the colour channels are session-local.
+  const [channelSymbols, setChannelSymbols] = useState<Record<string, string>>(
+    {},
+  );
+  const fallback = assetClass === "crypto" ? "BTC/USD" : "AAPL";
+  const workspaceCtx = useMemo(
+    () => ({
+      assetClass,
+      getSymbol: (channel: Channel) =>
+        channel === "main"
+          ? symbol || fallback
+          : channelSymbols[channel] || fallback,
+      setSymbol: (channel: Channel, sym: string) => {
+        if (channel === "main") onSelect(sym);
+        else setChannelSymbols((p) => ({ ...p, [channel]: sym }));
+      },
+    }),
+    [assetClass, symbol, fallback, channelSymbols, onSelect],
+  );
+
   const onReady = (event: DockviewReadyEvent) => {
     apiRef.current = event.api;
     disposableRef.current?.dispose();
@@ -135,7 +157,7 @@ export default function Workspace({ symbol, onSelect, assetClass, theme }: Props
   }
 
   return (
-    <WorkspaceProvider value={{ symbol, setSymbol: onSelect, assetClass }}>
+    <WorkspaceProvider value={workspaceCtx}>
       <div className="flex items-center gap-1.5 flex-wrap mb-2">
         <span
           className="text-[11px] font-semibold uppercase tracking-wide mr-1"
