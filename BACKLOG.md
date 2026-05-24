@@ -152,12 +152,5 @@ Desktop-only dockable widget canvas (`components/Workspace.tsx` +
 `lib/workspace/registry.tsx`, Dockview). Shipped: dock / tab-stack / float /
 pop-out, per-silo layout persistence, add-widget toolbar + reset; widgets for
 chart (bare TradingView), trade ticket, positions, orders, activity, news;
-CMC-style symbol-linking channel groups; live quotes deduped through one shared
-ref-counted stream (`data/quoteStream.ts`).
-
-Remaining:
-
-- **Bar-stream dedupe** — `lib/tv-datafeed.ts` opens one `streamBars` SSE per
-  chart subscription, so multiple chart widgets multiply bar connections on the
-  single process-local relay. Give bars the same ref-counted single-connection
-  treatment the quote stream got in `data/quoteStream.ts`.
+CMC-style symbol-linking channel groups; live quotes and bars each deduped
+through one shared ref-counted stream (`data/quoteStream.ts` + `data/barStream.ts`).

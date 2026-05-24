@@ -5,7 +5,8 @@
  * Also implements IDatafeedQuotesApi (getQuotes/subscribeQuotes) so the
  * trading order ticket can display live bid/ask and last price.
  */
-import { streamBars, streamQuotes, type BarTick } from "../api";
+import { streamQuotes } from "../api";
+import { subscribeBar } from "../data/barStream";
 import { isCryptoSymbol } from "./asset-class";
 import type { Quote } from "../types";
 
@@ -151,28 +152,21 @@ export function createDatafeed() {
       // rejected even on a fresh subscription (Alpaca replays the last bar
       // on every stream reconnect).
       let lastBarTime = new Date().setUTCHours(0, 0, 0, 0);
-      const unsubscribe = streamBars(
-        [symbolInfo.name],
-        (b: BarTick) => {
-          if (b.symbol !== symbolInfo.name) return;
-          const barMs = b.time * 1000;
-          // Drop out-of-order bars (stream reconnects can replay stale ticks)
-          if (barMs <= lastBarTime) return;
-          lastBarTime = barMs;
-          onTick({
-            time: barMs,
-            open: b.open,
-            high: b.high,
-            low: b.low,
-            close: b.close,
-            volume: b.volume,
-          });
-        },
-        () => {
-          /* upstream closed; TV will keep its last-known bar until the
-             next getBars refresh. */
-        },
-      );
+      const unsubscribe = subscribeBar(symbolInfo.name, (b) => {
+        if (b.symbol !== symbolInfo.name) return;
+        const barMs = b.time * 1000;
+        // Drop out-of-order bars (stream reconnects can replay stale ticks)
+        if (barMs <= lastBarTime) return;
+        lastBarTime = barMs;
+        onTick({
+          time: barMs,
+          open: b.open,
+          high: b.high,
+          low: b.low,
+          close: b.close,
+          volume: b.volume,
+        });
+      });
       (window as unknown as Record<string, unknown>)[`__tv_bars_${subscriberUID}`] =
         unsubscribe;
     },
