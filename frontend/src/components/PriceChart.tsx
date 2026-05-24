@@ -48,10 +48,12 @@ export default function PriceChart({
   const rootRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const sparkRef = useRef<ISeriesApi<"Area"> | null>(null);
   const [timeframe, setTimeframe] = useState("1Day");
   // Responsive size tier (Workspace mini chart only). "full" is the unchanged
-  // Discover presentation; smaller tiers shed chrome + chart axes to fit.
-  const [tier, setTier] = useState<"full" | "compact" | "mini">("full");
+  // Discover presentation; smaller tiers shed chrome + chart axes to fit, and
+  // "spark" swaps the candles for a bare close-price sparkline.
+  const [tier, setTier] = useState<"full" | "compact" | "mini" | "spark">("full");
 
   const { data, error } = useBars(symbol, timeframe);
   // Day Δ% always derives from 1Day bars so it works regardless of the
@@ -139,7 +141,13 @@ export default function PriceChart({
       const h = el.clientHeight;
       if (w === 0 && h === 0) return;
       const next =
-        h < 210 || w < 240 ? "mini" : h < 320 || w < 340 ? "compact" : "full";
+        h < 120 || w < 180
+          ? "spark"
+          : h < 210 || w < 240
+            ? "mini"
+            : h < 320 || w < 340
+              ? "compact"
+              : "full";
       setTier((prev) => (prev === next ? prev : next));
     };
     compute();
@@ -149,31 +157,108 @@ export default function PriceChart({
   }, [responsive]);
 
   // Hide the grid (compact) and the time axis (mini) to maximise the plot area;
-  // the price axis stays so the current level is always readable.
+  // the price axis stays so the current level is always readable. At "spark"
+  // both axes are hidden for a chrome-free sparkline.
   useEffect(() => {
     if (!responsive || !chartRef.current) return;
     const showGrid = tier === "full";
+    const isSpark = tier === "spark";
     chartRef.current.applyOptions({
       grid: {
         vertLines: { visible: showGrid },
         horzLines: { visible: showGrid },
       },
-      timeScale: { visible: tier !== "mini" },
+      timeScale: { visible: tier !== "mini" && !isSpark },
+      rightPriceScale: { visible: !isSpark },
     });
     chartRef.current.timeScale().fitContent();
   }, [responsive, tier]);
 
+  // Swap candlesticks ↔ a bare close-price area sparkline at the "spark" tier.
+  // Responsive-only; Discover always keeps candles. The chart is created once,
+  // so the series is swapped in place here and re-fed the current bars (the
+  // [data] effect below only fires on data changes, not tier changes).
   useEffect(() => {
-    if (!data || !seriesRef.current) return;
-    seriesRef.current.setData(
-      data.bars.map((b) => ({
-        time: b.time as UTCTimestamp,
-        open: b.open,
-        high: b.high,
-        low: b.low,
-        close: b.close,
-      })),
-    );
+    const chart = chartRef.current;
+    if (!responsive || !chart) return;
+    const wantSpark = tier === "spark";
+    if (wantSpark === !!sparkRef.current) return;
+
+    if (wantSpark) {
+      if (seriesRef.current) {
+        chart.removeSeries(seriesRef.current);
+        seriesRef.current = null;
+      }
+      sparkRef.current = chart.addAreaSeries({
+        lineColor: "#26a69a",
+        topColor: "rgba(38,166,154,0.25)",
+        bottomColor: "rgba(38,166,154,0.0)",
+        lineWidth: 2,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
+      });
+    } else {
+      if (sparkRef.current) {
+        chart.removeSeries(sparkRef.current);
+        sparkRef.current = null;
+      }
+      seriesRef.current = chart.addCandlestickSeries({
+        upColor: "#26a69a",
+        downColor: "#ef5350",
+        wickUpColor: "#26a69a",
+        wickDownColor: "#ef5350",
+        borderVisible: false,
+      });
+    }
+
+    if (data) {
+      if (sparkRef.current) {
+        sparkRef.current.setData(
+          data.bars.map((b) => ({
+            time: b.time as UTCTimestamp,
+            value: b.close,
+          })),
+        );
+      } else if (seriesRef.current) {
+        seriesRef.current.setData(
+          data.bars.map((b) => ({
+            time: b.time as UTCTimestamp,
+            open: b.open,
+            high: b.high,
+            low: b.low,
+            close: b.close,
+          })),
+        );
+      }
+      chart.priceScale("right").applyOptions({ autoScale: true });
+      chart.timeScale().resetTimeScale();
+      chart.timeScale().fitContent();
+    }
+  }, [responsive, tier, data]);
+
+  useEffect(() => {
+    if (!data) return;
+    if (sparkRef.current) {
+      sparkRef.current.setData(
+        data.bars.map((b) => ({
+          time: b.time as UTCTimestamp,
+          value: b.close,
+        })),
+      );
+    } else if (seriesRef.current) {
+      seriesRef.current.setData(
+        data.bars.map((b) => ({
+          time: b.time as UTCTimestamp,
+          open: b.open,
+          high: b.high,
+          low: b.low,
+          close: b.close,
+        })),
+      );
+    } else {
+      return;
+    }
     // setData replaces bars but lightweight-charts retains the user's
     // prior pan/zoom on both axes. Without explicit resets, switching
     // from AAPL (zoomed in) to NVDA leaves the camera pointed at the
@@ -204,7 +289,9 @@ export default function PriceChart({
           : "bg-panel border border-border rounded-lg p-3 flex-1 flex flex-col"
       }
     >
-      {/* Header row 1: symbol/name/last/Δ% on the left, timeframe pills on the right */}
+      {/* Header row 1: symbol/name/last/Δ% on the left, timeframe pills on the
+          right. Hidden entirely at the spark tier for a chrome-free sparkline. */}
+      {tier !== "spark" && (
       <div className="flex items-baseline justify-between gap-3 mb-1 flex-wrap">
         <div className="flex items-baseline gap-3 flex-wrap">
           <strong className="text-[16px]">{symbol}</strong>
@@ -244,6 +331,7 @@ export default function PriceChart({
         </div>
         )}
       </div>
+      )}
 
       {/* Attribute chips (replaces standalone InstrumentInfo card) */}
       {asset && tier === "full" && (

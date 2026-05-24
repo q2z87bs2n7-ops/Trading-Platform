@@ -68,7 +68,14 @@ export default function AccountPanel({
         <Row k="Buying power" v={money(bp)} />
         <Row k="Cash" v={money(acct.cash)} tone={acct.cash < 0 ? "var(--neg)" : undefined} />
         <Row k="Positions value" v={money(acct.long_market_value)} />
+        {acct.short_market_value !== 0 && (
+          <Row k="Short value" v={money(acct.short_market_value)} />
+        )}
         <Row k="Portfolio value" v={money(acct.portfolio_value)} />
+        <Row
+          k="Margin (init / maint)"
+          v={`${money(acct.initial_margin)} / ${money(acct.maintenance_margin)}`}
+        />
       </div>
     </div>
   );

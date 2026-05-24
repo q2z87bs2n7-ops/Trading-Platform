@@ -31,6 +31,11 @@ def get_account() -> dict:
         "non_marginable_buying_power": float(a.non_marginable_buying_power),
         "portfolio_value": float(a.portfolio_value),
         "long_market_value": float(a.long_market_value),
+        "short_market_value": float(a.short_market_value or 0),
+        "initial_margin": float(a.initial_margin or 0),
+        "maintenance_margin": float(a.maintenance_margin or 0),
+        "daytrading_buying_power": float(a.daytrading_buying_power or 0),
+        "regt_buying_power": float(a.regt_buying_power or 0),
         "pattern_day_trader": a.pattern_day_trader,
         "equity_at_market_open": equity_at_market_open,
     }

@@ -8,6 +8,11 @@ export interface Account {
   non_marginable_buying_power: number;
   portfolio_value: number;
   long_market_value: number;
+  short_market_value: number;
+  initial_margin: number;
+  maintenance_margin: number;
+  daytrading_buying_power: number;
+  regt_buying_power: number;
   pattern_day_trader: boolean;
   equity_at_market_open: number;
 }

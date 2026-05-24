@@ -243,12 +243,18 @@ function MiniChartWidget(props: IDockviewPanelProps) {
   );
 }
 
+// Table→stacked-card flip widths, tuned per widget by column count. Orders has
+// the widest table (11 cols) so it flips earliest; Activities is the narrowest.
+const POSITIONS_DENSE_W = 480;
+const ORDERS_DENSE_W = 560;
+const ACTIVITY_DENSE_W = 360;
+
 function PositionsWidget(props: IDockviewPanelProps) {
   const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "none");
   const symbol = channel === "none" ? undefined : getSymbol(channel);
   const ref = useRef<HTMLDivElement>(null);
-  const dense = useContainerNarrow(ref, 480);
+  const dense = useContainerNarrow(ref, POSITIONS_DENSE_W);
   return (
     <WidgetShell
       header={
@@ -282,7 +288,7 @@ function OrdersWidget(props: IDockviewPanelProps) {
   const [channel, setChannel] = useChannel(props, "none");
   const symbol = channel === "none" ? undefined : getSymbol(channel);
   const ref = useRef<HTMLDivElement>(null);
-  const dense = useContainerNarrow(ref, 480);
+  const dense = useContainerNarrow(ref, ORDERS_DENSE_W);
   return (
     <WidgetShell
       header={
@@ -310,7 +316,7 @@ function ActivityWidget(props: IDockviewPanelProps) {
   const [channel, setChannel] = useChannel(props, "none");
   const symbol = channel === "none" ? undefined : getSymbol(channel);
   const ref = useRef<HTMLDivElement>(null);
-  const dense = useContainerNarrow(ref, 480);
+  const dense = useContainerNarrow(ref, ACTIVITY_DENSE_W);
   return (
     <WidgetShell
       header={

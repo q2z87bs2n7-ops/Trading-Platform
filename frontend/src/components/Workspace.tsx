@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   DockviewReact,
   themeLight,
@@ -116,6 +117,116 @@ function ToolbarButton({
     >
       {children}
     </button>
+  );
+}
+
+// Single "+ Add" control replacing the row of per-widget buttons. The menu is
+// portaled to <body> and fixed-positioned from the button rect so the full-bleed
+// flex canvas never clips it (same pattern as AssetSearch's dropdown).
+function AddWidgetMenu({ onAdd }: { onAdd: (id: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+
+  useEffect(() => {
+    if (!open) return;
+    const update = () => {
+      const el = btnRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const width = 168;
+      const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8));
+      setPos({ top: r.bottom + 4, left });
+    };
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t)) return;
+      if (menuRef.current?.contains(t)) return;
+      setOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="text-[12px] font-medium px-2.5 py-1 rounded-card cursor-pointer transition-colors"
+        style={{
+          background: "var(--panel-2)",
+          border: "1px solid var(--border)",
+          color: "var(--text-2)",
+        }}
+      >
+        + Add ▾
+      </button>
+      {open &&
+        createPortal(
+          <div
+            ref={menuRef}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setOpen(false);
+            }}
+            style={{
+              position: "fixed",
+              top: pos.top,
+              left: pos.left,
+              width: 168,
+              zIndex: 1000,
+              background: "var(--panel)",
+              border: "1px solid var(--border)",
+              borderRadius: 8,
+              boxShadow: "var(--shadow-lg)",
+              padding: 4,
+            }}
+          >
+            {WIDGET_CATALOG.map((w) => (
+              <button
+                key={w.id}
+                type="button"
+                onClick={() => {
+                  onAdd(w.id);
+                  setOpen(false);
+                }}
+                className="text-[12px] cursor-pointer rounded-card"
+                style={{
+                  display: "block",
+                  width: "100%",
+                  textAlign: "left",
+                  background: "transparent",
+                  border: "none",
+                  padding: "7px 10px",
+                  color: "var(--text)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "var(--panel-2)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "transparent";
+                }}
+              >
+                {w.title}
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
 
@@ -264,17 +375,7 @@ export default function Workspace({
         }}
       >
         <div className="flex items-center gap-1.5 flex-wrap mb-2 shrink-0">
-          <span
-            className="text-[11px] font-semibold uppercase tracking-wide mr-1"
-            style={{ color: "var(--mute)" }}
-          >
-            Add
-          </span>
-          {WIDGET_CATALOG.map((w) => (
-            <ToolbarButton key={w.id} onClick={() => addWidget(w.id)}>
-              + {w.title}
-            </ToolbarButton>
-          ))}
+          <AddWidgetMenu onAdd={addWidget} />
           <div className="flex-1" />
           <ToolbarButton onClick={onToggleFocus}>
             {focus ? "Exit focus" : "Focus"}
