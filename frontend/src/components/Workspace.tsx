@@ -25,6 +25,11 @@ interface Props {
 
 const storageKey = (ac: AssetClass) => `workspace_layout_${ac}_v1`;
 
+// Toggle the tab/header bar on every group (Dockview reclaims the space).
+function setAllHeaders(api: DockviewApi, hidden: boolean) {
+  for (const g of api.groups) g.model.header.hidden = hidden;
+}
+
 // First-run arrangement: chart + news/activity (tab-stacked) on the left,
 // positions over orders on the right. Tab-stacking shows the "layer the
 // tools" behaviour out of the box.
@@ -88,7 +93,10 @@ function ToolbarButton({
 export default function Workspace({ symbol, onSelect, assetClass, theme }: Props) {
   const apiRef = useRef<DockviewApi | null>(null);
   const disposableRef = useRef<{ dispose: () => void } | null>(null);
+  const addGroupDisposableRef = useRef<{ dispose: () => void } | null>(null);
   const saveTimerRef = useRef<number | undefined>(undefined);
+  const [tabsHidden, setTabsHidden] = useState(false);
+  const tabsHiddenRef = useRef(false);
 
   // Per-channel symbol. The "main" channel proxies the app's selected symbol
   // (so Chart mode etc. stay in sync); the colour channels are session-local.
@@ -129,6 +137,18 @@ export default function Workspace({ symbol, onSelect, assetClass, theme }: Props
     }
     if (!restored) buildDefaultLayout(event.api);
 
+    // Sync the tab-visibility toggle with the (possibly restored) groups, then
+    // keep newly-created groups in step with it.
+    addGroupDisposableRef.current?.dispose();
+    const hidden =
+      event.api.groups.length > 0 &&
+      event.api.groups.every((g) => g.model.header.hidden);
+    tabsHiddenRef.current = hidden;
+    setTabsHidden(hidden);
+    addGroupDisposableRef.current = event.api.onDidAddGroup((g) => {
+      g.model.header.hidden = tabsHiddenRef.current;
+    });
+
     // Debounced — onDidLayoutChange fires rapidly during a drag/resize; only
     // serialize + write to localStorage once the gesture settles.
     disposableRef.current = event.api.onDidLayoutChange(() => {
@@ -151,12 +171,22 @@ export default function Workspace({ symbol, onSelect, assetClass, theme }: Props
   useEffect(
     () => () => {
       disposableRef.current?.dispose();
+      addGroupDisposableRef.current?.dispose();
       if (saveTimerRef.current !== undefined) {
         window.clearTimeout(saveTimerRef.current);
       }
     },
     [],
   );
+
+  function toggleTabs() {
+    const api = apiRef.current;
+    if (!api) return;
+    const next = !tabsHiddenRef.current;
+    tabsHiddenRef.current = next;
+    setTabsHidden(next);
+    setAllHeaders(api, next);
+  }
 
   function addWidget(id: string) {
     apiRef.current?.addPanel({
@@ -189,6 +219,9 @@ export default function Workspace({ symbol, onSelect, assetClass, theme }: Props
           </ToolbarButton>
         ))}
         <div className="flex-1" />
+        <ToolbarButton onClick={toggleTabs}>
+          {tabsHidden ? "Show tabs" : "Hide tabs"}
+        </ToolbarButton>
         <ToolbarButton onClick={resetLayout}>Reset layout</ToolbarButton>
       </div>
 
