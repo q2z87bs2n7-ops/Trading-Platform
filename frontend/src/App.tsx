@@ -184,16 +184,23 @@ export default function App() {
   }, [symbols.join(","), selected]);
 
   // Global Cmd+K / Ctrl+K opens Ask anything from anywhere.
+  // Esc exits Workspace focus mode (unless a modal/sheet has focus).
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setCmdOpen((v) => !v);
+        return;
+      }
+      if (e.key === "Escape" && focusMode) {
+        const active = document.activeElement as HTMLElement | null;
+        if (active?.closest('[role="dialog"]')) return;
+        setFocusMode(false);
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [focusMode]);
 
   function switchMode(m: PlatformMode) {
     setMode(m);

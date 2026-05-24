@@ -117,6 +117,7 @@ function LinkHeader({
   includeNone,
   assetClass,
   onPickSymbol,
+  lockedChannel,
 }: {
   label: string;
   channel: Channel;
@@ -124,6 +125,7 @@ function LinkHeader({
   includeNone: boolean;
   assetClass?: AssetClass;
   onPickSymbol?: (sym: string) => void;
+  lockedChannel?: boolean;
 }) {
   const [searching, setSearching] = useState(false);
   const canPick = channel !== "none" && !!onPickSymbol;
@@ -164,7 +166,9 @@ function LinkHeader({
           {label}
         </span>
       )}
-      <ChannelPicker value={channel} onChange={setChannel} includeNone={includeNone} />
+      {!lockedChannel && (
+        <ChannelPicker value={channel} onChange={setChannel} includeNone={includeNone} />
+      )}
     </div>
   );
 }
@@ -431,22 +435,19 @@ function WatchlistWidget(props: IDockviewPanelProps) {
 }
 
 // Whole-account overview widget — no symbol/channel, just account figures.
+// Routed through LinkHeader (lockedChannel) for visual rhythm with the rest.
 function AccountWidget(_props: IDockviewPanelProps) {
   const { assetClass } = useWorkspace();
   return (
     <WidgetShell
       header={
-        <div
-          className="flex items-center shrink-0"
-          style={{ padding: "6px 10px", borderBottom: "1px solid var(--hairline)" }}
-        >
-          <span
-            className="text-[12px] font-semibold"
-            style={{ color: "var(--text-2)" }}
-          >
-            Account
-          </span>
-        </div>
+        <LinkHeader
+          label="Account"
+          channel="none"
+          setChannel={() => {}}
+          includeNone
+          lockedChannel
+        />
       }
     >
       <Pane pad>

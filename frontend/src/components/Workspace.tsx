@@ -100,19 +100,25 @@ function buildDefaultLayout(api: DockviewApi) {
 function ToolbarButton({
   onClick,
   children,
+  active,
+  ariaPressed,
 }: {
   onClick: () => void;
   children: React.ReactNode;
+  active?: boolean;
+  ariaPressed?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="text-[12px] font-medium px-2.5 py-1 rounded-card cursor-pointer transition-colors"
+      aria-pressed={ariaPressed}
+      className="text-[12px] px-2.5 py-1 rounded-card cursor-pointer transition-colors"
       style={{
         background: "var(--panel-2)",
         border: "1px solid var(--border)",
-        color: "var(--text-2)",
+        color: active ? "var(--text)" : "var(--text-2)",
+        fontWeight: active ? 600 : 500,
       }}
     >
       {children}
@@ -380,8 +386,12 @@ export default function Workspace({
           <ToolbarButton onClick={onToggleFocus}>
             {focus ? "Exit focus" : "Focus"}
           </ToolbarButton>
-          <ToolbarButton onClick={toggleTabs}>
-            {tabsHidden ? "Show tabs" : "Hide tabs"}
+          <ToolbarButton
+            onClick={toggleTabs}
+            active={!tabsHidden}
+            ariaPressed={!tabsHidden}
+          >
+            Tab bars
           </ToolbarButton>
           <ToolbarButton onClick={resetLayout}>Reset layout</ToolbarButton>
         </div>
