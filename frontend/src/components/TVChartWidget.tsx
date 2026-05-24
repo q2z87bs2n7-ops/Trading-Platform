@@ -37,10 +37,23 @@ const DISABLED_FEATURES = [
   "show_right_widgets_panel_by_default",
 ];
 
+// Below this panel size we declutter on top of TV's own autosize: hide the
+// legend (our LinkHeader already shows the symbol) and shrink the scale font.
+const SMALL_W = 360;
+const SMALL_H = 300;
+
+function applyDensity(w: TVWidgetInstance, small: boolean) {
+  w.applyOverrides({
+    "paneProperties.legendProperties.showLegend": !small,
+    "scalesProperties.fontSize": small ? 10 : 12,
+  });
+}
+
 export default function TVChartWidget({ symbol, onSymbolChange }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetRef = useRef<TVWidgetInstance | null>(null);
   const readyRef = useRef(false);
+  const smallRef = useRef<boolean | null>(null);
   const { theme } = useTheme();
 
   // Latest theme for the async onChartReady path (a toggle can land while the
@@ -102,6 +115,13 @@ export default function TVChartWidget({ symbol, onSymbolChange }: Props) {
 
       widget.onChartReady(() => {
         readyRef.current = true;
+        if (smallRef.current !== null) {
+          try {
+            applyDensity(widget, smallRef.current);
+          } catch {
+            /* tearing down */
+          }
+        }
         try {
           const sub = widget.activeChart().onSymbolChanged();
           sub.subscribe(null, () => {
@@ -130,6 +150,30 @@ export default function TVChartWidget({ symbol, onSymbolChange }: Props) {
     };
     // Build once; theme + symbol changes are applied in place below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Declutter to fit the panel: hide the legend + shrink the scale font below a
+  // size threshold (layers on top of TV's built-in autosize).
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const measure = () => {
+      const small = el.clientWidth < SMALL_W || el.clientHeight < SMALL_H;
+      if (small === smallRef.current) return;
+      smallRef.current = small;
+      const w = widgetRef.current;
+      if (w && readyRef.current) {
+        try {
+          applyDensity(w, small);
+        } catch {
+          /* widget tearing down */
+        }
+      }
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
 
   // Re-skin in place on theme toggle once the chart is ready.
