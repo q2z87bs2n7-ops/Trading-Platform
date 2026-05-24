@@ -1080,7 +1080,9 @@ export default function Workspace({
     let restored = false;
     if (saved?.active?.layout) {
       try {
-        event.api.fromJSON(saved.active.layout);
+        // Stored opaquely as `unknown` in v2 shape — the runtime shape is
+        // whatever the last `api.toJSON()` produced.
+        event.api.fromJSON(saved.active.layout as Parameters<DockviewApi["fromJSON"]>[0]);
         restored = true;
       } catch {
         clearActiveLayout(assetClass);
@@ -1212,8 +1214,7 @@ export default function Workspace({
           <DockviewReact
             key={assetClass}
             components={WIDGET_COMPONENTS}
-            tabComponents={{ default: TabWithChannel }}
-            defaultTabComponent="default"
+            defaultTabComponent={TabWithChannel}
             onReady={onReady}
             theme={theme === "dark" ? themeDark : themeLight}
           />
