@@ -1,94 +1,26 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 
-import { getQuotes, streamQuotes } from "../api";
-import { setStreamStatus } from "../lib/stream-status";
 import type { Quote } from "../types";
 import { qk } from "./queryClient";
-
-const POLL_MS = 2000;
-// Buffer stream ticks and flush at most this often (mirrors Watchlist's
-// load-bearing constant from CLAUDE.md). Tune, don't remove.
-const STREAM_FLUSH_MS = 500;
+import { subscribeQuotes } from "./quoteStream";
 
 type QuoteMap = Record<string, Quote>;
 
 /**
- * Single source of live quotes for the data layer: prefers the SSE stream
- * and auto-falls-back to polling /api/quotes (the load-bearing fallback —
- * EventSource auto-reconnect stays disabled). Ticks are buffered and
- * merged into the React Query cache under `qk.quotes` so any component can
- * read them via `useQuery({ queryKey: qk.quotes })` with no fetcher.
+ * Single source of live quotes for the data layer. Registers the requested
+ * symbols with the shared quote-stream manager (one ref-counted SSE connection
+ * for the union of all consumers, with the load-bearing polling fallback) and
+ * reads the merged ticks back from the React Query cache under `qk.quotes`.
  */
 export function useLiveQuotes(symbols: string[]) {
-  const qc = useQueryClient();
-  const [err, setErr] = useState<string | null>(null);
+  const key = symbols.join(",");
 
   useEffect(() => {
     if (symbols.length === 0) return;
-    let alive = true;
-    let pollId: number | undefined;
-    let pending: QuoteMap = {};
-
-    const merge = (qs: Quote[]) =>
-      qc.setQueryData<QuoteMap>(qk.quotes, (prev) => {
-        const next = { ...(prev ?? {}) };
-        for (const q of qs) next[q.symbol] = q;
-        return next;
-      });
-
-    const flushId = window.setInterval(() => {
-      const batch = Object.values(pending);
-      if (batch.length === 0) return;
-      pending = {};
-      if (alive) merge(batch);
-    }, STREAM_FLUSH_MS);
-
-    const startPolling = () => {
-      if (pollId !== undefined) return;
-      setStreamStatus("polling");
-      const tick = () =>
-        getQuotes(symbols)
-          .then((data) => {
-            if (!alive) return;
-            setErr(null);
-            merge(data.quotes);
-          })
-          .catch((e) => alive && setErr(e.message));
-      tick();
-      pollId = window.setInterval(tick, POLL_MS);
-    };
-
-    // Seed the cache immediately so estimated cost isn't blank while
-    // waiting for the first stream tick (which can take several seconds
-    // on a new instrument or after a cold Render wake-up).
-    getQuotes(symbols)
-      .then((data) => { if (alive) merge(data.quotes); })
-      .catch(() => { /* non-fatal — stream or poll will follow */ });
-
-    setStreamStatus("streaming");
-    const stopStream = streamQuotes(
-      symbols,
-      (q) => {
-        if (!alive) return;
-        setErr(null);
-        pending[q.symbol] = q;
-      },
-      () => {
-        if (alive) startPolling();
-      },
-    );
-
-    return () => {
-      alive = false;
-      stopStream();
-      clearInterval(flushId);
-      if (pollId !== undefined) clearInterval(pollId);
-      // Don't reset status here — a sibling consumer may still be live.
-      // Last consumer to unmount naturally leaves the status where it was;
-      // status is purely informational for the TopBar chip.
-    };
-  }, [qc, symbols.join(",")]);
+    return subscribeQuotes(symbols);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
 
   const { data } = useQuery<QuoteMap>({
     queryKey: qk.quotes,
@@ -96,5 +28,5 @@ export function useLiveQuotes(symbols: string[]) {
     staleTime: Infinity,
   });
 
-  return { quotes: data ?? {}, error: err };
+  return { quotes: data ?? {}, error: null as string | null };
 }
