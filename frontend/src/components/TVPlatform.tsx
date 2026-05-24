@@ -5,7 +5,7 @@
  * order entry) is ours and matches the other modes.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { useTheme } from "../hooks/useTheme";
 import { useMobile } from "../hooks/useMobile";
@@ -88,13 +88,33 @@ export default function TVPlatform({ symbol, onSymbolChange, assetClass }: Props
   const isMobile = useMobile();
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetRef = useRef<TVWidgetInstance | null>(null);
+  const readyRef = useRef(false);
   const { theme } = useTheme();
-  // The widget can't re-theme on the fly in this build, so we remount it
-  // when the user toggles themes. `themeKey` is the dependency.
-  const [themeKey, setThemeKey] = useState(theme);
-  useEffect(() => setThemeKey(theme), [theme]);
+  // Latest theme for the async onChartReady path (a toggle can land while
+  // the widget is still loading).
+  const themeRef = useRef(theme);
+  useEffect(() => {
+    themeRef.current = theme;
+  }, [theme]);
 
-  // The widget effect runs once per theme; its closure captures the
+  // Re-skin the live widget in place. changeTheme applies TV's standard
+  // palette, so re-assert our custom pane background afterwards.
+  const applyTheme = useCallback((t: "light" | "dark") => {
+    const w = widgetRef.current;
+    if (!w) return;
+    w.changeTheme(t, { disableUndo: true })
+      .then(() => {
+        w.applyOverrides({
+          "paneProperties.background": t === "dark" ? "#0a0c10" : "#ffffff",
+          "paneProperties.backgroundType": "solid",
+        });
+      })
+      .catch(() => {
+        /* widget tearing down */
+      });
+  }, []);
+
+  // The widget effect runs once on mount; its closure captures the
   // initial `onSymbolChange`. App.tsx's setSelected is stable but the
   // `selectSym` wrapper here isn't — route the inside-TV subscription
   // through a ref so it always calls the latest callback.
@@ -129,11 +149,11 @@ export default function TVPlatform({ symbol, onSymbolChange, assetClass }: Props
         locale: "en",
         timezone: "America/New_York",
 
-        theme: themeKey === "dark" ? "Dark" : "Light",
+        theme: themeRef.current === "dark" ? "Dark" : "Light",
         custom_css_url: new URL(`${import.meta.env.BASE_URL}tv-themed.css`, window.location.href).href,
         overrides: {
           "paneProperties.background":
-            themeKey === "dark" ? "#0a0c10" : "#ffffff",
+            themeRef.current === "dark" ? "#0a0c10" : "#ffffff",
           "paneProperties.backgroundType": "solid",
         },
 
@@ -163,6 +183,9 @@ export default function TVPlatform({ symbol, onSymbolChange, assetClass }: Props
       widget.onChartReady(() => {
         brokerRef?.connect();
         setTVWidget(widget);
+        readyRef.current = true;
+        // Cover a theme toggle that happened during the async load.
+        applyTheme(themeRef.current);
         recreateDrawingsForChart();
         try {
           const sub = widget.activeChart().onSymbolChanged();
@@ -193,16 +216,22 @@ export default function TVPlatform({ symbol, onSymbolChange, assetClass }: Props
 
     return () => {
       destroyed = true;
+      readyRef.current = false;
       brokerRef?.disconnect();
       setTVWidget(null);
       clearEntityIds();
       widgetRef.current?.remove();
       widgetRef.current = null;
     };
-    // Re-mount on theme switch — `changeTheme` is unavailable on this
-    // bundled TV build, so the cleanest re-skin is a full remount.
+    // Build the widget once; theme changes are applied in place via
+    // changeTheme (see the effect below) rather than remounting.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [themeKey]);
+  }, []);
+
+  // Re-skin in place on theme toggle once the chart is ready.
+  useEffect(() => {
+    if (readyRef.current) applyTheme(theme);
+  }, [theme, applyTheme]);
 
   // Push external symbol changes (cmd-bar Open-in-workspace) into the
   // running widget. Bail out when the widget is already on this symbol

@@ -155,6 +155,11 @@ export interface TVWidgetInstance {
   onChartReady: (cb: () => void) => void;
   remove: () => void;
   activeChart: () => TVChartApi;
+  changeTheme: (
+    themeName: "light" | "dark",
+    options?: { disableUndo?: boolean },
+  ) => Promise<void>;
+  applyOverrides: (overrides: Record<string, unknown>) => void;
   takeClientScreenshot: (
     options?: { hideStudies?: boolean; hidePriceLine?: boolean },
   ) => Promise<HTMLCanvasElement>;
