@@ -229,6 +229,14 @@ separate silos behind a shared account.
   `tailwind.config.js`. Fonts: Inter + IBM Plex Mono. Mobile layout
   tokens (`--mob-*`) and safe-area insets (`--safe-*`) are appended in the
   same file; `index.html` sets `viewport-fit=cover` so the insets resolve.
+- **Number formatting** (`frontend/src/lib/format.ts`): `money(n)` is
+  the stock/dollar formatter (2 decimal places, USD locale). Crypto
+  prices must use `fmtCryptoPrice(n)` — a magnitude ladder (≥$1 → 2 dec,
+  ≥$0.01 → 4 dec, ≥$0.0001 → 6 dec, else 8 dec). Alpaca sets
+  `price_increment=1e-9` uniformly across all crypto pairs so per-asset
+  precision is not available; the ladder is the correct approach.
+  `fmtCryptoPrice` is used in `CryptoTicker`, `SparkCard` (via
+  `isCrypto` prop), and `Positions` price/avg columns.
 
 ## localStorage keys (single-user app)
 
