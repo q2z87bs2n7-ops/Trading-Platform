@@ -37,11 +37,21 @@ const TIMEFRAMES = [
   { value: "1Day", label: "1D" },
 ];
 
-export default function PriceChart({ symbol }: { symbol: string }) {
+export default function PriceChart({
+  symbol,
+  responsive = false,
+}: {
+  symbol: string;
+  responsive?: boolean;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const [timeframe, setTimeframe] = useState("1Day");
+  // Responsive size tier (Workspace mini chart only). "full" is the unchanged
+  // Discover presentation; smaller tiers shed chrome + chart axes to fit.
+  const [tier, setTier] = useState<"full" | "compact" | "mini">("full");
 
   const { data, error } = useBars(symbol, timeframe);
   // Day Δ% always derives from 1Day bars so it works regardless of the
@@ -119,6 +129,40 @@ export default function PriceChart({ symbol }: { symbol: string }) {
     });
   }, [theme]);
 
+  // Drive the size tier off the panel's own dimensions (not the viewport), so
+  // each docked mini chart adapts independently. Off in non-responsive mode.
+  useEffect(() => {
+    if (!responsive || !rootRef.current) return;
+    const el = rootRef.current;
+    const compute = () => {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      if (w === 0 && h === 0) return;
+      const next =
+        h < 210 || w < 240 ? "mini" : h < 320 || w < 340 ? "compact" : "full";
+      setTier((prev) => (prev === next ? prev : next));
+    };
+    compute();
+    const ro = new ResizeObserver(compute);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [responsive]);
+
+  // Hide the grid (compact) and the time axis (mini) to maximise the plot area;
+  // the price axis stays so the current level is always readable.
+  useEffect(() => {
+    if (!responsive || !chartRef.current) return;
+    const showGrid = tier === "full";
+    chartRef.current.applyOptions({
+      grid: {
+        vertLines: { visible: showGrid },
+        horzLines: { visible: showGrid },
+      },
+      timeScale: { visible: tier !== "mini" },
+    });
+    chartRef.current.timeScale().fitContent();
+  }, [responsive, tier]);
+
   useEffect(() => {
     if (!data || !seriesRef.current) return;
     seriesRef.current.setData(
@@ -152,12 +196,19 @@ export default function PriceChart({ symbol }: { symbol: string }) {
   }
 
   return (
-    <div className="bg-panel border border-border rounded-lg p-3 flex-1 flex flex-col">
+    <div
+      ref={rootRef}
+      className={
+        responsive
+          ? "flex-1 flex flex-col min-h-0 p-2"
+          : "bg-panel border border-border rounded-lg p-3 flex-1 flex flex-col"
+      }
+    >
       {/* Header row 1: symbol/name/last/Δ% on the left, timeframe pills on the right */}
       <div className="flex items-baseline justify-between gap-3 mb-1 flex-wrap">
         <div className="flex items-baseline gap-3 flex-wrap">
           <strong className="text-[16px]">{symbol}</strong>
-          {asset && (
+          {asset && tier === "full" && (
             <span className="text-muted text-[13px]">{asset.name}</span>
           )}
           {lastPrice != null && (
@@ -175,6 +226,7 @@ export default function PriceChart({ symbol }: { symbol: string }) {
             </span>
           )}
         </div>
+        {tier !== "mini" && (
         <div className="flex gap-1" role="tablist" aria-label="Chart timeframe">
           {TIMEFRAMES.map((tf) => (
             <button
@@ -190,10 +242,11 @@ export default function PriceChart({ symbol }: { symbol: string }) {
             </button>
           ))}
         </div>
+        )}
       </div>
 
       {/* Attribute chips (replaces standalone InstrumentInfo card) */}
-      {asset && (
+      {asset && tier === "full" && (
         <div className="flex items-center gap-2 text-xs text-muted mb-2 flex-wrap">
           {/* Crypto's pseudo-exchange is "CRYPTO", which would duplicate the
               asset-class pill below — show it only for real exchanges. */}
@@ -225,7 +278,11 @@ export default function PriceChart({ symbol }: { symbol: string }) {
       {error && <ErrorBanner message={error.message} />}
 
       {/* Flex-1 so the canvas fills whatever height the sidebar sets. */}
-      <div ref={containerRef} className="flex-1 min-h-0" style={{ minHeight: 240 }} />
+      <div
+        ref={containerRef}
+        className="flex-1 min-h-0"
+        style={{ minHeight: responsive ? 0 : 240 }}
+      />
     </div>
   );
 }

@@ -197,7 +197,7 @@ function MiniChartWidget(props: IDockviewPanelProps) {
       }
     >
       <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-        <PriceChart symbol={symbol} />
+        <PriceChart symbol={symbol} responsive />
       </div>
     </WidgetShell>
   );
