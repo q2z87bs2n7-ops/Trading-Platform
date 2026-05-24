@@ -116,21 +116,21 @@
 
 ## Mobile
 
-The phased mobile redesign (P0–P6 + UAT fixes, v0.40.2–0.41.0; spec in
-`Handover Mobile Trading.html`) shipped behind the ≤640px breakpoint.
+The phased mobile redesign (P0–P6 + UAT fixes, v0.40.2–0.41.0)
+shipped behind the ≤640px breakpoint.
 Two follow-ups were deliberately left:
 
 - **Combined Discover hero + merged movers card (≤640px)** — P5 kept
   `BalanceCard` + `AllocationCard` as two stacked cards and `MoversCard` +
-  `MostActiveCard` as two stacked cards, rather than building the handover's
+  `MostActiveCard` as two stacked cards, rather than building a
   combined `HeroCardMobile` (donut → horizontal allocation bar) and merged
   Gainers/Losers/Active tabbed card. Both already stack cleanly on mobile;
   the rebuilds were deferred as density polish (and to honour the
-  "no rewrites" rule). The spec's §5.2 / §5.4 have the design if wanted.
+  "no rewrites" rule).
 - **On-device verification** — the mobile layer was typechecked +
   production-built but not yet validated on real devices / simulators
   (iPhone 12 / SE, iPad portrait) or as an installed PWA. Run the per-phase
-  device checklists + the cross-cutting matrix from the handover spec before
+  device checklists + the cross-cutting verification matrix before
   promoting to `main`.
 
 ## Crypto
@@ -152,7 +152,7 @@ Desktop-only dockable widget canvas (`components/Workspace.tsx` +
 `lib/workspace/registry.tsx`, Dockview). Shipped: dock / tab-stack / float /
 pop-out, per-silo layout persistence, add-widget toolbar + reset; widgets for
 chart (bare TradingView), mini chart (lightweight-charts), trade ticket,
-positions, orders, activity, news; CMC-style symbol-linking channel groups; live
+positions, orders, activity, news; symbol-linking channel groups; live
 quotes and bars each deduped through one shared ref-counted stream
 (`data/quoteStream.ts` + `data/barStream.ts`).
 

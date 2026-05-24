@@ -94,7 +94,7 @@ separate silos behind a shared account.
     for open orders/positions draw. Datafeed: `lib/tv-datafeed.ts`.
     Broker: `lib/tv-broker.ts`. ChartBot side panel mounts here when
     `AI_CHAT_ENABLED=true`.
-  - **Workspace** (desktop only — hidden on mobile) — a CMC-style dockable
+  - **Workspace** (desktop only — hidden on mobile) — a dockable
     widget canvas (`components/Workspace.tsx` + `lib/workspace/registry.tsx`)
     built on Dockview (`dockview-react`, lazy-loaded): drag-to-dock, tab-stack,
     float and pop-out panels, per-silo layout persistence
@@ -162,8 +162,7 @@ separate silos behind a shared account.
   footers; `TradeBar` and the watchlist add-sheet clear the home
   indicator. Mobile tokens (`--mob-*`, `--safe-*`) live in `index.css`;
   `--mob-hero-value` is deliberately scoped to the media query, not
-  `:root` (see `docs/landmines.md`). The `Handover Mobile Trading.html`
-  spec at the repo root documents the original phased plan.
+  `:root` (see `docs/landmines.md`).
 - **Order entry.** `hooks/useOrderTicket.ts` owns all form state
   (symbol/side/type/qty/limit/stop/trail/TIF/ext-hours, plus a
   shares-vs-dollars `amountMode` → `notional`) plus asset lookup, live

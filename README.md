@@ -36,7 +36,7 @@ desktop-only):
   Positions / Orders / Activity blotter below (filtered by asset class).
   Order entry is the same floating **TradeBar** pill. Includes an optional
   **ChartBot side panel** (violet · AI chat — see *AI chat* below).
-- **Workspace** (desktop only) — a CMC-style dockable widget canvas (Dockview):
+- **Workspace** (desktop only) — a dockable widget canvas (Dockview):
   drag-to-dock, tab-stack, float and pop-out panels, per-silo layout
   persistence, a show/hide-tabs toggle, and a Focus toggle + full-bleed layout
   that reclaim the chrome for a near-full-screen canvas. Widgets — bare
