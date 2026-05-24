@@ -99,7 +99,11 @@ separate silos behind a shared account.
     built on Dockview (`dockview-react`, lazy-loaded): drag-to-dock, tab-stack,
     float and pop-out panels, per-silo layout persistence
     (`workspace_layout_{stocks,crypto}_v1`), an add-widget toolbar + reset +
-    a show/hide-tabs toggle (per-group header via Dockview).
+    a show/hide-tabs toggle (per-group header via Dockview) + a **Focus** toggle
+    (hides the app header for a near-full-screen canvas). The mode also goes
+    **full-bleed** (`.app.bleed` in `index.css` — no max-width/gutters, a
+    full-height flex column so the dock fills the viewport) and **drops the
+    `TopBar` equity strip** (account figures live in the Account widget).
     Widgets reuse existing surfaces — the primary **Chart** is a **bare**
     TradingView chart (`components/TVChartWidget.tsx`: TV's native chrome only,
     *none* of the `TVPlatform` chrome; account manager off + object tree
@@ -109,15 +113,17 @@ separate silos behind a shared account.
     `PriceChart` (no iframe, `responsive` prop — sheds chrome + chart axes to
     fit its panel via ResizeObserver) as an extra — the "bare-TV-only" rule
     governs the primary Chart, not this explicit add-on. Plus an inline trade
-    ticket
-    (`components/trade/OrderTicketInline.tsx` — reuses `useOrderTicket` + the
-    OrderSheet inputs; account summary on the None channel), positions, orders,
+    ticket (`components/trade/OrderTicketInline.tsx` — reuses `useOrderTicket` +
+    the OrderSheet inputs; always symbol-linked, no None channel), an **Account**
+    widget (`components/AccountPanel.tsx` — curated whole-account overview:
+    equity, day P/L, buying power, cash, positions value), positions, orders,
     activity, news.
     Each widget carries a **link channel** (None + Main/blue/green/amber,
     persisted in the panel's Dockview params): a symbol channel filters the
     widget to that one instrument (Positions/Orders/Activities take a `symbol`
     filter prop, news uses instrument-specific `useNews`); **None** shows
-    whole-account info (the trade widget shows an account summary). "Main"
+    whole-account info (Trade and the chart widgets are symbol-only, no None).
+    "Main"
     proxies the app's selected symbol. Each widget's header symbol is a
     click-to-search picker (`AssetSearch`) that sets its channel's symbol, so any
     widget — not just the TV chart — can switch the linked instrument. Live

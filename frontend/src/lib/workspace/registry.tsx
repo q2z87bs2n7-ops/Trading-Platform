@@ -7,11 +7,11 @@ import Activities from "../../components/Activities";
 import TVChartWidget from "../../components/TVChartWidget";
 import PriceChart from "../../components/PriceChart";
 import OrderTicketInline from "../../components/trade/OrderTicketInline";
+import AccountPanel from "../../components/AccountPanel";
 import { AssetSearch } from "../../components/AssetSearch";
 import { NewsCard, NewsCardSkeleton } from "../../components/discover/NewsCard";
 import ErrorBanner from "../../components/ErrorBanner";
-import { useAccount, useMarketNews, useNews } from "../../data/hooks";
-import { money } from "../../lib/format";
+import { useMarketNews, useNews } from "../../data/hooks";
 
 export type AssetClass = "stocks" | "crypto";
 
@@ -394,61 +394,56 @@ function NewsWidget(props: IDockviewPanelProps) {
   );
 }
 
-function AccountRow({ k, v }: { k: string; v: string }) {
+// Whole-account overview widget — no symbol/channel, just account figures.
+function AccountWidget(_props: IDockviewPanelProps) {
+  const { assetClass } = useWorkspace();
   return (
-    <div className="flex items-center justify-between py-1.5 text-[13px]">
-      <span style={{ color: "var(--mute)" }}>{k}</span>
-      <span className="font-mono tabular-nums">{v}</span>
-    </div>
+    <WidgetShell
+      header={
+        <div
+          className="flex items-center shrink-0"
+          style={{ padding: "6px 10px", borderBottom: "1px solid var(--hairline)" }}
+        >
+          <span
+            className="text-[12px] font-semibold"
+            style={{ color: "var(--text-2)" }}
+          >
+            Account
+          </span>
+        </div>
+      }
+    >
+      <Pane pad>
+        <AccountPanel assetClass={assetClass} />
+      </Pane>
+    </WidgetShell>
   );
 }
 
-function AccountSummary({ assetClass }: { assetClass: AssetClass }) {
-  const { data: acct } = useAccount();
-  const bp =
-    (assetClass === "crypto"
-      ? acct?.non_marginable_buying_power
-      : acct?.buying_power) ?? 0;
-  return (
-    <Pane pad>
-      <AccountRow k="Equity" v={money(acct?.equity ?? 0)} />
-      <AccountRow k="Buying power" v={money(bp)} />
-      <AccountRow k="Cash" v={money(acct?.cash ?? 0)} />
-      <span className="text-[11px] block mt-2" style={{ color: "var(--mute)" }}>
-        Link a colour channel to trade an instrument.
-      </span>
-    </Pane>
-  );
-}
-
-// Order-entry panel: a full inline order ticket on a symbol channel, or an
-// account summary on "none". Both reuse existing engines (useOrderTicket /
-// useAccount) — no rebuilt logic.
+// Order-entry panel: a full inline order ticket. Always symbol-linked (no
+// account/"none" channel — account info lives in the Account widget). Reuses
+// useOrderTicket via OrderTicketInline.
 function TradeWidget(props: IDockviewPanelProps) {
   const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "main");
-  const sym = channel === "none" ? "" : getSymbol(channel).toUpperCase();
+  const sym = getSymbol(channel).toUpperCase();
 
   return (
     <WidgetShell
       header={
         <LinkHeader
-          label={channel === "none" ? "Account" : sym}
+          label={sym}
           channel={channel}
           setChannel={setChannel}
-          includeNone
+          includeNone={false}
           assetClass={assetClass}
           onPickSymbol={(s) => setSymbol(channel, s)}
         />
       }
     >
-      {channel === "none" ? (
-        <AccountSummary assetClass={assetClass} />
-      ) : (
-        <Pane pad>
-          <OrderTicketInline symbol={sym} />
-        </Pane>
-      )}
+      <Pane pad>
+        <OrderTicketInline symbol={sym} />
+      </Pane>
     </WidgetShell>
   );
 }
@@ -461,6 +456,7 @@ export const WIDGET_COMPONENTS: Record<
   chart: ChartWidget,
   minichart: MiniChartWidget,
   trade: TradeWidget,
+  account: AccountWidget,
   positions: PositionsWidget,
   orders: OrdersWidget,
   activity: ActivityWidget,
@@ -472,6 +468,7 @@ export const WIDGET_CATALOG: { id: string; title: string }[] = [
   { id: "chart", title: "Chart" },
   { id: "minichart", title: "Mini chart" },
   { id: "trade", title: "Trade" },
+  { id: "account", title: "Account" },
   { id: "positions", title: "Positions" },
   { id: "orders", title: "Orders" },
   { id: "activity", title: "Activity" },

@@ -170,6 +170,9 @@ export default function App() {
   // this starts open on every load (no last-page restore).
   const [landingOpen, setLandingOpen] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Workspace-only immersive mode: hides the app header for a near-full-screen
+  // canvas (paired with the full-bleed `.app.bleed` layout).
+  const [focusMode, setFocusMode] = useState(false);
   const isMobile = useMobile();
   const { theme, toggle: toggleTheme } = useTheme();
 
@@ -228,7 +231,8 @@ export default function App() {
 
   return (
     <>
-    <div className="app" style={siloAccent}>
+    <div className={mode === "workspace" ? "app bleed" : "app"} style={siloAccent}>
+      {!(mode === "workspace" && focusMode) && (
       <header>
         {isMobile ? (
           <MobileHeader
@@ -291,9 +295,12 @@ export default function App() {
           </div>
         </div>
         )}
-        {/* Status ribbon — shown in every mode (market status + equity/P/L/BP). */}
-        <TopBar assetClass={activeClass} />
+        {/* Status ribbon (market status + equity/P/L/BP). Omitted in Workspace
+           — the canvas reclaims the strip; account info lives in the Account
+           widget instead. */}
+        {mode !== "workspace" && <TopBar assetClass={activeClass} />}
       </header>
+      )}
 
       {/* Discover — one surface, parameterized by the active asset class */}
       {mode === "discover" && (
@@ -333,6 +340,8 @@ export default function App() {
             onSelect={setSelected}
             assetClass={activeClass}
             theme={theme}
+            focus={focusMode}
+            onToggleFocus={() => setFocusMode((v) => !v)}
           />
         </Suspense>
       )}

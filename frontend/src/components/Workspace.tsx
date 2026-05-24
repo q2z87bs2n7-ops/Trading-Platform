@@ -21,6 +21,8 @@ interface Props {
   onSelect: (s: string) => void;
   assetClass: AssetClass;
   theme: "light" | "dark";
+  focus: boolean;
+  onToggleFocus: () => void;
 }
 
 const storageKey = (ac: AssetClass) => `workspace_layout_${ac}_v1`;
@@ -45,6 +47,12 @@ function buildDefaultLayout(api: DockviewApi) {
     id: "trade",
     component: "trade",
     title: "Trade",
+    position: { referencePanel: "positions", direction: "within" },
+  });
+  api.addPanel({
+    id: "account",
+    component: "account",
+    title: "Account",
     position: { referencePanel: "positions", direction: "within" },
   });
   api.addPanel({
@@ -90,7 +98,14 @@ function ToolbarButton({
   );
 }
 
-export default function Workspace({ symbol, onSelect, assetClass, theme }: Props) {
+export default function Workspace({
+  symbol,
+  onSelect,
+  assetClass,
+  theme,
+  focus,
+  onToggleFocus,
+}: Props) {
   const apiRef = useRef<DockviewApi | null>(null);
   const disposableRef = useRef<{ dispose: () => void } | null>(null);
   const addGroupDisposableRef = useRef<{ dispose: () => void } | null>(null);
@@ -206,41 +221,53 @@ export default function Workspace({ symbol, onSelect, assetClass, theme }: Props
 
   return (
     <WorkspaceProvider value={workspaceCtx}>
-      <div className="flex items-center gap-1.5 flex-wrap mb-2">
-        <span
-          className="text-[11px] font-semibold uppercase tracking-wide mr-1"
-          style={{ color: "var(--mute)" }}
-        >
-          Add
-        </span>
-        {WIDGET_CATALOG.map((w) => (
-          <ToolbarButton key={w.id} onClick={() => addWidget(w.id)}>
-            + {w.title}
-          </ToolbarButton>
-        ))}
-        <div className="flex-1" />
-        <ToolbarButton onClick={toggleTabs}>
-          {tabsHidden ? "Show tabs" : "Hide tabs"}
-        </ToolbarButton>
-        <ToolbarButton onClick={resetLayout}>Reset layout</ToolbarButton>
-      </div>
-
       <div
         style={{
-          height: "calc(100dvh - 220px)",
-          minHeight: 480,
-          border: "1px solid var(--border)",
-          borderRadius: "var(--r)",
-          overflow: "hidden",
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
         }}
       >
-        {/* key by silo so switching reloads that silo's saved layout */}
-        <DockviewReact
-          key={assetClass}
-          components={WIDGET_COMPONENTS}
-          onReady={onReady}
-          theme={theme === "dark" ? themeDark : themeLight}
-        />
+        <div className="flex items-center gap-1.5 flex-wrap mb-2 shrink-0">
+          <span
+            className="text-[11px] font-semibold uppercase tracking-wide mr-1"
+            style={{ color: "var(--mute)" }}
+          >
+            Add
+          </span>
+          {WIDGET_CATALOG.map((w) => (
+            <ToolbarButton key={w.id} onClick={() => addWidget(w.id)}>
+              + {w.title}
+            </ToolbarButton>
+          ))}
+          <div className="flex-1" />
+          <ToolbarButton onClick={onToggleFocus}>
+            {focus ? "Exit focus" : "Focus"}
+          </ToolbarButton>
+          <ToolbarButton onClick={toggleTabs}>
+            {tabsHidden ? "Show tabs" : "Hide tabs"}
+          </ToolbarButton>
+          <ToolbarButton onClick={resetLayout}>Reset layout</ToolbarButton>
+        </div>
+
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            border: "1px solid var(--border)",
+            borderRadius: "var(--r)",
+            overflow: "hidden",
+          }}
+        >
+          {/* key by silo so switching reloads that silo's saved layout */}
+          <DockviewReact
+            key={assetClass}
+            components={WIDGET_COMPONENTS}
+            onReady={onReady}
+            theme={theme === "dark" ? themeDark : themeLight}
+          />
+        </div>
       </div>
     </WorkspaceProvider>
   );

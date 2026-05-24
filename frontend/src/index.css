@@ -160,6 +160,18 @@ body {
   padding: 24px;
 }
 
+/* Workspace mode goes full-bleed: edge-to-edge (no max-width / gutters), thin
+   padding, and a full-height flex column so the dock canvas fills whatever
+   chrome is on screen (header may be hidden in focus mode) with no magic
+   height math. */
+.app.bleed {
+  max-width: none;
+  padding: 8px;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
 @media (max-width: 640px) {
   :root {
     /* Hero numerals — read with a desktop fallback in BalanceCard. */
