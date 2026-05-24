@@ -260,15 +260,24 @@ function OrderCardMobile({
   );
 }
 
-export default function Orders({ assetClass }: { assetClass?: "stocks" | "crypto" } = {}) {
+export default function Orders({
+  assetClass,
+  symbol,
+}: {
+  assetClass?: "stocks" | "crypto";
+  symbol?: string;
+} = {}) {
   const [status, setStatus] = useState<StatusFilter>("all");
   const { data, error, isPending } = useOrders(status, 25);
   const cancel = useCancelOrder();
   const cancelAll = useCancelAllOrders();
   const rows = data?.orders?.filter((o: Order) => {
-    if (!assetClass) return true;
-    const crypto = isCryptoOrder(o);
-    return assetClass === "crypto" ? crypto : !crypto;
+    if (assetClass) {
+      const crypto = isCryptoOrder(o);
+      if (assetClass === "crypto" ? !crypto : crypto) return false;
+    }
+    if (symbol && o.symbol.toUpperCase() !== symbol.toUpperCase()) return false;
+    return true;
   });
   const hasLive = !!rows?.some(live);
 

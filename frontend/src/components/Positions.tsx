@@ -290,17 +290,22 @@ export default function Positions({
   variant = "strip",
   onSelect,
   assetClass,
+  symbol,
 }: {
   variant?: "strip" | "table";
   onSelect?: (symbol: string) => void;
   assetClass?: "stocks" | "crypto";
+  symbol?: string;
 } = {}) {
   const { data, error, isPending } = usePositions();
   const closeAll = useCloseAllPositions();
   const rows = data?.positions.filter((p: Position) => {
-    if (!assetClass) return true;
-    const crypto = isCryptoPosition(p);
-    return assetClass === "crypto" ? crypto : !crypto;
+    if (assetClass) {
+      const crypto = isCryptoPosition(p);
+      if (assetClass === "crypto" ? !crypto : crypto) return false;
+    }
+    if (symbol && p.symbol.toUpperCase() !== symbol.toUpperCase()) return false;
+    return true;
   });
 
   // Both cards open from the strip variant. closingPos drives the

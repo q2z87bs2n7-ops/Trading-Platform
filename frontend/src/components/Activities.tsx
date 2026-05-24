@@ -90,9 +90,19 @@ function ActivityRowMobile({ a }: { a: Activity }) {
   );
 }
 
-export default function Activities({ bare = false }: { bare?: boolean }) {
+export default function Activities({
+  bare = false,
+  symbol,
+}: {
+  bare?: boolean;
+  symbol?: string;
+}) {
   const { data, error, isPending } = useActivities(25);
-  const rows = data?.activities;
+  const rows = symbol
+    ? data?.activities?.filter(
+        (a) => String(a.symbol ?? "").toUpperCase() === symbol.toUpperCase(),
+      )
+    : data?.activities;
   const isMobile = useMobile();
 
   const body = (

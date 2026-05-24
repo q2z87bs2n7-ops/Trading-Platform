@@ -98,11 +98,13 @@ export default function Workspace({ symbol, onSelect, assetClass, theme }: Props
   const workspaceCtx = useMemo(
     () => ({
       assetClass,
-      getSymbol: (channel: Channel) =>
-        channel === "main"
-          ? symbol || fallback
-          : channelSymbols[channel] || fallback,
+      getSymbol: (channel: Channel) => {
+        if (channel === "none") return "";
+        if (channel === "main") return symbol || fallback;
+        return channelSymbols[channel] || fallback;
+      },
       setSymbol: (channel: Channel, sym: string) => {
+        if (channel === "none") return;
         if (channel === "main") onSelect(sym);
         else setChannelSymbols((p) => ({ ...p, [channel]: sym }));
       },
