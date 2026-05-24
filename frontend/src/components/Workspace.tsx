@@ -27,6 +27,27 @@ interface Props {
 
 const storageKey = (ac: AssetClass) => `workspace_layout_${ac}_v1`;
 
+// Per-silo colour-channel symbols persisted in one localStorage object.
+const CHANNELS_KEY = "workspace_channels_v1";
+type SiloChannels = Record<AssetClass, Record<string, string>>;
+
+// Seed symbols for each link channel, per silo (main + the three colours).
+const CHANNEL_DEFAULTS: Record<AssetClass, Partial<Record<Channel, string>>> = {
+  stocks: { main: "TSLA", blue: "AAPL", green: "NVDA", amber: "AMZN" },
+  crypto: { main: "BTC/USD", blue: "ETH/USD", green: "XRP/USD", amber: "SOL/USD" },
+};
+
+function loadChannels(): SiloChannels {
+  const empty: SiloChannels = { stocks: {}, crypto: {} };
+  try {
+    const raw = localStorage.getItem(CHANNELS_KEY);
+    if (raw) return { ...empty, ...(JSON.parse(raw) as Partial<SiloChannels>) };
+  } catch {
+    /* ignore malformed cache */
+  }
+  return empty;
+}
+
 // Toggle the tab/header bar on every group (Dockview reclaims the space).
 function setAllHeaders(api: DockviewApi, hidden: boolean) {
   for (const g of api.groups) g.model.header.hidden = hidden;
@@ -113,27 +134,40 @@ export default function Workspace({
   const [tabsHidden, setTabsHidden] = useState(false);
   const tabsHiddenRef = useRef(false);
 
-  // Per-channel symbol. The "main" channel proxies the app's selected symbol
-  // (so Chart mode etc. stay in sync); the colour channels are session-local.
-  const [channelSymbols, setChannelSymbols] = useState<Record<string, string>>(
-    {},
-  );
-  const fallback = assetClass === "crypto" ? "BTC/USD" : "AAPL";
+  // Per-channel symbol, persisted locally per silo. "main" proxies the app's
+  // selected symbol (so Chart mode etc. stay in sync); the colour channels are
+  // seeded from CHANNEL_DEFAULTS and persist user picks across reloads.
+  const [channelSymbols, setChannelSymbols] = useState<SiloChannels>(loadChannels);
   const workspaceCtx = useMemo(
     () => ({
       assetClass,
       getSymbol: (channel: Channel) => {
         if (channel === "none") return "";
-        if (channel === "main") return symbol || fallback;
-        return channelSymbols[channel] || fallback;
+        const def = CHANNEL_DEFAULTS[assetClass][channel] ?? "";
+        if (channel === "main") return symbol || def;
+        return channelSymbols[assetClass][channel] || def;
       },
       setSymbol: (channel: Channel, sym: string) => {
         if (channel === "none") return;
-        if (channel === "main") onSelect(sym);
-        else setChannelSymbols((p) => ({ ...p, [channel]: sym }));
+        if (channel === "main") {
+          onSelect(sym);
+          return;
+        }
+        setChannelSymbols((p) => {
+          const next: SiloChannels = {
+            ...p,
+            [assetClass]: { ...p[assetClass], [channel]: sym },
+          };
+          try {
+            localStorage.setItem(CHANNELS_KEY, JSON.stringify(next));
+          } catch {
+            /* quota — non-fatal */
+          }
+          return next;
+        });
       },
     }),
-    [assetClass, symbol, fallback, channelSymbols, onSelect],
+    [assetClass, symbol, channelSymbols, onSelect],
   );
 
   const onReady = (event: DockviewReadyEvent) => {

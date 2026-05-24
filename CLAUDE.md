@@ -343,6 +343,7 @@ Rules:
 | `market_summary_v1` / `crypto_market_summary_v1` | `useMarketSummary` | `useMarketSummary` + Ask-anything summary card | Per-silo cached AI market summary (window, date, content). |
 | `app_settings_v1` | `lib/settings.ts` | `useSettings` + `SettingsMenu` | JSON-encoded `AppSettings`. Today: `cmdbarAiEnabled` (default `true`). |
 | `workspace_layout_stocks_v1` / `workspace_layout_crypto_v1` | `components/Workspace.tsx` | `components/Workspace.tsx` | Per-silo serialized Dockview layout (`api.toJSON()`) for the desktop Workspace mode. Cleared by the in-canvas "Reset layout" button. |
+| `workspace_channels_v1` | `components/Workspace.tsx` | `components/Workspace.tsx` | Per-silo colour-channel symbols (`{stocks,crypto}` → channel → symbol). Seeded from `CHANNEL_DEFAULTS`; persists header-search picks across reloads. "main" is not stored here (it proxies the app's selected symbol). |
 
 Watchlists are not in localStorage — server-side via `/api/watchlist`.
 
