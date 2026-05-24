@@ -103,7 +103,9 @@ separate silos behind a shared account.
     Widgets reuse existing surfaces — the primary **Chart** is a **bare**
     TradingView chart (`components/TVChartWidget.tsx`: TV's native chrome only,
     *none* of the `TVPlatform` chrome; account manager off + object tree
-    collapsed); an opt-in **Mini chart** offers the lighter lightweight-charts
+    collapsed; a ResizeObserver hides the legend + shrinks the scale font on
+    small panels, layering on TV's own autosize); an opt-in **Mini chart**
+    offers the lighter lightweight-charts
     `PriceChart` (no iframe, `responsive` prop — sheds chrome + chart axes to
     fit its panel via ResizeObserver) as an extra — the "bare-TV-only" rule
     governs the primary Chart, not this explicit add-on. Plus an inline trade
