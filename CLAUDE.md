@@ -280,6 +280,45 @@ separate silos behind a shared account.
   `fmtCryptoPrice` is used in `CryptoTicker`, `SparkCard` (via
   `isCrypto` prop), and `Positions` price/avg columns.
 
+## Workspace module pattern (reuse strategy)
+
+Adding surfaces — Workspace widgets, or anything that may live in more than one
+place — follows a strict three-layer split so a module built for one surface is
+reusable elsewhere for free:
+
+1. **Engine** — hooks + data + types (`use*`, `data/`, `api`, `types.ts`). Pure
+   logic, no UI; shared platform-wide.
+2. **Feature component** — presentational and *location-agnostic*: takes
+   `symbol` / `assetClass` / callbacks as props and knows **nothing** about the
+   Workspace. Lives in `components/`. Examples: `PriceChart`, `TVChartWidget`,
+   `OrderTicketInline`, `Positions`, `Orders`, `Activities`, `NewsCard`,
+   `AssetSearch`.
+3. **Workspace adapter** — `lib/workspace/registry.tsx` (+ `Workspace.tsx`): the
+   *only* layer that knows Dockview, link channels, the `LinkHeader`, and
+   `useWorkspace`. It wraps a feature component and injects the cross-cutting
+   Workspace behaviours (channel symbol, header symbol picker, shared streams).
+
+Rules:
+
+- **Never put Workspace concerns inside a feature component** — no
+  `useWorkspace()`, Dockview params, channel logic, or `LinkHeader`. If a feature
+  component reaches for `useWorkspace()`, lift that into the adapter. A feature
+  component importing from `lib/workspace/` is a smell.
+- **Build new modules as a layer-2 component first** (props in, callbacks out)
+  even when the Workspace is the only consumer today, then add a ~15-line
+  registry wrapper — reuse elsewhere is then just rendering it with props.
+  `OrderTicketInline` is the precedent (built for the Workspace, lives in
+  `components/trade/`, takes only `{ symbol }`).
+- **Evolve shared components with additive, default-off props** — never change a
+  shared component's default behaviour for a new surface. Precedents:
+  `PriceChart`'s `responsive` (default `false` keeps Discover unchanged) and the
+  optional `symbol` filter on `Positions`/`Orders`/`Activities`.
+- **File location signals reusability:** reusable cores live in `components/`;
+  anything under `lib/workspace/` is Workspace-coupled by definition — don't park
+  a reusable core there.
+- The registry is the single catalogue (`widgetId → component`); expose or retire
+  a Workspace module there.
+
 ## localStorage keys (single-user app)
 
 | Key | Writer | Read by | Notes |
