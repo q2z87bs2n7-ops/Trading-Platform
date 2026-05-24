@@ -116,13 +116,25 @@ separate silos behind a shared account.
   `:root` (see `docs/landmines.md`). The `Handover Mobile Trading.html`
   spec at the repo root documents the original phased plan.
 - **Order entry.** `hooks/useOrderTicket.ts` owns all form state
-  (symbol/side/type/qty/limit/stop/trail/TIF/ext-hours) plus asset
-  lookup, live quote, est notional, validation, and submission.
-  Crypto constraints are enforced here: TIF limited to `gtc`/`ioc`;
-  no `trailing_stop`; no extended hours; `non_marginable_buying_power`
-  used (not `buying_power`) since Alpaca doesn't extend margin for crypto.
+  (symbol/side/type/qty/limit/stop/trail/TIF/ext-hours, plus a
+  shares-vs-dollars `amountMode` → `notional`) plus asset lookup, live
+  quote, est notional, validation, and submission.
+  Crypto constraints are enforced here: order types limited to
+  `market`/`limit`/`stop_limit` (no plain `stop`, no `trailing_stop`);
+  TIF limited to `gtc`/`ioc`; no extended hours;
+  `non_marginable_buying_power` used (not `buying_power`) since Alpaca
+  doesn't extend margin for crypto. **Dollar (notional) entry** is offered
+  on market/limit orders for **fractionable** assets only — equities force
+  TIF=`day` (Alpaca caps notional/fractional at day, no ext-hours), crypto
+  keeps `gtc`/`ioc`; the toggle reads "Units" in the crypto silo.
+  **Extended hours** is allowed on limit + `day`/`gtc`. All of these are
+  **frontend-only guards** — the backend write path applies no asset-class
+  gating, so direct API callers can bypass them.
   `isCrypto` is detected synchronously via `symbol.includes("/")` so
-  constraints apply before the async asset fetch resolves.
+  constraints apply before the async asset fetch resolves. Notional orders
+  come back with `qty: null` (executed size lands in `filled_qty`); the
+  Orders blotter falls back to `filled_qty`/`notional` for its Qty/Value
+  columns.
   UI surfaces in `components/trade/`: `OrderSheet` (bottom-sheet
   form), `TradeBar` (floating Buy/Sell pill, mounted in every mode),
   `ClosePositionCard`, `ModifyOrderCard`, `ConfirmCard`. The Ask
