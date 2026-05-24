@@ -240,11 +240,15 @@ places TV interface.
   stays TV-native; `frontend/public/tv-themed.css` re-tunes its CSS
   variables against the Calm palette. Don't hand-roll a React drawing
   rail.
-- **Theme switch causes widget remount.** This bundled TV build has
-  no reliable `changeTheme()`; `TVPlatform` re-keys its mount effect
-  on the `useTheme()` value and recreates the widget. The unmount
-  path clears the drawing entity-ID map (`clearEntityIds`) so the
-  next mount cleanly replays from `ai_drawings_v1`.
+- **Theme switch re-skins TV in place.** `TVPlatform` builds the
+  widget once and re-themes via `changeTheme()` plus a re-applied
+  `paneProperties.background` override (TT v31.2.0 supports it; the
+  older bundle didn't, hence the previous remount). No remount, so
+  drawings / studies / zoom / active symbol / broker connection all
+  survive a toggle. This relies on `useTheme()` being a **shared
+  module store** (`useSyncExternalStore`): every consumer must observe
+  the same value, or non-CSS consumers like the chart silently miss
+  toggles. Don't revert it to per-instance `useState`.
 - **`IndicatorPillsRow` polls `getAllStudies()`** every 1.2s. This
   build's `IChartWidgetApi` doesn't expose `onStudyAdded` /
   `onStudyRemoved`; polling is the only reliable way to keep the

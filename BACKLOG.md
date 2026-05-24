@@ -92,10 +92,6 @@
   build doesn't expose them, so `IndicatorPillsRow` and
   `ChatContextPills` poll `getAllStudies()` every 1.2 s. If a future
   TV build ships the subscriptions, replace the polling.
-- **TV `changeTheme()` instead of remount** — phase 7's `TVPlatform`
-  recreates the widget on theme toggle because this build's
-  `changeTheme` isn't reliable. Drawings + studies + active TF all
-  reset across the swap. Move to `changeTheme()` once available.
 
 ## AI chart assistant — deferred
 
