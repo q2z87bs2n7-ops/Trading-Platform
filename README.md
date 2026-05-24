@@ -229,7 +229,7 @@ paid Alpaca data plan for the full consolidated tape.
   otherwise the watchlist polls `/api/quotes` (~2s, `POLL_MS` in
   `frontend/src/data/useLiveQuotes.ts`). Charts still load a bar snapshot
   per symbol/timeframe change. A yellow "Polling · stream off" chip in
-  the Portfolio mode `TopBar` indicates when the stream is unavailable.
+  the `TopBar` status strip indicates when the stream is unavailable.
 - Keys live only in `backend/.env`, which is gitignored. Never commit it.
 - Default watchlist symbols are configurable via `DEFAULT_SYMBOLS` in `.env`.
 - Browser state is in `localStorage`: `asset_class_mode` (stocks / crypto,

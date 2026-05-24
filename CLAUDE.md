@@ -79,12 +79,12 @@ separate silos behind a shared account.
   - **Portfolio** — `PortfolioHero` (siloed: silo holdings + day P/L +
     unrealized + a reconstructed **net P/L curve** from `/api/pnl-history`)
     + `Positions` (strip variant, filtered by asset class) + `Orders`
-    (filtered) + `Activities`. `TopBar` status strip mounts here and in
-    Chart mode. `TopBar` is silo-aware (`assetClass` prop from `App.tsx`):
-    in **stocks** mode it shows the Alpaca market clock (OPEN/CLOSED +
-    next-edge time) and `buying_power`; in **crypto** mode the clock is
-    hidden (crypto trades 24/7, the Alpaca clock is equities-only) and BP
-    shows `non_marginable_buying_power`.
+    (filtered) + `Activities`. `TopBar` status strip mounts in every mode
+    (Discover, Portfolio, Chart). `TopBar` is silo-aware (`assetClass` prop
+    from `App.tsx`): in **stocks** mode it shows the Alpaca market clock
+    (OPEN/CLOSED + next-edge time) and `buying_power`; in **crypto** mode it
+    shows a static `OPEN · 24/7` indicator (the Alpaca clock is equities-only)
+    and BP shows `non_marginable_buying_power`.
   - **Chart** — `TVPlatform.tsx` wraps the full TradingView Charting
     Library (`frontend/public/charting_library/`, committed — private
     repo only) in our own chrome: `ChartTopBar`, `IndicatorPillsRow`,
