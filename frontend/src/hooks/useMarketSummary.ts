@@ -102,53 +102,54 @@ export function readMarketSummaryCache(
   return readCache(assetClass);
 }
 
-const STOCK_WINDOW_EXTRA: Record<SummaryWindow, string> = {
-  overnight: " Include any notable after-hours price movements for holdings.",
-  open: " Note how the portfolio is positioned heading into today's session.",
-  midday: "",
-  close: " Summarise how the portfolio finished the day overall.",
-};
-
 function buildStockPrompt(w: SummaryWindow, watchlistSymbols: string[]): string {
   const ctx: Record<SummaryWindow, string> = {
-    overnight: "overnight / after-hours market update",
-    open: "market open summary",
-    midday: "midday market check-in",
-    close: "end-of-day market close summary",
+    overnight: "overnight",
+    open: "market open",
+    midday: "midday",
+    close: "end-of-day",
+  };
+  const windowAngle: Record<SummaryWindow, string> = {
+    overnight: " Lean into any notable after-hours moves.",
+    open: " Note how the portfolio is positioned heading into the session.",
+    midday: "",
+    close: " Give a sense of how the portfolio finished the day.",
   };
   const wl =
     watchlistSymbols.length > 0
-      ? ` Also briefly note the watchlist: ${watchlistSymbols.slice(0, 8).join(", ")} — get a snapshot for each and mention price and day change.`
+      ? ` Pull a price and day-change snapshot for the watchlist: ${watchlistSymbols.slice(0, 8).join(", ")}.`
       : "";
   return (
-    `Generate a brief ${ctx[w]}.` +
-    ` Check open positions with get_positions and show each holding's current price and day % change.` +
-    ` Use get_orders with status=closed and limit=50 to find any symbols sold today that are no longer in current holdings; mention those briefly.` +
+    `Write a 150–200 word ${ctx[w]} market briefing in the voice of a trading desk note — one continuous paragraph, no section labels or lists.` +
+    ` Use these tools to gather the data: get_positions for current holdings and day % change;` +
+    ` get_orders with status=closed and limit=50 for anything sold today that is no longer held;` +
+    ` get_news without a symbol for a real headline (do NOT use get_movers).` +
     wl +
-    ` For the US market overview, call get_news without a symbol to pull real market headlines — summarise the key story in one sentence, naming major companies and indices. Do NOT use get_movers for this section.` +
-    STOCK_WINDOW_EXTRA[w] +
-    ` Keep the entire response to 150–200 words. Write in plain prose, no markdown headers.`
+    ` Blend holdings, recent trades, watchlist moves, and the headline into a single flowing narrative — do not narrate the tool calls.` +
+    ` If the portfolio is empty and there are no recent trades, skip the holdings section and focus on the market overview.` +
+    windowAngle[w]
   );
 }
 
 function buildCryptoPrompt(w: SummaryWindow, watchlistSymbols: string[]): string {
   const ctx: Record<SummaryWindow, string> = {
-    overnight: "overnight crypto market update",
-    open: "morning crypto market update",
-    midday: "midday crypto market check-in",
-    close: "evening crypto market wrap",
+    overnight: "overnight crypto",
+    open: "morning crypto",
+    midday: "midday crypto",
+    close: "evening crypto",
   };
   const wl =
     watchlistSymbols.length > 0
-      ? ` Also briefly note the watchlist: ${watchlistSymbols.slice(0, 8).join(", ")} — get a snapshot for each and mention price and 24h change.`
+      ? ` Pull a price and 24h-change snapshot for the watchlist: ${watchlistSymbols.slice(0, 8).join(", ")}.`
       : "";
   return (
-    `Generate a brief ${ctx[w]} for a crypto portfolio.` +
-    ` Check open crypto positions with get_positions and show each holding's current price and 24h % change.` +
-    ` Use get_orders with status=closed and limit=50 to find any crypto pairs sold recently that are no longer held; mention those briefly.` +
+    `Write a 150–200 word ${ctx[w]} market briefing in the voice of a trading desk note — one continuous paragraph, no section labels or lists.` +
+    ` Use these tools to gather the data: get_positions for current crypto holdings and 24h % change;` +
+    ` get_orders with status=closed and limit=50 for any pairs sold recently that are no longer held;` +
+    ` get_news with symbol BTC for a real crypto headline (do NOT call get_movers — Alpaca has no crypto screener).` +
     wl +
-    ` For market context, call get_news with symbol BTC to pull real crypto headlines — summarise the key story in one sentence. Do NOT call get_movers (Alpaca has no crypto screener).` +
-    ` Keep the entire response to 150–200 words. Write in plain prose, no markdown headers.`
+    ` Blend holdings, recent trades, watchlist moves, and the headline into a single flowing narrative — do not narrate the tool calls.` +
+    ` If the portfolio is empty and there are no recent trades, skip the holdings section and focus on the market overview.`
   );
 }
 
