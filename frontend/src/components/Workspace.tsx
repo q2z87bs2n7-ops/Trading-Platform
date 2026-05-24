@@ -23,6 +23,12 @@ import {
   type WidgetGroup,
 } from "../lib/workspace/registry";
 import { AssetSearch } from "./AssetSearch";
+import {
+  PRESETS,
+  DEFAULT_PRESET,
+  applyPreset,
+  type LayoutPreset,
+} from "../lib/workspace/presets";
 
 interface Props {
   symbol: string;
@@ -33,7 +39,59 @@ interface Props {
   onToggleFocus: () => void;
 }
 
-const storageKey = (ac: AssetClass) => `workspace_layout_${ac}_v1`;
+const STORAGE_KEY_V1 = (ac: AssetClass) => `workspace_layout_${ac}_v1`;
+const STORAGE_KEY_V2 = (ac: AssetClass) => `workspace_layouts_${ac}_v2`;
+
+// v2 persistence shape: an active layout (currently displayed; may equal a
+// preset's output plus any subsequent dragging) plus a slot for future named
+// user layouts ("Save current as…"). The v2 shape is forward-compatible so
+// the named-layouts UI can ship later without another migration.
+interface SavedLayouts {
+  active: { name: string; layout: unknown };
+  saved: Record<string, unknown>;
+}
+
+function loadLayouts(ac: AssetClass): SavedLayouts | null {
+  try {
+    const v2raw = localStorage.getItem(STORAGE_KEY_V2(ac));
+    if (v2raw) return JSON.parse(v2raw) as SavedLayouts;
+    // First load after upgrade: migrate v1 → v2 and drop v1.
+    const v1raw = localStorage.getItem(STORAGE_KEY_V1(ac));
+    if (v1raw) {
+      const migrated: SavedLayouts = {
+        active: { name: "default", layout: JSON.parse(v1raw) },
+        saved: {},
+      };
+      localStorage.setItem(STORAGE_KEY_V2(ac), JSON.stringify(migrated));
+      localStorage.removeItem(STORAGE_KEY_V1(ac));
+      return migrated;
+    }
+  } catch {
+    /* malformed cache — fall through to a fresh layout */
+  }
+  return null;
+}
+
+function saveActiveLayout(ac: AssetClass, layout: unknown, name?: string) {
+  try {
+    const cur = loadLayouts(ac) ?? {
+      active: { name: "default", layout: null },
+      saved: {},
+    };
+    cur.active = { name: name ?? cur.active.name ?? "default", layout };
+    localStorage.setItem(STORAGE_KEY_V2(ac), JSON.stringify(cur));
+  } catch {
+    /* quota / serialization — non-fatal for a layout cache */
+  }
+}
+
+function clearActiveLayout(ac: AssetClass) {
+  try {
+    localStorage.removeItem(STORAGE_KEY_V2(ac));
+  } catch {
+    /* non-fatal */
+  }
+}
 
 // Per-silo colour-channel symbols persisted in one localStorage object.
 const CHANNELS_KEY = "workspace_channels_v1";
@@ -61,48 +119,9 @@ function setAllHeaders(api: DockviewApi, hidden: boolean) {
   for (const g of api.groups) g.model.header.hidden = hidden;
 }
 
-// First-run arrangement: chart + news/activity (tab-stacked) on the left,
-// positions over orders on the right. Tab-stacking shows the "layer the
-// tools" behaviour out of the box.
-function buildDefaultLayout(api: DockviewApi) {
-  api.addPanel({ id: "chart", component: "chart", title: "Chart" });
-  api.addPanel({
-    id: "positions",
-    component: "positions",
-    title: "Positions",
-    position: { referencePanel: "chart", direction: "right" },
-  });
-  api.addPanel({
-    id: "trade",
-    component: "trade",
-    title: "Trade",
-    position: { referencePanel: "positions", direction: "within" },
-  });
-  api.addPanel({
-    id: "account",
-    component: "account",
-    title: "Account",
-    position: { referencePanel: "positions", direction: "within" },
-  });
-  api.addPanel({
-    id: "orders",
-    component: "orders",
-    title: "Orders",
-    position: { referencePanel: "positions", direction: "below" },
-  });
-  api.addPanel({
-    id: "news",
-    component: "news",
-    title: "News",
-    position: { referencePanel: "chart", direction: "below" },
-  });
-  api.addPanel({
-    id: "activity",
-    component: "activity",
-    title: "Activity",
-    position: { referencePanel: "news", direction: "within" },
-  });
-}
+// First-run / Reset → run the default preset's build (see lib/workspace/
+// presets.tsx). buildDefaultLayout used to live here; the body moved to
+// PRESETS["trader"].build verbatim so reset behaviour is unchanged.
 
 type ToolbarVariant = "ghost" | "default";
 
@@ -202,8 +221,16 @@ function useAnchoredPopover(
 
 // v2 Add menu — 320px popover with a search input, grouped sections, icons and
 // one-line descriptions. Portaled to <body> so the full-bleed canvas can't
-// clip it. Keyboard: ↑/↓ to move, Enter to add, Esc to close.
-function AddWidgetMenu({ onAdd }: { onAdd: (id: string) => void }) {
+// clip it. Keyboard: ↑/↓ to move, Enter to add, Esc to close. `openRef` is
+// populated with an imperative open() so non-toolbar callers (the empty
+// state) can trigger the popover.
+function AddWidgetMenu({
+  onAdd,
+  openRef,
+}: {
+  onAdd: (id: string) => void;
+  openRef?: React.MutableRefObject<(() => void) | null>;
+}) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [hoverIdx, setHoverIdx] = useState(0);
@@ -243,6 +270,14 @@ function AddWidgetMenu({ onAdd }: { onAdd: (id: string) => void }) {
       requestAnimationFrame(() => inputRef.current?.focus());
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!openRef) return;
+    openRef.current = () => setOpen(true);
+    return () => {
+      if (openRef.current) openRef.current = null;
+    };
+  }, [openRef]);
 
   function pick(id: string) {
     onAdd(id);
@@ -578,6 +613,322 @@ function ChannelChip({
   );
 }
 
+// Toolbar Layouts menu — opens a 480px popover showing preset cards (Trader /
+// Researcher / Watcher / Focus) with sketched thumbnails, descriptions, and
+// badges. Selecting a card highlights it; Apply replaces the canvas. Applying
+// is destructive, hence the explicit confirm step.
+function LayoutsMenu({
+  onApply,
+  openRef,
+}: {
+  onApply: (preset: LayoutPreset) => void;
+  openRef?: React.MutableRefObject<(() => void) | null>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState<string>(PRESETS[0].id);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  const pos = useAnchoredPopover(btnRef, 480, open);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t)) return;
+      if (popRef.current?.contains(t)) return;
+      setOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  useEffect(() => {
+    if (!openRef) return;
+    openRef.current = () => setOpen(true);
+    return () => {
+      if (openRef.current) openRef.current = null;
+    };
+  }, [openRef]);
+
+  function commit() {
+    const p = PRESETS.find((x) => x.id === selectedId);
+    if (p) onApply(p);
+    setOpen(false);
+  }
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="text-[12px] px-2.5 py-1 rounded-card cursor-pointer transition-colors"
+        style={{
+          background: "transparent",
+          border: "1px solid transparent",
+          color: "var(--text-2)",
+          fontWeight: 500,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = "var(--panel-2)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = "transparent";
+        }}
+      >
+        Layouts ▾
+      </button>
+      {open &&
+        createPortal(
+          <div
+            ref={popRef}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setOpen(false);
+              if (e.key === "Enter") commit();
+            }}
+            style={{
+              position: "fixed",
+              top: pos.top,
+              left: pos.left,
+              width: 480,
+              zIndex: 1000,
+              background: "var(--panel)",
+              border: "1px solid var(--border)",
+              borderRadius: 12,
+              boxShadow: "var(--shadow-lg)",
+              padding: 16,
+            }}
+          >
+            <div style={{ marginBottom: 12 }}>
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: "var(--text)",
+                }}
+              >
+                Choose a layout
+              </div>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "var(--mute)",
+                  marginTop: 2,
+                }}
+              >
+                Applying replaces the current arrangement.
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 12,
+              }}
+            >
+              {PRESETS.map((p) => {
+                const isSel = p.id === selectedId;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setSelectedId(p.id)}
+                    onDoubleClick={() => {
+                      setSelectedId(p.id);
+                      commit();
+                    }}
+                    style={{
+                      background: "var(--panel)",
+                      border: `1px solid ${isSel ? "var(--accent)" : "var(--border)"}`,
+                      borderRadius: 12,
+                      padding: 14,
+                      cursor: "pointer",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 10,
+                      textAlign: "left",
+                      boxShadow: isSel
+                        ? "0 0 0 1px var(--accent-bg)"
+                        : "none",
+                    }}
+                  >
+                    <div
+                      style={{
+                        height: 110,
+                        background: "var(--panel-2)",
+                        borderRadius: 8,
+                        padding: 6,
+                      }}
+                    >
+                      {p.thumbnail()}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: "var(--text)",
+                      }}
+                    >
+                      {p.title}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: "var(--mute)",
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      {p.desc}
+                    </div>
+                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                      {p.badges.map((b) => (
+                        <span
+                          key={b}
+                          style={{
+                            fontSize: 10,
+                            padding: "2px 6px",
+                            borderRadius: 4,
+                            background: "var(--panel-2)",
+                            color: "var(--text-2)",
+                          }}
+                        >
+                          {b}
+                        </span>
+                      ))}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 8,
+                marginTop: 14,
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="text-[12px] cursor-pointer rounded-card"
+                style={{
+                  background: "transparent",
+                  border: "1px solid transparent",
+                  color: "var(--text-2)",
+                  padding: "5px 10px",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={commit}
+                className="text-[12px] cursor-pointer rounded-card"
+                style={{
+                  background: "var(--accent)",
+                  color: "#fff",
+                  fontWeight: 600,
+                  border: "1px solid transparent",
+                  padding: "5px 12px",
+                }}
+              >
+                Apply layout
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
+
+// Centred empty-state overlay shown when the canvas has zero panels. Sits
+// inside the (positioned) Dockview container so it tracks resizes.
+function EmptyState({
+  onAdd,
+  onBrowseLayouts,
+}: {
+  onAdd: () => void;
+  onBrowseLayouts: () => void;
+}) {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 16,
+        padding: 32,
+        background: "var(--panel-2)",
+        zIndex: 1,
+      }}
+    >
+      <svg
+        width={28}
+        height={28}
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="var(--mute)"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        aria-hidden
+      >
+        <path d="M8 3 V13 M3 8 H13" />
+      </svg>
+      <div
+        style={{ fontSize: 18, fontWeight: 600, color: "var(--text)" }}
+      >
+        Your workspace is empty
+      </div>
+      <div
+        style={{
+          fontSize: 13,
+          color: "var(--mute)",
+          maxWidth: 380,
+          textAlign: "center",
+        }}
+      >
+        Add a widget to get started, or pick a layout.
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button
+          type="button"
+          onClick={onAdd}
+          className="text-[12px] cursor-pointer rounded-card"
+          style={{
+            background: "var(--accent)",
+            color: "#fff",
+            fontWeight: 600,
+            border: "1px solid transparent",
+            padding: "6px 12px",
+          }}
+        >
+          + Add widget
+        </button>
+        <button
+          type="button"
+          onClick={onBrowseLayouts}
+          className="text-[12px] cursor-pointer rounded-card"
+          style={{
+            background: "transparent",
+            color: "var(--text-2)",
+            border: "1px solid var(--border)",
+            padding: "6px 12px",
+          }}
+        >
+          Browse layouts
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // Toolbar Channels strip — one chip per symbol channel (main + colours) plus a
 // "CHANNELS" eyebrow. Chip counts come from a live panel→channel map.
 function ChannelsStrip({
@@ -715,21 +1066,28 @@ export default function Workspace({
     ],
   );
 
+  // Drives the empty-state overlay. -1 = not yet measured (avoids a flash of
+  // empty state before onReady runs the first-run preset). Updated from
+  // Dockview's panel add/remove events.
+  const [panelCount, setPanelCount] = useState(-1);
+  const panelEventsRef = useRef<{ dispose: () => void }[]>([]);
+
   const onReady = (event: DockviewReadyEvent) => {
     apiRef.current = event.api;
     disposableRef.current?.dispose();
 
-    const saved = localStorage.getItem(storageKey(assetClass));
+    const saved = loadLayouts(assetClass);
     let restored = false;
-    if (saved) {
+    if (saved?.active?.layout) {
       try {
-        event.api.fromJSON(JSON.parse(saved));
+        event.api.fromJSON(saved.active.layout);
         restored = true;
       } catch {
-        localStorage.removeItem(storageKey(assetClass));
+        clearActiveLayout(assetClass);
       }
     }
-    if (!restored) buildDefaultLayout(event.api);
+    if (!restored) DEFAULT_PRESET.build(event.api);
+    setPanelCount(event.api.panels.length);
 
     // Sync the tab-visibility toggle with the (possibly restored) groups, then
     // keep newly-created groups in step with it.
@@ -743,6 +1101,13 @@ export default function Workspace({
       g.model.header.hidden = tabsHiddenRef.current;
     });
 
+    // Track panel count for the empty-state overlay.
+    for (const d of panelEventsRef.current) d.dispose();
+    panelEventsRef.current = [
+      event.api.onDidAddPanel(() => setPanelCount(event.api.panels.length)),
+      event.api.onDidRemovePanel(() => setPanelCount(event.api.panels.length)),
+    ];
+
     // Debounced — onDidLayoutChange fires rapidly during a drag/resize; only
     // serialize + write to localStorage once the gesture settles.
     disposableRef.current = event.api.onDidLayoutChange(() => {
@@ -750,14 +1115,7 @@ export default function Workspace({
         window.clearTimeout(saveTimerRef.current);
       }
       saveTimerRef.current = window.setTimeout(() => {
-        try {
-          localStorage.setItem(
-            storageKey(assetClass),
-            JSON.stringify(event.api.toJSON()),
-          );
-        } catch {
-          /* quota / serialization — non-fatal for a layout cache */
-        }
+        saveActiveLayout(assetClass, event.api.toJSON());
       }, 400);
     });
   };
@@ -766,6 +1124,8 @@ export default function Workspace({
     () => () => {
       disposableRef.current?.dispose();
       addGroupDisposableRef.current?.dispose();
+      for (const d of panelEventsRef.current) d.dispose();
+      panelEventsRef.current = [];
       if (saveTimerRef.current !== undefined) {
         window.clearTimeout(saveTimerRef.current);
       }
@@ -790,13 +1150,17 @@ export default function Workspace({
     });
   }
 
-  function resetLayout() {
+  function applyLayoutPreset(preset: LayoutPreset) {
     const api = apiRef.current;
     if (!api) return;
-    localStorage.removeItem(storageKey(assetClass));
-    api.clear();
-    buildDefaultLayout(api);
+    clearActiveLayout(assetClass);
+    applyPreset(api, preset);
+    saveActiveLayout(assetClass, api.toJSON(), preset.id);
+    setPanelCount(api.panels.length);
   }
+
+  const openAddRef = useRef<(() => void) | null>(null);
+  const openLayoutsRef = useRef<(() => void) | null>(null);
 
   return (
     <WorkspaceProvider value={workspaceCtx}>
@@ -812,7 +1176,7 @@ export default function Workspace({
           className="flex items-center gap-2 flex-wrap shrink-0"
           style={{ marginBottom: 8 }}
         >
-          <AddWidgetMenu onAdd={addWidget} />
+          <AddWidgetMenu onAdd={addWidget} openRef={openAddRef} />
           <ChannelsStrip
             assetClass={assetClass}
             getSymbol={workspaceCtx.getSymbol}
@@ -820,6 +1184,7 @@ export default function Workspace({
             counts={channelCounts}
           />
           <div className="flex-1" />
+          <LayoutsMenu onApply={applyLayoutPreset} openRef={openLayoutsRef} />
           <ToolbarButton variant="ghost" onClick={onToggleFocus}>
             {focus ? "Exit focus" : "Focus"}
           </ToolbarButton>
@@ -831,9 +1196,6 @@ export default function Workspace({
           >
             Tab bars
           </ToolbarButton>
-          <ToolbarButton variant="ghost" onClick={resetLayout}>
-            Reset layout
-          </ToolbarButton>
         </div>
 
         <div
@@ -843,6 +1205,7 @@ export default function Workspace({
             border: "1px solid var(--border)",
             borderRadius: "var(--r)",
             overflow: "hidden",
+            position: "relative",
           }}
         >
           {/* key by silo so switching reloads that silo's saved layout */}
@@ -854,6 +1217,12 @@ export default function Workspace({
             onReady={onReady}
             theme={theme === "dark" ? themeDark : themeLight}
           />
+          {panelCount === 0 && (
+            <EmptyState
+              onAdd={() => openAddRef.current?.()}
+              onBrowseLayouts={() => openLayoutsRef.current?.()}
+            />
+          )}
         </div>
       </div>
     </WorkspaceProvider>
