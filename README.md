@@ -38,10 +38,11 @@ desktop-only):
   **ChartBot side panel** (violet · AI chat — see *AI chat* below).
 - **Workspace** (desktop only) — a CMC-style dockable widget canvas (Dockview):
   drag-to-dock, tab-stack, float and pop-out panels, with per-silo layout
-  persistence. Widgets — a bare TradingView chart, trade ticket, positions,
-  orders, activity, news — each carry a colour **link channel** that filters
-  the widget to one instrument (or **None** for whole-account info). Live
-  quotes and bars are shared across widgets over single ref-counted streams.
+  persistence and a show/hide-tabs toggle. Widgets — a bare TradingView chart, a
+  lightweight mini chart, an inline trade ticket, positions, orders, activity,
+  news — each carry a colour **link channel** that filters the widget to one
+  instrument (or **None** for whole-account info). Live quotes and bars are
+  shared across widgets over single ref-counted streams.
 
 The **Ask anything** bar (centred modal, teal accent) is available from every
 mode — press `⌘K` (or `Ctrl+K`), or click the "Ask anything" pill in the
