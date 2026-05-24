@@ -36,6 +36,12 @@ function buildDefaultLayout(api: DockviewApi) {
     position: { referencePanel: "chart", direction: "right" },
   });
   api.addPanel({
+    id: "trade",
+    component: "trade",
+    title: "Trade",
+    position: { referencePanel: "positions", direction: "within" },
+  });
+  api.addPanel({
     id: "orders",
     component: "orders",
     title: "Orders",
