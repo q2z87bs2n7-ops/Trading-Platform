@@ -79,25 +79,38 @@ export default function TopBar({ assetClass = "stocks" }: { assetClass?: AssetCl
         </span>
       )}
 
-      {/* Market status — stocks only; crypto trades 24/7 */}
-      {!isCrypto && clk && (
+      {/* Market status — stocks use the Alpaca clock; crypto trades 24/7 */}
+      {isCrypto ? (
         <div className="flex items-center gap-2">
           <span
             className="inline-block w-2 h-2 rounded-full"
-            style={{ background: clk.is_open ? "var(--pos)" : "var(--neg)" }}
+            style={{ background: "var(--pos)" }}
           />
-          <span
-            className="font-semibold"
-            style={{ color: clk.is_open ? "var(--pos)" : "var(--neg)" }}
-          >
-            {clk.is_open ? "OPEN" : "CLOSED"}
+          <span className="font-semibold" style={{ color: "var(--pos)" }}>
+            OPEN
           </span>
-          <span className="tabular-nums" style={{ color: "var(--mute)" }}>
-            {clk.is_open
-              ? `until ${timeHM(clk.next_close)}`
-              : `opens ${timeHM(clk.next_open)}`}
-          </span>
+          <span style={{ color: "var(--mute)" }}>24/7</span>
         </div>
+      ) : (
+        clk && (
+          <div className="flex items-center gap-2">
+            <span
+              className="inline-block w-2 h-2 rounded-full"
+              style={{ background: clk.is_open ? "var(--pos)" : "var(--neg)" }}
+            />
+            <span
+              className="font-semibold"
+              style={{ color: clk.is_open ? "var(--pos)" : "var(--neg)" }}
+            >
+              {clk.is_open ? "OPEN" : "CLOSED"}
+            </span>
+            <span className="tabular-nums" style={{ color: "var(--mute)" }}>
+              {clk.is_open
+                ? `until ${timeHM(clk.next_close)}`
+                : `opens ${timeHM(clk.next_open)}`}
+            </span>
+          </div>
+        )
       )}
 
       {/* Equity (click-popover: cash + portfolio value) */}
@@ -206,20 +219,30 @@ function MobileStatusStrip({
             style={{ width: 8, height: 8, borderRadius: 99, background: "var(--warn)" }}
           />
         )}
-        {!isCrypto && clk && (
+        {isCrypto ? (
           <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
             <span
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: 99,
-                background: clk.is_open ? "var(--pos)" : "var(--neg)",
-              }}
+              style={{ width: 6, height: 6, borderRadius: 99, background: "var(--pos)" }}
             />
-            <b style={{ color: clk.is_open ? "var(--pos)" : "var(--neg)", fontSize: 11.5 }}>
-              {clk.is_open ? "OPEN" : "CLOSED"}
-            </b>
+            <b style={{ color: "var(--pos)", fontSize: 11.5 }}>OPEN</b>
+            <span style={{ color: "var(--mute)", fontSize: 11 }}>24/7</span>
           </span>
+        ) : (
+          clk && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: 99,
+                  background: clk.is_open ? "var(--pos)" : "var(--neg)",
+                }}
+              />
+              <b style={{ color: clk.is_open ? "var(--pos)" : "var(--neg)", fontSize: 11.5 }}>
+                {clk.is_open ? "OPEN" : "CLOSED"}
+              </b>
+            </span>
+          )
         )}
         <button
           type="button"
