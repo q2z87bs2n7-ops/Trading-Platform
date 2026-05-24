@@ -15,7 +15,8 @@ doubles as an **Account Hub** (re-opened from the header brand mark) showing a
 whole-account overview: total equity, day P/L, buying power, and a
 stocks-vs-crypto-vs-cash split. The last-used silo is remembered only to
 highlight its card. The active silo also tints the accent (green for Stocks,
-blue for Crypto). Both sides share the same three-pill mode toggle:
+blue for Crypto). Both sides share the same mode toggle (Workspace is
+desktop-only):
 
 - **Discover** (default)
   - *Stocks* — silo holdings + allocation donut (green), indices marquee
@@ -35,6 +36,12 @@ blue for Crypto). Both sides share the same three-pill mode toggle:
   Positions / Orders / Activity blotter below (filtered by asset class).
   Order entry is the same floating **TradeBar** pill. Includes an optional
   **ChartBot side panel** (violet · AI chat — see *AI chat* below).
+- **Workspace** (desktop only) — a CMC-style dockable widget canvas (Dockview):
+  drag-to-dock, tab-stack, float and pop-out panels, with per-silo layout
+  persistence. Widgets — a bare TradingView chart, trade ticket, positions,
+  orders, activity, news — each carry a colour **link channel** that filters
+  the widget to one instrument (or **None** for whole-account info). Live
+  quotes and bars are shared across widgets over single ref-counted streams.
 
 The **Ask anything** bar (centred modal, teal accent) is available from every
 mode — press `⌘K` (or `Ctrl+K`), or click the "Ask anything" pill in the
@@ -57,9 +64,10 @@ top nav; preference persists in `localStorage`.
   Separate `StockDataStream` and `CryptoDataStream` hubs; the SSE endpoint
   auto-routes based on symbol format.
 - **Frontend:** React + TypeScript (Vite) + Tailwind on the Calm v2 token
-  set (light + dark in oklch, Inter + IBM Plex Mono). Three modes —
-  Discover, Portfolio, and Chart (the full Charting Library at
-  `frontend/public/charting_library/` plus the violet ChartBot panel).
+  set (light + dark in oklch, Inter + IBM Plex Mono). Four modes —
+  Discover, Portfolio, Chart (the full Charting Library at
+  `frontend/public/charting_library/` plus the violet ChartBot panel), and a
+  desktop-only **Workspace** (a Dockview widget canvas).
   Cross-mode Ask anything bar runs locally without any LLM call. Layouts
   are responsive down to phones (≤640px): a slim header + slide-in nav
   drawer, card lists in place of tables, a full-bleed chart, and

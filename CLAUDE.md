@@ -59,8 +59,8 @@ separate silos behind a shared account.
   *only* cross-silo balance surface — every other balance view is filtered
   to the active silo. Per-silo accent: stocks recolours the `--accent`
   tokens to green (`--pos`), crypto keeps the default blue; `--pos`/`--neg`
-  P/L colours are untouched. The header pill switches between three modes
-  (session-only — not persisted):
+  P/L colours are untouched. The header pill switches between four modes
+  (session-only — not persisted; **Workspace** is desktop-only):
   - **Discover** (default) — one parameterized surface, `DiscoverPage.tsx`
     (`assetClass` prop), sharing the hero / AI summary / watchlist / inline
     chart / news scaffold across both silos and branching only where they
@@ -94,6 +94,23 @@ separate silos behind a shared account.
     for open orders/positions draw. Datafeed: `lib/tv-datafeed.ts`.
     Broker: `lib/tv-broker.ts`. ChartBot side panel mounts here when
     `AI_CHAT_ENABLED=true`.
+  - **Workspace** (desktop only — hidden on mobile) — a CMC-style dockable
+    widget canvas (`components/Workspace.tsx` + `lib/workspace/registry.tsx`)
+    built on Dockview (`dockview-react`, lazy-loaded): drag-to-dock, tab-stack,
+    float and pop-out panels, per-silo layout persistence
+    (`workspace_layout_{stocks,crypto}_v1`), an add-widget toolbar + reset.
+    Widgets reuse existing surfaces — a **bare** TradingView chart
+    (`components/TVChartWidget.tsx`: TV's native chrome only, *none* of the
+    `TVPlatform` chrome; account manager off + object tree collapsed), a trade
+    ticket (opens the shared `OrderSheet`), positions, orders, activity, news.
+    Each widget carries a **link channel** (None + Main/blue/green/amber,
+    persisted in the panel's Dockview params): a symbol channel filters the
+    widget to that one instrument (Positions/Orders/Activities take a `symbol`
+    filter prop, news uses instrument-specific `useNews`); **None** shows
+    whole-account info (the trade widget shows an account summary). "Main"
+    proxies the app's selected symbol. Live quotes and bars are deduped across
+    all widgets through shared ref-counted streams (`data/quoteStream.ts`,
+    `data/barStream.ts`); `useLiveQuotes` and `lib/tv-datafeed.ts` ride them.
 - **Mobile / responsive (≤ 640px).** A single `useMobile()` hook
   (`hooks/useMobile.ts`, `matchMedia("(max-width: 640px)")`) gates the
   phone layouts; it mirrors the CSS `@media (max-width: 640px)` breakpoint
