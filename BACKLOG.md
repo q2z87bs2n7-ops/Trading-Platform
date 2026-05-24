@@ -32,6 +32,18 @@
   not captured, FIFO is assumed, and fees are folded into the fill price.
   A finer, snapshotted curve (and realized/fee separation) would ride on
   the Postgres layer above.
+- **Complex order classes (bracket / OCO / OTO) in the order ticket** — the
+  backend is fully plumbed end-to-end: `SubmitOrderRequest` carries
+  `order_class` + the take-profit / stop-loss legs (`backend/app/schemas.py`),
+  `_build_order_request` maps them onto the alpaca-py request
+  (`backend/app/alpaca/trading.py`), and `SubmitOrderInput`
+  (`frontend/src/types.ts`) mirrors the contract. The only missing piece is the
+  **order-entry UI** — `useOrderTicket` has no `order_class` state and
+  `OrderSheet` never sets it, so every submitted order is `simple` (the
+  blotter only *reads back* a class for display in `Orders.tsx`). Equities
+  support bracket/oco/oto; **crypto does not** (simple only), so gate the new
+  UI on `!isCrypto`. Overlaps the chart-mode bracket item under "Chart mode"
+  below — same `useOrderTicket` + `OrderSheet` extension would serve both.
 - **Write-auth gate (Charter Hard Rule #3)** — `require_write_auth` in
   `backend/app/main.py` is an intentional no-op seam; flip it to a
   shared-token check before any non-paper / non-private exposure.

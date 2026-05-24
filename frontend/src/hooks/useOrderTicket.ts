@@ -16,8 +16,11 @@ export const ORDER_TYPES: OType[] = [
   "trailing_stop",
 ];
 
-// Crypto does not support trailing_stop on Alpaca paper accounts.
-export const CRYPTO_ORDER_TYPES: OType[] = ["market", "limit", "stop", "stop_limit"];
+// Alpaca crypto supports only market, limit, and stop_limit — no plain stop,
+// no trailing_stop.
+export const CRYPTO_ORDER_TYPES: OType[] = ["market", "limit", "stop_limit"];
+
+export type AmountMode = "shares" | "dollars";
 
 export const TIFS: TIF[] = ["day", "gtc", "opg", "cls", "ioc", "fok"];
 // Crypto only supports GTC and IOC time-in-force.
@@ -25,9 +28,17 @@ export const CRYPTO_TIFS: TIF[] = ["gtc", "ioc"];
 
 // Mirrors backend/app/schemas.py SubmitOrderRequest._check + adds asset-
 // capability gating so we fail fast instead of round-tripping a 422.
-function validate(f: SubmitOrderInput, asset?: Asset): string | null {
+function validate(
+  f: SubmitOrderInput,
+  asset: Asset | undefined,
+  useNotional: boolean,
+): string | null {
   if (!f.symbol.trim()) return "symbol is required";
-  if (!f.qty || f.qty <= 0) return "qty must be > 0";
+  if (useNotional) {
+    if (!f.notional || f.notional <= 0) return "amount must be > 0";
+  } else if (!f.qty || f.qty <= 0) {
+    return "qty must be > 0";
+  }
   if ((f.type === "limit" || f.type === "stop_limit") && !f.limit_price)
     return `${f.type} order requires a limit price`;
   if ((f.type === "stop" || f.type === "stop_limit") && !f.stop_price)
@@ -36,7 +47,7 @@ function validate(f: SubmitOrderInput, asset?: Asset): string | null {
     return "trailing_stop requires a trail %";
   if (asset) {
     if (!asset.tradable) return `${asset.symbol} is not tradable`;
-    if (!asset.fractionable && !Number.isInteger(f.qty))
+    if (!useNotional && !asset.fractionable && f.qty != null && !Number.isInteger(f.qty))
       return `${asset.symbol} trades in whole shares only`;
   }
   return null;
@@ -51,6 +62,11 @@ export interface UseOrderTicketResult {
   setType: (t: OType) => void;
   qty: number;
   setQty: (q: number) => void;
+  amountMode: AmountMode;
+  setAmountMode: (m: AmountMode) => void;
+  notional: number | undefined;
+  setNotional: (n: number | undefined) => void;
+  notionalEligible: boolean;
   limitPrice: number | undefined;
   setLimitPrice: (p: number | undefined) => void;
   stopPrice: number | undefined;
@@ -88,6 +104,8 @@ export function useOrderTicket(initialSymbol = ""): UseOrderTicketResult {
   const [side, setSide] = useState<Side>("buy");
   const [type, setType] = useState<OType>("market");
   const [qty, setQty] = useState<number>(1);
+  const [amountMode, setAmountMode] = useState<AmountMode>("shares");
+  const [notional, setNotional] = useState<number | undefined>();
   const [limitPrice, setLimitPrice] = useState<number | undefined>();
   const [stopPrice, setStopPrice] = useState<number | undefined>();
   const [trailPct, setTrailPct] = useState<number | undefined>();
@@ -123,14 +141,38 @@ export function useOrderTicket(initialSymbol = ""): UseOrderTicketResult {
   // Fast-path: slash in symbol is always crypto; don't wait for the asset API.
   const isCrypto = symbol.trim().includes("/") || asset?.asset_class === "crypto";
   const availableOrderTypes = isCrypto ? CRYPTO_ORDER_TYPES : ORDER_TYPES;
-  const availableTifs = isCrypto ? CRYPTO_TIFS : TIFS;
+
+  // Dollar (notional) orders: Alpaca allows them on market/limit only, and for
+  // equities the asset must be fractionable. Crypto is always fractionable.
+  const notionalEligible =
+    (type === "market" || type === "limit") &&
+    (isCrypto || !!asset?.fractionable);
+  const useNotional = amountMode === "dollars" && notionalEligible;
+
+  // Equity notional orders are day-only; crypto keeps its gtc/ioc set.
+  const availableTifs = isCrypto
+    ? CRYPTO_TIFS
+    : useNotional
+      ? (["day"] as TIF[])
+      : TIFS;
 
   // Auto-correct TIF when switching to a crypto asset that doesn't support it.
   useEffect(() => {
     if (isCrypto && tif !== "gtc" && tif !== "ioc") setTif("gtc");
   }, [isCrypto, tif]);
 
-  const extHoursEligible = !isCrypto && type === "limit" && tif === "day";
+  // Equity notional is day-only.
+  useEffect(() => {
+    if (useNotional && !isCrypto && tif !== "day") setTif("day");
+  }, [useNotional, isCrypto, tif]);
+
+  // Fall back to share entry when the current type/asset can't take notional.
+  useEffect(() => {
+    if (amountMode === "dollars" && !notionalEligible) setAmountMode("shares");
+  }, [amountMode, notionalEligible]);
+
+  const extHoursEligible =
+    !isCrypto && type === "limit" && (tif === "day" || tif === "gtc") && !useNotional;
   const extHoursOn = extHoursEligible && extHours;
   const needsLimit = type === "limit" || type === "stop_limit";
   const needsStop = type === "stop" || type === "stop_limit";
@@ -141,14 +183,18 @@ export function useOrderTicket(initialSymbol = ""): UseOrderTicketResult {
     : needsStop && type === "stop"
       ? stopPrice
       : quote?.mid;
-  const estNotional = qty > 0 && priceForEst ? qty * priceForEst : null;
+  const estNotional = useNotional
+    ? (notional ?? null)
+    : qty > 0 && priceForEst
+      ? qty * priceForEst
+      : null;
 
   const form: SubmitOrderInput = useMemo(
     () => ({
       symbol,
       side,
       type,
-      qty,
+      ...(useNotional ? { notional } : { qty }),
       time_in_force: tif,
       ...(needsLimit ? { limit_price: limitPrice } : {}),
       ...(needsStop ? { stop_price: stopPrice } : {}),
@@ -159,6 +205,8 @@ export function useOrderTicket(initialSymbol = ""): UseOrderTicketResult {
       symbol,
       side,
       type,
+      useNotional,
+      notional,
       qty,
       tif,
       limitPrice,
@@ -171,7 +219,7 @@ export function useOrderTicket(initialSymbol = ""): UseOrderTicketResult {
     ],
   );
 
-  const clientError = validate(form, asset);
+  const clientError = validate(form, asset, useNotional);
   const shortNote =
     !isCrypto && side === "sell" && asset && !asset.shortable
       ? `${asset.symbol} is not shortable — sell only closes an existing long`
@@ -186,6 +234,8 @@ export function useOrderTicket(initialSymbol = ""): UseOrderTicketResult {
     setSide("buy");
     setType("market");
     setQty(1);
+    setAmountMode("shares");
+    setNotional(undefined);
     setLimitPrice(undefined);
     setStopPrice(undefined);
     setTrailPct(undefined);
@@ -203,6 +253,11 @@ export function useOrderTicket(initialSymbol = ""): UseOrderTicketResult {
     setType,
     qty,
     setQty,
+    amountMode,
+    setAmountMode,
+    notional,
+    setNotional,
+    notionalEligible,
     limitPrice,
     setLimitPrice,
     stopPrice,

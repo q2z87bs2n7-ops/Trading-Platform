@@ -144,6 +144,96 @@ function Stepper({
   );
 }
 
+function AmountToggle({
+  mode,
+  onChange,
+}: {
+  mode: "shares" | "dollars";
+  onChange: (m: "shares" | "dollars") => void;
+}) {
+  return (
+    <div
+      className="flex"
+      style={{
+        border: "1px solid var(--border)",
+        borderRadius: "var(--r)",
+        overflow: "hidden",
+      }}
+    >
+      {(["shares", "dollars"] as const).map((m) => {
+        const active = mode === m;
+        return (
+          <button
+            key={m}
+            type="button"
+            onClick={() => onChange(m)}
+            className="text-[11px] font-medium px-2.5 py-1 cursor-pointer border-0"
+            style={{
+              background: active ? "var(--accent-bg)" : "transparent",
+              color: active ? "var(--accent)" : "var(--text-2)",
+            }}
+          >
+            {m === "shares" ? "Shares" : "Dollars"}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function DollarInput({
+  value,
+  onChange,
+  big = false,
+}: {
+  value: number | undefined;
+  onChange: (n: number | undefined) => void;
+  big?: boolean;
+}) {
+  return (
+    <div
+      className="flex items-center"
+      style={{
+        border: "1px solid var(--border)",
+        borderRadius: "var(--r)",
+        background: "var(--panel)",
+        overflow: "hidden",
+        height: big ? 56 : undefined,
+      }}
+    >
+      <span
+        className="font-mono"
+        style={{
+          color: "var(--text-2)",
+          paddingLeft: big ? 16 : 12,
+          fontSize: big ? 24 : 15,
+        }}
+      >
+        $
+      </span>
+      <input
+        type="number"
+        min={0}
+        step="any"
+        value={value ?? ""}
+        placeholder="0.00"
+        onChange={(e) =>
+          onChange(e.target.value ? Number(e.target.value) : undefined)
+        }
+        className="flex-1 border-0 outline-none font-mono tabular-nums"
+        style={{
+          background: "transparent",
+          color: "var(--text)",
+          padding: big ? "8px 12px 8px 6px" : "8px 12px 8px 4px",
+          fontSize: big ? 24 : 15,
+          minWidth: 0,
+          MozAppearance: "textfield",
+        }}
+      />
+    </div>
+  );
+}
+
 export default function OrderSheet({
   open,
   symbol,
@@ -199,6 +289,8 @@ export default function OrderSheet({
     return <OrderSheetMobile t={t} account={account} onClose={onClose} />;
 
   const quickFills = [10, 50, 100];
+  const dollarFills = [100, 500, 1000];
+  const dollars = t.amountMode === "dollars" && t.notionalEligible;
   const bp =
     (t.isCrypto
       ? account?.non_marginable_buying_power
@@ -232,8 +324,10 @@ export default function OrderSheet({
         ? "Submitting…"
         : t.clientError
           ? t.clientError
-          : `${t.side === "buy" ? "Buy" : "Sell"} ${t.qty || "—"} ${t.symbol || "—"}` +
-            (t.estNotional ? ` · ${money(t.estNotional)}` : "")}
+          : dollars
+            ? `${t.side === "buy" ? "Buy" : "Sell"} ${t.symbol || "—"} · ${t.notional ? money(t.notional) : "—"}`
+            : `${t.side === "buy" ? "Buy" : "Sell"} ${t.qty || "—"} ${t.symbol || "—"}` +
+              (t.estNotional ? ` · ${money(t.estNotional)}` : "")}
     </button>
   );
 
@@ -369,31 +463,62 @@ export default function OrderSheet({
               </div>
             </div>
 
-            {/* Quantity */}
+            {/* Quantity / dollar amount */}
             <div>
-              <div
-                className="text-[11px] font-medium uppercase mb-2"
-                style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
-              >
-                Quantity
+              <div className="flex items-center justify-between mb-2">
+                <div
+                  className="text-[11px] font-medium uppercase"
+                  style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
+                >
+                  {dollars ? "Amount" : "Quantity"}
+                </div>
+                {t.notionalEligible && (
+                  <AmountToggle mode={t.amountMode} onChange={t.setAmountMode} />
+                )}
               </div>
-              <Stepper
-                value={t.qty}
-                onChange={t.setQty}
-                fractional={!!t.asset?.fractionable}
-              />
+              {dollars ? (
+                <DollarInput value={t.notional} onChange={t.setNotional} />
+              ) : (
+                <Stepper
+                  value={t.qty}
+                  onChange={t.setQty}
+                  fractional={!!t.asset?.fractionable}
+                />
+              )}
               <div className="flex flex-wrap gap-2 mt-2">
-                {quickFills.map((q) => (
-                  <Chip key={q} active={t.qty === q} onClick={() => t.setQty(q)}>
-                    {q}
-                  </Chip>
-                ))}
-                {maxQty != null && maxQty > 0 && (
+                {dollars
+                  ? dollarFills.map((d) => (
+                      <Chip
+                        key={d}
+                        active={t.notional === d}
+                        onClick={() => t.setNotional(d)}
+                      >
+                        {money(d)}
+                      </Chip>
+                    ))
+                  : quickFills.map((q) => (
+                      <Chip
+                        key={q}
+                        active={t.qty === q}
+                        onClick={() => t.setQty(q)}
+                      >
+                        {q}
+                      </Chip>
+                    ))}
+                {!dollars && maxQty != null && maxQty > 0 && (
                   <Chip
                     active={t.qty === maxQty}
                     onClick={() => t.setQty(maxQty)}
                   >
                     Max ({maxQty})
+                  </Chip>
+                )}
+                {dollars && t.side === "buy" && bp > 0 && (
+                  <Chip
+                    active={t.notional === Math.floor(bp)}
+                    onClick={() => t.setNotional(Math.floor(bp))}
+                  >
+                    Max
                   </Chip>
                 )}
               </div>
@@ -523,7 +648,7 @@ export default function OrderSheet({
                 />
                 <span style={{ color: "var(--mute)" }}>
                   Extended hours
-                  {!t.extHoursEligible && " — limit + DAY only"}
+                  {!t.extHoursEligible && " — limit + DAY/GTC only"}
                 </span>
               </label>
             )}
@@ -743,8 +868,11 @@ function OrderSheetMobile({
         : bp + t.estNotional
       : null;
 
-  const FIRST3: OType[] = ["market", "limit", "stop"];
-  const moreActive = !FIRST3.includes(t.type);
+  const firstTypes = t.availableOrderTypes.slice(0, 3);
+  const hasMoreTypes = t.availableOrderTypes.length > 3;
+  const moreActive = !firstTypes.includes(t.type);
+  const dollars = t.amountMode === "dollars" && t.notionalEligible;
+  const dollarFills = [100, 500, 1000];
   const advSubtitle =
     TIF_LABEL[t.tif] +
     (t.isCrypto ? "" : t.extHoursOn ? " · ext hours" : " · no ext hours");
@@ -849,12 +977,14 @@ function OrderSheetMobile({
             })}
           </div>
 
-          {/* (c) Order type — 4-up */}
+          {/* (c) Order type */}
           <div
             className="grid gap-1.5"
-            style={{ gridTemplateColumns: "repeat(4, 1fr)" }}
+            style={{
+              gridTemplateColumns: `repeat(${hasMoreTypes ? 4 : firstTypes.length}, 1fr)`,
+            }}
           >
-            {FIRST3.map((ot) => (
+            {firstTypes.map((ot) => (
               <button
                 key={ot}
                 type="button"
@@ -865,84 +995,115 @@ function OrderSheetMobile({
                 {TYPE_LABEL[ot]}
               </button>
             ))}
-            <button
-              type="button"
-              onClick={() => setTypeSheet(true)}
-              className="cursor-pointer"
-              style={segStyle(moreActive)}
-            >
-              {moreActive ? TYPE_LABEL[t.type] : "More"} ▾
-            </button>
+            {hasMoreTypes && (
+              <button
+                type="button"
+                onClick={() => setTypeSheet(true)}
+                className="cursor-pointer"
+                style={segStyle(moreActive)}
+              >
+                {moreActive ? TYPE_LABEL[t.type] : "More"} ▾
+              </button>
+            )}
           </div>
 
-          {/* (d) Quantity */}
+          {/* (d) Quantity / dollar amount */}
           <div>
-            <div
-              className="flex items-stretch"
-              style={{
-                height: 56,
-                border: "1px solid var(--border)",
-                borderRadius: "var(--r)",
-                overflow: "hidden",
-              }}
-            >
-              <button
-                type="button"
-                aria-label="Decrease quantity"
-                onClick={() => bumpQty(-step)}
-                className="cursor-pointer border-0"
-                style={{ width: 56, background: "var(--panel-2)", color: "var(--text-2)", fontSize: 26 }}
-              >
-                −
-              </button>
-              <input
-                type="number"
-                min={0}
-                step={step}
-                value={t.qty || ""}
-                onChange={(e) => t.setQty(e.target.value ? Number(e.target.value) : 0)}
-                className="text-center flex-1 border-0 outline-none font-mono tabular-nums"
+            {t.notionalEligible && (
+              <div className="flex justify-end mb-2">
+                <AmountToggle mode={t.amountMode} onChange={t.setAmountMode} />
+              </div>
+            )}
+            {dollars ? (
+              <DollarInput value={t.notional} onChange={t.setNotional} big />
+            ) : (
+              <div
+                className="flex items-stretch"
                 style={{
-                  background: "var(--panel)",
-                  color: "var(--text)",
-                  fontSize: 28,
-                  minWidth: 0,
-                  MozAppearance: "textfield",
+                  height: 56,
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--r)",
+                  overflow: "hidden",
                 }}
-              />
-              <button
-                type="button"
-                aria-label="Increase quantity"
-                onClick={() => bumpQty(step)}
-                className="cursor-pointer border-0"
-                style={{ width: 56, background: "var(--panel-2)", color: "var(--text-2)", fontSize: 26 }}
               >
-                +
-              </button>
-            </div>
-            {maxRaw != null && maxRaw > 0 && (
+                <button
+                  type="button"
+                  aria-label="Decrease quantity"
+                  onClick={() => bumpQty(-step)}
+                  className="cursor-pointer border-0"
+                  style={{ width: 56, background: "var(--panel-2)", color: "var(--text-2)", fontSize: 26 }}
+                >
+                  −
+                </button>
+                <input
+                  type="number"
+                  min={0}
+                  step={step}
+                  value={t.qty || ""}
+                  onChange={(e) => t.setQty(e.target.value ? Number(e.target.value) : 0)}
+                  className="text-center flex-1 border-0 outline-none font-mono tabular-nums"
+                  style={{
+                    background: "var(--panel)",
+                    color: "var(--text)",
+                    fontSize: 28,
+                    minWidth: 0,
+                    MozAppearance: "textfield",
+                  }}
+                />
+                <button
+                  type="button"
+                  aria-label="Increase quantity"
+                  onClick={() => bumpQty(step)}
+                  className="cursor-pointer border-0"
+                  style={{ width: 56, background: "var(--panel-2)", color: "var(--text-2)", fontSize: 26 }}
+                >
+                  +
+                </button>
+              </div>
+            )}
+            {dollars ? (
               <div
                 className="grid gap-2 mt-2"
                 style={{ gridTemplateColumns: "repeat(3, 1fr)" }}
               >
-                {(
-                  [
-                    ["25%", roundQty(maxRaw * 0.25)],
-                    ["50%", roundQty(maxRaw * 0.5)],
-                    ["MAX", maxQty ?? 0],
-                  ] as [string, number][]
-                ).map(([label, q]) => (
+                {dollarFills.map((d) => (
                   <button
-                    key={label}
+                    key={d}
                     type="button"
-                    onClick={() => t.setQty(q)}
+                    onClick={() => t.setNotional(d)}
                     className="cursor-pointer"
-                    style={segStyle(t.qty === q && q > 0)}
+                    style={segStyle(t.notional === d)}
                   >
-                    {label}
+                    {money(d)}
                   </button>
                 ))}
               </div>
+            ) : (
+              maxRaw != null &&
+              maxRaw > 0 && (
+                <div
+                  className="grid gap-2 mt-2"
+                  style={{ gridTemplateColumns: "repeat(3, 1fr)" }}
+                >
+                  {(
+                    [
+                      ["25%", roundQty(maxRaw * 0.25)],
+                      ["50%", roundQty(maxRaw * 0.5)],
+                      ["MAX", maxQty ?? 0],
+                    ] as [string, number][]
+                  ).map(([label, q]) => (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => t.setQty(q)}
+                      className="cursor-pointer"
+                      style={segStyle(t.qty === q && q > 0)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )
             )}
           </div>
 
@@ -1089,8 +1250,10 @@ function OrderSheetMobile({
               ? "Submitting…"
               : t.clientError
                 ? t.clientError
-                : `${t.side === "buy" ? "Buy" : "Sell"} ${t.qty || "—"} ${t.symbol || "—"}` +
-                  (t.estNotional ? ` · ${money(t.estNotional)}` : "")}
+                : dollars
+                  ? `${t.side === "buy" ? "Buy" : "Sell"} ${t.symbol || "—"} · ${t.notional ? money(t.notional) : "—"}`
+                  : `${t.side === "buy" ? "Buy" : "Sell"} ${t.qty || "—"} ${t.symbol || "—"}` +
+                    (t.estNotional ? ` · ${money(t.estNotional)}` : "")}
           </button>
         </div>
       </div>
@@ -1180,7 +1343,7 @@ function OrderSheetMobile({
                 <span className="text-[14px]">Extended hours</span>
                 {!t.extHoursEligible && (
                   <span className="text-[12px]" style={{ color: "var(--mute)" }}>
-                    limit + DAY only
+                    limit + DAY/GTC only
                   </span>
                 )}
               </span>
