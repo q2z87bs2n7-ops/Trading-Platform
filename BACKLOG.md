@@ -145,3 +145,28 @@ Two follow-ups were deliberately left:
   only tested locally. Verify the Render deployment holds both
   `StockDataStream` and `CryptoDataStream` connections simultaneously
   without OOM.
+
+## Workspace
+
+Desktop-only CMC-style dockable widget canvas (`components/Workspace.tsx` +
+`lib/workspace/registry.tsx`, Dockview). Phase-1 spike shipped: dock / tab-stack
+/ float, per-silo layout persistence, add-widget toolbar. Deferred:
+
+- **Chart widgets = TradingView only (requirement).** Any chart surface in the
+  Workspace must render the TradingView charting widget — never a homegrown
+  chart (`PriceChart.tsx` / lightweight-charts, as used in Discover). The Chart
+  widget already uses `TVPlatform` (the TV library), so this is mainly a guard
+  for future widgets. **Open sub-decision:** inside a dock panel, show the *bare*
+  TV chart (TV's own controls) vs. the full `TVPlatform` chrome (`ChartTopBar`,
+  `IndicatorPillsRow`, `ChartBlotter`, floating `TradeBar`) — the latter was
+  built for full-screen Chart mode and is heavy for a small panel.
+- **Trade widget** — order entry in the canvas. Today the floating `TradeBar`
+  only mounts in Discover/Portfolio; the Workspace has read-only Orders/Positions
+  widgets but no ticket. Wrap `useOrderTicket` / `OrderSheet` as a panel.
+- **Symbol linking (channel groups)** — one global symbol channel today (shared
+  `selected`). Add CMC-style coloured channel groups so widgets can be linked
+  independently.
+- **Stream dedupe under multi-widget load** — multiple live Chart/quote widgets
+  must share one Alpaca subscription set, not open N streams (single Render
+  relay; `QuoteHub`/`CryptoQuoteHub` are process-local). Harden before heavy
+  multi-widget use.
