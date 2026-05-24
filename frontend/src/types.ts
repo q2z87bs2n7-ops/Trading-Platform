@@ -53,6 +53,7 @@ export interface Order {
   type: string;
   order_class: string | null;
   qty: number | null;
+  notional?: number | null;
   filled_qty: number;
   filled_avg_price: number | null;
   limit_price: number | null;

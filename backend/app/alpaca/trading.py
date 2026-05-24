@@ -46,6 +46,7 @@ def _order_dict(o) -> dict:
         "type": str(o.order_type or o.type),
         "order_class": str(o.order_class) if o.order_class else None,
         "qty": float(o.qty) if o.qty is not None else None,
+        "notional": float(o.notional) if o.notional is not None else None,
         "filled_qty": float(o.filled_qty or 0),
         "filled_avg_price": (
             float(o.filled_avg_price) if o.filled_avg_price is not None else None

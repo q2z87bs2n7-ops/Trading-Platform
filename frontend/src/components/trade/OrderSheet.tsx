@@ -147,9 +147,11 @@ function Stepper({
 function AmountToggle({
   mode,
   onChange,
+  unitLabel = "Shares",
 }: {
   mode: "shares" | "dollars";
   onChange: (m: "shares" | "dollars") => void;
+  unitLabel?: string;
 }) {
   return (
     <div
@@ -173,7 +175,7 @@ function AmountToggle({
               color: active ? "var(--accent)" : "var(--text-2)",
             }}
           >
-            {m === "shares" ? "Shares" : "Dollars"}
+            {m === "shares" ? unitLabel : "Dollars"}
           </button>
         );
       })}
@@ -473,7 +475,11 @@ export default function OrderSheet({
                   {dollars ? "Amount" : "Quantity"}
                 </div>
                 {t.notionalEligible && (
-                  <AmountToggle mode={t.amountMode} onChange={t.setAmountMode} />
+                  <AmountToggle
+                    mode={t.amountMode}
+                    onChange={t.setAmountMode}
+                    unitLabel={t.isCrypto ? "Units" : "Shares"}
+                  />
                 )}
               </div>
               {dollars ? (
@@ -1011,7 +1017,11 @@ function OrderSheetMobile({
           <div>
             {t.notionalEligible && (
               <div className="flex justify-end mb-2">
-                <AmountToggle mode={t.amountMode} onChange={t.setAmountMode} />
+                <AmountToggle
+                  mode={t.amountMode}
+                  onChange={t.setAmountMode}
+                  unitLabel={t.isCrypto ? "Units" : "Shares"}
+                />
               </div>
             )}
             {dollars ? (

@@ -53,9 +53,16 @@ const SIDE_LABEL: Record<string, string> = { buy: "Buy", sell: "Sell" };
 const money = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD" });
 
+// Notional orders carry no qty (the executed size lands in filled_qty); show
+// the realized value when filled, else the requested dollar amount.
+function orderQty(o: Order): number | null {
+  return o.qty ?? (o.filled_qty || null);
+}
 function orderValue(o: Order): number | null {
+  const qty = orderQty(o);
   const px = o.filled_avg_price ?? o.limit_price ?? o.stop_price;
-  return px != null && o.qty != null ? px * o.qty : null;
+  if (px != null && qty != null) return px * qty;
+  return o.notional ?? null;
 }
 
 const TH =
@@ -173,7 +180,7 @@ function OrderCardMobile({
         </span>
         <b style={{ fontSize: 16 }}>{o.symbol}</b>
         <span style={{ fontSize: 12, color: "var(--mute)" }}>
-          {fmtType(o.type)} · {o.qty}
+          {fmtType(o.type)} · {orderQty(o) ?? "—"}
           {o.limit_price
             ? ` @ ${o.limit_price}`
             : o.stop_price
@@ -458,7 +465,7 @@ export default function Orders({ assetClass }: { assetClass?: "stocks" | "crypto
                         className={TD}
                         style={{ borderColor: "var(--hairline)" }}
                       >
-                        {dash(o.qty)}
+                        {dash(orderQty(o))}
                       </td>
                       <td
                         className={TD}

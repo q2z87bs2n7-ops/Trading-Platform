@@ -71,6 +71,7 @@ class OrderOut(BaseModel):
     type: str
     order_class: str | None = None
     qty: float | None = None
+    notional: float | None = None
     filled_qty: float = 0
     filled_avg_price: float | None = None
     limit_price: float | None = None

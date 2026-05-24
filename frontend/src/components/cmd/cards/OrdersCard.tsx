@@ -73,7 +73,7 @@ export function OrdersCard({ assetClass }: { assetClass: AssetClass }) {
                   {typeKey}
                 </span>
                 <span className="font-mono tabular-nums text-right">
-                  {o.qty ?? "—"}
+                  {o.qty ?? (o.filled_qty || "—")}
                 </span>
                 <span className="font-mono tabular-nums text-right">
                   {o.limit_price ?? "—"}
