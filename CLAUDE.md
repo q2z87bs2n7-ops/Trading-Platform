@@ -116,8 +116,9 @@ separate silos behind a shared account.
     ticket (`components/trade/OrderTicketInline.tsx` — reuses `useOrderTicket` +
     the OrderSheet inputs; always symbol-linked, no None channel), an **Account**
     widget (`components/AccountPanel.tsx` — curated whole-account overview:
-    equity, day P/L, buying power, cash, positions value), positions, orders,
-    activity, news.
+    equity, day P/L, buying power, cash, positions value), a **Watchlist**
+    (`components/Watchlist.tsx` — silo watchlist spark cards; a click writes to
+    the widget's channel), positions, orders, activity, news.
     Each widget carries a **link channel** (None + Main/blue/green/amber,
     persisted in the panel's Dockview params): a symbol channel filters the
     widget to that one instrument (Positions/Orders/Activities take a `symbol`

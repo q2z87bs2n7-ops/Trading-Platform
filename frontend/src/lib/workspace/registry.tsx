@@ -8,6 +8,7 @@ import TVChartWidget from "../../components/TVChartWidget";
 import PriceChart from "../../components/PriceChart";
 import OrderTicketInline from "../../components/trade/OrderTicketInline";
 import AccountPanel from "../../components/AccountPanel";
+import Watchlist from "../../components/Watchlist";
 import { AssetSearch } from "../../components/AssetSearch";
 import { NewsCard, NewsCardSkeleton } from "../../components/discover/NewsCard";
 import ErrorBanner from "../../components/ErrorBanner";
@@ -394,6 +395,35 @@ function NewsWidget(props: IDockviewPanelProps) {
   );
 }
 
+// Silo watchlist. Like Positions, a click writes the picked symbol to the
+// widget's channel (none → main) so linked widgets follow; the list itself
+// always shows the whole silo watchlist.
+function WatchlistWidget(props: IDockviewPanelProps) {
+  const { getSymbol, setSymbol, assetClass } = useWorkspace();
+  const [channel, setChannel] = useChannel(props, "main");
+  const target = channel === "none" ? "main" : channel;
+  return (
+    <WidgetShell
+      header={
+        <LinkHeader
+          label="Watchlist"
+          channel={channel}
+          setChannel={setChannel}
+          includeNone
+        />
+      }
+    >
+      <Pane pad>
+        <Watchlist
+          assetClass={assetClass}
+          selected={getSymbol(target)}
+          onSelect={(s) => setSymbol(target, s)}
+        />
+      </Pane>
+    </WidgetShell>
+  );
+}
+
 // Whole-account overview widget — no symbol/channel, just account figures.
 function AccountWidget(_props: IDockviewPanelProps) {
   const { assetClass } = useWorkspace();
@@ -455,6 +485,7 @@ export const WIDGET_COMPONENTS: Record<
 > = {
   chart: ChartWidget,
   minichart: MiniChartWidget,
+  watchlist: WatchlistWidget,
   trade: TradeWidget,
   account: AccountWidget,
   positions: PositionsWidget,
@@ -467,6 +498,7 @@ export const WIDGET_COMPONENTS: Record<
 export const WIDGET_CATALOG: { id: string; title: string }[] = [
   { id: "chart", title: "Chart" },
   { id: "minichart", title: "Mini chart" },
+  { id: "watchlist", title: "Watchlist" },
   { id: "trade", title: "Trade" },
   { id: "account", title: "Account" },
   { id: "positions", title: "Positions" },
