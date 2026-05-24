@@ -98,7 +98,8 @@ separate silos behind a shared account.
     widget canvas (`components/Workspace.tsx` + `lib/workspace/registry.tsx`)
     built on Dockview (`dockview-react`, lazy-loaded): drag-to-dock, tab-stack,
     float and pop-out panels, per-silo layout persistence
-    (`workspace_layout_{stocks,crypto}_v1`), an add-widget toolbar + reset +
+    (`workspace_layout_{stocks,crypto}_v1`), a single **＋ Add** widget menu
+    (a `<body>`-portaled popover, so the full-bleed canvas can't clip it) + reset +
     a show/hide-tabs toggle (per-group header via Dockview) + a **Focus** toggle
     (hides the app header for a near-full-screen canvas). The mode also goes
     **full-bleed** (`.app.bleed` in `index.css` — no max-width/gutters, a
@@ -111,12 +112,15 @@ separate silos behind a shared account.
     small panels, layering on TV's own autosize); an opt-in **Mini chart**
     offers the lighter lightweight-charts
     `PriceChart` (no iframe, `responsive` prop — sheds chrome + chart axes to
-    fit its panel via ResizeObserver) as an extra — the "bare-TV-only" rule
-    governs the primary Chart, not this explicit add-on. Plus an inline trade
+    fit its panel via ResizeObserver, and at the smallest **spark** tier swaps
+    the candles for a bare close-price area sparkline) as an extra — the
+    "bare-TV-only" rule governs the primary Chart, not this explicit add-on.
+    Plus an inline trade
     ticket (`components/trade/OrderTicketInline.tsx` — reuses `useOrderTicket` +
     the OrderSheet inputs; always symbol-linked, no None channel), an **Account**
     widget (`components/AccountPanel.tsx` — curated whole-account overview:
-    equity, day P/L, buying power, cash, positions value), a **Watchlist**
+    equity, day P/L, buying power, cash, positions value, portfolio value,
+    margin (initial/maintenance), and short value when non-zero), a **Watchlist**
     (`components/Watchlist.tsx` — silo watchlist spark cards; a click writes to
     the widget's channel), positions, orders, activity, news.
     Each widget carries a **link channel** (None + Main/blue/green/amber,
@@ -135,7 +139,9 @@ separate silos behind a shared account.
     chart widgets above); Positions/Orders/Activities flip to their stacked
     card layout in narrow panels via `hooks/useContainerNarrow` + an additive
     `dense` prop (panel-width, since `useMobile` is viewport-only and never
-    trips in this desktop-only mode); the header `AssetSearch` portals its
+    trips in this desktop-only mode; the flip width is tuned per widget by
+    column count — Orders 560, Positions 480, Activities 360); the header
+    `AssetSearch` portals its
     dropdown to `<body>` so it isn't clipped by the panel.
 - **Mobile / responsive (≤ 640px).** A single `useMobile()` hook
   (`hooks/useMobile.ts`, `matchMedia("(max-width: 640px)")`) gates the
@@ -207,7 +213,10 @@ separate silos behind a shared account.
   path segments (symbols are `[A-Z0-9/.]` only).
   **Account fields:** `get_account()` returns `buying_power` (may
   include margin) and `non_marginable_buying_power` (cash-only; correct
-  figure for crypto trades). Use the latter in crypto contexts.
+  figure for crypto trades). Use the latter in crypto contexts. It also
+  exposes `short_market_value`, `initial_margin`, `maintenance_margin`,
+  `daytrading_buying_power`, and `regt_buying_power` (all `float(x or 0)`
+  -guarded; mostly ~0 in a paper account).
   **Crypto symbol/silo helpers (single source of truth):** `alpaca/client.py`
   owns `is_crypto`, `normalize_crypto_symbol` (re-slash `BTCUSD`→`BTC/USD`,
   longest-first `USDT`/`USDC`/`USD`), and `coerce_silo` (anything ≠ `"crypto"`
