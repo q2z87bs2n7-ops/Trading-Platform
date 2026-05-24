@@ -4,6 +4,7 @@ import Positions from "../../components/Positions";
 import Orders from "../../components/Orders";
 import Activities from "../../components/Activities";
 import TVChartWidget from "../../components/TVChartWidget";
+import PriceChart from "../../components/PriceChart";
 import OrderSheet from "../../components/trade/OrderSheet";
 import { NewsCard, NewsCardSkeleton } from "../../components/discover/NewsCard";
 import ErrorBanner from "../../components/ErrorBanner";
@@ -174,6 +175,31 @@ function ChartWidget(props: IDockviewPanelProps) {
       }
     >
       <TVChartWidget symbol={symbol} onSymbolChange={(s) => setSymbol(channel, s)} />
+    </WidgetShell>
+  );
+}
+
+// Lightweight (lightweight-charts) alternative to the heavy TV chart — a faster,
+// no-iframe option for small panels / many-up grids. Symbol-linked like the TV
+// chart (no "none").
+function MiniChartWidget(props: IDockviewPanelProps) {
+  const { getSymbol } = useWorkspace();
+  const [channel, setChannel] = useChannel(props, "main");
+  const symbol = getSymbol(channel);
+  return (
+    <WidgetShell
+      header={
+        <LinkHeader
+          label={symbol}
+          channel={channel}
+          setChannel={setChannel}
+          includeNone={false}
+        />
+      }
+    >
+      <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+        <PriceChart symbol={symbol} />
+      </div>
     </WidgetShell>
   );
 }
@@ -424,6 +450,7 @@ export const WIDGET_COMPONENTS: Record<
   React.FunctionComponent<IDockviewPanelProps>
 > = {
   chart: ChartWidget,
+  minichart: MiniChartWidget,
   trade: TradeWidget,
   positions: PositionsWidget,
   orders: OrdersWidget,
@@ -434,6 +461,7 @@ export const WIDGET_COMPONENTS: Record<
 // Drives the "add widget" menu and panel titles.
 export const WIDGET_CATALOG: { id: string; title: string }[] = [
   { id: "chart", title: "Chart" },
+  { id: "minichart", title: "Mini chart" },
   { id: "trade", title: "Trade" },
   { id: "positions", title: "Positions" },
   { id: "orders", title: "Orders" },

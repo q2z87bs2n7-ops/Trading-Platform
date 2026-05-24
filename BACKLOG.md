@@ -151,6 +151,20 @@ Two follow-ups were deliberately left:
 Desktop-only dockable widget canvas (`components/Workspace.tsx` +
 `lib/workspace/registry.tsx`, Dockview). Shipped: dock / tab-stack / float /
 pop-out, per-silo layout persistence, add-widget toolbar + reset; widgets for
-chart (bare TradingView), trade ticket, positions, orders, activity, news;
-CMC-style symbol-linking channel groups; live quotes and bars each deduped
-through one shared ref-counted stream (`data/quoteStream.ts` + `data/barStream.ts`).
+chart (bare TradingView), mini chart (lightweight-charts), trade ticket,
+positions, orders, activity, news; CMC-style symbol-linking channel groups; live
+quotes and bars each deduped through one shared ref-counted stream
+(`data/quoteStream.ts` + `data/barStream.ts`).
+
+Remaining:
+
+- **AI layout module** — a violet (real Claude) module that builds/edits the
+  Workspace from natural language ("give me a layout of the top 5 bio stocks").
+  Add frontend-executed layout tools (`set_workspace_layout` / `add_workspace_
+  widget`) to the `lib/ai-client.ts` dispatcher, run against the Dockview `api`
+  (clear + `addPanel` with widget / channel / position, seeding channel
+  symbols); schema in a new split file assembled in `ai/tools.py` (mind the
+  prefix-cache ordering); symbol resolution via `screen_assets` / `web_search` /
+  model knowledge. Surface as a dedicated Workspace-toolbar input (desktop-only,
+  gated like the other AI surfaces). Build once the rest of the Workspace scope
+  is closed.

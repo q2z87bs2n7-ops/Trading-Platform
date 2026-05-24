@@ -99,10 +99,13 @@ separate silos behind a shared account.
     built on Dockview (`dockview-react`, lazy-loaded): drag-to-dock, tab-stack,
     float and pop-out panels, per-silo layout persistence
     (`workspace_layout_{stocks,crypto}_v1`), an add-widget toolbar + reset.
-    Widgets reuse existing surfaces — a **bare** TradingView chart
-    (`components/TVChartWidget.tsx`: TV's native chrome only, *none* of the
-    `TVPlatform` chrome; account manager off + object tree collapsed), a trade
-    ticket (opens the shared `OrderSheet`), positions, orders, activity, news.
+    Widgets reuse existing surfaces — the primary **Chart** is a **bare**
+    TradingView chart (`components/TVChartWidget.tsx`: TV's native chrome only,
+    *none* of the `TVPlatform` chrome; account manager off + object tree
+    collapsed); an opt-in **Mini chart** offers the lighter lightweight-charts
+    `PriceChart` (no iframe) as an extra — the "bare-TV-only" rule governs the
+    primary Chart, not this explicit add-on. Plus a trade ticket (opens the
+    shared `OrderSheet`), positions, orders, activity, news.
     Each widget carries a **link channel** (None + Main/blue/green/amber,
     persisted in the panel's Dockview params): a symbol channel filters the
     widget to that one instrument (Positions/Orders/Activities take a `symbol`
