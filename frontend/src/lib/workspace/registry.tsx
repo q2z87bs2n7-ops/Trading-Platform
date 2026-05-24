@@ -1,5 +1,5 @@
-import { createContext, useContext, useRef, useState } from "react";
-import type { IDockviewPanelProps } from "dockview-react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
+import type { IDockviewPanelHeaderProps, IDockviewPanelProps } from "dockview-react";
 import { useContainerNarrow } from "../../hooks/useContainerNarrow";
 import Positions from "../../components/Positions";
 import Orders from "../../components/Orders";
@@ -24,22 +24,27 @@ export type AssetClass = "stocks" | "crypto";
 // persists with the saved layout.
 export type Channel = "none" | "main" | "blue" | "green" | "amber";
 
-const CHANNEL_META: Record<Channel, { color: string; label: string }> = {
+export const CHANNEL_META: Record<Channel, { color: string; label: string }> = {
   none: { color: "transparent", label: "None (account)" },
   main: { color: "var(--mute)", label: "Main" },
   blue: { color: "#3b82f6", label: "Blue" },
   green: { color: "#22c55e", label: "Green" },
   amber: { color: "#f59e0b", label: "Amber" },
 };
-const SYMBOL_CHANNELS: Channel[] = ["main", "blue", "green", "amber"];
+export const SYMBOL_CHANNELS: Channel[] = ["main", "blue", "green", "amber"];
 
 // Live, non-serialized state shared by the canvas. Channel→symbol flows through
 // here (runtime); only the per-panel channel *assignment* is persisted, in the
-// panel's Dockview params.
+// panel's Dockview params. registerPanelChannel/unregisterPanelChannel let
+// useChannel push its current channel up so Workspace can count usage per
+// channel for the toolbar Channels strip (Dockview doesn't emit a
+// params-changed event).
 interface WorkspaceCtx {
   assetClass: AssetClass;
   getSymbol: (channel: Channel) => string;
   setSymbol: (channel: Channel, sym: string) => void;
+  registerPanelChannel: (panelId: string, channel: Channel) => void;
+  unregisterPanelChannel: (panelId: string) => void;
 }
 
 const WorkspaceContext = createContext<WorkspaceCtx | null>(null);
@@ -51,14 +56,34 @@ export function useWorkspace(): WorkspaceCtx {
   return ctx;
 }
 
-// Per-panel link channel, persisted in the panel's Dockview params.
+// Per-panel link channel, persisted in the panel's Dockview params. Also
+// reports the current channel up to the Workspace context so the toolbar
+// Channels strip can count widgets per channel.
 function useChannel(
   props: IDockviewPanelProps,
   fallback: Channel,
 ): [Channel, (c: Channel) => void] {
+  const { registerPanelChannel, unregisterPanelChannel } = useWorkspace();
   const [channel, setLocal] = useState<Channel>(
     () => (props.params?.channel as Channel) ?? fallback,
   );
+  const panelId = props.api.id;
+  useEffect(() => {
+    registerPanelChannel(panelId, channel);
+  }, [panelId, channel, registerPanelChannel]);
+  useEffect(
+    () => () => unregisterPanelChannel(panelId),
+    [panelId, unregisterPanelChannel],
+  );
+  // Seed Dockview params with the resolved channel on mount so TabWithChannel
+  // (which reads params.channel) shows the right colour dot from the first
+  // render. set() handles subsequent updates.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (props.params?.channel === undefined) {
+      props.api.updateParameters({ ...(props.params ?? {}), channel });
+    }
+  }, []);
   const set = (c: Channel) => {
     setLocal(c);
     props.api.updateParameters({ ...props.params, channel: c });
@@ -108,8 +133,11 @@ function ChannelPicker({
   );
 }
 
-// Thin per-widget header: a left label that doubles as a click-to-search symbol
-// picker (writes to the widget's channel), plus link-channel dots on the right.
+// Per-widget header v2: a 2px channel-coloured accent bar across the top, a
+// primary mono symbol label that doubles as a click-to-search picker, an
+// optional muted `kind` label (e.g. "AAPL · Chart"), and link-channel dots on
+// the right. The accent bar lives inside the existing top padding so the
+// header's total height is unchanged.
 function LinkHeader({
   label,
   channel,
@@ -118,6 +146,7 @@ function LinkHeader({
   assetClass,
   onPickSymbol,
   lockedChannel,
+  kind,
 }: {
   label: string;
   channel: Channel;
@@ -126,17 +155,34 @@ function LinkHeader({
   assetClass?: AssetClass;
   onPickSymbol?: (sym: string) => void;
   lockedChannel?: boolean;
+  kind?: string;
 }) {
   const [searching, setSearching] = useState(false);
   const canPick = channel !== "none" && !!onPickSymbol;
+  const accent = channel === "none" ? "transparent" : CHANNEL_META[channel].color;
   return (
     <div
       className="flex items-center justify-between shrink-0 gap-2"
-      style={{ padding: "6px 10px", borderBottom: "1px solid var(--hairline)" }}
+      style={{
+        padding: "6px 10px 5px",
+        borderBottom: "1px solid var(--hairline)",
+        position: "relative",
+      }}
       onKeyDown={(e) => {
         if (e.key === "Escape") setSearching(false);
       }}
     >
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 2,
+          background: accent,
+        }}
+      />
       {searching && canPick ? (
         <AssetSearch
           assetClass={assetClass === "crypto" ? "crypto" : "us_equity"}
@@ -148,27 +194,91 @@ function LinkHeader({
             setSearching(false);
           }}
         />
-      ) : canPick ? (
-        <button
-          type="button"
-          onClick={() => setSearching(true)}
-          title="Change instrument"
-          className="text-[12px] font-semibold tabular-nums cursor-pointer bg-transparent border-0 p-0 text-left"
-          style={{ color: "var(--text-2)" }}
-        >
-          {label || "—"} ▾
-        </button>
       ) : (
-        <span
-          className="text-[12px] font-semibold tabular-nums"
-          style={{ color: "var(--text-2)" }}
-        >
-          {label}
-        </span>
+        <div className="flex items-baseline gap-1.5 min-w-0">
+          {canPick ? (
+            <button
+              type="button"
+              onClick={() => setSearching(true)}
+              title="Change instrument"
+              className="text-[12px] font-semibold font-mono tabular-nums cursor-pointer bg-transparent border-0 p-0 text-left rounded-card"
+              style={{
+                color: "var(--text)",
+                padding: "2px 6px",
+                marginLeft: -6,
+                letterSpacing: "-0.01em",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "var(--panel-2)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "transparent";
+              }}
+            >
+              {label || "—"}{" "}
+              <span style={{ color: "var(--mute)", fontSize: 9 }}>▾</span>
+            </button>
+          ) : (
+            <span
+              className="text-[12px] font-semibold font-mono tabular-nums"
+              style={{ color: "var(--text)" }}
+            >
+              {label}
+            </span>
+          )}
+          {kind && (
+            <span
+              className="text-[11px] font-medium truncate"
+              style={{ color: "var(--mute)" }}
+            >
+              · {kind}
+            </span>
+          )}
+        </div>
       )}
       {!lockedChannel && (
         <ChannelPicker value={channel} onChange={setChannel} includeNone={includeNone} />
       )}
+    </div>
+  );
+}
+
+// Custom Dockview tab — prepends a 6px channel dot to the panel title so tabs
+// in a stacked group are scannable. Reads the panel's channel from
+// params (live-updated by useChannel via updateParameters).
+export function TabWithChannel(props: IDockviewPanelHeaderProps) {
+  const channel = ((props.params?.channel as Channel) ?? "main") as Channel;
+  const meta = CHANNEL_META[channel];
+  const isNone = channel === "none";
+  const isMain = channel === "main";
+  return (
+    <div className="dv-default-tab">
+      <span
+        aria-hidden
+        style={{
+          width: 6,
+          height: 6,
+          marginRight: 6,
+          borderRadius: "50%",
+          background: isNone ? "transparent" : meta.color,
+          border: isMain
+            ? "1.5px solid var(--mute)"
+            : isNone
+              ? "1.5px solid var(--border)"
+              : "0",
+          boxSizing: "border-box",
+          display: "inline-block",
+          flexShrink: 0,
+        }}
+      />
+      <span className="dv-default-tab-content">{props.api.title}</span>
+      <span
+        className="dv-default-tab-action"
+        onClick={(e) => {
+          e.stopPropagation();
+          props.api.close();
+        }}
+      />
     </div>
   );
 }
@@ -212,6 +322,7 @@ function ChartWidget(props: IDockviewPanelProps) {
           includeNone={false}
           assetClass={assetClass}
           onPickSymbol={(s) => setSymbol(channel, s)}
+          kind="Chart"
         />
       }
     >
@@ -237,6 +348,7 @@ function MiniChartWidget(props: IDockviewPanelProps) {
           includeNone={false}
           assetClass={assetClass}
           onPickSymbol={(s) => setSymbol(channel, s)}
+          kind="Mini chart"
         />
       }
     >
@@ -269,6 +381,7 @@ function PositionsWidget(props: IDockviewPanelProps) {
           includeNone
           assetClass={assetClass}
           onPickSymbol={(s) => setSymbol(channel, s)}
+          kind="Positions"
         />
       }
     >
@@ -303,6 +416,7 @@ function OrdersWidget(props: IDockviewPanelProps) {
           includeNone
           assetClass={assetClass}
           onPickSymbol={(s) => setSymbol(channel, s)}
+          kind="Orders"
         />
       }
     >
@@ -331,6 +445,7 @@ function ActivityWidget(props: IDockviewPanelProps) {
           includeNone
           assetClass={assetClass}
           onPickSymbol={(s) => setSymbol(channel, s)}
+          kind="Activity"
         />
       }
     >
@@ -373,6 +488,7 @@ function NewsWidget(props: IDockviewPanelProps) {
           includeNone
           assetClass={assetClass}
           onPickSymbol={(s) => setSymbol(channel, s)}
+          kind="News"
         />
       }
     >
@@ -447,6 +563,7 @@ function AccountWidget(_props: IDockviewPanelProps) {
           setChannel={() => {}}
           includeNone
           lockedChannel
+          kind="Account"
         />
       }
     >
@@ -475,6 +592,7 @@ function TradeWidget(props: IDockviewPanelProps) {
           includeNone={false}
           assetClass={assetClass}
           onPickSymbol={(s) => setSymbol(channel, s)}
+          kind="Trade"
         />
       }
     >
@@ -501,19 +619,117 @@ export const WIDGET_COMPONENTS: Record<
   news: NewsWidget,
 };
 
-// Drives the "add widget" menu and panel titles.
-export const WIDGET_CATALOG: { id: string; title: string }[] = [
-  { id: "chart", title: "Chart" },
-  { id: "minichart", title: "Mini chart" },
-  { id: "watchlist", title: "Watchlist" },
-  { id: "trade", title: "Trade" },
-  { id: "account", title: "Account" },
-  { id: "positions", title: "Positions" },
-  { id: "orders", title: "Orders" },
-  { id: "activity", title: "Activity" },
-  { id: "news", title: "News" },
+// Drives the "add widget" menu and panel titles. Grouped + described to power
+// the 320px Add menu (search-filterable, ordered by group).
+export type WidgetGroup = "Charts" | "Trade" | "Market data" | "Activity";
+
+export interface WidgetMeta {
+  id: string;
+  title: string;
+  group: WidgetGroup;
+  desc: string;
+  iconPath: string;
+}
+
+export const WIDGET_CATALOG: WidgetMeta[] = [
+  {
+    id: "chart",
+    group: "Charts",
+    title: "Chart",
+    desc: "Full TradingView chart with indicators & drawings",
+    iconPath: "M2 13L6 8L9 11L14 4 M2 14 L14 14",
+  },
+  {
+    id: "minichart",
+    group: "Charts",
+    title: "Mini chart",
+    desc: "Lightweight chart — better for small panels and many-up grids",
+    iconPath: "M2 11 L5 8 L8 10 L13 5 M2 14 L14 14",
+  },
+  {
+    id: "trade",
+    group: "Trade",
+    title: "Trade ticket",
+    desc: "Inline order entry, symbol-linked",
+    iconPath: "M3 6 L13 6 L10 3 M13 10 L3 10 L6 13",
+  },
+  {
+    id: "account",
+    group: "Trade",
+    title: "Account",
+    desc: "Equity, day P/L, buying power & cash",
+    iconPath: "M3 14 V8 L8 4 L13 8 V14 Z M7 14 V11 H9 V14",
+  },
+  {
+    id: "watchlist",
+    group: "Market data",
+    title: "Watchlist",
+    desc: "Silo watchlist — click a card to set the linked symbol",
+    iconPath: "M2 4 L14 4 M2 8 L14 8 M2 12 L10 12",
+  },
+  {
+    id: "news",
+    group: "Market data",
+    title: "News",
+    desc: "Symbol or market feed (per linked channel)",
+    iconPath: "M3 3 H13 V13 H3 Z M5 6 H11 M5 9 H11 M5 12 H9",
+  },
+  {
+    id: "positions",
+    group: "Activity",
+    title: "Positions",
+    desc: "Open positions, filtered by linked symbol or whole account",
+    iconPath: "M2 3 H14 V13 H2 Z M2 7 H14 M6 7 V13 M10 7 V13",
+  },
+  {
+    id: "orders",
+    group: "Activity",
+    title: "Orders",
+    desc: "Open & recent orders, filtered by linked symbol",
+    iconPath: "M2 3 H14 V13 H2 Z M2 7 H14 M2 11 H14",
+  },
+  {
+    id: "activity",
+    group: "Activity",
+    title: "Activity",
+    desc: "Fills, transfers, dividends — all account activity",
+    iconPath: "M2 8 L5 8 L7 4 L9 12 L11 8 L14 8",
+  },
+];
+
+export const WIDGET_GROUPS: WidgetGroup[] = [
+  "Charts",
+  "Trade",
+  "Market data",
+  "Activity",
 ];
 
 export const WIDGET_TITLES: Record<string, string> = Object.fromEntries(
   WIDGET_CATALOG.map((w) => [w.id, w.title]),
 );
+
+// Single-stroke 16×16 icon renderer for the Add menu rows and the empty-state
+// CTA. Keeps the icon set inline / dependency-free.
+export function WidgetIcon({
+  path,
+  size = 16,
+}: {
+  path: string;
+  size?: number;
+}) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d={path} />
+    </svg>
+  );
+}
