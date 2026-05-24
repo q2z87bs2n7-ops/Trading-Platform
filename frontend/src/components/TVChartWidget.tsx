@@ -28,6 +28,15 @@ function normalizeSymbol(raw: string): string {
   return tail.toUpperCase();
 }
 
+// Native TV chrome stays (header, drawing toolbar), but suppress the trading
+// Account Manager panel and start the right widget bar (object tree / data
+// window) collapsed — the toolbar button still opens it on demand.
+const DISABLED_FEATURES = [
+  "trading_account_manager",
+  "open_account_manager",
+  "show_right_widgets_panel_by_default",
+];
+
 export default function TVChartWidget({ symbol, onSymbolChange }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetRef = useRef<TVWidgetInstance | null>(null);
@@ -84,6 +93,8 @@ export default function TVChartWidget({ symbol, onSymbolChange }: Props) {
         },
 
         datafeed: createDatafeed(),
+
+        disabled_features: DISABLED_FEATURES,
 
         autosize: true,
         fullscreen: false,
