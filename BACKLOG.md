@@ -155,6 +155,6 @@ Desktop-only dockable widget canvas (`components/Workspace.tsx` +
 - **Chart widgets use the bare TradingView chart widget** — TV's own chart and
   native controls only. Do not reuse the `TVPlatform` chrome
   (`ChartTopBar` / `IndicatorPillsRow` / `ChartBlotter` / floating `TradeBar`),
-  and never use a homegrown chart (`PriceChart.tsx` / lightweight-charts). The
-  Phase-1 Chart widget still embeds `TVPlatform`; swap it to a bare TV widget
-  when the Workspace is built out.
+  and never use a homegrown chart (`PriceChart.tsx` / lightweight-charts).
+  Implemented as `components/TVChartWidget.tsx`, wired in
+  `lib/workspace/registry.tsx`.

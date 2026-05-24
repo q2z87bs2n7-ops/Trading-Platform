@@ -3,7 +3,7 @@ import type { IDockviewPanelProps } from "dockview-react";
 import Positions from "../../components/Positions";
 import Orders from "../../components/Orders";
 import Activities from "../../components/Activities";
-import TVPlatform from "../../components/TVPlatform";
+import TVChartWidget from "../../components/TVChartWidget";
 import { NewsCard, NewsCardSkeleton } from "../../components/discover/NewsCard";
 import ErrorBanner from "../../components/ErrorBanner";
 import { useMarketNews, useNews } from "../../data/hooks";
@@ -42,11 +42,7 @@ function ChartWidget(_props: IDockviewPanelProps) {
   const fallback = assetClass === "crypto" ? "BTC/USD" : "AAPL";
   return (
     <div style={{ height: "100%" }}>
-      <TVPlatform
-        symbol={symbol || fallback}
-        onSymbolChange={setSymbol}
-        assetClass={assetClass}
-      />
+      <TVChartWidget symbol={symbol || fallback} onSymbolChange={setSymbol} />
     </div>
   );
 }
