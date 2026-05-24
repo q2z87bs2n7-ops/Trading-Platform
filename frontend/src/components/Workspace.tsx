@@ -88,6 +88,7 @@ function ToolbarButton({
 export default function Workspace({ symbol, onSelect, assetClass, theme }: Props) {
   const apiRef = useRef<DockviewApi | null>(null);
   const disposableRef = useRef<{ dispose: () => void } | null>(null);
+  const saveTimerRef = useRef<number | undefined>(undefined);
 
   // Per-channel symbol. The "main" channel proxies the app's selected symbol
   // (so Chart mode etc. stay in sync); the colour channels are session-local.
@@ -128,19 +129,34 @@ export default function Workspace({ symbol, onSelect, assetClass, theme }: Props
     }
     if (!restored) buildDefaultLayout(event.api);
 
+    // Debounced — onDidLayoutChange fires rapidly during a drag/resize; only
+    // serialize + write to localStorage once the gesture settles.
     disposableRef.current = event.api.onDidLayoutChange(() => {
-      try {
-        localStorage.setItem(
-          storageKey(assetClass),
-          JSON.stringify(event.api.toJSON()),
-        );
-      } catch {
-        /* quota / serialization — non-fatal for a layout cache */
+      if (saveTimerRef.current !== undefined) {
+        window.clearTimeout(saveTimerRef.current);
       }
+      saveTimerRef.current = window.setTimeout(() => {
+        try {
+          localStorage.setItem(
+            storageKey(assetClass),
+            JSON.stringify(event.api.toJSON()),
+          );
+        } catch {
+          /* quota / serialization — non-fatal for a layout cache */
+        }
+      }, 400);
     });
   };
 
-  useEffect(() => () => disposableRef.current?.dispose(), []);
+  useEffect(
+    () => () => {
+      disposableRef.current?.dispose();
+      if (saveTimerRef.current !== undefined) {
+        window.clearTimeout(saveTimerRef.current);
+      }
+    },
+    [],
+  );
 
   function addWidget(id: string) {
     apiRef.current?.addPanel({

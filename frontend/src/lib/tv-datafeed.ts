@@ -5,8 +5,8 @@
  * Also implements IDatafeedQuotesApi (getQuotes/subscribeQuotes) so the
  * trading order ticket can display live bid/ask and last price.
  */
-import { streamQuotes } from "../api";
 import { subscribeBar } from "../data/barStream";
+import { subscribeQuoteTicks } from "../data/quoteStream";
 import { isCryptoSymbol } from "./asset-class";
 import type { Quote } from "../types";
 
@@ -266,11 +266,9 @@ export function createDatafeed() {
         );
       }, STREAM_FLUSH_MS);
 
-      const unsubscribe = streamQuotes(
-        all,
-        (q: Quote) => { pending[q.symbol] = q; },
-        () => { /* stream closed; ticket keeps last-known values */ },
-      );
+      const unsubscribe = subscribeQuoteTicks(all, (q: Quote) => {
+        pending[q.symbol] = q;
+      });
 
       // Store a combined teardown so unsubscribeQuotes clears both.
       (window as unknown as Record<string, unknown>)[`__tv_quotes_${listenerGUID}`] =

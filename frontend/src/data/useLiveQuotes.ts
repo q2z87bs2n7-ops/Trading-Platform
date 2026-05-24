@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 
 import type { Quote } from "../types";
 import { qk } from "./queryClient";
@@ -22,10 +22,23 @@ export function useLiveQuotes(symbols: string[]) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
-  const { data } = useQuery<QuoteMap>({
+  // Narrow the shared quote map to just this consumer's symbols so React
+  // Query's structural sharing skips re-renders when an unrelated symbol ticks.
+  const select = useCallback(
+    (m: QuoteMap) => {
+      const out: QuoteMap = {};
+      for (const s of symbols) if (m[s]) out[s] = m[s];
+      return out;
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [key],
+  );
+
+  const { data } = useQuery<QuoteMap, Error, QuoteMap>({
     queryKey: qk.quotes,
     queryFn: () => ({}),
     staleTime: Infinity,
+    select,
   });
 
   return { quotes: data ?? {}, error: null as string | null };

@@ -309,23 +309,26 @@ function NewsWidget(props: IDockviewPanelProps) {
   );
 }
 
+function AccountRow({ k, v }: { k: string; v: string }) {
+  return (
+    <div className="flex items-center justify-between py-1.5 text-[13px]">
+      <span style={{ color: "var(--mute)" }}>{k}</span>
+      <span className="font-mono tabular-nums">{v}</span>
+    </div>
+  );
+}
+
 function AccountSummary({ assetClass }: { assetClass: AssetClass }) {
   const { data: acct } = useAccount();
   const bp =
     (assetClass === "crypto"
       ? acct?.non_marginable_buying_power
       : acct?.buying_power) ?? 0;
-  const Row = ({ k, v }: { k: string; v: string }) => (
-    <div className="flex items-center justify-between py-1.5 text-[13px]">
-      <span style={{ color: "var(--mute)" }}>{k}</span>
-      <span className="font-mono tabular-nums">{v}</span>
-    </div>
-  );
   return (
     <Pane pad>
-      <Row k="Equity" v={money(acct?.equity ?? 0)} />
-      <Row k="Buying power" v={money(bp)} />
-      <Row k="Cash" v={money(acct?.cash ?? 0)} />
+      <AccountRow k="Equity" v={money(acct?.equity ?? 0)} />
+      <AccountRow k="Buying power" v={money(bp)} />
+      <AccountRow k="Cash" v={money(acct?.cash ?? 0)} />
       <span className="text-[11px] block mt-2" style={{ color: "var(--mute)" }}>
         Link a colour channel to trade an instrument.
       </span>
