@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useCryptoWatchlist, useWatchlist } from "./data/hooks";
 import { useTheme } from "./hooks/useTheme";
 import Positions from "./components/Positions";
@@ -20,7 +20,11 @@ import MobileHeader from "./components/MobileHeader";
 import MobileNavDrawer from "./components/MobileNavDrawer";
 import { useMobile } from "./hooks/useMobile";
 
-type PlatformMode = "discover" | "portfolio" | "chart";
+// Heavy, desktop-only docking canvas (pulls in Dockview) — lazy so it stays
+// out of the initial bundle, mirroring how the charting library is deferred.
+const Workspace = lazy(() => import("./components/Workspace"));
+
+type PlatformMode = "discover" | "portfolio" | "chart" | "workspace";
 type AssetClassMode = "stocks" | "crypto";
 
 function readAssetClassMode(): AssetClassMode | null {
@@ -29,10 +33,13 @@ function readAssetClassMode(): AssetClassMode | null {
   return null;
 }
 
+// "workspace" is desktop-only; the mobile header renders its own pill set and
+// deliberately omits it.
 const MODES: { value: PlatformMode; label: string }[] = [
   { value: "discover", label: "Discover" },
   { value: "portfolio", label: "Portfolio" },
   { value: "chart", label: "Chart" },
+  { value: "workspace", label: "Workspace" },
 ];
 
 function BrandMark() {
@@ -305,6 +312,29 @@ export default function App() {
           </div>
           <ChatPanel symbol={selected || (activeClass === "crypto" ? "BTC/USD" : "AAPL")} />
         </div>
+      )}
+
+      {/* Workspace — CMC-style draggable / dockable / tab-stackable widget
+         canvas. Desktop only; on mobile this mode is unreachable (no pill) so
+         the guard falls through to nothing. */}
+      {mode === "workspace" && !isMobile && (
+        <Suspense
+          fallback={
+            <div
+              className="text-[13px] py-10 text-center"
+              style={{ color: "var(--mute)" }}
+            >
+              Loading workspace…
+            </div>
+          }
+        >
+          <Workspace
+            symbol={selected}
+            onSelect={setSelected}
+            assetClass={activeClass}
+            theme={theme}
+          />
+        </Suspense>
       )}
 
       {/* Portfolio: hero + positions strip + open orders + activity. Order

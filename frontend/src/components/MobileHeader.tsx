@@ -1,12 +1,15 @@
 import IconButton from "./IconButton";
 
-type Mode = "discover" | "portfolio" | "chart";
+// "workspace" is desktop-only — it's accepted here for type parity with the
+// app's PlatformMode but is intentionally never offered in the mobile pills.
+type Mode = "discover" | "portfolio" | "chart" | "workspace";
 type AssetClass = "stocks" | "crypto";
 
 const TITLES: Record<Mode, string> = {
   discover: "Discover",
   portfolio: "Portfolio",
   chart: "Chart",
+  workspace: "Workspace",
 };
 
 interface Props {

@@ -261,6 +261,7 @@ separate silos behind a shared account.
 | `chart_blotter_collapsed` | `ChartBlotter` | `ChartBlotter` | `"1"` collapsed. With no stored value, defaults collapsed on mobile (≤640px) and expanded on desktop. |
 | `market_summary_v1` / `crypto_market_summary_v1` | `useMarketSummary` | `useMarketSummary` + Ask-anything summary card | Per-silo cached AI market summary (window, date, content). |
 | `app_settings_v1` | `lib/settings.ts` | `useSettings` + `SettingsMenu` | JSON-encoded `AppSettings`. Today: `cmdbarAiEnabled` (default `true`). |
+| `workspace_layout_stocks_v1` / `workspace_layout_crypto_v1` | `components/Workspace.tsx` | `components/Workspace.tsx` | Per-silo serialized Dockview layout (`api.toJSON()`) for the desktop Workspace mode. Cleared by the in-canvas "Reset layout" button. |
 
 Watchlists are not in localStorage — server-side via `/api/watchlist`.
 
