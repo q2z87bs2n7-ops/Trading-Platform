@@ -2,7 +2,6 @@ import { useState } from "react";
 
 import * as api from "../api";
 import {
-  useAccount,
   useAddToCryptoWatchlist,
   useAddToWatchlist,
   useCryptoTickers,
@@ -24,19 +23,16 @@ import { isCryptoPosition } from "../lib/asset-class";
 import { showToast } from "../lib/toast";
 import type { Snapshot } from "../types";
 import { AssetSearch } from "./AssetSearch";
-import { AllocationCard } from "./discover/AllocationCard";
-import { BalanceCard } from "./discover/BalanceCard";
 import { CardsRow } from "./discover/CardsRow";
 import { ChartCard } from "./discover/ChartCard";
 import { CryptoTicker } from "./discover/CryptoTicker";
-import { HeroCardMobile } from "./discover/HeroCardMobile";
 import { IndicesTicker } from "./discover/IndicesTicker";
 import { MostActiveCard, MostActiveCardSkeleton } from "./discover/MostActiveCard";
 import { MoversCard, MoversCardSkeleton } from "./discover/MoversCard";
 import { MoversCombinedCard } from "./discover/MoversCombinedCard";
 import { NewsCard, NewsCardSkeleton } from "./discover/NewsCard";
 import { SparkCard, SparkCardSkeleton } from "./discover/SparkCard";
-import { coinLabel, DONUT_COLORS_GREEN } from "./discover/util";
+import { coinLabel } from "./discover/util";
 import ErrorBanner from "./ErrorBanner";
 import MarketSummaryCard from "./MarketSummaryCard";
 import SectionHeading from "./SectionHeading";
@@ -62,7 +58,6 @@ export default function DiscoverPage({
   const isCrypto = assetClass === "crypto";
 
   const positions = usePositions();
-  const account = useAccount();
 
   // App already subscribes to both watchlists app-wide, so this adds no fetch.
   const stockWatchlist = useWatchlist();
@@ -144,14 +139,6 @@ export default function DiscoverPage({
   const siloPositions = (positions.data?.positions || []).filter((p) =>
     isCrypto ? isCryptoPosition(p) : !isCryptoPosition(p),
   );
-  const invested = siloPositions.reduce((s, p) => s + p.market_value, 0);
-  const unrealized = siloPositions.reduce((s, p) => s + p.unrealized_pl, 0);
-  const totalCostBasis = siloPositions.reduce((s, p) => s + p.cost_basis, 0);
-  const unrealizedPct = totalCostBasis > 0 ? unrealized / totalCostBasis : 0;
-  // Silo day P/L: sum of intraday unrealized P/L, as a % of prior-close value.
-  const dayPl = siloPositions.reduce((s, p) => s + p.unrealized_intraday_pl, 0);
-  const dayBasis = invested - dayPl;
-  const dayPlPct = dayBasis > 0 ? dayPl / dayBasis : 0;
 
   // Quote map drives watchlist sparkline cards.
   const quotes: Record<string, Snapshot> = {};
@@ -166,49 +153,6 @@ export default function DiscoverPage({
       {isCrypto
         ? tickers.data && <CryptoTicker tickers={tickers.data.tickers} />
         : indices.data && <IndicesTicker indices={indices.data.indices} />}
-
-      {/* Hero row — combined single card on mobile, two-card grid on desktop */}
-      {isMobile ? (
-        <div className="mb-6">
-          <HeroCardMobile
-            account={account.data}
-            title={isCrypto ? "Crypto" : "Stocks"}
-            value={invested}
-            dayPl={dayPl}
-            dayPlPct={dayPlPct}
-            unrealized={unrealized}
-            unrealizedPct={unrealizedPct}
-            buyingPower={
-              isCrypto
-                ? account.data?.non_marginable_buying_power ?? 0
-                : account.data?.buying_power ?? 0
-            }
-            positions={siloPositions}
-            colors={isCrypto ? undefined : DONUT_COLORS_GREEN}
-          />
-        </div>
-      ) : (
-        <div className="grid gap-4 mb-6 grid-cols-1 lg:grid-cols-[1.4fr_1fr]">
-          <BalanceCard
-            account={account.data}
-            title={isCrypto ? "Crypto" : "Stocks"}
-            value={invested}
-            dayPl={dayPl}
-            dayPlPct={dayPlPct}
-            unrealized={unrealized}
-            unrealizedPct={unrealizedPct}
-            buyingPower={
-              isCrypto
-                ? account.data?.non_marginable_buying_power ?? 0
-                : account.data?.buying_power ?? 0
-            }
-          />
-          <AllocationCard
-            positions={siloPositions}
-            colors={isCrypto ? undefined : DONUT_COLORS_GREEN}
-          />
-        </div>
-      )}
 
       {/* AI market summary — auto-generated per time window, dismissible */}
       <MarketSummaryCard

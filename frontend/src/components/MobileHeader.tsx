@@ -90,7 +90,7 @@ export default function MobileHeader({
           borderBottom: "1px solid var(--hairline)",
         }}
       >
-        {(["discover", "portfolio", "chart"] as Mode[]).map((m) => {
+        {(["discover", "chart", "portfolio"] as Mode[]).map((m) => {
           const active = m === mode;
           return (
             <button

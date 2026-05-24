@@ -1,6 +1,8 @@
 import { useAccount, useOrders, usePnlHistory, usePositions } from "../data/hooks";
 import { isCryptoOrder, isCryptoPosition } from "../lib/asset-class";
 import type { Order, Position } from "../types";
+import { AllocationCard } from "./discover/AllocationCard";
+import { DONUT_COLORS_GREEN } from "./discover/util";
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD" });
@@ -277,7 +279,7 @@ export default function PortfolioHero({ assetClass }: { assetClass: AssetClass }
     .length;
 
   return (
-    <div className="grid gap-4 mb-6 grid-cols-1 lg:grid-cols-[1.4fr_1fr]">
+    <div className="flex flex-col gap-4 mb-6">
       <ValueCard
         account={account.data}
         title={title}
@@ -288,7 +290,13 @@ export default function PortfolioHero({ assetClass }: { assetClass: AssetClass }
         unrealizedPct={unrealizedPct}
         openOrderCount={openOrderCount}
       />
-      <NetPnlCard assetClass={assetClass} costBasis={costBasis} />
+      <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+        <NetPnlCard assetClass={assetClass} costBasis={costBasis} />
+        <AllocationCard
+          positions={siloPositions}
+          colors={assetClass === "crypto" ? undefined : DONUT_COLORS_GREEN}
+        />
+      </div>
     </div>
   );
 }

@@ -31,8 +31,8 @@ function readAssetClassMode(): AssetClassMode | null {
 
 const MODES: { value: PlatformMode; label: string }[] = [
   { value: "discover", label: "Discover" },
-  { value: "portfolio", label: "Portfolio" },
   { value: "chart", label: "Chart" },
+  { value: "portfolio", label: "Portfolio" },
 ];
 
 function BrandMark() {
@@ -284,9 +284,8 @@ export default function App() {
           </div>
         </div>
         )}
-        {/* Status ribbon — Portfolio + Chart. Discover keeps the nav
-           clean; the account context is already in the Discover hero. */}
-        {(mode === "portfolio" || mode === "chart") && <TopBar assetClass={activeClass} />}
+        {/* Account equity strip — shown in every mode. */}
+        <TopBar assetClass={activeClass} />
       </header>
 
       {/* Discover — one surface, parameterized by the active asset class */}
