@@ -291,11 +291,13 @@ export default function Positions({
   onSelect,
   assetClass,
   symbol,
+  dense = false,
 }: {
   variant?: "strip" | "table";
   onSelect?: (symbol: string) => void;
   assetClass?: "stocks" | "crypto";
   symbol?: string;
+  dense?: boolean;
 } = {}) {
   const { data, error, isPending } = usePositions();
   const closeAll = useCloseAllPositions();
@@ -317,7 +319,7 @@ export default function Positions({
   const isMobile = useMobile();
 
   if (variant === "strip") {
-    const Row = isMobile ? StripRowMobile : StripRow;
+    const Row = isMobile || dense ? StripRowMobile : StripRow;
     return (
       <div className="flex flex-col gap-2">
         {error && <ErrorBanner message={error.message} />}

@@ -263,9 +263,11 @@ function OrderCardMobile({
 export default function Orders({
   assetClass,
   symbol,
+  dense = false,
 }: {
   assetClass?: "stocks" | "crypto";
   symbol?: string;
+  dense?: boolean;
 } = {}) {
   const [status, setStatus] = useState<StatusFilter>("all");
   const { data, error, isPending } = useOrders(status, 25);
@@ -286,7 +288,7 @@ export default function Orders({
   // cancellation is recoverable by re-placing.
   const [modifyingOrder, setModifyingOrder] = useState<Order | null>(null);
   const [confirmCancelAll, setConfirmCancelAll] = useState(false);
-  const isMobile = useMobile();
+  const stacked = useMobile() || dense;
 
   return (
     <div
@@ -347,7 +349,7 @@ export default function Orders({
               : "No orders yet."}
         </div>
       )}
-      {!isPending && isMobile && rows && rows.length > 0 && (
+      {!isPending && stacked && rows && rows.length > 0 && (
         <div className="flex flex-col">
           {rows.map((o) => (
             <OrderCardMobile
@@ -370,7 +372,7 @@ export default function Orders({
           ))}
         </div>
       )}
-      {!isMobile && (isPending || (rows && rows.length > 0)) && (
+      {!stacked && (isPending || (rows && rows.length > 0)) && (
         <div className="overflow-x-auto">
           <table
             className="w-full border-collapse"

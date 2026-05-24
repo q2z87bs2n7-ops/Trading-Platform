@@ -124,6 +124,12 @@ separate silos behind a shared account.
     quotes and bars are deduped across all widgets through shared ref-counted
     streams (`data/quoteStream.ts`,
     `data/barStream.ts`); `useLiveQuotes` and `lib/tv-datafeed.ts` ride them.
+    **Panel-size fit:** charts shed chrome/axes as their panel shrinks (see the
+    chart widgets above); Positions/Orders/Activities flip to their stacked
+    card layout in narrow panels via `hooks/useContainerNarrow` + an additive
+    `dense` prop (panel-width, since `useMobile` is viewport-only and never
+    trips in this desktop-only mode); the header `AssetSearch` portals its
+    dropdown to `<body>` so it isn't clipped by the panel.
 - **Mobile / responsive (≤ 640px).** A single `useMobile()` hook
   (`hooks/useMobile.ts`, `matchMedia("(max-width: 640px)")`) gates the
   phone layouts; it mirrors the CSS `@media (max-width: 640px)` breakpoint

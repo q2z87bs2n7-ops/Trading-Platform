@@ -93,9 +93,11 @@ function ActivityRowMobile({ a }: { a: Activity }) {
 export default function Activities({
   bare = false,
   symbol,
+  dense = false,
 }: {
   bare?: boolean;
   symbol?: string;
+  dense?: boolean;
 }) {
   const { data, error, isPending } = useActivities(25);
   const rows = symbol
@@ -103,7 +105,7 @@ export default function Activities({
         (a) => String(a.symbol ?? "").toUpperCase() === symbol.toUpperCase(),
       )
     : data?.activities;
-  const isMobile = useMobile();
+  const stacked = useMobile() || dense;
 
   const body = (
     <>
@@ -113,14 +115,14 @@ export default function Activities({
           No activity.
         </div>
       )}
-      {!isPending && isMobile && rows && rows.length > 0 && (
+      {!isPending && stacked && rows && rows.length > 0 && (
         <div>
           {rows.map((a, i) => (
             <ActivityRowMobile key={String(a.id ?? i)} a={a} />
           ))}
         </div>
       )}
-      {!isMobile && (isPending || (rows && rows.length > 0)) && (
+      {!stacked && (isPending || (rows && rows.length > 0)) && (
         <div className="overflow-x-auto">
           <table
             className="w-full border-collapse"

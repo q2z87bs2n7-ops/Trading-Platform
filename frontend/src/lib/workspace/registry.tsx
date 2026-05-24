@@ -1,5 +1,6 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useRef, useState } from "react";
 import type { IDockviewPanelProps } from "dockview-react";
+import { useContainerNarrow } from "../../hooks/useContainerNarrow";
 import Positions from "../../components/Positions";
 import Orders from "../../components/Orders";
 import Activities from "../../components/Activities";
@@ -138,6 +139,7 @@ function LinkHeader({
           assetClass={assetClass === "crypto" ? "crypto" : "us_equity"}
           align="left"
           autoFocus
+          fluid
           onChoose={(s) => {
             onPickSymbol?.(s);
             setSearching(false);
@@ -244,6 +246,8 @@ function PositionsWidget(props: IDockviewPanelProps) {
   const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "none");
   const symbol = channel === "none" ? undefined : getSymbol(channel);
+  const ref = useRef<HTMLDivElement>(null);
+  const dense = useContainerNarrow(ref, 480);
   return (
     <WidgetShell
       header={
@@ -257,14 +261,17 @@ function PositionsWidget(props: IDockviewPanelProps) {
         />
       }
     >
-      <Pane pad>
-        <Positions
-          variant="strip"
-          symbol={symbol}
-          onSelect={(s) => setSymbol(channel === "none" ? "main" : channel, s)}
-          assetClass={assetClass}
-        />
-      </Pane>
+      <div ref={ref} style={{ height: "100%" }}>
+        <Pane pad>
+          <Positions
+            variant="strip"
+            symbol={symbol}
+            dense={dense}
+            onSelect={(s) => setSymbol(channel === "none" ? "main" : channel, s)}
+            assetClass={assetClass}
+          />
+        </Pane>
+      </div>
     </WidgetShell>
   );
 }
@@ -273,6 +280,8 @@ function OrdersWidget(props: IDockviewPanelProps) {
   const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "none");
   const symbol = channel === "none" ? undefined : getSymbol(channel);
+  const ref = useRef<HTMLDivElement>(null);
+  const dense = useContainerNarrow(ref, 480);
   return (
     <WidgetShell
       header={
@@ -286,9 +295,11 @@ function OrdersWidget(props: IDockviewPanelProps) {
         />
       }
     >
-      <Pane pad>
-        <Orders assetClass={assetClass} symbol={symbol} />
-      </Pane>
+      <div ref={ref} style={{ height: "100%" }}>
+        <Pane pad>
+          <Orders assetClass={assetClass} symbol={symbol} dense={dense} />
+        </Pane>
+      </div>
     </WidgetShell>
   );
 }
@@ -297,6 +308,8 @@ function ActivityWidget(props: IDockviewPanelProps) {
   const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "none");
   const symbol = channel === "none" ? undefined : getSymbol(channel);
+  const ref = useRef<HTMLDivElement>(null);
+  const dense = useContainerNarrow(ref, 480);
   return (
     <WidgetShell
       header={
@@ -310,9 +323,11 @@ function ActivityWidget(props: IDockviewPanelProps) {
         />
       }
     >
-      <Pane pad>
-        <Activities bare symbol={symbol} />
-      </Pane>
+      <div ref={ref} style={{ height: "100%" }}>
+        <Pane pad>
+          <Activities bare symbol={symbol} dense={dense} />
+        </Pane>
+      </div>
     </WidgetShell>
   );
 }

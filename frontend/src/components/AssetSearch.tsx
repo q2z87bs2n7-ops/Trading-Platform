@@ -1,4 +1,5 @@
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import * as api from "../api";
 import type { Asset } from "../types";
@@ -13,6 +14,9 @@ interface Props {
   // Which edge the dropdown anchors to (so it never runs off-screen). Use
   // "right" when the input sits at the right of its row, "left" otherwise.
   align?: "left" | "right";
+  // Let the input fill its container instead of the default fixed inline width
+  // (e.g. inside a narrow Workspace widget header).
+  fluid?: boolean;
 }
 
 // Debounced symbol/name autocomplete over the catalogue. Picking a result (or
@@ -24,14 +28,18 @@ export function AssetSearch({
   autoFocus = false,
   variant = "inline",
   align = "right",
+  fluid = false,
 }: Props) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<Asset[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
   const isCrypto = assetClass === "crypto";
   const sheet = variant === "sheet";
+  // Fixed-position coords for the portaled inline dropdown.
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 300 });
 
   useEffect(() => {
     const term = q.trim();
@@ -57,13 +65,38 @@ export function AssetSearch({
 
   useEffect(() => {
     function onDoc(e: MouseEvent) {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const t = e.target as Node;
+      if (wrapRef.current?.contains(t)) return;
+      if (dropRef.current?.contains(t)) return;
+      setOpen(false);
     }
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, []);
+
+  // The inline dropdown is portaled to <body> with fixed positioning so it
+  // floats above (instead of being clipped by) a dock panel's bounds. Recompute
+  // its anchor while open as the page scrolls/resizes. The sheet variant lives
+  // in a full-screen sheet and keeps its in-flow absolute dropdown.
+  useEffect(() => {
+    if (sheet || !open) return;
+    const update = () => {
+      const el = wrapRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const width = Math.min(300, window.innerWidth - 16);
+      let left = align === "left" ? r.left : r.right - width;
+      left = Math.max(8, Math.min(left, window.innerWidth - width - 8));
+      setPos({ top: r.bottom + 4, left, width });
+    };
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [open, sheet, align, results.length]);
 
   function choose(symbol: string) {
     const v = symbol.trim().toUpperCase();
@@ -83,8 +116,71 @@ export function AssetSearch({
     }
   }
 
+  const items =
+    loading && results.length === 0 ? (
+      <div style={{ padding: "8px 10px", color: "var(--text-2)", fontSize: 12 }}>
+        Searching…
+      </div>
+    ) : (
+      results.map((a) => (
+        <button
+          key={a.symbol}
+          type="button"
+          onClick={() => choose(a.symbol)}
+          className="cursor-pointer"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            width: "100%",
+            textAlign: "left",
+            background: "transparent",
+            border: "none",
+            borderBottom: "1px solid var(--border)",
+            padding: "8px 10px",
+            color: "var(--text)",
+          }}
+        >
+          <span
+            className="font-mono"
+            style={{ fontSize: 12.5, fontWeight: 600, minWidth: 70 }}
+          >
+            {a.symbol}
+          </span>
+          <span
+            style={{
+              fontSize: 12,
+              color: "var(--text-2)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              flex: 1,
+            }}
+          >
+            {a.name}
+          </span>
+          {a.sector && (
+            <span
+              style={{
+                fontSize: 10.5,
+                color: "var(--text-2)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {a.sector}
+            </span>
+          )}
+        </button>
+      ))
+    );
+
+  const showDropdown = open && (results.length > 0 || loading);
+
   return (
-    <div ref={wrapRef} style={{ position: "relative", width: sheet ? "100%" : 150 }}>
+    <div
+      ref={wrapRef}
+      style={{ position: "relative", width: sheet || fluid ? "100%" : 150 }}
+    >
       <input
         autoFocus={autoFocus}
         value={q}
@@ -114,11 +210,15 @@ export function AssetSearch({
           minHeight: sheet ? "var(--mob-tap)" : undefined,
         }}
       />
-      {open && (results.length > 0 || loading) && (
+
+      {/* Sheet: in-flow dropdown spanning the wrapper. */}
+      {sheet && showDropdown && (
         <div
           style={{
             position: "absolute",
             top: "calc(100% + 4px)",
+            left: 0,
+            right: 0,
             zIndex: 60,
             background: "var(--panel)",
             border: "1px solid var(--border)",
@@ -126,73 +226,36 @@ export function AssetSearch({
             boxShadow: "var(--shadow-lg)",
             maxHeight: 280,
             overflowY: "auto",
-            // Sheet spans the wrapper; inline anchors to one edge of the input
-            // and grows the other way so it never runs off-screen.
-            ...(sheet
-              ? { left: 0, right: 0 }
-              : align === "left"
-                ? { left: 0, width: 300, maxWidth: "90vw" }
-                : { right: 0, width: 300, maxWidth: "90vw" }),
           }}
         >
-          {loading && results.length === 0 ? (
-            <div style={{ padding: "8px 10px", color: "var(--text-2)", fontSize: 12 }}>
-              Searching…
-            </div>
-          ) : (
-            results.map((a) => (
-              <button
-                key={a.symbol}
-                type="button"
-                onClick={() => choose(a.symbol)}
-                className="cursor-pointer"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  width: "100%",
-                  textAlign: "left",
-                  background: "transparent",
-                  border: "none",
-                  borderBottom: "1px solid var(--border)",
-                  padding: "8px 10px",
-                  color: "var(--text)",
-                }}
-              >
-                <span
-                  className="font-mono"
-                  style={{ fontSize: 12.5, fontWeight: 600, minWidth: 70 }}
-                >
-                  {a.symbol}
-                </span>
-                <span
-                  style={{
-                    fontSize: 12,
-                    color: "var(--text-2)",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    flex: 1,
-                  }}
-                >
-                  {a.name}
-                </span>
-                {a.sector && (
-                  <span
-                    style={{
-                      fontSize: 10.5,
-                      color: "var(--text-2)",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {a.sector}
-                  </span>
-                )}
-              </button>
-            ))
-          )}
+          {items}
         </div>
       )}
+
+      {/* Inline: portaled, fixed-position dropdown that escapes panel clipping. */}
+      {!sheet &&
+        showDropdown &&
+        createPortal(
+          <div
+            ref={dropRef}
+            style={{
+              position: "fixed",
+              top: pos.top,
+              left: pos.left,
+              width: pos.width,
+              zIndex: 1000,
+              background: "var(--panel)",
+              border: "1px solid var(--border)",
+              borderRadius: 8,
+              boxShadow: "var(--shadow-lg)",
+              maxHeight: 280,
+              overflowY: "auto",
+            }}
+          >
+            {items}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
