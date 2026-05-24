@@ -8,11 +8,26 @@ import {
 
 import { useAsset, useBars } from "../data/hooks";
 import { useLiveQuotes } from "../data/useLiveQuotes";
+import { useTheme } from "../hooks/useTheme";
 import ErrorBanner from "./ErrorBanner";
 import Pill from "./Pill";
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD" });
+
+// Pull chart chrome colours from the active Calm theme tokens so the
+// canvas tracks light/dark (and any future token tweaks). Candle up/down
+// colours stay the conventional teal/red — they read on both themes.
+function readChartColors() {
+  const cs = getComputedStyle(document.documentElement);
+  const v = (name: string, fallback: string) =>
+    cs.getPropertyValue(name).trim() || fallback;
+  return {
+    background: v("--panel", "#ffffff"),
+    text: v("--mute", "#828680"),
+    grid: v("--border", "#dcd9d4"),
+  };
+}
 
 const TIMEFRAMES = [
   { value: "1Min", label: "1m" },
@@ -35,6 +50,7 @@ export default function PriceChart({ symbol }: { symbol: string }) {
   const { data: dailyBars } = useBars(symbol, "1Day");
   const { data: asset } = useAsset(symbol);
   const { quotes } = useLiveQuotes(symbol ? [symbol] : []);
+  const { theme } = useTheme();
 
   // Last price prefers the live quote; falls back to the most recent bar
   // close if the stream/polling hasn't resolved yet.
@@ -57,11 +73,12 @@ export default function PriceChart({ symbol }: { symbol: string }) {
   // and creates the chart exactly once.
   useEffect(() => {
     if (!symbol || !containerRef.current || chartRef.current) return;
+    const c = readChartColors();
     const chart = createChart(containerRef.current, {
-      layout: { background: { color: "#161b22" }, textColor: "#8b949e" },
+      layout: { background: { color: c.background }, textColor: c.text },
       grid: {
-        vertLines: { color: "#21262d" },
-        horzLines: { color: "#21262d" },
+        vertLines: { color: c.grid },
+        horzLines: { color: c.grid },
       },
       autoSize: true,
       timeScale: { timeVisible: true },
@@ -87,6 +104,20 @@ export default function PriceChart({ symbol }: { symbol: string }) {
       seriesRef.current = null;
     };
   }, []);
+
+  // Re-skin the existing chart on theme toggle — it's created once and
+  // reused across symbol changes, so colours must be applied in place.
+  useEffect(() => {
+    if (!chartRef.current) return;
+    const c = readChartColors();
+    chartRef.current.applyOptions({
+      layout: { background: { color: c.background }, textColor: c.text },
+      grid: {
+        vertLines: { color: c.grid },
+        horzLines: { color: c.grid },
+      },
+    });
+  }, [theme]);
 
   useEffect(() => {
     if (!data || !seriesRef.current) return;
