@@ -118,8 +118,11 @@ separate silos behind a shared account.
     widget to that one instrument (Positions/Orders/Activities take a `symbol`
     filter prop, news uses instrument-specific `useNews`); **None** shows
     whole-account info (the trade widget shows an account summary). "Main"
-    proxies the app's selected symbol. Live quotes and bars are deduped across
-    all widgets through shared ref-counted streams (`data/quoteStream.ts`,
+    proxies the app's selected symbol. Each widget's header symbol is a
+    click-to-search picker (`AssetSearch`) that sets its channel's symbol, so any
+    widget — not just the TV chart — can switch the linked instrument. Live
+    quotes and bars are deduped across all widgets through shared ref-counted
+    streams (`data/quoteStream.ts`,
     `data/barStream.ts`); `useLiveQuotes` and `lib/tv-datafeed.ts` ride them.
 - **Mobile / responsive (≤ 640px).** A single `useMobile()` hook
   (`hooks/useMobile.ts`, `matchMedia("(max-width: 640px)")`) gates the
