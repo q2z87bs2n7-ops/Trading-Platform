@@ -54,7 +54,8 @@ export default defineConfig({
           // Live market data must never be served from cache.
           // NetworkOnly passes straight through — no timeout race, no stale quotes.
           {
-            urlPattern: ({ url }: { url: URL }) => url.pathname.startsWith("/api/"),
+            urlPattern: ({ url, sameOrigin }: { url: URL; sameOrigin: boolean }) =>
+              sameOrigin && url.pathname.startsWith("/api/"),
             handler: "NetworkOnly",
           },
           {

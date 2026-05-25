@@ -22,6 +22,13 @@ area.
   relay). Load-bearing — keep it. `EventSource` auto-reconnect is
   deliberately disabled so failure → polling, not a silent reconnect
   loop.
+- **Service worker must not intercept the cross-origin Render SSE stream.**
+  The Workbox `NetworkOnly` route in `vite.config.ts` uses a `sameOrigin`
+  guard so it only applies to same-origin `/api/*` calls (Vercel REST). Without
+  it, the SW intercepts `trading-relay-ywqp.onrender.com/api/stream`, tries to
+  proxy a streaming SSE response through `event.respondWith`, and Chrome drops
+  the connection after ~12 s. Symptom: `ERR_CONNECTION_CLOSED 200 OK` with
+  `(ServiceWorker)` in the Network tab initiator column.
 - **`POLL_MS` is intentionally 15 000 ms (not 2 s).** At 2 s the fallback
   generates ~43 k Vercel edge requests/day and burns the free-tier 1 M
   allowance in ~3 weeks. 15 s is still responsive for a degraded path.
