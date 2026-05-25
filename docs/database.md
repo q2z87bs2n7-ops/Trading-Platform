@@ -51,7 +51,7 @@ fundamentals backfill resumes independently of the profile enrichment.
 | `backend/app/alpaca/trading.py` | `get_all_assets_for_seed()` → full us_equity + crypto list; `_full_asset_dict` captures base fields. `_enum_value` extracts the wire value from Alpaca SDK enums (see landmines). |
 | `backend/app/coingecko.py` | Crypto enrichment. Static **base-ticker → coingecko-id** map (BTC/USD, BTC/USDT … → `bitcoin`), Demo-key header when `COINGECKO_API_KEY` set, 429 backoff. |
 | `backend/app/fmp.py` | Stock enrichment via FMP's **stable** `/profile` (single-symbol). Maps ~20 columns; translates dot-class symbols to dash for the query (`BRK.B`→`BRK-B`). Also `map_fundamentals` off `income-statement`+`cash-flow-statement`+`ratios` (annual): derives margins/growth from the statements, pulls valuation/quality ratios with alias fallbacks (stable field names vary). |
-| `backend/app/seed.py` | Onboarding: `run_seed(force, base)` — Alpaca base upsert + CoinGecko crypto enrich. Per-widget **refresh routines** (background daemon via `_start_background`): `refresh_profile_stocks`, `refresh_profile_crypto`, `refresh_fundamentals` (each `include_missing` to also onboard), plus aggregate `refresh_all_stocks` (profile+fundamentals) and `refresh_all_crypto`. `enrich_stocks`/`enrich_fundamentals` remain as the per-symbol executors the refreshers loop over. |
+| `backend/app/seed.py` | Onboarding: `run_seed(force, base)` — Alpaca base upsert + CoinGecko crypto enrich. Per-widget **refresh routines** (background daemon via `_start_background`): `refresh_profile_stocks`, `refresh_profile_crypto`, `refresh_fundamentals` (each `include_missing` to also onboard), plus aggregate `refresh_all_stocks` (profile+fundamentals) and `refresh_all_crypto`. `refresh_alpaca` re-pulls Alpaca base/trading status; `check_new_symbols` diffs Alpaca's live list against `db.all_symbols()` (read-only new-listing check). `enrich_stocks`/`enrich_fundamentals` remain as the per-symbol executors the refreshers loop over. |
 | `backend/app/main.py` | Endpoints: `/api/assets` (search), `/api/assets/{symbol}` (both DB-backed w/ Alpaca fallback), and the dev seeders below. |
 | `backend/app/ai/tools_read.py`, `ai/router.py` | The AI catalogue tools (`get_asset_profile`, `screen_assets`) — schemas + server-side execution. |
 
@@ -66,14 +66,30 @@ per-widget **refresh routines** (re-pull the DB values an already-enriched card
 shows). On the paid FMP **Starter** tier (single-symbol, 300/min, no daily cap),
 real throughput is ~100/min — a full stock pass is ~1.5–2.5 hr.
 
-### Onboarding — `seed-assets` (add new instruments)
+### Onboarding & Alpaca status
 
 ```bash
 # Base identity for the whole Alpaca universe (~14 min) + CoinGecko crypto enrich.
 curl -X POST "https://<render-url>/api/_dev/seed-assets"
 # Crypto enrich only — skip the slow base upsert (~45s). &force=true re-does all.
 curl -X POST "https://<render-url>/api/_dev/seed-assets?base=false"
+
+# Refresh Alpaca BASE IDENTITY + TRADING STATUS for every row (tradable,
+# active/inactive on delisting, marginable/shortable/fractionable, has_options,
+# crypto increments) and onboard new listings. Background (the base upsert is
+# ~14 min), so it returns immediately. This is the only routine that updates the
+# Alpaca-sourced fields — the FMP/CoinGecko refreshers don't touch them.
+curl -X POST "https://<render-url>/api/_dev/refresh-alpaca"
+
+# Fast READ-ONLY check for new listings / IPOs: Alpaca symbols not yet in the DB.
+# Seconds (no upsert). GET. Onboard what it finds with refresh-alpaca, then
+# refresh-all-stocks?include_missing=true / refresh-all-crypto to enrich them.
+curl "https://<render-url>/api/_dev/new-symbols"
 ```
+
+Delistings need no destructive prune: `refresh-alpaca` flips the row's `tradable`
+to false, and the search **visibility rule** (`tradable = true`) then drops it
+from discovery automatically.
 
 ### Refresh routines — one per widget/card (fire-and-forget)
 

@@ -608,6 +608,15 @@ def screen_assets(*, asset_class="us_equity", sector=None, industry=None,
     return out
 
 
+def all_symbols() -> set[str]:
+    """Every symbol currently in the catalogue (all classes) — used to diff
+    against Alpaca's live list when checking for new listings."""
+    with _connect() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT symbol FROM assets")
+        return {row[0] for row in cur.fetchall()}
+
+
 def _symbols(
     asset_class: str, enriched: bool | None, tradable_only: bool = False
 ) -> set[str]:

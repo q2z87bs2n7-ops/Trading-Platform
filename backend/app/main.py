@@ -487,6 +487,25 @@ def refresh_all_stocks(include_missing: bool = Query(False)) -> dict:
     return _r(include_missing=include_missing)
 
 
+@app.post("/api/_dev/refresh-alpaca", dependencies=[Depends(require_configured)])
+def refresh_alpaca() -> dict:
+    """Background refresh of Alpaca base identity + trading status for the whole
+    catalogue (tradability, active/inactive, options, crypto increments) — also
+    onboards new listings. Render-only:
+    curl -X POST 'https://<render-url>/api/_dev/refresh-alpaca'"""
+    from .seed import refresh_alpaca as _r
+    return _r()
+
+
+@app.get("/api/_dev/new-symbols", dependencies=[Depends(require_configured)])
+def new_symbols() -> dict:
+    """Fast read-only check for new listings / IPOs: Alpaca symbols not yet in the
+    catalogue. No writes. Render-only:
+    curl 'https://<render-url>/api/_dev/new-symbols'"""
+    from .seed import check_new_symbols as _c
+    return _c()
+
+
 @app.post("/api/_dev/refresh-all-crypto", dependencies=[Depends(require_configured)])
 def refresh_all_crypto() -> dict:
     """Refresh ALL crypto enrichment (CoinGecko) in one background flow.

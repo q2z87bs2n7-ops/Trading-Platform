@@ -248,6 +248,38 @@ def refresh_all_stocks(include_missing: bool = False) -> dict:
     )
 
 
+def refresh_alpaca() -> dict:
+    """Re-pull the full Alpaca universe and upsert **base identity + trading
+    status** for every row — tradable, status (active/inactive on delisting),
+    marginable, shortable, fractionable, attributes (e.g. has_options), name,
+    exchange, and crypto increments — onboarding any new listings on the way.
+    Background, because the row-by-row base upsert is ~14 min."""
+    if not db.db_enabled():
+        return {"error": "DATABASE_URL not configured"}
+
+    return _start_background(
+        "refresh-alpaca",
+        lambda: None,
+        lambda: run_seed(force=False, base=True),
+    )
+
+
+def check_new_symbols() -> dict:
+    """Fast, read-only: Alpaca's current active universe minus what's already in
+    the catalogue — i.e. new listings / IPOs not yet onboarded. No writes; the
+    expensive base upsert is skipped, so this is seconds, not minutes."""
+    if not db.db_enabled():
+        return {"error": "DATABASE_URL not configured"}
+    assets = get_all_assets_for_seed()
+    existing = db.all_symbols()
+    new = [a for a in assets if a["symbol"] not in existing]
+    return {
+        "new_count": len(new),
+        "us_equity": sorted(a["symbol"] for a in new if a.get("asset_class") == "us_equity"),
+        "crypto": sorted(a["symbol"] for a in new if a.get("asset_class") == "crypto"),
+    }
+
+
 def refresh_all_crypto() -> dict:
     """Refresh ALL crypto enrichment (CoinGecko) in one background flow. Crypto's
     only enrichment source is the **Profile** card, so this matches
