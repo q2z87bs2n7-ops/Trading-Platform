@@ -21,7 +21,9 @@ desktop-only):
 - **Discover** (default)
   - *Stocks* — silo holdings + allocation donut (green), indices marquee
     ticker, watchlist sparkline cards, inline chart, tabbed gainers / losers +
-    most-active volume, market news feed.
+    most-active volume, an **earnings calendar** (upcoming reports, ranked by
+    market cap, with your holdings/watchlist always included) and an **economic
+    calendar** (US high/medium-impact macro releases), and a market news feed.
   - *Crypto* — live crypto price marquee, holdings + allocation hero (crypto
     positions only, blue), crypto watchlist sparkline cards, inline chart, BTC
     news. No movers/most-active (Alpaca has no crypto screener).
@@ -46,7 +48,8 @@ desktop-only):
   (Trader / Researcher / Watcher / Focus). Widgets — bare TradingView chart,
   lightweight mini chart, watchlist, inline trade ticket, account overview,
   positions, orders, activity, news, asset profile (catalogue
-  fundamentals/tokenomics) — each carry a colour **link channel**
+  fundamentals/tokenomics), and earnings (a symbol's report history, or the
+  whole-market calendar) — each carry a colour **link channel**
   that filters the widget to one instrument (or **None** for whole-account
   info), with a click-to-search symbol picker in each header and a coloured
   accent bar + channel dot on the tab so the canvas reads at a glance.
@@ -139,9 +142,14 @@ nothing in the app requires it yet, and DB-backed code degrades gracefully
 
 ```
 DATABASE_URL=postgresql://...@...pooler.supabase.com:5432/postgres
-FMP_API_KEY=...          # stock enrichment (free tier: single-symbol, 250/day)
+FMP_API_KEY=...          # stock enrichment + the earnings/economic calendars
 COINGECKO_API_KEY=...    # optional Demo key; unset = keyless (rate-limited)
 ```
+
+`FMP_API_KEY` also powers the Discover **earnings** and **economic** calendars
+(and the Workspace earnings widget). Those are live-proxied and cached in-process
+— they don't touch the DB, so they work with just the key and no `DATABASE_URL`;
+the DB only sharpens the earnings list by ranking it by market cap.
 
 Populate it with the Render-only dev seeders: `POST /api/_dev/seed-assets`
 (Alpaca base + CoinGecko crypto) and `POST /api/_dev/enrich-stocks` (FMP

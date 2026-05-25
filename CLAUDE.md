@@ -70,7 +70,9 @@ separate silos behind a shared account.
       only; `BalanceCard` headline is silo holdings, with silo day P/L and
       stock buying power — no shared cash), indices marquee ticker,
       watchlist sparkline cards, inline chart, gainers/losers tabbed card
-      (with most-active volume), market news.
+      (with most-active volume), **earnings calendar**
+      (`discover/EarningsCard.tsx`), **economic calendar**
+      (`discover/EconomicCard.tsx`, US high/medium-impact), market news.
     - *Crypto*: crypto price marquee ticker (`discover/CryptoTicker.tsx`),
       holdings + allocation hero (crypto positions only;
       `non_marginable_buying_power`), crypto watchlist sparkline cards,
@@ -141,7 +143,13 @@ separate silos behind a shared account.
     market cap, beta, CEO, employees, HQ, IPO, description) and tokenomics for
     crypto (circulating/max supply bar, market-cap rank, ATH/ATL with live
     distance, categories, whitepaper/GitHub links); always symbol-linked like
-    Trade — default Main, no None).
+    Trade — default Main, no None), and an **Earnings** widget
+    (`discover/EarningsCard.tsx`, reused from Discover via its `bare`/`dense`
+    props — like `NewsCard`/`NewsWidget`): on a colour channel it shows that
+    symbol's report history (`/api/calendar/earnings/{symbol}`); on **None** it
+    shows the curated whole-market upcoming calendar (`/api/calendar/earnings`),
+    mirroring NewsWidget's market mode. No economic widget — the economic
+    calendar has no per-symbol form and stays Discover-only.
     Each widget carries a **link channel** (None + Main/blue/green/amber,
     persisted in the panel's Dockview params): a symbol channel filters the
     widget to that one instrument (Positions/Orders/Activities take a `symbol`
@@ -169,7 +177,8 @@ separate silos behind a shared account.
     via `hooks/useContainerNarrow` + an additive
     `dense` prop (panel-width, since `useMobile` is viewport-only and never
     trips in this desktop-only mode; the flip width is tuned per widget by
-    column count — Orders 560, Positions 480, Activities 360, Profile 340); the header
+    column count — Orders 560, Positions 480, Activities 360, Profile 340,
+    Earnings 420 (drops the revenue column)); the header
     `AssetSearch` portals its
     dropdown to `<body>` so it isn't clipped by the panel. Data widgets render
     **bare** (the `bare` prop on `Orders`/`Activities`/`NewsCard` + the
@@ -225,12 +234,20 @@ separate silos behind a shared account.
 - **Backend:** FastAPI + `alpaca-py`. Real code in `backend/app/`;
   `api/index.py` is the Vercel shim. Endpoints under `/api/`: health,
   config, account, bars, quotes, snapshots, stream, orders, positions,
-  portfolio/history, pnl-history, activities, clock, calendar, assets,
+  portfolio/history, pnl-history, activities, clock, calendar,
+  calendar/earnings, calendar/earnings/{symbol}, calendar/economic, assets,
   asset-profile, news, watchlist, movers, most-active, indices,
   market-news, crypto/tickers, ai/chat, ai/ask (last two gated by
   `AI_CHAT_ENABLED`; require `ANTHROPIC_API_KEY`). `/api/indices` and
   `/api/market-news` hit Yahoo Finance directly via `requests` (no yfinance,
-  no C extensions — Python 3.14 safe). `/api/news` and `/api/most-active` are
+  no C extensions — Python 3.14 safe). `/api/calendar/{earnings,economic}`
+  are **FMP-backed**, live-proxied with an in-process cache (`calendar_fmp.py`,
+  the indices/market-news pattern — never persisted, no scheduler); they need
+  no Alpaca keys and return `[]` when `FMP_API_KEY` is unset. The earnings
+  calendar curates the noisy whole-market feed by **market cap**
+  (`db.market_cap_map()`) but always unions the user's positions / open orders /
+  watchlist symbols (passed as `?include=`); when the DB is unreachable it
+  degrades to those `include` symbols only. FMP economic times are **UTC**. `/api/news` and `/api/most-active` are
   served but only consumed by the AI tool loop — don't delete them. `/api/assets`
   (search) and `/api/assets/{symbol}` are **DB-backed** off the catalogue (clean
   enum values, sector/logo/market_cap; Alpaca fallback) and power the watchlist
@@ -463,10 +480,16 @@ instant); **violet = real Claude API call** (Anthropic credits, slow).
   names"); the request carries a `viewport` hint and the app auto-switches into
   Workspace mode (desktop-only). A widget given both a `symbol` and a `channel`
   points that channel at the symbol, so every panel on the channel (chart +
-  profile + data) follows — that's how the bot pins distinct instruments (≤4
-  channels); channel-linked panels can't take a per-panel symbol otherwise. The same directive shapes back a deterministic
+  profile + earnings + data) follows — that's how the bot pins distinct instruments (≤4
+  channels); channel-linked panels can't take a per-panel symbol otherwise. The
+  placeable-widget enum (`WORKSPACE_WIDGET_KINDS`) is the single source of truth
+  for what the bot can add/build; mirror any new widget into `WidgetId` /
+  `WIDGET_IDS` (`lib/workspace/actions.ts`) and the local
+  `WORKSPACE_WIDGETS` map + add-regex (`lib/ask-intent/detectors.ts`) so local
+  commands resolve without an AI round-trip (the **Earnings** widget follows this
+  pattern). The same directive shapes back a deterministic
   local `workspace` intent in `lib/ask-intent.ts` (e.g. "watch AAPL NVDA TSLA",
-  "trader layout", "set blue to NVDA") — no AI round-trip. These live in
+  "trader layout", "set blue to NVDA", "add earnings for AAPL") — no AI round-trip. These live in
   `ask_tools()`,
   not `TOOLS`. **Tool schemas are split across `ai/tools_read.py` (backend),
   `ai/tools_draw.py` (frontend), `ai/tools_action.py` (Ask-anything

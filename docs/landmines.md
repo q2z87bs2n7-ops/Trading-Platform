@@ -141,6 +141,37 @@ tools). Each item cost a round of debugging:
   symbol X in search?" → it isn't enriched yet. Direct resolution (`get_asset`)
   and positions/watchlist are *not* filtered, so existing holdings still render.
 
+## Earnings / economic calendars (FMP)
+
+`backend/app/calendar_fmp.py` serves `/api/calendar/{earnings,economic}` (+
+`/api/calendar/earnings/{symbol}`) off Financial Modeling Prep. Things that took
+a beat to get right — don't undo them:
+
+- **Not DB data.** Calendars are small, time-windowed and roll forward daily, so
+  they are **live-proxied + in-process cached** (the `indices.py` /
+  `market_news.py` pattern — TTL ~1h), never persisted. There is intentionally
+  **no scheduler / cron**; the cache self-refreshes on the next request. Don't
+  "promote" calendars into the `assets` table.
+- **The DB is only a market-cap lookup.** The raw whole-market earnings feed
+  leads with OTC/microcap junk, so the list is filtered to the catalogue's
+  visible US-equity universe and ranked by `db.market_cap_map()`. The user's
+  positions / open orders / watchlist symbols are **always unioned in** (passed
+  as `?include=`, gathered client-side in `useEarningsCalendar`) regardless of
+  cap. When Postgres is unreachable (sandbox/laptop — :5432 is firewalled) the
+  cap map is empty and the list **degrades to `include`-only** — clean, but it
+  shows only your own names until prod fills the caps. That's expected, not a bug.
+- **Stocks-only on Discover.** Earnings has no crypto equivalent and the economic
+  card lives in the equities silo; both Discover cards are gated `{!isCrypto}`.
+- **FMP economic times are UTC** ("YYYY-MM-DD HH:MM:SS", no zone). `EconomicCard`
+  appends `Z` before parsing so they render in the user's local time — don't drop
+  that or every release shows in the wrong hour.
+- **No new dependency / no DB write.** `requests` is transitive via `alpaca-py`;
+  calendars are read-only. Endpoints need no Alpaca keys and return `[]` when
+  `FMP_API_KEY` is unset (graceful, like the other proxy endpoints).
+- **Calendar coverage is on the paid FMP Starter plan** the catalogue already
+  uses — both endpoints 200 on it (the public docs ambiguously imply Premium;
+  the live key proves otherwise).
+
 ## Symbols with slashes (crypto path params)
 
 Alpaca crypto symbols contain a slash (`BTC/USD`). This breaks standard

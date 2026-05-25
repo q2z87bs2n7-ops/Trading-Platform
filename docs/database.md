@@ -102,6 +102,13 @@ one clause.
   enrichment columns, NULLs dropped). Direct resolution, not visibility-filtered.
   Backs `/api/asset-profile/{symbol}` (Workspace **Profile** widget) and the AI
   tool of the same name (both surfaces).
+- **`market_cap_map()`** — `{symbol: market_cap}` for the visible US-equity
+  universe (`tradable` + enriched + has a cap). Used only by `calendar_fmp` to
+  curate/rank the earnings calendar (see `docs/landmines.md` → "Earnings /
+  economic calendars"); raises `DbUnavailable` like the other readers, which the
+  caller swallows into an empty map (the calendar then falls back to the user's
+  own symbols). The catalogue is read here as a cap lookup — calendar rows are
+  never stored.
 - **`screen_assets(...)`** — structured, parameterised, visibility-filtered
   filter returning a count + top-N envelope
   (`{total_matches, returned, has_more, sorted_by, filters_applied, results}`).

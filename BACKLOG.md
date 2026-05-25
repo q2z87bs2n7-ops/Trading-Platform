@@ -18,6 +18,14 @@ here; use `git log` for that.
 - **"Similar to X"** — a cheap structured-peers SQL tool (sector/industry +
   market-cap/beta proximity), or full pgvector RAG over stored descriptions;
   prefer the structured version first.
+- **Calendar follow-ups** — the FMP earnings/economic calendars
+  (`calendar_fmp.py`) shipped Discover-only-ish (stocks Discover cards + a
+  symbol-linked Workspace earnings widget). Deferred by choice: an **economic
+  Workspace widget** (whole-market, locked-channel — skipped for now), a
+  **crypto-silo economic card** (macro affects crypto too), **AI read tools** so
+  the bot can *answer* earnings/economic questions in text (today it can only
+  *place* the earnings widget), and **user-configurable windows / impact / region**
+  (currently fixed: earnings +14d, economic +7d US high+medium).
 - **Per-silo P/L curve granularity** — `/api/pnl-history` (`alpaca/pnl.py`)
   rebuilds the curve from FILL activities (FIFO) at *daily* closes with a cost
   anchor + live tip. Intraday shape between trades isn't captured, FIFO is
