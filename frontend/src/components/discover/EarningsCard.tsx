@@ -1,5 +1,10 @@
+import { useState } from "react";
+
 import { compact, money } from "../../lib/format";
 import type { EarningsRow } from "../../types";
+import { CardPager } from "./CardPager";
+
+const PAGE_SIZE = 10;
 
 // "2026-05-30" -> "May 30" (string split avoids UTC-vs-local date drift).
 function fmtDay(d: string): string {
@@ -91,23 +96,40 @@ export function EarningsCard({
   bare?: boolean;
   dense?: boolean;
 }) {
+  const [page, setPage] = useState(0);
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const start = safePage * PAGE_SIZE;
+  const visible = rows.slice(start, start + PAGE_SIZE);
+
   const body =
     rows.length === 0 ? (
       <p className="text-[13px]" style={{ color: "var(--mute)" }}>
         No upcoming earnings.
       </p>
     ) : (
-      <div>
-        {rows.map((r, i) => (
-          <EarningsRowItem
-            key={`${r.symbol}-${r.date}`}
-            r={r}
-            rank={i}
-            dense={dense}
-            onSelect={onSelect}
+      <>
+        <div>
+          {visible.map((r, i) => (
+            <EarningsRowItem
+              key={`${r.symbol}-${r.date}`}
+              r={r}
+              rank={i}
+              dense={dense}
+              onSelect={onSelect}
+            />
+          ))}
+        </div>
+        {rows.length > PAGE_SIZE && (
+          <CardPager
+            label={`${start + 1}–${start + visible.length} of ${rows.length}`}
+            canPrev={safePage > 0}
+            canNext={safePage < pageCount - 1}
+            onPrev={() => setPage(safePage - 1)}
+            onNext={() => setPage(safePage + 1)}
           />
-        ))}
-      </div>
+        )}
+      </>
     );
 
   if (bare) return body;

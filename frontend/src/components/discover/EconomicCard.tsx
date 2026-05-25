@@ -1,5 +1,8 @@
+import { useMemo, useState } from "react";
+
 import { compact } from "../../lib/format";
 import type { EconomicRow } from "../../types";
+import { CardPager } from "./CardPager";
 
 // FMP economic times are UTC ("YYYY-MM-DD HH:MM:SS"); render in local time.
 function fmtWhen(d: string): { day: string; time: string } {
@@ -9,6 +12,37 @@ function fmtWhen(d: string): { day: string; time: string } {
     day: dt.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
     time: dt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
   };
+}
+
+// Local calendar-date key (YYYY-MM-DD) for a UTC timestamp, so day-grouping
+// lines up with the local times the rows actually render in.
+function localKey(d: string): string {
+  const dt = new Date(d.replace(" ", "T") + "Z");
+  if (Number.isNaN(dt.getTime())) return d.slice(0, 10);
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  const day = String(dt.getDate()).padStart(2, "0");
+  return `${dt.getFullYear()}-${m}-${day}`;
+}
+
+function keyOf(dt: Date): string {
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  const day = String(dt.getDate()).padStart(2, "0");
+  return `${dt.getFullYear()}-${m}-${day}`;
+}
+
+function dayLabel(key: string): string {
+  const [y, m, d] = key.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  if (key === keyOf(today)) return "Today";
+  if (key === keyOf(tomorrow)) return "Tomorrow";
+  return dt.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function fmtVal(n: number | null, unit: string | null): string {
@@ -69,17 +103,50 @@ export function EconomicCard({
   rows: EconomicRow[];
   bare?: boolean;
 }) {
+  // Group by local day (rows arrive sorted ascending, so insertion order is
+  // chronological). Paginate one day per page, defaulting to today.
+  const groups = useMemo(() => {
+    const map = new Map<string, EconomicRow[]>();
+    for (const r of rows) {
+      const k = localKey(r.date);
+      const bucket = map.get(k);
+      if (bucket) bucket.push(r);
+      else map.set(k, [r]);
+    }
+    return [...map.entries()].map(([key, items]) => ({ key, items }));
+  }, [rows]);
+
+  const [activeKey, setActiveKey] = useState<string | null>(null);
+  const keys = groups.map((g) => g.key);
+  const todayKey = keyOf(new Date());
+  const defaultKey = keys.includes(todayKey) ? todayKey : keys[0];
+  const currentKey =
+    activeKey && keys.includes(activeKey) ? activeKey : defaultKey;
+  const idx = keys.indexOf(currentKey);
+  const group = idx >= 0 ? groups[idx] : null;
+
   const body =
-    rows.length === 0 ? (
+    !group ? (
       <p className="text-[13px]" style={{ color: "var(--mute)" }}>
         No major releases this week.
       </p>
     ) : (
-      <div>
-        {rows.map((r, i) => (
-          <EconomicRowItem key={`${r.date}-${r.event}-${i}`} r={r} rank={i} />
-        ))}
-      </div>
+      <>
+        <div>
+          {group.items.map((r, i) => (
+            <EconomicRowItem key={`${r.date}-${r.event}-${i}`} r={r} rank={i} />
+          ))}
+        </div>
+        <CardPager
+          label={`${dayLabel(currentKey)} · ${group.items.length} ${
+            group.items.length === 1 ? "event" : "events"
+          }`}
+          canPrev={idx > 0}
+          canNext={idx < groups.length - 1}
+          onPrev={() => setActiveKey(keys[idx - 1])}
+          onNext={() => setActiveKey(keys[idx + 1])}
+        />
+      </>
     );
 
   if (bare) return body;
