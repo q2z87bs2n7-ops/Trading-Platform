@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import * as api from "../api";
 import {
@@ -20,6 +20,7 @@ import {
   useSnapshots,
   useWatchlist,
 } from "../data/hooks";
+import { useLiveQuotes } from "../data/useLiveQuotes";
 import { useMarketSummary } from "../hooks/useMarketSummary";
 import { useMobile } from "../hooks/useMobile";
 import { isCryptoPosition } from "../lib/asset-class";
@@ -83,6 +84,22 @@ export default function DiscoverPage({
   // Price strip — only the active silo's source fetches.
   const indices = useIndices(!isCrypto);
   const tickers = useCryptoTickers(isCrypto);
+  // Crypto ticker price comes from the live stream (to match the chart); the
+  // REST ticker call only seeds prev_close for the % change. The overlaid mid
+  // refreshes the (duplicated) marquee items as ticks arrive.
+  const tickerSymbols = useMemo(
+    () => (tickers.data?.tickers ?? []).map((t) => t.symbol),
+    [tickers.data],
+  );
+  const { quotes: tickerLive } = useLiveQuotes(tickerSymbols);
+  const liveTickers = useMemo(
+    () =>
+      (tickers.data?.tickers ?? []).map((t) => ({
+        ...t,
+        last_price: tickerLive[t.symbol]?.mid ?? t.last_price,
+      })),
+    [tickers.data, tickerLive],
+  );
 
   // Movers / most-active are stocks-only (Alpaca has no crypto screener).
   const movers = useMovers(8, !isCrypto);
@@ -100,6 +117,9 @@ export default function DiscoverPage({
 
   const wlSymbols = watchlist.data?.symbols ?? [];
   const snaps = useSnapshots(wlSymbols);
+  // Live stream price for the watchlist cards (matches the chart); snapshot
+  // prev_close still drives the % change.
+  const { quotes: live } = useLiveQuotes(wlSymbols);
   const marketSummary = useMarketSummary(wlSymbols, assetClass);
 
   const [adding, setAdding] = useState(false);
@@ -172,9 +192,11 @@ export default function DiscoverPage({
     <div className="max-w-[1280px] mx-auto pt-2">
       {/* Price strip — equity indices marquee (Yahoo, non-clickable) for
          stocks, live crypto ticker for crypto. */}
-      {isCrypto
-        ? tickers.data && <CryptoTicker tickers={tickers.data.tickers} />
-        : indices.data && <IndicesTicker indices={indices.data.indices} />}
+      {isCrypto ? (
+        <CryptoTicker tickers={liveTickers} />
+      ) : (
+        indices.data && <IndicesTicker indices={indices.data.indices} />
+      )}
 
       {/* Hero row — combined single card on mobile, two-card grid on desktop */}
       {isMobile ? (
@@ -295,11 +317,9 @@ export default function DiscoverPage({
         <CardsRow>
           {wlSymbols.map((sym) => {
             const q = quotes[sym];
-            const last = q?.last_price ?? 0;
-            const dayChange =
-              q?.prev_close && q?.last_price
-                ? (q.last_price - q.prev_close) / q.prev_close
-                : 0;
+            const last = live[sym]?.mid ?? q?.last_price ?? 0;
+            const prev = q?.prev_close ?? 0;
+            const dayChange = prev ? (last - prev) / prev : 0;
             const pos = siloPositions.find((p) => p.symbol === sym);
             return (
               <SparkCard
