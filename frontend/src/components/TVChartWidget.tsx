@@ -2,8 +2,8 @@
  * TVChartWidget — the bare TradingView Charting Library widget for the
  * Workspace canvas: TV's own native header / toolbars / settings, our datafeed,
  * theme sync, and two-way symbol sync. Deliberately none of the TVPlatform
- * chrome (ChartTopBar / IndicatorPillsRow / ChartBlotter / TradeBar / broker),
- * and it does NOT register the global TV handle (that singleton belongs to
+ * chrome (TradeBar / broker), and it does NOT register the global TV
+ * handle (that singleton belongs to
  * Chart-mode's ChartBot) so multiple chart panels stay independent.
  */
 

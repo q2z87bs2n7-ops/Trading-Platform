@@ -1,8 +1,9 @@
 /**
- * TVPlatform — mounts the TradingView Charting Library terminal inside our
- * Calm chrome. TV provides the chart canvas + drawing toolbar + clickable
- * price lines; every piece of trading chrome (account context, blotter,
- * order entry) is ours and matches the other modes.
+ * TVPlatform — mounts the TradingView Charting Library terminal. TV's
+ * native header and Account Manager provide the chart chrome and the
+ * positions / orders / account blotter; trade entry stays on our
+ * TradeBar + OrderSheet so crypto constraints and the confirm flow are
+ * enforced.
  */
 
 import { useCallback, useEffect, useRef } from "react";
@@ -19,9 +20,6 @@ import {
   clearEntityIds,
   recreateDrawingsForChart,
 } from "../lib/tv-drawings";
-import ChartTopBar from "./chart/ChartTopBar";
-import IndicatorPillsRow from "./chart/IndicatorPillsRow";
-import ChartBlotter from "./chart/ChartBlotter";
 import TradeBar from "./trade/TradeBar";
 
 declare const TradingView: {
@@ -31,46 +29,31 @@ declare const TradingView: {
 interface Props {
   symbol: string;
   onSymbolChange?: (s: string) => void;
-  assetClass?: "stocks" | "crypto";
 }
 
-// Features we suppress so the platform reads as a single Calm-native
-// experience around TV's canvas:
-// - Header items: replaced by our ChartTopBar.
-// - TV trading UI (Account Manager, Order Panel, buy/sell legend
-//   buttons, broker-button, on-chart notifications): we render all
-//   trade entry through TradeBar + OrderSheet, and account / blotter
-//   info through our TopBar + ChartBlotter. The broker stays wired so
-//   TV's price-line overlays still draw — only TV's trade-initiation
-//   UI is removed.
-// - Right widgetbar (object tree / data window): starts collapsed; the
-//   toolbar button stays available for users who want it.
+// We lean on TV's native header (symbol search, resolutions, chart type,
+// indicators, settings, …) and native Account Manager (positions /
+// orders / account blotter). Only TV's trade-*initiation* UI stays
+// suppressed: trade entry runs through our TradeBar + OrderSheet so the
+// crypto constraints and confirm flow are enforced. The broker stays
+// wired, so price-line overlays draw and the Account Manager can close
+// positions.
 const DISABLED_FEATURES = [
-  // Header
-  "header_widget",
-  "header_resolutions",
-  "header_chart_type",
-  "header_indicators",
-  "header_compare",
-  "header_settings",
-  "header_screenshot",
-  "header_fullscreen_button",
-  "header_undo_redo",
-  "header_symbol_search",
   "use_localstorage_for_settings",
-  // TV-native trading UI
-  "trading_account_manager",
-  "open_account_manager",
+  // Save/Load chart button: no charts-storage backend is configured, so
+  // the native button would be a dead end — leave it suppressed.
+  "header_saveload",
+  // TV-native order-entry UI — superseded by TradeBar + OrderSheet.
   "order_panel",
   "show_order_panel_on_start",
-  "trading_notifications",
-  "show_trading_notifications_history",
   "buy_sell_buttons",
   "broker_button",
-  // Right widgetbar
+  "trading_notifications",
+  "show_trading_notifications_history",
+  // Right widgetbar (object tree / data window): starts collapsed; the
+  // toolbar button stays available for users who want it.
   "show_right_widgets_panel_by_default",
-  // No Volume study by default — user adds it via the Indicator
-  // popover if they want it.
+  // No Volume study by default — user adds it from the native header.
   "create_volume_indicator_by_default",
 ];
 
@@ -83,8 +66,7 @@ function normalizeSymbol(raw: string): string {
   return tail.toUpperCase();
 }
 
-export default function TVPlatform({ symbol, onSymbolChange, assetClass }: Props) {
-  const selectSym = (s: string) => onSymbolChange?.(s);
+export default function TVPlatform({ symbol, onSymbolChange }: Props) {
   const isMobile = useMobile();
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetRef = useRef<TVWidgetInstance | null>(null);
@@ -192,11 +174,10 @@ export default function TVPlatform({ symbol, onSymbolChange, assetClass }: Props
           sub.subscribe(null, () => {
             clearEntityIds();
             recreateDrawingsForChart();
-            // Propagate symbol changes initiated inside TV (the symbol
-            // search dialog, compare picker, watchlist clicks in TV's
-            // own UI, etc.) back up to App.tsx so the surrounding
-            // chrome — ChartTopBar header, TradeBar, ChartBot — all
-            // follow the active chart.
+            // Propagate symbol changes initiated inside TV (the native
+            // symbol search dialog, compare picker, watchlist clicks in
+            // TV's own UI, etc.) back up to App.tsx so the surrounding
+            // chrome — TradeBar, ChartBot — follows the active chart.
             try {
               const next = normalizeSymbol(widget.activeChart().symbol());
               if (next) onSymbolChangeRef.current?.(next);
@@ -253,26 +234,19 @@ export default function TVPlatform({ symbol, onSymbolChange, assetClass }: Props
 
   return (
     <div className="flex flex-col gap-2" style={{ width: "100%" }}>
-      <ChartTopBar
-        symbol={symbol || "AAPL"}
-        onSelectSymbol={selectSym}
-        assetClass={assetClass}
-      />
-      <IndicatorPillsRow />
       <div
         ref={containerRef}
         className="border border-border"
         style={{
           width: "100%",
           height: isMobile
-            ? "calc(100dvh - var(--mob-chrome-top) - var(--mob-chrome-top-2) - 140px)"
-            : "calc(100vh - 360px)",
+            ? "calc(100dvh - var(--mob-chrome-top) - var(--mob-chrome-top-2) - 96px)"
+            : "calc(100vh - 250px)",
           minHeight: isMobile ? 320 : 360,
           borderRadius: "var(--r-lg)",
           overflow: "hidden",
         }}
       />
-      <ChartBlotter onSymbolSelect={(s) => selectSym(s)} assetClass={assetClass} />
       <TradeBar symbol={symbol || "AAPL"} />
     </div>
   );
