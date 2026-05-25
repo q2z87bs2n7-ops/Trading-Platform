@@ -1,189 +1,110 @@
 # Backlog
 
-## Existing
+Outstanding work only — shipped / historic notes are intentionally not kept
+here; use `git log` for that.
 
-- **Postgres persistence layer** — free-tier Supabase. **Shipped:** the
-  `assets` catalogue (`db.py` + `coingecko.py` + `fmp.py`, seeded via the
-  `/api/_dev/seed-assets` and `/api/_dev/enrich-stocks` dev tools) — full
-  Alpaca universe with CoinGecko crypto + FMP stock enrichment, live in prod
-  (see `docs/database.md`). The DB-backed, visibility-filtered search now powers the
-  watchlist autocomplete, chart search, and the bot's `find_symbol`; stock
-  enrichment backfills via `enrich-stocks?limit=N`. Still backlogged on this
-  layer: trade journal, server-side watchlists, finer analytics/P&L history.
-  **Shipped since:** `get_asset_profile` + `screen_assets` (structured catalogue
-  filter with `sort_by` + industry did-you-mean) in the Ask-anything/ChartBot
-  read-tool set (`ai/tools_read.py`, executed in `ai/router.py`). See
-  `docs/database.md`. Follow-ups (all **parked by decision, May 2026**):
-  - **Refresh policy** — backfill exists, but there's no automated re-enrich /
-    new-listing refresh (no TTL; `enriched_at` is visibility-only). Now feasible
-    on the paid FMP Starter tier (~1.5–2.5 h full re-enrich, under 300/min);
-    parked by choice — slow-moving fields, low-stakes staleness.
-  - **Catalogue/screener UI + company card** — Discover/Chart surface over the
-    enriched universe; backend (`get_asset_profile`/`screen_assets`) is done, this
-    is the remaining frontend piece.
-  - **"Similar to X"** — a cheap structured-peers SQL tool (sector/industry +
-    market-cap/beta proximity) or full pgvector RAG over stored descriptions;
-    prefer the structured version first.
-  - **Catalogue-grounded market summary** — parked: the catalogue is static (no
-    price/time-series), so it adds little to the movers+news summary.
+## Data / persistence
+
+- **Postgres-backed app data** — trade journal, server-side watchlists, and
+  finer analytics / P&L history still live in direct-Alpaca + `localStorage`;
+  move them onto the Supabase layer.
+- **Catalogue refresh policy** — no automated re-enrich / new-listing refresh
+  (no TTL; `enriched_at` is visibility-only). Feasible on the paid FMP Starter
+  tier (~1.5–2.5 h full re-enrich, under 300/min). Parked by choice — slow-moving
+  fields, low-stakes staleness.
+- **Catalogue / screener UI + company card** — a Discover/Chart surface over the
+  enriched universe; the backend (`get_asset_profile` / `screen_assets`) exists,
+  this is the frontend piece.
+- **"Similar to X"** — a cheap structured-peers SQL tool (sector/industry +
+  market-cap/beta proximity), or full pgvector RAG over stored descriptions;
+  prefer the structured version first.
 - **Per-silo P/L curve granularity** — `/api/pnl-history` (`alpaca/pnl.py`)
-  reconstructs the curve from FILL activities (FIFO) valued at *daily*
-  closes, with a cost anchor + live tip. Intraday shape between trades is
-  not captured, FIFO is assumed, and fees are folded into the fill price.
-  A finer, snapshotted curve (and realized/fee separation) would ride on
-  the Postgres layer above.
-- **Complex order classes (bracket / OCO / OTO) in the order ticket** — the
-  backend is fully plumbed end-to-end: `SubmitOrderRequest` carries
-  `order_class` + the take-profit / stop-loss legs (`backend/app/schemas.py`),
-  `_build_order_request` maps them onto the alpaca-py request
-  (`backend/app/alpaca/trading.py`), and `SubmitOrderInput`
-  (`frontend/src/types.ts`) mirrors the contract. The only missing piece is the
-  **order-entry UI** — `useOrderTicket` has no `order_class` state and
-  `OrderSheet` never sets it, so every submitted order is `simple` (the
-  blotter only *reads back* a class for display in `Orders.tsx`). Equities
-  support bracket/oco/oto; **crypto does not** (simple only), so gate the new
-  UI on `!isCrypto`. Overlaps the chart-mode bracket item under "Chart mode"
-  below — same `useOrderTicket` + `OrderSheet` extension would serve both.
-- **Write-auth gate (Charter Hard Rule #3)** — `require_write_auth` in
-  `backend/app/main.py` is an intentional no-op seam; flip it to a
-  shared-token check before any non-paper / non-private exposure.
-  Deferred by decision (paper account).
-- **Calendar exceptions chip in TopBar** — the "Cal · N exceptions"
-  click-popover (holidays + half-days in the next 21 days) was removed
-  from `TopBar.tsx` because the Portfolio strip felt over-busy. The
-  `useCalendar` hook and `/api/calendar` endpoint are still wired up
-  and tested; restoring is a copy-paste of the prior block. Likely
-  better as a dedicated surface (a calendar widget in Discover or a
-  Markets-section item) than back in the status strip.
+  rebuilds the curve from FILL activities (FIFO) at *daily* closes with a cost
+  anchor + live tip. Intraday shape between trades isn't captured, FIFO is
+  assumed, and fees fold into the fill price. A finer, snapshotted curve (and
+  realized/fee separation) would ride on the Postgres layer.
+
+## Orders
+
+- **Complex order classes (bracket / OCO / OTO) — order-entry UI.** Backend is
+  fully plumbed (`SubmitOrderRequest.order_class` + TP/SL legs in `schemas.py` /
+  `alpaca/trading.py`; `SubmitOrderInput` mirrors it), but `useOrderTicket` has
+  no `order_class` state and `OrderSheet` never sets it, so every order submits
+  `simple`. Equities support bracket/oco/oto; **crypto does not** — gate the UI
+  on `!isCrypto`. The same `useOrderTicket` + `OrderSheet` extension serves the
+  chart-mode bracket item below.
+- **Bracket / OCO from the TV order dialog** — `tv-broker.ts` `placeOrder()`
+  maps to simple market/limit/stop only; wire `order_class=bracket` with
+  `take_profit` / `stop_loss` legs.
+- **Replace / modify order from a TV price-line drag** — `ModifyOrderCard` ships
+  for the blotter (`PATCH /api/orders/{id}`), but TV's `modifyOrder(orderId,
+  data)` (fired when dragging an open-order line) isn't wired in `tv-broker.ts`.
 
 ## Ask anything
 
-- **Modify / cancel-order intents.** `lib/ask-intent.ts` returns
-  `fallback` for "move my AAPL limit to 195" and "cancel order abc123".
-  Cards exist in the design (`Modify card w/ old/new prices`,
-  `Confirm + undo`); the blocker is fuzzy order matching from a phrase
-  ("my AAPL limit" → which open AAPL order). Needs a small disambiguator
-  pass when the user has multiple working orders for the same symbol.
-- **"Open Chart mode and continue in ChartBot →" fallback.** When the
-  Ask anything bot receives a chart-ish prompt out of its lane (e.g. "draw a trendline"
-  from Discover), the fallback card should suggest opening Chart mode
-  and pre-seeding the ChartBot panel with the user's phrase. Wires the
-  two AI surfaces into a coherent flow.
-
-## Chart mode
-
-- **Bracket / OCO orders** — TV's order dialog supports bracket orders
-  natively; `tv-broker.ts` `placeOrder()` currently maps to simple
-  market/limit/stop only. Wire `bracket` order type to Alpaca's
-  `order_class=bracket` with `take_profit` / `stop_loss` legs. Same
-  hook would extend `useOrderTicket` and surface bracket fields in
-  `OrderSheet`.
-- **Replace / modify order from TV price-line drag** — `ModifyOrderCard`
-  ships for the Orders blotter (wired via `PATCH /api/orders/{id}`),
-  but TV's `modifyOrder(orderId, data)` (called when a user drags an
-  open-order price line on the chart) is not wired in `tv-broker.ts`
-  yet. Hook it to the same endpoint.
-- **Positions strip narrow-desktop band** — the mobile redesign added a
-  stacked `StripRowMobile` card at ≤640px, so phones no longer get the
-  cramped 6-column grid. The 641–720px band (large phone landscape / small
-  windows) still renders the compressed desktop grid; a fluid grid or
-  lowering the card breakpoint would tidy it.
-- **Real `onStudyAdded` / `onStudyRemoved` events** — the bundled TV
-  build doesn't expose them, so `IndicatorPillsRow` and
-  `ChatContextPills` poll `getAllStudies()` every 1.2 s. If a future
-  TV build ships the subscriptions, replace the polling.
-
-## AI chart assistant — deferred
-
-- **Multi-pane chart layouts** — TV exposes `setLayout()` /
-  `chartsCount()` for 2×1 / 2×2 splits, but our broker, datafeed,
-  drawings replay, and AI `chart_context` all assume
-  `widget.activeChart()`. Doing it safely needs per-chart routing
-  through every one of those surfaces. Significant rework — worth a
-  dedicated branch when there's a real use case.
-- **AI saveChart / loadChart** — TV's `saveChart()` / `loadChart()` can
-  persist whole chart layouts (symbol, drawings, studies, view state).
-  Needs a storage layer; do this on top of the Postgres persistence
-  layer above.
-- **Discover-mode AI** — the ChartBot panel is Chart-mode-only today.
-  Extending to Discover needs a mode-aware system prompt, a trimmed
-  tool set (no chart-only tools), and a new UI surface. The Ask anything bot
-  covers the casual side of this; a deeper ChartBot-equivalent for
-  portfolio reasoning is a separate question.
-- **`createAlert` integration** — TV has a native alert API but no
-  notification path exists in this app; defer until alerts have
-  somewhere to go.
-
-## Mobile
-
-The phased mobile redesign (P0–P6 + UAT fixes, v0.40.2–0.41.0)
-shipped behind the ≤640px breakpoint.
-Two follow-ups were deliberately left:
-
-- **Combined Discover hero + merged movers card (≤640px)** — P5 kept
-  `BalanceCard` + `AllocationCard` as two stacked cards and `MoversCard` +
-  `MostActiveCard` as two stacked cards, rather than building a
-  combined `HeroCardMobile` (donut → horizontal allocation bar) and merged
-  Gainers/Losers/Active tabbed card. Both already stack cleanly on mobile;
-  the rebuilds were deferred as density polish (and to honour the
-  "no rewrites" rule).
-- **On-device verification** — the mobile layer was typechecked +
-  production-built but not yet validated on real devices / simulators
-  (iPhone 12 / SE, iPad portrait) or as an installed PWA. Run the per-phase
-  device checklists + the cross-cutting verification matrix before
-  promoting to `main`.
-
-## Crypto
-
-- **Crypto movers / screener** — Alpaca has no gainers/losers or
-  most-active endpoint for crypto. The Ask-anything bar now derives a
-  movers view client-side from the crypto ticker snapshots, but the
-  crypto Discover surface (`DiscoverPage`, crypto silo) still has none; a
-  Yahoo Finance or CoinGecko fallback could fill that gap with a broader
-  universe.
-- **Crypto streaming on Render relay** — `CryptoQuoteHub` is wired but
-  only tested locally. Verify the Render deployment holds both
-  `StockDataStream` and `CryptoDataStream` connections simultaneously
-  without OOM.
+- **Modify / cancel-order intents** — `lib/ask-intent.ts` returns `fallback` for
+  "move my AAPL limit to 195" / "cancel order abc123". Blocker is fuzzy order
+  matching from a phrase; needs a disambiguator when multiple working orders
+  share a symbol.
+- **"Open Chart mode and continue in ChartBot →" fallback** — when the bot gets a
+  chart-ish prompt out of its lane (e.g. "draw a trendline" from Discover),
+  suggest opening Chart mode and pre-seed the ChartBot panel with the phrase.
 
 ## Workspace
 
-Desktop-only dockable widget canvas (`components/Workspace.tsx` +
-`lib/workspace/registry.tsx` + `lib/workspace/presets.tsx`, Dockview).
-Shipped: dock / tab-stack / float / pop-out, per-silo layout persistence
-(`workspace_layouts_{silo}_v2` with v1 migration), a primary searchable
-**＋ Add widget** menu (grouped + icons), a live **Channels strip** with
-per-channel widget counts, named layout **presets** (Trader / Researcher /
-Watcher / Focus) via a Layouts menu, an empty-state overlay, Tab bars +
-Focus toggles (`Esc` exits Focus); widgets for chart (bare TradingView),
-mini chart (lightweight-charts), trade ticket, account, watchlist,
-positions, orders, activity, news; symbol-linking channel groups with a
-2px channel accent bar on every header + a channel dot on every panel
-tab; live quotes and bars each deduped through one shared ref-counted
-stream (`data/quoteStream.ts` + `data/barStream.ts`).
-
-**Shipped since:** **AI Workspace control.** The **Ask anything** bot (teal —
-not a separate violet module) can set channel instruments, apply named presets,
-add/remove widgets, and **build a custom, viewport-responsive grid** from natural
-language ("watch the seven best tech names"), plus deterministic local commands
-("watch AAPL NVDA TSLA", "trader layout", "set blue to NVDA"). Tools live in
-`ai/tools_workspace.py` (assembled into `ask_tools()`); they don't run
-server-side — each queues a client directive into `AskResponse.workspace_actions`
-(same deferred-artifact channel as reports), replayed by `ask/cards/FallbackCard`
-against the lazy canvas through the `lib/workspace/controller.ts` singleton (+
-`lib/workspace/build.ts` grid builder and the `lib/workspace/actions.ts`
-contract; App registers mode/silo hooks, Workspace registers an imperative handle
-on `onReady`, auto-switching into Workspace mode/silo first). Distinct per-chart
-symbols beyond the four channels reuse the chart widgets' standalone **None**
-mode (`params.symbol`). Diverged from the original sketch: no `lib/ai-client.ts`
-frontend tool loop (the Ask path is one-shot, so the directive/artifact channel
-carries it) and no dedicated toolbar input — it rides the existing Ask-anything
-bar, gated by `askAiEnabled`.
-
-Remaining:
-
 - **Named user layouts** — the v2 persistence shape reserves
-  `saved: Record<name, layout>` for "Save current as…". Build the Save /
-  Rename / Delete UI inside the Layouts menu (the popover already has the
-  card grid + Apply confirm to extend). The AI builder currently writes its
-  custom layout into `active` (named `"custom"`), not `saved`.
+  `saved: Record<name, layout>` for "Save current as…"; build the Save / Rename /
+  Delete UI in the Layouts menu (the popover already has the card grid + Apply
+  confirm to extend). The AI builder currently writes its custom layout into
+  `active` (named `"custom"`), not `saved`.
+
+## Chart mode
+
+- **Multi-pane chart layouts** — TV's `setLayout()` / `chartsCount()` give 2×1 /
+  2×2 splits, but broker, datafeed, drawings replay and AI `chart_context` all
+  assume `widget.activeChart()`. Safe support needs per-chart routing through all
+  of them — a dedicated branch when there's a real use case.
+- **AI saveChart / loadChart** — TV can persist whole chart layouts (symbol,
+  drawings, studies, view state); needs the Postgres storage layer.
+- **Discover-mode ChartBot** — the ChartBot panel is Chart-mode-only; extending
+  to Discover needs a mode-aware prompt, a trimmed tool set, and a UI surface.
+- **`createAlert` integration** — TV has a native alert API but no notification
+  path exists yet; defer until alerts have somewhere to go.
+- **Real `onStudyAdded` / `onStudyRemoved` events** — the bundled TV build
+  doesn't expose them, so `IndicatorPillsRow` / `ChatContextPills` poll
+  `getAllStudies()` every 1.2 s; replace with subscriptions if a future build
+  ships them.
+- **Positions strip narrow-desktop band** — the 641–720px band (large-phone
+  landscape / small windows) still renders the compressed desktop grid; a fluid
+  grid or a lower card breakpoint would tidy it.
+
+## Crypto
+
+- **Crypto movers / screener** — Alpaca has no gainers/losers/most-active for
+  crypto. The Ask bar derives movers client-side from ticker snapshots, but the
+  crypto Discover surface has none; a Yahoo or CoinGecko fallback could fill it.
+- **Crypto streaming on the Render relay** — `CryptoQuoteHub` is wired but only
+  tested locally; verify Render holds both `StockDataStream` and
+  `CryptoDataStream` simultaneously without OOM.
+
+## Mobile
+
+- **Combined Discover hero + merged movers card (≤640px)** — build the combined
+  `HeroCardMobile` (donut → horizontal allocation bar) and a merged
+  Gainers/Losers/Active tabbed card (currently two stacked cards each).
+- **On-device verification** — the mobile layer is typechecked + prod-built but
+  not validated on real devices / simulators (iPhone 12 / SE, iPad portrait) or
+  as an installed PWA.
+
+## Security
+
+- **Write-auth gate (Charter Hard Rule #3)** — `require_write_auth` in
+  `backend/app/main.py` is a no-op seam; flip it to a shared-token check before
+  any non-paper / non-private exposure. Deferred by decision (paper account).
+
+## Misc
+
+- **Calendar exceptions chip** — the "Cal · N exceptions" popover (holidays +
+  half-days, next 21 days) was removed from `TopBar.tsx`; `useCalendar` +
+  `/api/calendar` are still wired. Restore as a dedicated surface (a Discover
+  calendar widget or Markets item) rather than back in the status strip.
