@@ -50,7 +50,7 @@ here; use `git log` for that.
 
 ## Ask anything
 
-- **Modify / cancel-order intents** — `lib/ask-intent.ts` returns `fallback` for
+- **Modify / cancel-order intents** — `lib/ask-intent/` returns `fallback` for
   "move my AAPL limit to 195" / "cancel order abc123". Blocker is fuzzy order
   matching from a phrase; needs a disambiguator when multiple working orders
   share a symbol.
@@ -60,6 +60,13 @@ here; use `git log` for that.
 
 ## Workspace
 
+- **Split `components/Workspace.tsx` (~1325 lines)** — the container holds five
+  self-contained toolbar sub-components (`AddWidgetMenu`, `LayoutsMenu`,
+  `ChannelChip`, `EmptyState`, `ChannelsStrip` — ~860 lines together) plus the
+  layout/channel persistence helpers. Extracting the toolbar into
+  `components/workspace/` would leave the container ~450 lines. Deferred because
+  it's desktop-only Dockview UI that can't be exercised in the cloud sandbox, so
+  the split needs local verification before it ships.
 - **Named user layouts** — the v2 persistence shape reserves
   `saved: Record<name, layout>` for "Save current as…"; build the Save / Rename /
   Delete UI in the Layouts menu (the popover already has the card grid + Apply

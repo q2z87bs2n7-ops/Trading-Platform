@@ -2,7 +2,7 @@
 // Ask-anything intent parser, the AI directive path (backend
 // `workspace_actions` in the ask response), and the controller that replays
 // them against the live canvas. Dependency-free (types only) so both
-// `lib/ask-intent.ts` and `lib/workspace/controller.ts` can import it.
+// `lib/ask-intent/` and `lib/workspace/controller.ts` can import it.
 
 import type { AssetClass, Channel } from "./registry";
 

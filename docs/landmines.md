@@ -181,8 +181,8 @@ FastAPI path parameters:
 
 - **Backend:** any route whose `{symbol}` might be a crypto pair must
   use `{symbol:path}` (FastAPI's path converter). Currently applied to
-  `/api/assets/{symbol:path}`, `/api/positions/{symbol:path}`, and
-  `/api/watchlist/{symbol:path}`.
+  `/api/assets/{symbol:path}`, `/api/asset-profile/{symbol:path}`,
+  `/api/positions/{symbol:path}`, and `/api/watchlist/{symbol:path}`.
 - **Frontend:** never call `encodeURIComponent` on a symbol used in a
   path segment. Alpaca symbols are `[A-Z0-9/.]` only — pass them
   literally. `encodeURIComponent("BTC/USD")` → `BTC%2FUSD` which the
