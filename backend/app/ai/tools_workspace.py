@@ -22,6 +22,7 @@ WORKSPACE_WIDGET_KINDS = (
     "orders",
     "activity",
     "news",
+    "profile",
 )
 
 _SILO_PROP = {
@@ -86,7 +87,9 @@ WORKSPACE_TOOLS: list[dict[str, Any]] = [
             "Add one widget to the current canvas. For a chart/minichart pass a "
             "symbol to pin it (standalone, owns its symbol) or a channel to link "
             "it; data widgets (positions/orders/activity/account/news) default "
-            "to whole-account when no channel is given."
+            "to whole-account when no channel is given. 'profile' shows "
+            "fundamentals (stocks) or tokenomics (crypto) for one symbol — it is "
+            "symbol-linked like trade, so give it a channel."
         ),
         "input_schema": {
             "type": "object",
@@ -126,7 +129,8 @@ WORKSPACE_TOOLS: list[dict[str, Any]] = [
             "(find_symbol / screen_assets / your knowledge), then list one widget "
             "per panel — usually a 'chart' per instrument with its own symbol. "
             "The app sizes the grid responsively to the user's viewport; only set "
-            "'columns' to force a specific shape."
+            "'columns' to force a specific shape. For a fundamentals/research "
+            "view, pair charts with a channel-linked 'profile' panel."
         ),
         "input_schema": {
             "type": "object",

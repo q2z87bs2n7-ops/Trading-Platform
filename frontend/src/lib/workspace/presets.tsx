@@ -89,8 +89,8 @@ export const PRESETS: LayoutPreset[] = [
     id: "researcher",
     title: "Researcher",
     desc:
-      "Four charts on a 2×2 grid for comparing symbols across the four channels.",
-    badges: ["4× Chart", "Watchlist"],
+      "Four charts on a 2×2 grid plus a watchlist and a symbol profile — compare across the four channels.",
+    badges: ["4× Chart", "Watchlist", "Profile"],
     thumbnail: () => (
       <div
         style={{
@@ -103,7 +103,8 @@ export const PRESETS: LayoutPreset[] = [
       >
         <div style={cell()} />
         <div style={cell()} />
-        <div style={{ gridColumn: "3", gridRow: "1 / span 2", ...cell() }} />
+        <div style={{ gridColumn: "3", gridRow: "1", ...cell() }} />
+        <div style={{ gridColumn: "3", gridRow: "2", ...cell() }} />
         <div style={cell()} />
         <div style={cell()} />
       </div>
@@ -141,6 +142,13 @@ export const PRESETS: LayoutPreset[] = [
         component: "watchlist",
         title: "Watchlist",
         position: { referencePanel: "chart-br", direction: "right" },
+        params: { channel: "main" },
+      });
+      api.addPanel({
+        id: "profile",
+        component: "profile",
+        title: "Profile",
+        position: { referencePanel: "watchlist", direction: "below" },
         params: { channel: "main" },
       });
     },
