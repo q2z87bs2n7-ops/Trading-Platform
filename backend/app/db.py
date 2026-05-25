@@ -489,18 +489,30 @@ def screen_assets(*, asset_class="us_equity", sector=None, industry=None,
     return out
 
 
-def _symbols(asset_class: str, enriched: bool | None) -> set[str]:
+def _symbols(
+    asset_class: str, enriched: bool | None, tradable_only: bool = False
+) -> set[str]:
     """Catalogue symbols for one asset class, optionally filtered by enrichment
-    state (None = all, True = enriched, False = un-enriched)."""
+    state (None = all, True = enriched, False = un-enriched) and tradability."""
     where = "asset_class = %s"
     if enriched is True:
         where += " AND enrichment_source IS NOT NULL"
     elif enriched is False:
         where += " AND enrichment_source IS NULL"
+    if tradable_only:
+        where += " AND tradable = true"
     with _connect() as conn:
         cur = conn.cursor()
         cur.execute("SELECT symbol FROM assets WHERE " + where, (asset_class,))
         return {row[0] for row in cur.fetchall()}
+
+
+def list_symbols(asset_class: str) -> list[str]:
+    """Public symbol universe for one asset class under the search visibility
+    rule (`tradable = true AND enrichment_source IS NOT NULL`) — the set the
+    Ask-anything router validates tickers against. Sorted for a stable payload
+    (deterministic gzip / caching)."""
+    return sorted(_symbols(asset_class, enriched=True, tradable_only=True))
 
 
 def crypto_symbols() -> set[str]:
