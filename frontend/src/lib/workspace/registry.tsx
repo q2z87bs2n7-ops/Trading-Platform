@@ -147,6 +147,7 @@ function LinkHeader({
   onPickSymbol,
   lockedChannel,
   kind,
+  pickOnNone,
 }: {
   label: string;
   channel: Channel;
@@ -156,9 +157,12 @@ function LinkHeader({
   onPickSymbol?: (sym: string) => void;
   lockedChannel?: boolean;
   kind?: string;
+  // Charts on the `none` channel are standalone (own their symbol), so they
+  // still allow the symbol picker; data widgets on `none` are account-wide.
+  pickOnNone?: boolean;
 }) {
   const [searching, setSearching] = useState(false);
-  const canPick = channel !== "none" && !!onPickSymbol;
+  const canPick = (channel !== "none" || !!pickOnNone) && !!onPickSymbol;
   const accent = channel === "none" ? "transparent" : CHANNEL_META[channel].color;
   return (
     <div
@@ -308,10 +312,50 @@ function WidgetShell({
   );
 }
 
+// Standalone-chart symbol. On a colour/`main` channel a chart follows that
+// channel's shared symbol; on `none` it's standalone and owns its symbol,
+// persisted in the panel's `params.symbol` (so N>4 charts can each show a
+// distinct instrument without burning a colour channel). A local mirror of
+// the own-symbol guarantees a re-render on pick; Dockview merges params so
+// writing just `{ symbol }` leaves the channel intact.
+function useChartSymbol(
+  props: IDockviewPanelProps,
+  channel: Channel,
+  setChannel: (c: Channel) => void,
+): { symbol: string; setSymbol: (s: string) => void; setChannel: (c: Channel) => void } {
+  const { getSymbol, setSymbol: setChannelSymbol } = useWorkspace();
+  const [ownSymbol, setOwnSymbol] = useState<string>(
+    () => (props.params?.symbol as string) ?? "",
+  );
+  const symbol =
+    channel === "none" ? ownSymbol || getSymbol("main") : getSymbol(channel);
+
+  const setSymbol = (s: string) => {
+    if (channel === "none") {
+      setOwnSymbol(s);
+      props.api.updateParameters({ symbol: s });
+    } else {
+      setChannelSymbol(channel, s);
+    }
+  };
+
+  const setChannelTo = (c: Channel) => {
+    // Going standalone: seed the panel's own symbol with what's shown so it
+    // doesn't snap to the main symbol.
+    if (c === "none" && channel !== "none") {
+      setOwnSymbol(symbol);
+      props.api.updateParameters({ symbol });
+    }
+    setChannel(c);
+  };
+
+  return { symbol, setSymbol, setChannel: setChannelTo };
+}
+
 function ChartWidget(props: IDockviewPanelProps) {
-  const { getSymbol, setSymbol, assetClass } = useWorkspace();
-  const [channel, setChannel] = useChannel(props, "main");
-  const symbol = getSymbol(channel);
+  const { assetClass } = useWorkspace();
+  const [channel, rawSetChannel] = useChannel(props, "main");
+  const { symbol, setSymbol, setChannel } = useChartSymbol(props, channel, rawSetChannel);
   return (
     <WidgetShell
       header={
@@ -319,25 +363,26 @@ function ChartWidget(props: IDockviewPanelProps) {
           label={symbol}
           channel={channel}
           setChannel={setChannel}
-          includeNone={false}
+          includeNone
+          pickOnNone
           assetClass={assetClass}
-          onPickSymbol={(s) => setSymbol(channel, s)}
+          onPickSymbol={setSymbol}
           kind="Chart"
         />
       }
     >
-      <TVChartWidget symbol={symbol} onSymbolChange={(s) => setSymbol(channel, s)} />
+      <TVChartWidget symbol={symbol} onSymbolChange={setSymbol} />
     </WidgetShell>
   );
 }
 
 // Lightweight (lightweight-charts) alternative to the heavy TV chart — a faster,
-// no-iframe option for small panels / many-up grids. Symbol-linked like the TV
-// chart (no "none").
+// no-iframe option for small panels / many-up grids. Like the TV chart it can be
+// channel-linked or standalone (`none`, owns its symbol).
 function MiniChartWidget(props: IDockviewPanelProps) {
-  const { getSymbol, setSymbol, assetClass } = useWorkspace();
-  const [channel, setChannel] = useChannel(props, "main");
-  const symbol = getSymbol(channel);
+  const { assetClass } = useWorkspace();
+  const [channel, rawSetChannel] = useChannel(props, "main");
+  const { symbol, setSymbol, setChannel } = useChartSymbol(props, channel, rawSetChannel);
   return (
     <WidgetShell
       header={
@@ -345,9 +390,10 @@ function MiniChartWidget(props: IDockviewPanelProps) {
           label={symbol}
           channel={channel}
           setChannel={setChannel}
-          includeNone={false}
+          includeNone
+          pickOnNone
           assetClass={assetClass}
-          onPickSymbol={(s) => setSymbol(channel, s)}
+          onPickSymbol={setSymbol}
           kind="Mini chart"
         />
       }

@@ -2,6 +2,9 @@
 // returns the first matching intent or { type: "fallback" }. The result
 // card per intent is rendered by components/ask/cards.tsx.
 
+import type { Channel } from "./workspace/registry";
+import type { SiloedAction, WidgetId } from "./workspace/actions";
+
 export type Intent =
   | {
       type: "order";
@@ -18,6 +21,7 @@ export type Intent =
   | { type: "orders" }
   | { type: "chart"; symbol: string }
   | { type: "market_summary" }
+  | { type: "workspace"; actions: SiloedAction[] }
   | { type: "fallback"; text: string };
 
 // Filter symbol candidates so we don't classify common English words
@@ -83,6 +87,9 @@ const STOPWORDS = new Set([
   "WINNER",
   "WINNERS",
   "WORST",
+  "WATCH",
+  "WIDGET",
+  "LAYOUT",
   "YOU",
   "YOUR",
 ]);
@@ -141,6 +148,76 @@ function parseQty(raw: string): number {
   return Number(s);
 }
 
+// Deterministic Workspace commands (no AI): "watch AAPL NVDA TSLA",
+// "trader layout", "set blue to NVDA", "add a news widget". Anything subtler
+// falls through to the AI fallback, which can emit the same directive shapes.
+const WORKSPACE_WIDGETS: Record<string, WidgetId> = {
+  chart: "chart",
+  minichart: "minichart",
+  news: "news",
+  watchlist: "watchlist",
+  positions: "positions",
+  orders: "orders",
+  activity: "activity",
+  account: "account",
+  trade: "trade",
+  tradeticket: "trade",
+};
+
+function parseWorkspace(text: string, assetClass?: AssetClass): Intent | null {
+  const lower = text.toLowerCase();
+
+  // Apply a named preset: "trader layout", "use the researcher layout".
+  const preset = lower.match(/\b(trader|researcher|watcher|focus)\b/);
+  if (preset && /\blayout\b/.test(lower)) {
+    return { type: "workspace", actions: [{ kind: "apply_preset", preset: preset[1] }] };
+  }
+
+  // Set a channel's instrument: "set blue to NVDA", "set the green channel to AAPL".
+  const setCh = lower.match(
+    /\bset\s+(?:the\s+)?(main|blue|green|amber)\s+(?:channel\s+)?to\s+([a-z]{1,5}(?:\.[a-z])?(?:\/[a-z]{3,4})?)\b/,
+  );
+  if (setCh) {
+    return {
+      type: "workspace",
+      actions: [
+        { kind: "set_channel", channel: setCh[1] as Channel, symbol: toSymbol(setCh[2], assetClass) },
+      ],
+    };
+  }
+
+  // Watch grid: "watch AAPL NVDA TSLA" → one standalone chart per symbol.
+  const watch = lower.match(/\bwatch\s+(.+)$/);
+  if (watch) {
+    const syms = extractSymbols(watch[1]).map((s) => toSymbol(s, assetClass));
+    if (syms.length) {
+      return {
+        type: "workspace",
+        actions: [
+          {
+            kind: "build_layout",
+            spec: { widgets: syms.map((s) => ({ kind: "chart", symbol: s })), arrangement: "grid" },
+          },
+        ],
+      };
+    }
+  }
+
+  // Add a single widget: "add a chart", "add a news widget", "add chart of AAPL".
+  const add = lower.match(
+    /\badd\s+(?:a\s+|an\s+)?(chart|mini\s?chart|news|watchlist|positions|orders|activity|account|trade(?:\s*ticket)?)\b(?:.*?\b(?:of|for)\s+([a-z]{1,5}(?:\.[a-z])?(?:\/[a-z]{3,4})?)\b)?/,
+  );
+  if (add) {
+    const widget = WORKSPACE_WIDGETS[add[1].replace(/\s+/g, "")];
+    if (widget) {
+      const symbol = add[2] ? toSymbol(add[2], assetClass) : undefined;
+      return { type: "workspace", actions: [{ kind: "add_widget", widget, symbol }] };
+    }
+  }
+
+  return null;
+}
+
 export function parseIntent(input: string, assetClass?: AssetClass): Intent {
   const text = input.trim();
   if (!text) return { type: "fallback", text };
@@ -157,6 +234,11 @@ export function parseIntent(input: string, assetClass?: AssetClass): Intent {
   ) {
     return { type: "fallback", text };
   }
+
+  // ── workspace control ── "watch AAPL NVDA", "trader layout", "set blue to X",
+  // "add a news widget". Deterministic; subtler asks fall to the AI fallback.
+  const ws = parseWorkspace(text, assetClass);
+  if (ws) return ws;
 
   // ── order ── "buy 100 AAPL at market" / "sell 50 AMD" / "buy 5 TSLA at 240"
   // "purchase" normalises to buy; "short" normalises to sell.

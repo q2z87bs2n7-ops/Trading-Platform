@@ -13,6 +13,7 @@ import TVPlatform from "./components/TVPlatform";
 import ChatPanel from "./components/chat/ChatPanel";
 import TradeBar from "./components/trade/TradeBar";
 import AskBar from "./components/ask/AskBar";
+import { registerAppHooks } from "./lib/workspace/controller";
 import SettingsMenu from "./components/SettingsMenu";
 import Toaster from "./components/Toaster";
 import IconButton from "./components/IconButton";
@@ -222,6 +223,19 @@ export default function App() {
   function openAskBar() {
     setAskOpen(true);
   }
+
+  // Bridge App-level mode/silo control to the Ask-anything Workspace controller
+  // so the bot can auto-switch into Workspace mode (and silo) before applying.
+  useEffect(() => {
+    registerAppHooks({
+      enterWorkspace: (silo) => {
+        if (silo && silo !== activeClass) switchAssetClass(silo);
+        switchMode("workspace");
+      },
+      getEnv: () => ({ mode, assetClass: activeClass, isMobile }),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, activeClass, isMobile]);
 
   // Per-silo accent: stocks → green, crypto → default (blue). Overriding the
   // accent tokens here recolours selection borders, button highlights and

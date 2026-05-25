@@ -17,6 +17,7 @@ from typing import Any
 from .tools_action import ASK_ACTION_TOOL_NAMES, ASK_ACTION_TOOLS
 from .tools_draw import DRAW_TOOL_NAMES, DRAW_TOOLS
 from .tools_read import READ_TOOL_NAMES, READ_TOOLS
+from .tools_workspace import WORKSPACE_TOOL_NAMES, WORKSPACE_TOOLS
 
 __all__ = [
     "TOOLS",
@@ -24,6 +25,8 @@ __all__ = [
     "DRAW_TOOL_NAMES",
     "ASK_ACTION_TOOLS",
     "ASK_ACTION_TOOL_NAMES",
+    "WORKSPACE_TOOLS",
+    "WORKSPACE_TOOL_NAMES",
     "is_read_tool",
     "is_draw_tool",
     "read_only_tools",
@@ -54,5 +57,5 @@ def read_only_tools(web_search: bool = False) -> list[dict[str, Any]]:
 
 def ask_tools(web_search: bool = False) -> list[dict[str, Any]]:
     """Tool set for the Ask anything bot: read tools + watchlist/report
-    action tools (+ optional hosted web_search)."""
-    return read_only_tools(web_search=web_search) + ASK_ACTION_TOOLS
+    action tools + Workspace control tools (+ optional hosted web_search)."""
+    return read_only_tools(web_search=web_search) + ASK_ACTION_TOOLS + WORKSPACE_TOOLS

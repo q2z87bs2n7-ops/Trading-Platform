@@ -19,6 +19,7 @@ import type {
   Snapshot,
   SubmitOrderInput,
 } from "./types";
+import type { SiloedAction } from "./lib/workspace/actions";
 
 // Empty for local dev (Vite proxy) and Vercel prod (same origin). Set to
 // the Vercel prod URL at build time for the GitHub Pages dev previews,
@@ -161,6 +162,9 @@ export interface AiAskResponse {
   text: string;
   tool_calls: AiAskToolCall[];
   reports?: AiAskReport[];
+  // Deferred client-side Workspace directives the bot wants applied (replayed
+  // by the FallbackCard against the Workspace controller).
+  workspace_actions?: SiloedAction[];
   usage: Record<string, unknown> | null;
   backend_stopped?: "" | "max_iterations";
 }
@@ -179,6 +183,11 @@ export const postAiAsk = (
     message,
     history,
     asset_class: assetClass,
+    // Device hint so the bot can size custom Workspace grids to the viewport.
+    viewport:
+      typeof window !== "undefined"
+        ? { width: window.innerWidth, height: window.innerHeight }
+        : undefined,
   });
 
 export const getMarketNews = (limit = 20) =>

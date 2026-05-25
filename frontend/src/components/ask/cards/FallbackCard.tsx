@@ -10,7 +10,10 @@ import {
 import { qk } from "../../../data/queryClient";
 import { useSettings } from "../../../hooks/useSettings";
 import type { AssetClass } from "../../../lib/ask-intent";
+import { applyWorkspaceActions } from "../../../lib/workspace/controller";
+import type { ApplyResult } from "../../../lib/workspace/actions";
 import AskResultCard from "../AskResultCard";
+import { WorkspaceResult } from "./WorkspaceCard";
 
 type OnAiResponse = (resp: AiAskResponse) => void;
 type OnExchange = (userText: string, assistantText: string) => void;
@@ -65,6 +68,7 @@ function AiAskCard({
   const [resp, setResp] = useState<AiAskResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [pending, setPending] = useState(true);
+  const [wsResult, setWsResult] = useState<ApplyResult | null>(null);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -72,6 +76,7 @@ function AiAskCard({
     setPending(true);
     setErr(null);
     setResp(null);
+    setWsResult(null);
     postAiAsk(text, history, assetClass)
       .then((r) => {
         if (cancelled) return;
@@ -79,6 +84,12 @@ function AiAskCard({
         setPending(false);
         onAiResponse?.(r);
         if (r.text) onExchange?.(text, r.text);
+        // Replay any Workspace directives the bot emitted against the canvas.
+        if (r.workspace_actions && r.workspace_actions.length) {
+          applyWorkspaceActions(r.workspace_actions).then((res) => {
+            if (!cancelled) setWsResult(res);
+          });
+        }
         // The bot may have mutated the watchlist server-side; refresh both
         // lists so the Discover view reflects it.
         if (
@@ -165,6 +176,11 @@ function AiAskCard({
                   ↓ {r.filename}
                 </button>
               ))}
+            </div>
+          )}
+          {wsResult && (
+            <div className="mt-3">
+              <WorkspaceResult result={wsResult} />
             </div>
           )}
           {resp.backend_stopped === "max_iterations" && (

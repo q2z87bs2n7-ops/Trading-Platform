@@ -140,8 +140,11 @@ separate silos behind a shared account.
     persisted in the panel's Dockview params): a symbol channel filters the
     widget to that one instrument (Positions/Orders/Activities take a `symbol`
     filter prop, news uses instrument-specific `useNews`); **None** shows
-    whole-account info (Trade and the chart widgets are symbol-only, no None;
-    the Account widget is `lockedChannel` — always None, picker hidden).
+    whole-account info (Trade is symbol-only, no None; the chart widgets allow
+    **None as a standalone mode** — the panel owns its symbol via
+    `params.symbol` rather than following a shared channel, so a custom layout
+    can show many distinct charts beyond the four colour channels; the Account
+    widget is `lockedChannel` — always None, picker hidden).
     "Main" proxies the app's selected symbol. The widget header (`LinkHeader`)
     carries a 2px channel-coloured accent bar across the top, a primary mono
     symbol label that doubles as a click-to-search picker (`AssetSearch`),
@@ -427,10 +430,25 @@ instant); **violet = real Claude API call** (Anthropic credits, slow).
   `generate_report` (positions/orders/activities/pnl → CSV) and `export_csv`
   (any other readable data — bars/quotes/news/custom tables — the model fetches
   then passes as rows). Both surface as a download via `AskResponse.reports`;
-  CSVs are built in `backend/app/ai/reports.py`. These live in `ask_tools()`,
+  CSVs are built in `backend/app/ai/reports.py`. It also has **Workspace control
+  tools** (`ai/tools_workspace.py`: `set_workspace_layout`,
+  `set_channel_instrument`, `add_workspace_widget`, `remove_workspace_widget`,
+  `build_workspace_layout`): these don't run server-side — each *queues a client
+  directive* into `AskResponse.workspace_actions` (same deferred-artifact pattern
+  as `reports`) which the frontend `FallbackCard` replays against the lazy
+  Workspace via the `lib/workspace/controller.ts` singleton (App registers
+  mode/silo hooks; Workspace registers an imperative handle on `onReady`). The
+  bot can resolve symbols (`find_symbol`/`screen_assets`) then
+  `build_workspace_layout` a responsive custom grid ("watch the 7 best tech
+  names"); the request carries a `viewport` hint and the app auto-switches into
+  Workspace mode (desktop-only). The same directive shapes back a deterministic
+  local `workspace` intent in `lib/ask-intent.ts` (e.g. "watch AAPL NVDA TSLA",
+  "trader layout", "set blue to NVDA") — no AI round-trip. These live in
+  `ask_tools()`,
   not `TOOLS`. **Tool schemas are split across `ai/tools_read.py` (backend),
-  `ai/tools_draw.py` (frontend), and `ai/tools_action.py` (Ask-anything
-  write/report); `ai/tools.py` is the assembler that builds `TOOLS` (read then
+  `ai/tools_draw.py` (frontend), `ai/tools_action.py` (Ask-anything
+  write/report) and `ai/tools_workspace.py` (Ask-anything Workspace control);
+  `ai/tools.py` is the assembler that builds `TOOLS` (read then
   draw — order is load-bearing for prefix-cache hits) and re-exports the public
   API (`TOOLS`/`read_only_tools`/`ask_tools`/…). Edit schemas in the split
   files; never reorder `TOOLS`.** Multi-turn within a session:

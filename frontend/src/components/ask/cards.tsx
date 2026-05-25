@@ -9,6 +9,7 @@ import { NewsCard } from "./cards/NewsCard";
 import { OrderCard } from "./cards/OrderCard";
 import { OrdersCard } from "./cards/OrdersCard";
 import { PortfolioCard } from "./cards/PortfolioCard";
+import { WorkspaceCard } from "./cards/WorkspaceCard";
 
 export function AskResult({
   intent,
@@ -58,6 +59,8 @@ export function AskResult({
       );
     case "market_summary":
       return <MarketSummaryIntentCard assetClass={assetClass} />;
+    case "workspace":
+      return <WorkspaceCard actions={intent.actions} />;
     case "fallback":
       return (
         <FallbackOrAiCard
