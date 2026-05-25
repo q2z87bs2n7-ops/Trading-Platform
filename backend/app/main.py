@@ -490,8 +490,11 @@ async def stream(
                     payload = await asyncio.wait_for(queue.get(), timeout=15)
                     yield f"data: {payload}\n\n"
                 except asyncio.TimeoutError:
-                    # Comment line keeps proxies from closing an idle stream.
-                    yield ": keepalive\n\n"
+                    # Named event (not a comment) so HTTP/2 proxies see a real
+                    # DATA frame and reset their stream idle timer. The browser
+                    # ignores it — EventSource only fires onmessage for unnamed
+                    # events; named 'keepalive' events have no registered listener.
+                    yield "event: keepalive\ndata: {}\n\n"
         finally:
             hub.unsubscribe(queue)
 

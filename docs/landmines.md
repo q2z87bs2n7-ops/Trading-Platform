@@ -22,6 +22,14 @@ area.
   relay). Load-bearing — keep it. `EventSource` auto-reconnect is
   deliberately disabled so failure → polling, not a silent reconnect
   loop.
+- **SSE keepalive must be a named event, not a comment.** The idle keepalive
+  in `/api/stream` uses `event: keepalive\ndata: {}\n\n` instead of the SSE
+  comment form (`: keepalive`). Both are valid SSE, but HTTP/2 proxies (Render's
+  nginx) may not count comment frames as stream activity and will RST the stream
+  after their idle timeout (~30 s). A named event is an unambiguous HTTP/2 DATA
+  frame and resets the timer. The browser silently ignores it — `onmessage` only
+  fires for events with no `event:` field; named events need an explicit
+  `addEventListener('keepalive', ...)` which we don't register.
 - **Service worker must not intercept the cross-origin Render SSE stream.**
   The Workbox `NetworkOnly` route in `vite.config.ts` uses a `sameOrigin`
   guard so it only applies to same-origin `/api/*` calls (Vercel REST). Without
