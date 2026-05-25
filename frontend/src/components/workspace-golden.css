@@ -1,0 +1,89 @@
+/* Golden Layout (prototype) re-skinned onto the Calm token set. The base +
+ * light theme are imported for structure/icons; these overrides paint every
+ * visible surface with CSS variables so the canvas tracks light/dark with the
+ * rest of the app. Scoped under .ws-golden so nothing leaks globally. */
+
+.ws-golden {
+  height: 100%;
+  width: 100%;
+  position: relative;
+}
+
+.ws-golden .lm_goldenlayout {
+  background: var(--panel-2);
+}
+
+.ws-golden .lm_content {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+}
+
+/* Tab/header bar */
+.ws-golden .lm_header {
+  height: 28px;
+  background: transparent;
+  margin-bottom: 2px;
+}
+.ws-golden .lm_header .lm_tab {
+  height: 22px;
+  background: var(--panel-2);
+  color: var(--text-2);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+  margin-right: 3px;
+  padding: 4px 22px 5px 10px;
+  box-shadow: none;
+}
+.ws-golden .lm_header .lm_tab.lm_active {
+  background: var(--panel);
+  color: var(--text);
+  border-top: 2px solid var(--accent);
+  padding-top: 3px;
+}
+.ws-golden .lm_header .lm_tab .lm_title {
+  font-weight: 500;
+}
+.ws-golden .lm_header .lm_tab.lm_active .lm_title {
+  font-weight: 600;
+}
+
+/* Header right-side controls (popout / maximise / close) */
+.ws-golden .lm_controls > li {
+  opacity: 0.55;
+  filter: var(--gl-icon-filter, none);
+}
+.ws-golden .lm_controls > li:hover {
+  opacity: 1;
+}
+
+/* Splitters between panels */
+.ws-golden .lm_splitter {
+  background: transparent;
+  transition: background 120ms ease;
+}
+.ws-golden .lm_splitter:hover,
+.ws-golden .lm_splitter.lm_dragging {
+  background: var(--accent);
+  opacity: 0.35;
+}
+
+/* Drag proxy + drop target highlight */
+.ws-golden .lm_dragProxy .lm_content {
+  border: 1px solid var(--accent);
+  box-shadow: var(--shadow-lg);
+}
+.ws-golden .lm_dropTargetIndicator {
+  background: color-mix(in oklch, var(--accent) 14%, transparent);
+  border: 1px dashed var(--accent);
+  outline: none;
+}
+
+/* In dark mode the light-theme icon sprites are dark-on-dark; invert them. */
+html[data-theme="dark"] .ws-golden {
+  --gl-icon-filter: invert(1) brightness(1.6);
+}

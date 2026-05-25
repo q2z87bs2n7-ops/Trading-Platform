@@ -35,6 +35,7 @@ import {
   unregisterWorkspace,
   type WorkspaceHandle,
 } from "../lib/workspace/controller";
+import EngineToggle from "../lib/workspace/EngineToggle";
 
 interface Props {
   symbol: string;
@@ -1280,6 +1281,7 @@ export default function Workspace({
             counts={channelCounts}
           />
           <div className="flex-1" />
+          <EngineToggle />
           <LayoutsMenu onApply={applyLayoutPreset} openRef={openLayoutsRef} />
           <ToolbarButton variant="ghost" onClick={onToggleFocus}>
             {focus ? "Exit focus" : "Focus"}

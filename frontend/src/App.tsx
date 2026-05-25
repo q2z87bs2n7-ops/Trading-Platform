@@ -14,6 +14,7 @@ import ChatPanel from "./components/chat/ChatPanel";
 import TradeBar from "./components/trade/TradeBar";
 import AskBar from "./components/ask/AskBar";
 import { registerAppHooks } from "./lib/workspace/controller";
+import { useEngine } from "./lib/workspace/engine";
 import SettingsMenu from "./components/SettingsMenu";
 import Toaster from "./components/Toaster";
 import IconButton from "./components/IconButton";
@@ -24,6 +25,8 @@ import { useMobile } from "./hooks/useMobile";
 // Heavy, desktop-only docking canvas (pulls in Dockview) — lazy so it stays
 // out of the initial bundle, mirroring how the charting library is deferred.
 const Workspace = lazy(() => import("./components/Workspace"));
+// Prototype Golden Layout canvas, A/B-toggled against Dockview via useEngine.
+const WorkspaceGolden = lazy(() => import("./components/WorkspaceGolden"));
 
 type PlatformMode = "discover" | "portfolio" | "chart" | "workspace";
 type AssetClassMode = "stocks" | "crypto";
@@ -175,6 +178,7 @@ export default function App() {
   // canvas (paired with the full-bleed `.app.bleed` layout).
   const [focusMode, setFocusMode] = useState(false);
   const isMobile = useMobile();
+  const wsEngine = useEngine();
   const { theme, toggle: toggleTheme } = useTheme();
 
   const activeClass: AssetClassMode = assetClassMode ?? "stocks";
@@ -356,14 +360,26 @@ export default function App() {
             </div>
           }
         >
-          <Workspace
-            symbol={selected}
-            onSelect={setSelected}
-            assetClass={activeClass}
-            theme={theme}
-            focus={focusMode}
-            onToggleFocus={() => setFocusMode((v) => !v)}
-          />
+          {wsEngine === "golden" ? (
+            <WorkspaceGolden
+              key={activeClass}
+              symbol={selected}
+              onSelect={setSelected}
+              assetClass={activeClass}
+              theme={theme}
+              focus={focusMode}
+              onToggleFocus={() => setFocusMode((v) => !v)}
+            />
+          ) : (
+            <Workspace
+              symbol={selected}
+              onSelect={setSelected}
+              assetClass={activeClass}
+              theme={theme}
+              focus={focusMode}
+              onToggleFocus={() => setFocusMode((v) => !v)}
+            />
+          )}
         </Suspense>
       )}
 
