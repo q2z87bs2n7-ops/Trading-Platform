@@ -90,7 +90,7 @@ function LinkPill({ href, children }: { href: string; children: React.ReactNode 
   );
 }
 
-function StockStats({ p }: { p: Profile }) {
+function StockStats({ p, dense }: { p: Profile; dense?: boolean }) {
   const hq = [p.city, p.state, p.country].filter(Boolean).join(", ");
   const flags = [
     p.is_etf && "ETF",
@@ -98,7 +98,7 @@ function StockStats({ p }: { p: Profile }) {
     p.is_fund && "Fund",
   ].filter(Boolean) as string[];
   return (
-    <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+    <div className={`grid ${dense ? "grid-cols-1" : "grid-cols-2"} gap-x-4 gap-y-2.5`}>
       {p.market_cap != null && <Stat label="Market cap" value={fmtUsd(p.market_cap)} />}
       {p.beta != null && <Stat label="Beta" value={p.beta.toFixed(2)} />}
       {p.employees != null && (
@@ -113,16 +113,17 @@ function StockStats({ p }: { p: Profile }) {
   );
 }
 
-function CryptoStats({ p, last }: { p: Profile; last?: number }) {
+function CryptoStats({ p, last, dense }: { p: Profile; last?: number; dense?: boolean }) {
   const athDist = p.ath_usd && last ? (last - p.ath_usd) / p.ath_usd : undefined;
   const atlDist = p.atl_usd && last ? (last - p.atl_usd) / p.atl_usd : undefined;
   const supplyPct =
     p.circulating_supply && p.max_supply
       ? Math.min(1, p.circulating_supply / p.max_supply)
       : undefined;
+  const cols = dense ? "grid-cols-1" : "grid-cols-2";
   return (
     <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+      <div className={`grid ${cols} gap-x-4 gap-y-2.5`}>
         {p.market_cap != null && <Stat label="Market cap" value={fmtUsd(p.market_cap)} />}
         {p.market_cap_rank != null && (
           <Stat label="Rank" value={`#${p.market_cap_rank}`} />
@@ -154,7 +155,7 @@ function CryptoStats({ p, last }: { p: Profile; last?: number }) {
       )}
 
       {(p.ath_usd != null || p.atl_usd != null) && (
-        <div className="grid grid-cols-2 gap-x-4 gap-y-2.5" style={{ borderTop: "1px solid var(--hairline)", paddingTop: 10 }}>
+        <div className={`grid ${cols} gap-x-4 gap-y-2.5`} style={{ borderTop: "1px solid var(--hairline)", paddingTop: 10 }}>
           {p.ath_usd != null && (
             <Stat
               label={`All-time high${p.ath_date ? ` · ${fmtDate(p.ath_date)}` : ""}`}
@@ -190,9 +191,11 @@ function CryptoStats({ p, last }: { p: Profile; last?: number }) {
 export default function AssetProfile({
   symbol,
   assetClass,
+  dense,
 }: {
   symbol: string;
   assetClass: "stocks" | "crypto";
+  dense?: boolean;
 }) {
   const { data: p, isLoading } = useAssetProfile(symbol);
   const isCrypto = p ? p.asset_class === "crypto" : assetClass === "crypto";
@@ -248,7 +251,11 @@ export default function AssetProfile({
         </div>
       )}
 
-      {isCrypto ? <CryptoStats p={p} last={last} /> : <StockStats p={p} />}
+      {isCrypto ? (
+        <CryptoStats p={p} last={last} dense={dense} />
+      ) : (
+        <StockStats p={p} dense={dense} />
+      )}
 
       {desc && (
         <div>

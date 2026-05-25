@@ -411,6 +411,7 @@ function MiniChartWidget(props: IDockviewPanelProps) {
 const POSITIONS_DENSE_W = 480;
 const ORDERS_DENSE_W = 560;
 const ACTIVITY_DENSE_W = 360;
+const PROFILE_DENSE_W = 340;
 
 function PositionsWidget(props: IDockviewPanelProps) {
   const { getSymbol, setSymbol, assetClass } = useWorkspace();
@@ -659,6 +660,8 @@ function ProfileWidget(props: IDockviewPanelProps) {
   const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "main");
   const symbol = getSymbol(channel).toUpperCase();
+  const ref = useRef<HTMLDivElement>(null);
+  const dense = useContainerNarrow(ref, PROFILE_DENSE_W);
   return (
     <WidgetShell
       header={
@@ -673,9 +676,11 @@ function ProfileWidget(props: IDockviewPanelProps) {
         />
       }
     >
-      <Pane pad>
-        <AssetProfile symbol={symbol} assetClass={assetClass} />
-      </Pane>
+      <div ref={ref} style={{ height: "100%" }}>
+        <Pane pad>
+          <AssetProfile symbol={symbol} assetClass={assetClass} dense={dense} />
+        </Pane>
+      </div>
     </WidgetShell>
   );
 }

@@ -165,10 +165,11 @@ separate silos behind a shared account.
     `data/barStream.ts`); `useLiveQuotes` and `lib/tv-datafeed.ts` ride them.
     **Panel-size fit:** charts shed chrome/axes as their panel shrinks (see the
     chart widgets above); Positions/Orders/Activities flip to their stacked
-    card layout in narrow panels via `hooks/useContainerNarrow` + an additive
+    card layout (and Profile drops its stat grid 2→1 column) in narrow panels
+    via `hooks/useContainerNarrow` + an additive
     `dense` prop (panel-width, since `useMobile` is viewport-only and never
     trips in this desktop-only mode; the flip width is tuned per widget by
-    column count — Orders 560, Positions 480, Activities 360); the header
+    column count — Orders 560, Positions 480, Activities 360, Profile 340); the header
     `AssetSearch` portals its
     dropdown to `<body>` so it isn't clipped by the panel. Data widgets render
     **bare** (the `bare` prop on `Orders`/`Activities`/`NewsCard` + the
