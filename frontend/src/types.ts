@@ -194,9 +194,42 @@ export interface AssetProfile {
   ath_date?: string;
   atl_usd?: number;
   atl_date?: string;
+  // Annual fundamentals (FMP, us_equity). Margins/ratios are fractions (0.21 =
+  // 21%); financials_annual is newest-first, ≤5yr.
+  pe_ratio?: number;
+  ps_ratio?: number;
+  pb_ratio?: number;
+  ev_to_ebitda?: number;
+  peg_ratio?: number;
+  gross_margin?: number;
+  operating_margin?: number;
+  net_margin?: number;
+  roe?: number;
+  roic?: number;
+  debt_to_equity?: number;
+  current_ratio?: number;
+  eps_diluted?: number;
+  book_value_per_share?: number;
+  free_cash_flow?: number;
+  revenue_growth_yoy?: number;
+  eps_growth_yoy?: number;
+  dividend_yield?: number;
+  payout_ratio?: number;
+  latest_fiscal_year?: number;
+  reported_currency?: string;
+  financials_annual?: FinancialsYear[];
+  fundamentals_enriched_at?: string;
   // Metadata.
   enriched_at?: string;
   enrichment_source?: string;
+}
+
+export interface FinancialsYear {
+  year: number;
+  revenue?: number | null;
+  net_income?: number | null;
+  eps?: number | null;
+  fcf?: number | null;
 }
 
 export interface Snapshot {

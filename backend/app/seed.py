@@ -70,6 +70,65 @@ def enrich_stocks(
     }
 
 
+def enrich_fundamentals(
+    symbols: list[str] | None = None,
+    limit: int = 0,
+    force: bool = False,
+) -> dict:
+    """Populate annual fundamentals (FMP Starter: annual-only) for us_equity
+    rows. Either an explicit ``symbols`` list, or — when ``limit`` is given —
+    the next ``limit`` eligible stocks (profile-enriched, non-ETF, largest cap
+    first). Three FMP calls per symbol (income statement, cash flow, ratios);
+    skips already-done rows unless ``force``. Resumable: re-run to continue."""
+    if not db.db_enabled():
+        return {"error": "DATABASE_URL not configured"}
+    if not fmp.configured():
+        return {"error": "FMP_API_KEY not configured"}
+
+    if not symbols and limit > 0:
+        symbols = db.fundamentals_target_symbols(limit, only_missing=not force)
+    symbols = symbols or []
+    if not symbols:
+        return {"error": "pass symbols=... or limit=N"}
+
+    t0 = time.monotonic()
+    already = set() if force else db.fundamentals_enriched_symbols()
+    enriched = skipped = not_found = failed = 0
+
+    for sym in symbols:
+        if sym in already:
+            skipped += 1
+            continue
+        try:
+            income = fmp.fetch_income_statement(sym, limit=5)
+            if not income:
+                _log.info("enrich-fundamentals: no income statement for %s", sym)
+                not_found += 1
+                continue
+            cash = fmp.fetch_cash_flow(sym, limit=5)
+            ratios = fmp.fetch_ratios(sym, limit=1)
+            row = fmp.map_fundamentals(sym, income, cash, ratios)
+            if not row:
+                not_found += 1
+                continue
+            db.upsert_fundamentals(row)
+            enriched += 1
+            _log.info("enrich-fundamentals: enriched %s", sym)
+        except Exception as exc:
+            _log.warning("enrich-fundamentals: FMP failed for %s: %s", sym, exc)
+            failed += 1
+        time.sleep(fmp.CALL_DELAY)
+
+    return {
+        "requested":               len(symbols),
+        "fundamentals_enriched":   enriched,
+        "fundamentals_already":    skipped,
+        "fundamentals_not_found":  not_found,
+        "fundamentals_failed":     failed,
+        "duration_seconds":        round(time.monotonic() - t0, 1),
+    }
+
+
 def run_seed(force: bool = False, base: bool = True) -> dict:
     """Seed the catalogue. By default crypto rows already enriched are skipped
     so a re-run only fills gaps; ``force=True`` re-enriches every crypto pair.

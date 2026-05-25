@@ -9,6 +9,7 @@ a 503-style fallback, mirroring the Alpaca-keys seam.
 
 from __future__ import annotations
 
+import json
 import logging
 import math
 import ssl
@@ -160,6 +161,12 @@ _PROFILE_COLS = (
     "coingecko_id", "hashing_algorithm", "genesis_date", "categories",
     "whitepaper_url", "github_url", "circulating_supply", "total_supply",
     "max_supply", "market_cap_rank", "ath_usd", "ath_date", "atl_usd", "atl_date",
+    "pe_ratio", "ps_ratio", "pb_ratio", "ev_to_ebitda", "peg_ratio",
+    "gross_margin", "operating_margin", "net_margin", "roe", "roic",
+    "debt_to_equity", "current_ratio", "eps_diluted", "book_value_per_share",
+    "free_cash_flow", "revenue_growth_yoy", "eps_growth_yoy", "dividend_yield",
+    "payout_ratio", "latest_fiscal_year", "reported_currency", "financials_annual",
+    "fundamentals_enriched_at",
     "enriched_at", "enrichment_source",
 )
 
@@ -169,6 +176,11 @@ _PROFILE_COLS = (
 _PROFILE_FLOAT_COLS = frozenset({
     "beta", "circulating_supply", "total_supply", "max_supply",
     "ath_usd", "atl_usd",
+    "pe_ratio", "ps_ratio", "pb_ratio", "ev_to_ebitda", "peg_ratio",
+    "gross_margin", "operating_margin", "net_margin", "roe", "roic",
+    "debt_to_equity", "current_ratio", "eps_diluted", "book_value_per_share",
+    "free_cash_flow", "revenue_growth_yoy", "eps_growth_yoy", "dividend_yield",
+    "payout_ratio",
 })
 
 
@@ -193,7 +205,12 @@ def get_asset_profile(symbol: str) -> dict | None:
         for k, v in zip(_PROFILE_COLS, row):
             if v is None:
                 continue
-            out[k] = float(v) if k in _PROFILE_FLOAT_COLS else v
+            if k == "financials_annual":
+                out[k] = json.loads(v) if isinstance(v, str) else v
+            elif k in _PROFILE_FLOAT_COLS:
+                out[k] = float(v)
+            else:
+                out[k] = v
         return out
 
 
@@ -572,6 +589,85 @@ def unenriched_stock_symbols(limit: int) -> list[str]:
             (limit,),
         )
         return [row[0] for row in cur.fetchall()]
+
+
+def fundamentals_enriched_symbols() -> set[str]:
+    """us_equity symbols that already carry annual fundamentals — lets the
+    fundamentals seeder resume."""
+    with _connect() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT symbol FROM assets WHERE fundamentals_enriched_at IS NOT NULL"
+        )
+        return {row[0] for row in cur.fetchall()}
+
+
+def fundamentals_target_symbols(limit: int, only_missing: bool = True) -> list[str]:
+    """Next ``limit`` fundamentals-eligible symbols (profile-enriched, non-ETF
+    US equities), largest market cap first. ``only_missing`` skips rows already
+    done — pass False for a forced full re-enrich."""
+    where = (
+        "asset_class = 'us_equity' AND enrichment_source = 'fmp' "
+        "AND is_etf IS NOT TRUE AND is_fund IS NOT TRUE"
+    )
+    if only_missing:
+        where += " AND fundamentals_enriched_at IS NULL"
+    with _connect() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT symbol FROM assets WHERE " + where +
+            " ORDER BY market_cap DESC NULLS LAST, symbol LIMIT %s",
+            (limit,),
+        )
+        return [row[0] for row in cur.fetchall()]
+
+
+def upsert_fundamentals(e: dict) -> None:
+    """Write FMP annual-fundamentals columns for one us_equity row."""
+    fa = e.get("financials_annual")
+    fa_json = json.dumps(fa) if fa is not None else None
+    with _connect() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            UPDATE assets SET
+                pe_ratio                 = %s,
+                ps_ratio                 = %s,
+                pb_ratio                 = %s,
+                ev_to_ebitda             = %s,
+                peg_ratio                = %s,
+                gross_margin             = %s,
+                operating_margin         = %s,
+                net_margin               = %s,
+                roe                      = %s,
+                roic                     = %s,
+                debt_to_equity           = %s,
+                current_ratio            = %s,
+                eps_diluted              = %s,
+                book_value_per_share     = %s,
+                free_cash_flow           = %s,
+                revenue_growth_yoy       = %s,
+                eps_growth_yoy           = %s,
+                dividend_yield           = %s,
+                payout_ratio             = %s,
+                latest_fiscal_year       = %s,
+                reported_currency        = %s,
+                financials_annual        = %s::jsonb,
+                fundamentals_enriched_at = now()
+            WHERE symbol = %s
+            """,
+            (
+                e.get("pe_ratio"), e.get("ps_ratio"), e.get("pb_ratio"),
+                e.get("ev_to_ebitda"), e.get("peg_ratio"), e.get("gross_margin"),
+                e.get("operating_margin"), e.get("net_margin"), e.get("roe"),
+                e.get("roic"), e.get("debt_to_equity"), e.get("current_ratio"),
+                e.get("eps_diluted"), e.get("book_value_per_share"),
+                e.get("free_cash_flow"), e.get("revenue_growth_yoy"),
+                e.get("eps_growth_yoy"), e.get("dividend_yield"),
+                e.get("payout_ratio"), e.get("latest_fiscal_year"),
+                e.get("reported_currency"), fa_json, e["symbol"],
+            ),
+        )
 
 
 def upsert_stock_enrichment(e: dict) -> None:

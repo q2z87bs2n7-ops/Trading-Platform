@@ -8,6 +8,8 @@ profile response (separate endpoint) and stay null for now.
 """
 from __future__ import annotations
 
+import math
+
 import requests
 
 from .config import get_settings
@@ -75,6 +77,129 @@ def _int(v):
         return int(v)
     except (TypeError, ValueError):
         return None
+
+
+# ---- annual fundamentals (Starter tier: annual-only, 5yr) -------------------
+
+def fetch_income_statement(symbol: str, limit: int = 5) -> list[dict]:
+    """Annual income statements, newest-first (dot->dash like fetch_profile)."""
+    return _get("income-statement", {"symbol": symbol.replace(".", "-"), "limit": limit})
+
+
+def fetch_cash_flow(symbol: str, limit: int = 5) -> list[dict]:
+    """Annual cash-flow statements, newest-first."""
+    return _get("cash-flow-statement", {"symbol": symbol.replace(".", "-"), "limit": limit})
+
+
+def fetch_ratios(symbol: str, limit: int = 1) -> list[dict]:
+    """Annual financial ratios, newest-first."""
+    return _get("ratios", {"symbol": symbol.replace(".", "-"), "limit": limit})
+
+
+def _num(v):
+    """Coerce to float; None on bad/NaN/inf input."""
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return None if (math.isnan(f) or math.isinf(f)) else f
+
+
+def _pick(d: dict, *keys: str):
+    """First numeric value among candidate keys. FMP's stable field names vary
+    between endpoints/versions, so each metric lists its known aliases."""
+    for k in keys:
+        v = _num(d.get(k))
+        if v is not None:
+            return v
+    return None
+
+
+def _fiscal_year(row: dict) -> int | None:
+    for k in ("fiscalYear", "calendarYear"):
+        v = row.get(k)
+        if v:
+            try:
+                return int(str(v)[:4])
+            except (TypeError, ValueError):
+                pass
+    try:
+        return int(str(row.get("date") or "")[:4])
+    except (TypeError, ValueError):
+        return None
+
+
+def map_fundamentals(
+    symbol: str, income: list[dict], cash: list[dict], ratios: list[dict]
+) -> dict | None:
+    """Build one fundamentals row from the three FMP statement responses.
+
+    Margins and YoY growth are *derived* from the income statement (well-known
+    fields) rather than the ratios endpoint, whose stable field names are less
+    certain; valuation/quality ratios come from `ratios` with alias fallbacks.
+    Missing metrics stay None and the widget hides them — never fabricated.
+    """
+    if not income:
+        return None
+    inc0 = income[0]
+    fcf_by_year = {
+        y: _pick(c, "freeCashFlow")
+        for c in (cash or [])
+        if (y := _fiscal_year(c)) is not None
+    }
+
+    trend: list[dict] = []
+    for row in income[:5]:
+        y = _fiscal_year(row)
+        if y is None:
+            continue
+        trend.append({
+            "year":       y,
+            "revenue":    _pick(row, "revenue"),
+            "net_income": _pick(row, "netIncome"),
+            "eps":        _pick(row, "epsDiluted", "epsdiluted", "eps"),
+            "fcf":        fcf_by_year.get(y),
+        })
+
+    rev0 = _pick(inc0, "revenue")
+    def _margin(*keys):
+        n = _pick(inc0, *keys)
+        return (n / rev0) if (n is not None and rev0) else None
+
+    def _growth(field):
+        if len(trend) >= 2:
+            a, b = trend[0].get(field), trend[1].get(field)
+            if a is not None and b is not None and b > 0:
+                return a / b - 1
+        return None
+
+    r = ratios[0] if ratios else {}
+    head = trend[0] if trend else {}
+    return {
+        "symbol":               symbol,
+        "pe_ratio":             _pick(r, "priceToEarningsRatio", "peRatio", "priceEarningsRatio"),
+        "ps_ratio":             _pick(r, "priceToSalesRatio", "priceSalesRatio"),
+        "pb_ratio":             _pick(r, "priceToBookRatio", "priceBookValueRatio", "priceToBookValueRatio"),
+        "ev_to_ebitda":         _pick(r, "enterpriseValueMultiple", "evToEBITDA", "enterpriseValueOverEBITDA"),
+        "peg_ratio":            _pick(r, "priceToEarningsGrowthRatio", "pegRatio", "priceEarningsToGrowthRatio"),
+        "gross_margin":         _margin("grossProfit") if rev0 else _pick(r, "grossProfitMargin"),
+        "operating_margin":     _margin("operatingIncome") if rev0 else _pick(r, "operatingProfitMargin"),
+        "net_margin":           _margin("netIncome") if rev0 else _pick(r, "netProfitMargin", "netIncomeMargin"),
+        "roe":                  _pick(r, "returnOnEquity"),
+        "roic":                 _pick(r, "returnOnInvestedCapital", "returnOnCapitalEmployed"),
+        "debt_to_equity":       _pick(r, "debtToEquityRatio", "debtEquityRatio"),
+        "current_ratio":        _pick(r, "currentRatio"),
+        "eps_diluted":          head.get("eps"),
+        "book_value_per_share": _pick(r, "bookValuePerShare"),
+        "free_cash_flow":       head.get("fcf"),
+        "revenue_growth_yoy":   _growth("revenue"),
+        "eps_growth_yoy":       _growth("eps"),
+        "dividend_yield":       _pick(r, "dividendYield", "dividendYieldRatio"),
+        "payout_ratio":         _pick(r, "dividendPayoutRatio", "payoutRatio"),
+        "latest_fiscal_year":   head.get("year"),
+        "reported_currency":    inc0.get("reportedCurrency") or None,
+        "financials_annual":    trend,
+    }
 
 
 def map_stock_enrichment(symbol: str, d: dict) -> dict:

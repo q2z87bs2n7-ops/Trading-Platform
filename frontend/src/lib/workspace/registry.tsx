@@ -9,6 +9,7 @@ import PriceChart from "../../components/PriceChart";
 import OrderTicketInline from "../../components/trade/OrderTicketInline";
 import AccountPanel from "../../components/AccountPanel";
 import AssetProfile from "../../components/AssetProfile";
+import Fundamentals from "../../components/Fundamentals";
 import Watchlist from "../../components/Watchlist";
 import { AssetSearch } from "../../components/AssetSearch";
 import { NewsCard, NewsCardSkeleton } from "../../components/discover/NewsCard";
@@ -696,6 +697,38 @@ function ProfileWidget(props: IDockviewPanelProps) {
   );
 }
 
+// Fundamentals widget: annual statement figures (revenue/net-income trend,
+// valuation, margins, growth, dividend) for the linked symbol. Stocks-only and
+// always symbol-linked, so it mirrors Profile: default "main", no "none".
+function FundamentalsWidget(props: IDockviewPanelProps) {
+  const { getSymbol, setSymbol, assetClass } = useWorkspace();
+  const [channel, setChannel] = useChannel(props, "main");
+  const symbol = getSymbol(channel).toUpperCase();
+  const ref = useRef<HTMLDivElement>(null);
+  const dense = useContainerNarrow(ref, PROFILE_DENSE_W);
+  return (
+    <WidgetShell
+      header={
+        <LinkHeader
+          label={symbol}
+          channel={channel}
+          setChannel={setChannel}
+          includeNone={false}
+          assetClass={assetClass}
+          onPickSymbol={(s) => setSymbol(channel, s)}
+          kind="Fundamentals"
+        />
+      }
+    >
+      <div ref={ref} style={{ height: "100%" }}>
+        <Pane pad>
+          <Fundamentals symbol={symbol} assetClass={assetClass} dense={dense} />
+        </Pane>
+      </div>
+    </WidgetShell>
+  );
+}
+
 // Earnings widget: symbol-linked (a colour channel shows that ticker's report
 // history) or whole-market on the `none` channel (the curated upcoming calendar,
 // mirroring NewsWidget's market mode).
@@ -770,6 +803,7 @@ export const WIDGET_COMPONENTS: Record<
   activity: ActivityWidget,
   news: NewsWidget,
   profile: ProfileWidget,
+  fundamentals: FundamentalsWidget,
   earnings: EarningsWidget,
 };
 
@@ -832,8 +866,15 @@ export const WIDGET_CATALOG: WidgetMeta[] = [
     id: "profile",
     group: "Market data",
     title: "Profile",
-    desc: "Fundamentals & enrichment — sector, supply, ATH, links",
+    desc: "Company & token identity — sector, supply, ATH, links",
     iconPath: "M2 8 A6 6 0 1 1 14 8 A6 6 0 1 1 2 8 M8 7.2 V11.2 M8 4.7 L8.01 4.7",
+  },
+  {
+    id: "fundamentals",
+    group: "Market data",
+    title: "Fundamentals",
+    desc: "Revenue & net-income trend, valuation, margins, growth (stocks)",
+    iconPath: "M2 14 V9 H5 V14 Z M6.5 14 V5 H9.5 V14 Z M11 14 V7 H14 V14 Z M2 14 H14",
   },
   {
     id: "earnings",
