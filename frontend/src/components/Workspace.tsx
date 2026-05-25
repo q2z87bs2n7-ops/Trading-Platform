@@ -327,6 +327,9 @@ function AddWidgetMenu({
               borderRadius: 10,
               boxShadow: "var(--shadow-lg)",
               padding: 6,
+              display: "flex",
+              flexDirection: "column",
+              maxHeight: `calc(100vh - ${pos.top + 8}px)`,
             }}
           >
             <div
@@ -339,6 +342,7 @@ function AddWidgetMenu({
                 background: "var(--panel-2)",
                 borderRadius: 6,
                 border: "1px solid var(--border)",
+                flexShrink: 0,
               }}
             >
               <svg
@@ -383,6 +387,7 @@ function AddWidgetMenu({
               </span>
             </div>
 
+            <div style={{ overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
             {filtered.length === 0 && (
               <div
                 style={{
@@ -483,6 +488,7 @@ function AddWidgetMenu({
                 </div>
               );
             })}
+            </div>
           </div>,
           document.body,
         )}
