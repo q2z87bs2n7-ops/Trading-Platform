@@ -44,10 +44,12 @@ area.
   proxy a streaming SSE response through `event.respondWith`, and Chrome drops
   the connection after ~12 s. Symptom: `ERR_CONNECTION_CLOSED 200 OK` with
   `(ServiceWorker)` in the Network tab initiator column.
-- **`POLL_MS` is intentionally 15 000 ms (not 2 s).** At 2 s the fallback
-  generates ~43 k Vercel edge requests/day and burns the free-tier 1 M
-  allowance in ~3 weeks. 15 s is still responsive for a degraded path.
-  Don't reduce it without considering the edge-request budget.
+- **`POLL_MS` is currently 60 000 ms (dev setting).** The original 2 s
+  fallback generated ~43 k Vercel edge requests/day and would burn the
+  free-tier 1 M allowance in ~3 weeks; it was raised to 15 s, then to 60 s
+  during dev to keep edge usage minimal. The degraded path is correspondingly
+  less fresh — **lower this toward more constant polling before any live use**,
+  weighing freshness against the edge-request budget.
 - **Render relay keepalive.** `quoteStream.ts` pings `STREAM_BASE/api/health`
   every 9 minutes while any symbol is subscribed. This prevents Render
   spindown, which is what triggers stream failures and the expensive

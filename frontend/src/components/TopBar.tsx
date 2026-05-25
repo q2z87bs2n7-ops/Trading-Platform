@@ -68,7 +68,7 @@ export default function TopBar({ assetClass = "stocks" }: { assetClass?: AssetCl
             borderRadius: 6,
             letterSpacing: "0.04em",
           }}
-          title="Server-Sent Events stream is unreachable; falling back to /api/quotes polling every 2s."
+          title="Server-Sent Events stream is unreachable; falling back to /api/quotes polling every 60s."
         >
           <span
             className="inline-block w-1.5 h-1.5 rounded-full"

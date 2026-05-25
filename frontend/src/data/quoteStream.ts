@@ -16,9 +16,10 @@ import { setStreamStatus } from "../lib/stream-status";
 import type { Quote } from "../types";
 import { qk, queryClient } from "./queryClient";
 
-// Fallback is already degraded (stream is down); 15s keeps Vercel edge-request
-// usage reasonable vs the previous 2s default.
-const POLL_MS = 15000;
+// Fallback is already degraded (stream is down); 60s keeps Vercel edge-request
+// usage minimal during dev. Lower this toward more constant polling before any
+// live/production use where a fresher degraded path matters.
+const POLL_MS = 60000;
 // Buffer stream ticks and flush at most this often (mirrors the Watchlist's
 // load-bearing constant from CLAUDE.md). Tune, don't remove.
 const FLUSH_MS = 500;
