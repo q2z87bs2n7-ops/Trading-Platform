@@ -180,12 +180,15 @@ separate silos behind a shared account.
   enum values, sector/logo/market_cap; Alpaca fallback) and power the watchlist
   autocomplete, chart search, and the bot's `find_symbol`. `/api/asset-profile/
   {symbol}` (sibling path — *not* the removed `/api/assets/{symbol}/profile`)
-  returns the full enrichment row (`db.get_asset_profile`, NULLs dropped) that
-  powers the Workspace **Profile** widget. The Postgres **asset
-  catalogue** is filled by two Render-only dev seeders — `POST
-  /api/_dev/seed-assets` (Alpaca base + CoinGecko crypto) and `POST
-  /api/_dev/enrich-stocks` (FMP stock enrichment) — see "Asset catalogue" below
-  and `docs/database.md`.
+  returns the full enrichment row (`db.get_asset_profile`, NULLs dropped — now
+  including the FMP **annual-fundamentals** columns) that powers the Workspace
+  **Profile** and **Fundamentals** widgets. The Postgres **asset
+  catalogue** is filled by three Render-only dev seeders — `POST
+  /api/_dev/seed-assets` (Alpaca base + CoinGecko crypto), `POST
+  /api/_dev/enrich-stocks` (FMP stock profile), and `POST
+  /api/_dev/enrich-fundamentals` (FMP annual statements → P/E, margins, ROE,
+  dividend, 5yr revenue/net-income trend; small `?limit=` chunks — 3 calls/symbol)
+  — see "Asset catalogue" below and `docs/database.md`.
   **Path params with slashes:** `/api/assets/{symbol:path}`,
   `/api/asset-profile/{symbol:path}`, `/api/positions/{symbol:path}`, and
   `/api/watchlist/{symbol:path}`

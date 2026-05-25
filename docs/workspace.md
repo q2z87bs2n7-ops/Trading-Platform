@@ -70,6 +70,13 @@ Widgets reuse existing surfaces:
   (circulating/max supply bar, market-cap rank, ATH/ATL with live distance,
   categories, whitepaper/GitHub links); always symbol-linked like Trade — default
   Main, no None.
+- **Fundamentals** — `components/Fundamentals.tsx`, symbol-linked off
+  `/api/asset-profile` (the same row Profile reads, now carrying the FMP annual
+  fundamentals). **Stocks-only** (crypto has no income statement → a notice): a
+  5-yr revenue/net-income bar chart plus valuation (P/E, P/S, P/B, EV/EBITDA,
+  PEG), profitability (margins, ROE, ROIC), YoY growth, health (debt/equity,
+  current ratio, EPS, FCF), and dividend. Deliberately **disjoint from Profile**
+  (no market cap / beta / sector / description). Default Main, no None.
 - **Earnings** — `discover/EarningsCard.tsx`, reused from Discover via its
   `bare`/`dense` props (like `NewsCard`/`NewsWidget`): on a colour channel it
   shows that symbol's report history (`/api/calendar/earnings/{symbol}`); on
@@ -114,7 +121,7 @@ Positions/Orders/Activities flip to their stacked card layout (and Profile drops
 its stat grid 2→1 column) in narrow panels via `hooks/useContainerNarrow` + an
 additive `dense` prop (panel-width, since `useMobile` is viewport-only and never
 trips in this desktop-only mode; the flip width is tuned per widget by column
-count — Orders 560, Positions 480, Activities 360, Profile 340, Earnings 420
+count — Orders 560, Positions 480, Activities 360, Profile 340, Fundamentals 340, Earnings 420
 (drops the revenue column)); the header `AssetSearch` portals its dropdown to
 `<body>` so it isn't clipped by the panel. Data widgets render **bare** (the
 `bare` prop on `Orders`/`Activities`/`NewsCard` + the `Positions` strip rows) —
@@ -134,7 +141,7 @@ reusable elsewhere for free:
    `symbol` / `assetClass` / callbacks as props and knows **nothing** about the
    Workspace. Lives in `components/`. Examples: `PriceChart`, `TVChartWidget`,
    `OrderTicketInline`, `Positions`, `Orders`, `Activities`, `NewsCard`,
-   `AssetProfile`, `AssetSearch`.
+   `AssetProfile`, `Fundamentals`, `AssetSearch`.
 3. **Workspace adapter** — `lib/workspace/registry.tsx` (+ `Workspace.tsx`): the
    *only* layer that knows Dockview, link channels, the `LinkHeader`, and
    `useWorkspace`. It wraps a feature component and injects the cross-cutting

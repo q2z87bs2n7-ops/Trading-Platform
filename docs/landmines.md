@@ -117,8 +117,8 @@ The relay image is built from `backend/Dockerfile`. Two things bit us:
 ## Asset catalogue / Postgres (Supabase)
 
 The `assets` table (`backend/app/db.py`, enriched via `coingecko.py` + `fmp.py`,
-seeded through the `/api/_dev/seed-assets` and `/api/_dev/enrich-stocks` dev
-tools). Each item cost a round of debugging:
+seeded through the `/api/_dev/seed-assets`, `/api/_dev/enrich-stocks`, and
+`/api/_dev/enrich-fundamentals` dev tools). Each item cost a round of debugging:
 
 - **Postgres :5432/:6543 is unreachable except from prod.** The sandbox blocks
   raw TCP (only :443 is open even on a loosened egress policy) and the owner's
@@ -128,6 +128,10 @@ tools). Each item cost a round of debugging:
   editor or by hitting the deployed seeders.
 - **The table is created by `002_assets.sql`, not auto-created.** Run it once in
   the Supabase SQL editor (the old `company_profiles` auto-create was removed).
+  The **stock-fundamentals columns** (`pe_ratio` … `financials_annual`,
+  `fundamentals_enriched_at`) were added later as a direct `ALTER TABLE` in the
+  SQL editor and were **not** committed as a `003_*.sql` — re-creating the DB
+  from `002_assets.sql` alone misses them (see `docs/database.md` → Schema).
 - **Alpaca SDK enums stringify to the member NAME, not the value.**
   `str(AssetClass.CRYPTO)` → `"AssetClass.CRYPTO"`, not `"crypto"` — same for
   `AssetExchange`/`AssetStatus`, and it holds even on a pydantic model field.
@@ -167,6 +171,22 @@ tools). Each item cost a round of debugging:
   fetch + pacing + a fresh DB connection, so real throughput is ~100/min even on
   a paid 300/min tier — the whole universe is ~1.5–2.5 hr. Run `enrich-stocks
   ?limit=N` in chunks (resumable); don't expect the rate ceiling.
+- **`enrich-fundamentals` is 3 FMP calls/symbol → a big `?limit` 502s.** At
+  ~1.5s/symbol a `limit=1500` run runs ~35 min and Render's gateway severs the
+  connection with a **502** (returns an HTML page, not JSON) long before it
+  finishes. Per-symbol commits mean the rows done before the cut **persist**, so
+  it's resumable — but run it in **small chunks (~200) in a loop**, not one big
+  call. The eligible set is profile-enriched, non-ETF US equities (~4k).
+- **FMP fundamentals are annual-only on the Starter tier** (quarterly / "full
+  fundamentals" needs Premium). `map_fundamentals` therefore stores ≤5yr annual
+  figures, **derives** margins + YoY growth from the income statement (well-known
+  fields), and pulls valuation/quality ratios (P/E, ROE, EV/EBITDA, dividend
+  yield…) from the `ratios` endpoint with **multi-key alias fallbacks** — the
+  stable field names vary by version and couldn't be verified from the sandbox
+  (docs 403; FMP only reachable from prod). After the first run, spot-check a
+  known row (e.g. `SELECT pe_ratio, roe, dividend_yield FROM assets WHERE
+  symbol='AAPL'`); a uniformly-NULL ratio column means an alias is off — a
+  one-line fix in `fmp.py:map_fundamentals`.
 - **Crypto's "exchange" is the pseudo-value `CRYPTO`.** `_asset_dict`/`get_asset`
   return `exchange="CRYPTO"` for crypto, which duplicates the asset-class label
   in UI (we hide the exchange span when it's `CRYPTO` — see `PriceChart.tsx`).

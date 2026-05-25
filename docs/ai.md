@@ -49,7 +49,9 @@ These don't run server-side — each *queues a client directive* into
 which the frontend `FallbackCard` replays against the lazy Workspace via the
 `lib/workspace/controller.ts` singleton (App registers mode/silo hooks; Workspace
 registers an imperative handle on `onReady`). The bot can resolve symbols
-(`find_symbol`/`screen_assets`) then `build_workspace_layout` a responsive custom
+(`find_symbol`/`screen_assets` — the latter now screens/sorts on stock
+fundamentals too: P/E, dividend yield, net margin, ROE, revenue growth) then
+`build_workspace_layout` a responsive custom
 grid ("watch the 7 best tech names"); the request carries a `viewport` hint and
 the app auto-switches into Workspace mode (desktop-only).
 
@@ -61,7 +63,8 @@ can't take a per-panel symbol otherwise. The placeable-widget enum
 add/build; mirror any new widget into `WidgetId` / `WIDGET_IDS`
 (`lib/workspace/actions.ts`) and the local `WORKSPACE_WIDGETS` map + add-regex
 (`lib/ask-intent/detectors.ts`) so local commands resolve without an AI
-round-trip (the **Earnings** widget follows this pattern). The same directive
+round-trip (the **Earnings** and **Fundamentals** widgets follow this pattern;
+Fundamentals is stocks-only — the bot links it to a stock channel). The same directive
 shapes back a deterministic local `workspace` intent in `lib/ask-intent/` (e.g.
 "watch AAPL NVDA TSLA", "trader layout", "set blue to NVDA", "add earnings for
 AAPL") — no AI round-trip.
