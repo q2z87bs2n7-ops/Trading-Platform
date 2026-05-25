@@ -7,7 +7,7 @@
  * Chart-mode's ChartBot) so multiple chart panels stay independent.
  */
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { useTheme } from "../hooks/useTheme";
 import { createDatafeed } from "../lib/tv-datafeed";
@@ -63,6 +63,23 @@ export default function TVChartWidget({ symbol, onSymbolChange }: Props) {
     themeRef.current = theme;
   }, [theme]);
 
+  // Re-skin the live widget in place. changeTheme applies TV's standard
+  // palette, so re-assert our custom pane background afterwards.
+  const applyTheme = useCallback((t: "light" | "dark") => {
+    const w = widgetRef.current;
+    if (!w) return;
+    w.changeTheme(t, { disableUndo: true })
+      .then(() => {
+        w.applyOverrides({
+          "paneProperties.background": t === "dark" ? "#0a0c10" : "#ffffff",
+          "paneProperties.backgroundType": "solid",
+        });
+      })
+      .catch(() => {
+        /* widget tearing down */
+      });
+  }, []);
+
   // The widget is built once; route symbol-out through a ref so it always hits
   // the latest callback.
   const onSymbolChangeRef = useRef(onSymbolChange);
@@ -115,6 +132,11 @@ export default function TVChartWidget({ symbol, onSymbolChange }: Props) {
 
       widget.onChartReady(() => {
         readyRef.current = true;
+        // With use_localstorage_for_settings on, TV can restore a previous
+        // session's palette, and a theme toggle can land mid-load — both
+        // leave the initial colours out of sync until a manual toggle.
+        // Re-assert the current app theme now that the chart is ready.
+        applyTheme(themeRef.current);
         if (smallRef.current !== null) {
           try {
             applyDensity(widget, smallRef.current);
@@ -178,19 +200,8 @@ export default function TVChartWidget({ symbol, onSymbolChange }: Props) {
 
   // Re-skin in place on theme toggle once the chart is ready.
   useEffect(() => {
-    const w = widgetRef.current;
-    if (!w || !readyRef.current) return;
-    w.changeTheme(theme, { disableUndo: true })
-      .then(() => {
-        w.applyOverrides({
-          "paneProperties.background": theme === "dark" ? "#0a0c10" : "#ffffff",
-          "paneProperties.backgroundType": "solid",
-        });
-      })
-      .catch(() => {
-        /* widget tearing down */
-      });
-  }, [theme]);
+    if (readyRef.current) applyTheme(theme);
+  }, [theme, applyTheme]);
 
   // Push external symbol changes (from the linked workspace channel) into the
   // running widget; bail if it's already there to avoid a refire loop.
