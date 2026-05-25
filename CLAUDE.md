@@ -461,7 +461,10 @@ instant); **violet = real Claude API call** (Anthropic credits, slow).
   bot can resolve symbols (`find_symbol`/`screen_assets`) then
   `build_workspace_layout` a responsive custom grid ("watch the 7 best tech
   names"); the request carries a `viewport` hint and the app auto-switches into
-  Workspace mode (desktop-only). The same directive shapes back a deterministic
+  Workspace mode (desktop-only). A widget given both a `symbol` and a `channel`
+  points that channel at the symbol, so every panel on the channel (chart +
+  profile + data) follows — that's how the bot pins distinct instruments (≤4
+  channels); channel-linked panels can't take a per-panel symbol otherwise. The same directive shapes back a deterministic
   local `workspace` intent in `lib/ask-intent.ts` (e.g. "watch AAPL NVDA TSLA",
   "trader layout", "set blue to NVDA") — no AI round-trip. These live in
   `ask_tools()`,
