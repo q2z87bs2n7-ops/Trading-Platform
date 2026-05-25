@@ -163,6 +163,14 @@ _PROFILE_COLS = (
     "enriched_at", "enrichment_source",
 )
 
+# NUMERIC columns come back from pg8000 as Decimal, which serialises to a JSON
+# string — coerce to float so the frontend gets real numbers (BIGINT/INTEGER
+# columns like market_cap / employees / market_cap_rank already arrive as int).
+_PROFILE_FLOAT_COLS = frozenset({
+    "beta", "circulating_supply", "total_supply", "max_supply",
+    "ath_usd", "atl_usd",
+})
+
 
 def get_asset_profile(symbol: str) -> dict | None:
     """Full catalogue row for one symbol — base identity plus every enrichment
@@ -181,7 +189,12 @@ def get_asset_profile(symbol: str) -> dict | None:
         row = cur.fetchone()
         if not row:
             return None
-        return {k: v for k, v in zip(_PROFILE_COLS, row) if v is not None}
+        out: dict = {}
+        for k, v in zip(_PROFILE_COLS, row):
+            if v is None:
+                continue
+            out[k] = float(v) if k in _PROFILE_FLOAT_COLS else v
+        return out
 
 
 def search_assets(query: str, asset_class: str, limit: int) -> list[dict]:
