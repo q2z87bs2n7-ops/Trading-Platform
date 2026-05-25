@@ -49,12 +49,17 @@ const STORAGE_KEY_V1 = (ac: AssetClass) => `workspace_layout_${ac}_v1`;
 const STORAGE_KEY_V2 = (ac: AssetClass) => `workspace_layouts_${ac}_v2`;
 
 // v2 persistence shape: an active layout (currently displayed; may equal a
-// preset's output plus any subsequent dragging) plus a slot for future named
-// user layouts ("Save current as…"). The v2 shape is forward-compatible so
-// the named-layouts UI can ship later without another migration.
+// preset's output plus any subsequent dragging) plus a map of named user
+// layouts ("Save current as…"). Each saved entry snapshots the Dockview JSON
+// *and* the silo's colour-channel symbols, so restoring brings back both the
+// arrangement and the tickers on each channel.
+interface NamedLayout {
+  layout: unknown;
+  channels?: Record<string, string>;
+}
 interface SavedLayouts {
   active: { name: string; layout: unknown };
-  saved: Record<string, unknown>;
+  saved: Record<string, NamedLayout>;
 }
 
 function loadLayouts(ac: AssetClass): SavedLayouts | null {
@@ -91,9 +96,71 @@ function saveActiveLayout(ac: AssetClass, layout: unknown, name?: string) {
   }
 }
 
+// Reset only the *active* layout, preserving named saved layouts. Applying a
+// preset / custom layout calls this before writing the new active, so it must
+// not clobber the user's `saved` map.
 function clearActiveLayout(ac: AssetClass) {
   try {
-    localStorage.removeItem(STORAGE_KEY_V2(ac));
+    const cur = loadLayouts(ac);
+    if (!cur) {
+      localStorage.removeItem(STORAGE_KEY_V2(ac));
+      return;
+    }
+    cur.active = { name: "default", layout: null };
+    localStorage.setItem(STORAGE_KEY_V2(ac), JSON.stringify(cur));
+  } catch {
+    /* non-fatal */
+  }
+}
+
+// ---- named saved layouts ("Save current as…") -----------------------------
+
+function listSavedLayouts(ac: AssetClass): string[] {
+  const cur = loadLayouts(ac);
+  return cur ? Object.keys(cur.saved).sort((a, b) => a.localeCompare(b)) : [];
+}
+
+function getNamedLayout(ac: AssetClass, name: string): NamedLayout | null {
+  return loadLayouts(ac)?.saved[name] ?? null;
+}
+
+function saveNamedLayout(
+  ac: AssetClass,
+  name: string,
+  layout: unknown,
+  channels: Record<string, string>,
+) {
+  try {
+    const cur = loadLayouts(ac) ?? {
+      active: { name: "default", layout: null },
+      saved: {},
+    };
+    cur.saved[name] = { layout, channels };
+    localStorage.setItem(STORAGE_KEY_V2(ac), JSON.stringify(cur));
+  } catch {
+    /* quota / serialization — non-fatal */
+  }
+}
+
+function deleteNamedLayout(ac: AssetClass, name: string) {
+  try {
+    const cur = loadLayouts(ac);
+    if (!cur || !(name in cur.saved)) return;
+    delete cur.saved[name];
+    localStorage.setItem(STORAGE_KEY_V2(ac), JSON.stringify(cur));
+  } catch {
+    /* non-fatal */
+  }
+}
+
+function renameNamedLayout(ac: AssetClass, oldName: string, newName: string) {
+  const next = newName.trim();
+  try {
+    const cur = loadLayouts(ac);
+    if (!cur || !(oldName in cur.saved) || !next || next === oldName) return;
+    cur.saved[next] = cur.saved[oldName];
+    delete cur.saved[oldName];
+    localStorage.setItem(STORAGE_KEY_V2(ac), JSON.stringify(cur));
   } catch {
     /* non-fatal */
   }
@@ -625,19 +692,183 @@ function ChannelChip({
   );
 }
 
+// One row in the Layouts menu's "My layouts" list: name + Apply / Rename /
+// Delete, with inline rename. Hover-highlighted; the rename input swallows
+// Enter/Escape so they don't bubble to the popover's preset-apply handler.
+function SavedLayoutRow({
+  name,
+  onApply,
+  onDelete,
+  onRename,
+}: {
+  name: string;
+  onApply: () => void;
+  onDelete: () => void;
+  onRename: (newName: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(name);
+
+  function commit() {
+    const n = draft.trim();
+    if (n && n !== name) onRename(n);
+    setEditing(false);
+  }
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "5px 6px",
+        borderRadius: 6,
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = "var(--panel-2)")}
+      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+    >
+      <svg
+        width={13}
+        height={13}
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="var(--mute)"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+        style={{ flexShrink: 0 }}
+      >
+        <rect x="2.5" y="2.5" width="11" height="11" rx="1.5" />
+        <path d="M8 2.5 V13.5 M2.5 8 H13.5" />
+      </svg>
+      {editing ? (
+        <input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === "Enter") commit();
+            if (e.key === "Escape") {
+              setDraft(name);
+              setEditing(false);
+            }
+          }}
+          onBlur={commit}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            fontSize: 12,
+            padding: "2px 6px",
+            background: "var(--panel-2)",
+            border: "1px solid var(--border)",
+            borderRadius: 4,
+            color: "var(--text)",
+            outline: "none",
+            fontFamily: "var(--font-mono)",
+          }}
+        />
+      ) : (
+        <span
+          style={{
+            flex: 1,
+            minWidth: 0,
+            fontSize: 12.5,
+            color: "var(--text)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            fontFamily: "var(--font-mono)",
+          }}
+        >
+          {name}
+        </span>
+      )}
+      {!editing && (
+        <>
+          <button
+            type="button"
+            onClick={onApply}
+            className="text-[11px] cursor-pointer rounded-card"
+            style={{
+              background: "var(--panel-2)",
+              border: "1px solid var(--border)",
+              color: "var(--text-2)",
+              padding: "2px 8px",
+              flexShrink: 0,
+            }}
+          >
+            Apply
+          </button>
+          <button
+            type="button"
+            title="Rename"
+            onClick={() => {
+              setDraft(name);
+              setEditing(true);
+            }}
+            className="cursor-pointer rounded-card"
+            style={{
+              background: "transparent",
+              border: "1px solid transparent",
+              color: "var(--mute)",
+              padding: "2px 6px",
+              fontSize: 12,
+              flexShrink: 0,
+            }}
+          >
+            ✎
+          </button>
+          <button
+            type="button"
+            title="Delete"
+            onClick={onDelete}
+            className="cursor-pointer rounded-card"
+            style={{
+              background: "transparent",
+              border: "1px solid transparent",
+              color: "var(--mute)",
+              padding: "2px 6px",
+              fontSize: 12,
+              flexShrink: 0,
+            }}
+          >
+            ✕
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 // Toolbar Layouts menu — opens a 480px popover showing preset cards (Trader /
 // Researcher / Watcher / Focus) with sketched thumbnails, descriptions, and
-// badges. Selecting a card highlights it; Apply replaces the canvas. Applying
-// is destructive, hence the explicit confirm step.
+// badges, plus a "My layouts" section for the user's named saved layouts
+// (Save current as… / Apply / Rename / Delete). Selecting a preset card
+// highlights it; Apply replaces the canvas. Applying is destructive, hence the
+// explicit confirm step.
 function LayoutsMenu({
   onApply,
   openRef,
+  savedNames,
+  onSaveCurrent,
+  onApplyNamed,
+  onDeleteNamed,
+  onRenameNamed,
 }: {
   onApply: (preset: LayoutPreset) => void;
   openRef?: React.MutableRefObject<(() => void) | null>;
+  savedNames: string[];
+  onSaveCurrent: (name: string) => void;
+  onApplyNamed: (name: string) => void;
+  onDeleteNamed: (name: string) => void;
+  onRenameNamed: (oldName: string, newName: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string>(PRESETS[0].id);
+  const [saving, setSaving] = useState(false);
+  const [saveName, setSaveName] = useState("");
   const btnRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
   const pos = useAnchoredPopover(btnRef, 480, open);
@@ -655,6 +886,13 @@ function LayoutsMenu({
   }, [open]);
 
   useEffect(() => {
+    if (!open) {
+      setSaving(false);
+      setSaveName("");
+    }
+  }, [open]);
+
+  useEffect(() => {
     if (!openRef) return;
     openRef.current = () => setOpen(true);
     return () => {
@@ -666,6 +904,14 @@ function LayoutsMenu({
     const p = PRESETS.find((x) => x.id === selectedId);
     if (p) onApply(p);
     setOpen(false);
+  }
+
+  function commitSave() {
+    const n = saveName.trim();
+    if (!n) return;
+    onSaveCurrent(n);
+    setSaving(false);
+    setSaveName("");
   }
 
   return (
@@ -709,6 +955,8 @@ function LayoutsMenu({
               borderRadius: 12,
               boxShadow: "var(--shadow-lg)",
               padding: 16,
+              maxHeight: `calc(100vh - ${pos.top + 16}px)`,
+              overflowY: "auto",
             }}
           >
             <div style={{ marginBottom: 12 }}>
@@ -812,6 +1060,141 @@ function LayoutsMenu({
                   </button>
                 );
               })}
+            </div>
+
+            <div
+              style={{
+                marginTop: 16,
+                borderTop: "1px solid var(--border)",
+                paddingTop: 14,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 8,
+                }}
+              >
+                <div
+                  style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}
+                >
+                  My layouts
+                </div>
+                {!saving && (
+                  <button
+                    type="button"
+                    onClick={() => setSaving(true)}
+                    className="text-[11px] cursor-pointer rounded-card"
+                    style={{
+                      background: "var(--panel-2)",
+                      border: "1px solid var(--border)",
+                      color: "var(--text)",
+                      fontWeight: 600,
+                      padding: "3px 9px",
+                    }}
+                  >
+                    + Save current as…
+                  </button>
+                )}
+              </div>
+
+              {saving && (
+                <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+                  <input
+                    autoFocus
+                    value={saveName}
+                    onChange={(e) => setSaveName(e.target.value)}
+                    onKeyDown={(e) => {
+                      e.stopPropagation();
+                      if (e.key === "Enter") commitSave();
+                      if (e.key === "Escape") {
+                        setSaving(false);
+                        setSaveName("");
+                      }
+                    }}
+                    placeholder="Layout name"
+                    style={{
+                      flex: 1,
+                      fontSize: 12,
+                      padding: "5px 8px",
+                      background: "var(--panel-2)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 6,
+                      color: "var(--text)",
+                      outline: "none",
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={commitSave}
+                    className="text-[12px] cursor-pointer rounded-card"
+                    style={{
+                      background: "var(--accent)",
+                      color: "#fff",
+                      fontWeight: 600,
+                      border: "1px solid transparent",
+                      padding: "5px 12px",
+                    }}
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSaving(false);
+                      setSaveName("");
+                    }}
+                    className="text-[12px] cursor-pointer rounded-card"
+                    style={{
+                      background: "transparent",
+                      color: "var(--text-2)",
+                      border: "1px solid var(--border)",
+                      padding: "5px 10px",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+
+              {savedNames.length === 0
+                ? !saving && (
+                    <div
+                      style={{
+                        fontSize: 11.5,
+                        color: "var(--mute)",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      No saved layouts yet. Arrange the canvas, then “Save
+                      current as…”.
+                    </div>
+                  )
+                : (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      maxHeight: 180,
+                      overflowY: "auto",
+                    }}
+                  >
+                    {savedNames.map((n) => (
+                      <SavedLayoutRow
+                        key={n}
+                        name={n}
+                        onApply={() => {
+                          onApplyNamed(n);
+                          setOpen(false);
+                        }}
+                        onDelete={() => onDeleteNamed(n)}
+                        onRename={(nn) => onRenameNamed(n, nn)}
+                      />
+                    ))}
+                  </div>
+                )}
             </div>
 
             <div
@@ -1014,6 +1397,15 @@ export default function Workspace({
   // selected symbol (so Chart mode etc. stay in sync); the colour channels are
   // seeded from CHANNEL_DEFAULTS and persist user picks across reloads.
   const [channelSymbols, setChannelSymbols] = useState<SiloChannels>(loadChannels);
+
+  // Names of the user's saved layouts for the current silo, surfaced in the
+  // Layouts menu. Refreshed on silo switch and after any save/delete/rename.
+  const [savedNames, setSavedNames] = useState<string[]>(() =>
+    listSavedLayouts(assetClass),
+  );
+  useEffect(() => {
+    setSavedNames(listSavedLayouts(assetClass));
+  }, [assetClass]);
 
   // panelId → current channel. Each widget's useChannel reports up here so the
   // Channels strip can show a live "widgets bound to each channel" count;
@@ -1255,6 +1647,59 @@ export default function Workspace({
     setPanelCount(api.panels.length);
   }
 
+  function saveCurrentLayout(name: string) {
+    const api = apiRef.current;
+    if (!api) return;
+    saveNamedLayout(
+      assetClass,
+      name,
+      api.toJSON(),
+      channelSymbols[assetClass] ?? {},
+    );
+    setSavedNames(listSavedLayouts(assetClass));
+  }
+
+  function applyNamedLayout(name: string) {
+    const api = apiRef.current;
+    if (!api) return;
+    const entry = getNamedLayout(assetClass, name);
+    if (!entry?.layout) return;
+    // Restore the snapshotted channel symbols first so widgets re-read the
+    // saved tickers as the panels mount from fromJSON.
+    const ch = entry.channels;
+    if (ch && Object.keys(ch).length) {
+      setChannelSymbols((p) => {
+        const next: SiloChannels = {
+          ...p,
+          [assetClass]: { ...p[assetClass], ...ch },
+        };
+        try {
+          localStorage.setItem(CHANNELS_KEY, JSON.stringify(next));
+        } catch {
+          /* quota — non-fatal */
+        }
+        return next;
+      });
+    }
+    try {
+      api.fromJSON(entry.layout as Parameters<DockviewApi["fromJSON"]>[0]);
+    } catch {
+      return;
+    }
+    saveActiveLayout(assetClass, api.toJSON(), name);
+    setPanelCount(api.panels.length);
+  }
+
+  function deleteSavedLayout(name: string) {
+    deleteNamedLayout(assetClass, name);
+    setSavedNames(listSavedLayouts(assetClass));
+  }
+
+  function renameSavedLayout(oldName: string, newName: string) {
+    renameNamedLayout(assetClass, oldName, newName);
+    setSavedNames(listSavedLayouts(assetClass));
+  }
+
   const openAddRef = useRef<(() => void) | null>(null);
   const openLayoutsRef = useRef<(() => void) | null>(null);
 
@@ -1280,7 +1725,15 @@ export default function Workspace({
             counts={channelCounts}
           />
           <div className="flex-1" />
-          <LayoutsMenu onApply={applyLayoutPreset} openRef={openLayoutsRef} />
+          <LayoutsMenu
+            onApply={applyLayoutPreset}
+            openRef={openLayoutsRef}
+            savedNames={savedNames}
+            onSaveCurrent={saveCurrentLayout}
+            onApplyNamed={applyNamedLayout}
+            onDeleteNamed={deleteSavedLayout}
+            onRenameNamed={renameSavedLayout}
+          />
           <ToolbarButton variant="ghost" onClick={onToggleFocus}>
             {focus ? "Exit focus" : "Focus"}
           </ToolbarButton>
