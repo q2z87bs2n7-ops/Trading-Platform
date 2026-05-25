@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import * as api from "../api";
+import { isCryptoOrder, isCryptoPosition } from "../lib/asset-class";
 import type { ReplaceOrderInput, SubmitOrderInput } from "../types";
 import { qk } from "./queryClient";
 
@@ -110,6 +111,54 @@ export const useIndices = (enabled = true) =>
     queryFn: api.getIndices,
     refetchInterval: 120_000,
     staleTime: 60_000,
+    enabled,
+  });
+
+// Stock symbols the user holds / has working orders on / watches — always kept
+// in the curated earnings calendar regardless of market cap. Crypto is excluded
+// (no earnings). Deduped + sorted so the query key is stable.
+const useEarningsIncludeSymbols = (): string[] => {
+  const positions = usePositions();
+  const orders = useOrders();
+  const watchlist = useWatchlist();
+  return useMemo(() => {
+    const set = new Set<string>();
+    positions.data?.positions.forEach((p) => {
+      if (!isCryptoPosition(p)) set.add(p.symbol.toUpperCase());
+    });
+    orders.data?.orders.forEach((o) => {
+      if (!isCryptoOrder(o)) set.add(o.symbol.toUpperCase());
+    });
+    watchlist.data?.symbols.forEach((s) => set.add(s.toUpperCase()));
+    return [...set].sort();
+  }, [positions.data, orders.data, watchlist.data]);
+};
+
+export const useEarningsCalendar = (enabled = true) => {
+  const include = useEarningsIncludeSymbols();
+  return useQuery({
+    queryKey: qk.earningsCalendar(include.join(",")),
+    queryFn: () => api.getEarningsCalendar(include),
+    refetchInterval: 300_000, // matches backend cache TTL
+    staleTime: 120_000,
+    enabled,
+  });
+};
+
+export const useSymbolEarnings = (symbol: string, enabled = true) =>
+  useQuery({
+    queryKey: qk.symbolEarnings(symbol),
+    queryFn: () => api.getSymbolEarnings(symbol),
+    enabled: enabled && symbol.length > 0,
+    staleTime: 300_000,
+  });
+
+export const useEconomicCalendar = (enabled = true) =>
+  useQuery({
+    queryKey: qk.economicCalendar,
+    queryFn: api.getEconomicCalendar,
+    refetchInterval: 300_000,
+    staleTime: 120_000,
     enabled,
   });
 

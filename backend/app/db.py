@@ -197,6 +197,22 @@ def get_asset_profile(symbol: str) -> dict | None:
         return out
 
 
+def market_cap_map() -> dict[str, int]:
+    """``{symbol: market_cap}`` for the visible US-equity universe (tradable +
+    enriched + has a cap). Used by the earnings calendar to drop the OTC/microcap
+    long tail and rank by size. Raises ``DbUnavailable`` like the other readers;
+    callers swallow it into an empty map.
+    """
+    with _connect() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT symbol, market_cap FROM assets WHERE asset_class = 'us_equity' "
+            "AND tradable = true AND enrichment_source IS NOT NULL "
+            "AND market_cap IS NOT NULL"
+        )
+        return {row[0]: int(row[1]) for row in cur.fetchall()}
+
+
 def search_assets(query: str, asset_class: str, limit: int) -> list[dict]:
     """Symbol/name search over the catalogue, ranked by market cap (so the
     likely-intended name surfaces first). ``asset_class``: '' = all,

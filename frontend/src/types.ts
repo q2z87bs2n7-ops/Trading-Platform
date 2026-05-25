@@ -248,6 +248,42 @@ export interface MarketNewsResponse {
   articles: MarketNewsArticle[];
 }
 
+// FMP earnings calendar row (/api/calendar/earnings[/{symbol}]). `date` is
+// YYYY-MM-DD; estimates are null until reported, actuals null until released.
+export interface EarningsRow {
+  symbol: string;
+  date: string;
+  eps_estimate: number | null;
+  eps_actual: number | null;
+  revenue_estimate: number | null;
+  revenue_actual: number | null;
+  market_cap?: number | null;
+}
+
+export interface EarningsResponse {
+  earnings: EarningsRow[];
+  as_of?: number;
+}
+
+// FMP economic calendar row (/api/calendar/economic). `date` is
+// "YYYY-MM-DD HH:MM:SS" (UTC); `impact` is "High" | "Medium" | "Low".
+export interface EconomicRow {
+  date: string;
+  country: string | null;
+  event: string | null;
+  currency: string | null;
+  impact: string | null;
+  previous: number | null;
+  estimate: number | null;
+  actual: number | null;
+  unit: string | null;
+}
+
+export interface EconomicResponse {
+  economic: EconomicRow[];
+  as_of?: number;
+}
+
 // Benzinga ticker news via Alpaca /api/news
 export interface NewsItem {
   id: number;

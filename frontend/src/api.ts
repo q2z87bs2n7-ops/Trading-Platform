@@ -5,6 +5,8 @@ import type {
   AssetProfile,
   Bar,
   CalendarDay,
+  EarningsResponse,
+  EconomicResponse,
   IndicesResponse,
   MarketClock,
   MarketNewsResponse,
@@ -147,6 +149,17 @@ export const searchAssets = (query: string, assetClass = "") =>
   );
 
 export const getIndices = () => getJSON<IndicesResponse>("/api/indices");
+
+export const getEarningsCalendar = (include: string[] = []) =>
+  getJSON<EarningsResponse>(
+    `/api/calendar/earnings${include.length ? `?include=${include.join(",")}` : ""}`,
+  );
+
+export const getSymbolEarnings = (symbol: string) =>
+  getJSON<EarningsResponse>(`/api/calendar/earnings/${symbol}`);
+
+export const getEconomicCalendar = () =>
+  getJSON<EconomicResponse>("/api/calendar/economic");
 
 // Full catalogue symbol universe per asset class (DB-backed; tradable +
 // enriched). Fetched once and cached stale-while-revalidate to validate

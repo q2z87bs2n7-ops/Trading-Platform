@@ -23,6 +23,7 @@ WORKSPACE_WIDGET_KINDS = (
     "activity",
     "news",
     "profile",
+    "earnings",
 )
 
 _SILO_PROP = {
@@ -89,7 +90,9 @@ WORKSPACE_TOOLS: list[dict[str, Any]] = [
             "it; data widgets (positions/orders/activity/account/news) default "
             "to whole-account when no channel is given. 'profile' shows "
             "fundamentals (stocks) or tokenomics (crypto) for one symbol — it is "
-            "symbol-linked like trade, so give it a channel."
+            "symbol-linked like trade, so give it a channel. 'earnings' shows a "
+            "symbol's report history when given a channel, or the market-wide "
+            "earnings calendar when left whole-account (no channel)."
         ),
         "input_schema": {
             "type": "object",

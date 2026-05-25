@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from . import alpaca
+from . import calendar_fmp
 from . import db
 from . import indices as market_indices
 from . import market_news
@@ -242,6 +243,27 @@ def market_news_feed(limit: int = Query(20, ge=1, le=50)) -> dict:
 def indices_snapshot() -> dict:
     """Market index snapshots (Yahoo Finance). No Alpaca keys required."""
     return {"indices": market_indices.get_indices(), "as_of": int(time.time())}
+
+
+@app.get("/api/calendar/earnings")
+def earnings_calendar(include: str = Query("")) -> dict:
+    """Curated whole-market earnings calendar (FMP). No Alpaca keys required.
+    `include` is a comma-separated symbol list (the user's positions / orders /
+    watchlist) that is always kept regardless of market cap."""
+    syms = {s.strip().upper() for s in include.split(",") if s.strip()}
+    return {"earnings": calendar_fmp.get_earnings_calendar(syms), "as_of": int(time.time())}
+
+
+@app.get("/api/calendar/earnings/{symbol}")
+def symbol_earnings(symbol: str) -> dict:
+    """Recent + upcoming earnings for one ticker (FMP). No Alpaca keys required."""
+    return {"symbol": symbol.upper(), "earnings": calendar_fmp.get_symbol_earnings(symbol)}
+
+
+@app.get("/api/calendar/economic")
+def economic_calendar() -> dict:
+    """US high/medium-impact macro calendar (FMP). No Alpaca keys required."""
+    return {"economic": calendar_fmp.get_economic_calendar(), "as_of": int(time.time())}
 
 
 @app.get("/api/movers", dependencies=[Depends(require_configured)])

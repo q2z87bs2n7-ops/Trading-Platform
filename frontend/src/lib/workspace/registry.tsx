@@ -12,8 +12,17 @@ import AssetProfile from "../../components/AssetProfile";
 import Watchlist from "../../components/Watchlist";
 import { AssetSearch } from "../../components/AssetSearch";
 import { NewsCard, NewsCardSkeleton } from "../../components/discover/NewsCard";
+import {
+  EarningsCard,
+  EarningsCardSkeleton,
+} from "../../components/discover/EarningsCard";
 import ErrorBanner from "../../components/ErrorBanner";
-import { useMarketNews, useNews } from "../../data/hooks";
+import {
+  useEarningsCalendar,
+  useMarketNews,
+  useNews,
+  useSymbolEarnings,
+} from "../../data/hooks";
 
 export type AssetClass = "stocks" | "crypto";
 
@@ -412,6 +421,7 @@ const POSITIONS_DENSE_W = 480;
 const ORDERS_DENSE_W = 560;
 const ACTIVITY_DENSE_W = 360;
 const PROFILE_DENSE_W = 340;
+const EARNINGS_DENSE_W = 420;
 
 function PositionsWidget(props: IDockviewPanelProps) {
   const { getSymbol, setSymbol, assetClass } = useWorkspace();
@@ -685,6 +695,48 @@ function ProfileWidget(props: IDockviewPanelProps) {
   );
 }
 
+// Earnings widget: symbol-linked (a colour channel shows that ticker's report
+// history) or whole-market on the `none` channel (the curated upcoming calendar,
+// mirroring NewsWidget's market mode).
+function EarningsWidget(props: IDockviewPanelProps) {
+  const { getSymbol, setSymbol, assetClass } = useWorkspace();
+  const [channel, setChannel] = useChannel(props, "none");
+  const isMarket = channel === "none";
+  const symbol = isMarket ? "" : getSymbol(channel).toUpperCase();
+  const ref = useRef<HTMLDivElement>(null);
+  const dense = useContainerNarrow(ref, EARNINGS_DENSE_W);
+
+  const market = useEarningsCalendar(isMarket);
+  const perSymbol = useSymbolEarnings(symbol, !isMarket);
+  const active = isMarket ? market : perSymbol;
+
+  return (
+    <WidgetShell
+      header={
+        <LinkHeader
+          label={isMarket ? "Market" : symbol}
+          channel={channel}
+          setChannel={setChannel}
+          includeNone
+          assetClass={assetClass}
+          onPickSymbol={(s) => setSymbol(channel, s)}
+          kind="Earnings"
+        />
+      }
+    >
+      <div ref={ref} style={{ height: "100%" }}>
+        <Pane pad>
+          {active.error && <ErrorBanner message={active.error.message} />}
+          {!active.data && !active.error && <EarningsCardSkeleton bare />}
+          {active.data && (
+            <EarningsCard rows={active.data.earnings} bare dense={dense} />
+          )}
+        </Pane>
+      </div>
+    </WidgetShell>
+  );
+}
+
 // id → React component, consumed by DockviewReact's `components` map.
 export const WIDGET_COMPONENTS: Record<
   string,
@@ -700,6 +752,7 @@ export const WIDGET_COMPONENTS: Record<
   activity: ActivityWidget,
   news: NewsWidget,
   profile: ProfileWidget,
+  earnings: EarningsWidget,
 };
 
 // Drives the "add widget" menu and panel titles. Grouped + described to power
@@ -763,6 +816,13 @@ export const WIDGET_CATALOG: WidgetMeta[] = [
     title: "Profile",
     desc: "Fundamentals & enrichment — sector, supply, ATH, links",
     iconPath: "M2 8 A6 6 0 1 1 14 8 A6 6 0 1 1 2 8 M8 7.2 V11.2 M8 4.7 L8.01 4.7",
+  },
+  {
+    id: "earnings",
+    group: "Market data",
+    title: "Earnings",
+    desc: "Upcoming & recent earnings — one symbol or the market calendar",
+    iconPath: "M3 2 V4 M11 2 V4 M2 5 H13 V13 H2 Z M2 7 H13 M5 9.5 H6 M8 9.5 H9",
   },
   {
     id: "positions",
