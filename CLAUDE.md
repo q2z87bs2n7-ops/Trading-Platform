@@ -71,8 +71,10 @@ separate silos behind a shared account.
       stock buying power — no shared cash), indices marquee ticker,
       watchlist sparkline cards, inline chart, gainers/losers tabbed card
       (with most-active volume), **earnings calendar**
-      (`discover/EarningsCard.tsx`), **economic calendar**
-      (`discover/EconomicCard.tsx`, US high/medium-impact), market news.
+      (`discover/EarningsCard.tsx`, paginated 10/page), **economic calendar**
+      (`discover/EconomicCard.tsx`, US high/medium-impact, day-paginated —
+      defaults to today, falls back to the next day with events), market news.
+      Both pagers share `discover/CardPager.tsx`.
     - *Crypto*: crypto price marquee ticker (`discover/CryptoTicker.tsx`),
       holdings + allocation hero (crypto positions only;
       `non_marginable_buying_power`), crypto watchlist sparkline cards,

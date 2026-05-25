@@ -164,7 +164,9 @@ a beat to get right — don't undo them:
   card lives in the equities silo; both Discover cards are gated `{!isCrypto}`.
 - **FMP economic times are UTC** ("YYYY-MM-DD HH:MM:SS", no zone). `EconomicCard`
   appends `Z` before parsing so they render in the user's local time — don't drop
-  that or every release shows in the wrong hour.
+  that or every release shows in the wrong hour. The card also **day-paginates by
+  the local date** (group + "today" default computed from the converted
+  timestamp, not the raw UTC date) so the day boundaries match the times shown.
 - **No new dependency / no DB write.** `requests` is transitive via `alpaca-py`;
   calendars are read-only. Endpoints need no Alpaca keys and return `[]` when
   `FMP_API_KEY` is unset (graceful, like the other proxy endpoints).
