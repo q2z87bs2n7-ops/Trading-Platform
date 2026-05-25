@@ -52,18 +52,19 @@ function whenOf(a: Activity): string {
 }
 
 // Single-row card variant used at ≤640px in place of the 3-col table.
-function ActivityRowMobile({ a }: { a: Activity }) {
+function ActivityRowMobile({ a, bare = false }: { a: Activity; bare?: boolean }) {
   return (
     <div
       style={{
         display: "flex",
         gap: 10,
         alignItems: "center",
-        background: "var(--panel)",
-        border: "1px solid var(--border)",
-        borderRadius: 10,
+        background: bare ? "transparent" : "var(--panel)",
+        border: bare ? "none" : "1px solid var(--border)",
+        borderBottom: bare ? "1px solid var(--hairline)" : undefined,
+        borderRadius: bare ? 0 : 10,
         padding: "10px 14px",
-        marginBottom: 8,
+        marginBottom: bare ? 0 : 8,
         minHeight: "var(--mob-tap)",
       }}
     >
@@ -118,7 +119,7 @@ export default function Activities({
       {!isPending && stacked && rows && rows.length > 0 && (
         <div>
           {rows.map((a, i) => (
-            <ActivityRowMobile key={String(a.id ?? i)} a={a} />
+            <ActivityRowMobile key={String(a.id ?? i)} a={a} bare={bare} />
           ))}
         </div>
       )}
