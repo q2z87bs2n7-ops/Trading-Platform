@@ -76,6 +76,12 @@ export default function AccountPanel({
           k="Margin (init / maint)"
           v={`${money(acct.initial_margin)} / ${money(acct.maintenance_margin)}`}
         />
+        {acct.daytrading_buying_power !== 0 && (
+          <Row k="Day-trading BP" v={money(acct.daytrading_buying_power)} />
+        )}
+        {acct.regt_buying_power !== 0 && (
+          <Row k="RegT BP" v={money(acct.regt_buying_power)} />
+        )}
       </div>
     </div>
   );
