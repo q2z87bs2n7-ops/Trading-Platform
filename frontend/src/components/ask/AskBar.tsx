@@ -75,7 +75,7 @@ function buildCapabilityGroups(
 
   const groups: ChipGroup[] = [
     {
-      label: "Markets",
+      label: "Market pulse",
       chips: [crypto ? "Crypto summary" : "Market summary", "Top gainers", "What changed today?"],
     },
     {
@@ -87,14 +87,14 @@ function buildCapabilityGroups(
       ],
     },
     {
-      label: "Trade",
+      label: "Quick trade",
       chips: [
         crypto ? "Buy 0.1 ETH" : "Buy 50 AMD at market",
         ...(holding ? [`Close my ${holding}`] : []),
       ],
     },
     {
-      label: "Workspace",
+      label: "Your workspace",
       chips: crypto
         ? ["Watcher layout", "Watch BTC/USD ETH/USD SOL/USD", "Set blue to ETH/USD"]
         : ["Trader layout", "Watch AAPL NVDA TSLA", "Set blue to NVDA"],
@@ -106,19 +106,19 @@ function buildCapabilityGroups(
   if (aiEnabled) {
     groups.push(
       {
-        label: "Research",
+        label: "Deep dive",
         chips: crypto
           ? ["What is Solana?", "Why is BTC moving today?"]
           : ["What's NVDA's P/E?", "Why is AAPL up today?"],
       },
       {
-        label: "Watchlist",
+        label: "Curate a watchlist",
         chips: crypto
           ? ["Add the top 5 layer-1 coins", "Remove DOGE from my watchlist"]
           : ["Add the top 10 AI stocks", "Remove TSLA from my watchlist"],
       },
       {
-        label: "Export",
+        label: "Export & share",
         chips: crypto
           ? ["Export my crypto activity to CSV", "Download my P/L history"]
           : ["Export my activity to CSV", "Download my P/L history"],
