@@ -36,14 +36,15 @@ function SkeletonRow({ cols }: { cols: number }) {
   );
 }
 
-function SkeletonCard() {
+function SkeletonCard({ bare = false }: { bare?: boolean }) {
   return (
     <div
       className="p-[14px_18px] animate-pulse"
       style={{
-        background: "var(--panel)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--r)",
+        background: bare ? "transparent" : "var(--panel)",
+        border: bare ? "none" : "1px solid var(--border)",
+        borderBottom: bare ? "1px solid var(--hairline)" : undefined,
+        borderRadius: bare ? 0 : "var(--r)",
       }}
     >
       <div
@@ -58,10 +59,12 @@ function StripRow({
   p,
   onSelect,
   onCloseClick,
+  bare = false,
 }: {
   p: Position;
   onSelect?: (s: string) => void;
   onCloseClick: (p: Position) => void;
+  bare?: boolean;
 }) {
   const dayUp = p.change_today >= 0;
   const plUp = p.unrealized_pl >= 0;
@@ -72,9 +75,10 @@ function StripRow({
       className="grid items-center gap-3 p-[14px_18px] transition-colors"
       style={{
         gridTemplateColumns: "1fr 80px 1fr 1fr 1fr auto",
-        background: "var(--panel)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--r)",
+        background: bare ? "transparent" : "var(--panel)",
+        border: bare ? "none" : "1px solid var(--border)",
+        borderBottom: bare ? "1px solid var(--hairline)" : undefined,
+        borderRadius: bare ? 0 : "var(--r)",
         cursor: onSelect ? "pointer" : "default",
       }}
     >
@@ -151,10 +155,12 @@ function StripRowMobile({
   p,
   onSelect,
   onCloseClick,
+  bare = false,
 }: {
   p: Position;
   onSelect?: (s: string) => void;
   onCloseClick: (p: Position) => void;
+  bare?: boolean;
 }) {
   const dayUp = p.change_today >= 0;
   const plUp = p.unrealized_pl >= 0;
@@ -163,11 +169,12 @@ function StripRowMobile({
       role={onSelect ? "button" : undefined}
       onClick={onSelect ? () => onSelect(p.symbol) : undefined}
       style={{
-        background: "var(--panel)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--mob-card-radius)",
+        background: bare ? "transparent" : "var(--panel)",
+        border: bare ? "none" : "1px solid var(--border)",
+        borderBottom: bare ? "1px solid var(--hairline)" : undefined,
+        borderRadius: bare ? 0 : "var(--mob-card-radius)",
         padding: "14px 16px",
-        boxShadow: "var(--shadow-sm)",
+        boxShadow: bare ? "none" : "var(--shadow-sm)",
         display: "flex",
         flexDirection: "column",
         gap: 10,
@@ -292,12 +299,14 @@ export default function Positions({
   assetClass,
   symbol,
   dense = false,
+  bare = false,
 }: {
   variant?: "strip" | "table";
   onSelect?: (symbol: string) => void;
   assetClass?: "stocks" | "crypto";
   symbol?: string;
   dense?: boolean;
+  bare?: boolean;
 } = {}) {
   const { data, error, isPending } = usePositions();
   const closeAll = useCloseAllPositions();
@@ -321,25 +330,25 @@ export default function Positions({
   if (variant === "strip") {
     const Row = isMobile || dense ? StripRowMobile : StripRow;
     return (
-      <div className="flex flex-col gap-2">
+      <div className={bare ? "flex flex-col" : "flex flex-col gap-2"}>
         {error && <ErrorBanner message={error.message} />}
         {closeAll.error && (
           <ErrorBanner message={(closeAll.error as Error).message} />
         )}
         {isPending && (
           <>
-            <SkeletonCard />
-            <SkeletonCard />
-            <SkeletonCard />
+            <SkeletonCard bare={bare} />
+            <SkeletonCard bare={bare} />
+            <SkeletonCard bare={bare} />
           </>
         )}
         {!isPending && rows && rows.length === 0 && (
           <div
             className="p-5 text-[13px]"
             style={{
-              background: "var(--panel)",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--r)",
+              background: bare ? "transparent" : "var(--panel)",
+              border: bare ? "none" : "1px solid var(--border)",
+              borderRadius: bare ? 0 : "var(--r)",
               color: "var(--mute)",
             }}
           >
@@ -354,6 +363,7 @@ export default function Positions({
               p={p}
               onSelect={onSelect}
               onCloseClick={setClosingPos}
+              bare={bare}
             />
           ))}
         {rows && rows.length > 1 && (

@@ -437,6 +437,7 @@ function PositionsWidget(props: IDockviewPanelProps) {
             variant="strip"
             symbol={symbol}
             dense={dense}
+            bare
             onSelect={(s) => setSymbol(channel === "none" ? "main" : channel, s)}
             assetClass={assetClass}
           />
@@ -468,7 +469,7 @@ function OrdersWidget(props: IDockviewPanelProps) {
     >
       <div ref={ref} style={{ height: "100%" }}>
         <Pane pad>
-          <Orders assetClass={assetClass} symbol={symbol} dense={dense} />
+          <Orders assetClass={assetClass} symbol={symbol} dense={dense} bare />
         </Pane>
       </div>
     </WidgetShell>
@@ -542,15 +543,16 @@ function NewsWidget(props: IDockviewPanelProps) {
         {useMarket ? (
           <>
             {market.error && <ErrorBanner message={market.error.message} />}
-            {!market.data && !market.error && <NewsCardSkeleton />}
-            {market.data && <NewsCard articles={market.data.articles} />}
+            {!market.data && !market.error && <NewsCardSkeleton bare />}
+            {market.data && <NewsCard articles={market.data.articles} bare />}
           </>
         ) : (
           <>
             {perSymbol.error && <ErrorBanner message={perSymbol.error.message} />}
-            {!perSymbol.data && !perSymbol.error && <NewsCardSkeleton />}
+            {!perSymbol.data && !perSymbol.error && <NewsCardSkeleton bare />}
             {perSymbol.data && (
               <NewsCard
+                bare
                 articles={perSymbol.data.news.map((n) => ({
                   title: n.headline,
                   link: n.url,

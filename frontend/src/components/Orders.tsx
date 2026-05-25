@@ -264,10 +264,12 @@ export default function Orders({
   assetClass,
   symbol,
   dense = false,
+  bare = false,
 }: {
   assetClass?: "stocks" | "crypto";
   symbol?: string;
   dense?: boolean;
+  bare?: boolean;
 } = {}) {
   const [status, setStatus] = useState<StatusFilter>("all");
   const { data, error, isPending } = useOrders(status, 25);
@@ -290,16 +292,8 @@ export default function Orders({
   const [confirmCancelAll, setConfirmCancelAll] = useState(false);
   const stacked = useMobile() || dense;
 
-  return (
-    <div
-      className="p-3"
-      style={{
-        background: "var(--panel)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--r-lg)",
-        boxShadow: "var(--shadow-sm)",
-      }}
-    >
+  const body = (
+    <>
       <div className="flex items-center gap-2 mb-2">
         <div className="inline-flex gap-px">
           {STATUSES.map((s) => {
@@ -614,6 +608,22 @@ export default function Orders({
           onCancel={() => setConfirmCancelAll(false)}
         />
       )}
+    </>
+  );
+
+  if (bare) return body;
+
+  return (
+    <div
+      className="p-3"
+      style={{
+        background: "var(--panel)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--r-lg)",
+        boxShadow: "var(--shadow-sm)",
+      }}
+    >
+      {body}
     </div>
   );
 }
