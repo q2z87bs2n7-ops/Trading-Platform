@@ -264,25 +264,36 @@ separate silos behind a shared account.
   server-side watchlists, finer P/L history) is still direct-Alpaca +
   `localStorage` — backlogged. See `docs/landmines.md` → "Asset catalogue"
   and `docs/database.md`.
-- **Maintenance switch + version gate:** `/api/status` returns `{version,
-  maintenance, message}` (maintenance read from `app_settings`; fail-open if the
-  DB is unreachable so a blip can't strand everyone). The frontend polls it
-  (`useAppStatus` — on mount, on window focus, a slow 5-min interval that
-  tightens to 30s while down); when `maintenance` is on it renders
-  `MaintenancePage` and tears down the data layer (App.tsx gate), and clients
-  auto-return when the flag is flipped back. App.tsx also **self-reloads once**
-  when `status.version` ≠ built `__APP_VERSION__` (sessionStorage-guarded) so a
-  long-lived tab picks up new code. Nothing pushes: clients learn on their next
-  poll (≤5 min, instant on tab focus).
-  **To boot everyone to the maintenance page** (run in the Supabase SQL editor;
-  one-time table setup lives in `backend/sql/003_app_settings.sql`):
+- **Maintenance / force-stop switches + version gate:** `/api/status` returns
+  `{version, maintenance, message, force_stop, force_stop_message}` (read from
+  `app_settings`; fail-open if the DB is unreachable so a blip can't strand
+  everyone). The frontend polls it (`useAppStatus` — on mount, on window focus,
+  a slow 5-min interval that tightens to 30s while in maintenance). Two switches,
+  both gated in `App.tsx`:
+  - **`maintenance`** (graceful) → renders `MaintenancePage` and tears down the
+    data layer; the status heartbeat keeps polling so clients **auto-return**
+    within ~30s when flipped off.
+  - **`force_stop`** (terminal boot) → renders the **terminal** `MaintenancePage`
+    *and* latches `booted` so `useAppStatus` is disabled — the tab stops **all**
+    polling (incl. `/api/status`) and makes zero further requests. It **never
+    auto-recovers**; only a manual browser reload returns. Use to truly silence
+    misbehaving/lingering clients.
+
+  App.tsx also **self-reloads once** when `status.version` ≠ built
+  `__APP_VERSION__` (sessionStorage-guarded), except while `force_stop` is on
+  (the boot page must not reload itself). Nothing pushes: clients learn on their
+  next poll (≤5 min, instant on focus); both switches only reach clients running
+  this gated code. Toggle in the **Supabase SQL editor** (one-time table setup +
+  full command reference in `backend/sql/003_app_settings.sql`):
   ```sql
-  -- ON (optional custom message):
-  update app_settings set value='on', updated_at=now() where key='maintenance';
-  update app_settings set value='Back shortly — scheduled maintenance.',
-    updated_at=now() where key='maintenance_message';
-  -- OFF (clients auto-return within ~30s):
-  update app_settings set value='off', updated_at=now() where key='maintenance';
+  -- Graceful maintenance (auto-recovers):
+  update app_settings set value='on'  where key='maintenance';   -- boot to page
+  update app_settings set value='off' where key='maintenance';   -- bring back
+
+  -- Force-stop / terminal boot (manual reload to return):
+  update app_settings set value='on'  where key='force_stop';    -- silence clients
+  update app_settings set value='off' where key='force_stop';    -- stop re-booting fresh loads
+  -- Optional messages: keys 'maintenance_message' / 'force_stop_message'.
   ```
 - **Asset catalogue:** one `assets` table; each row's `asset_class` drives its
   enrichment source (no mixing). Base identity comes from Alpaca

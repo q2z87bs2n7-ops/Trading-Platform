@@ -18,15 +18,17 @@ export const useConfig = () =>
     staleTime: Infinity,
   });
 
-// App version + maintenance switch. A maintenance/version signal doesn't need a
-// tight poll: check on mount, on window focus (instant for active users, free),
-// and a slow 5-min interval that tightens to 30s while down so recovery is
-// prompt when the flag is flipped back off.
-export const useAppStatus = () =>
+// App version + maintenance/force-stop switches. Doesn't need a tight poll:
+// check on mount, on window focus (instant for active users, free), and a slow
+// 5-min interval that tightens to 30s while in graceful maintenance so recovery
+// is prompt. `enabled` is set false by the caller once force_stop is seen, which
+// halts ALL polling (no interval, no focus refetch) — the terminal boot.
+export const useAppStatus = (enabled = true) =>
   useQuery({
     queryKey: qk.status,
     queryFn: api.getStatus,
-    refetchOnWindowFocus: true,
+    enabled,
+    refetchOnWindowFocus: enabled,
     staleTime: 0,
     refetchInterval: (q) => (q.state.data?.maintenance ? 30_000 : 300_000),
   });

@@ -84,6 +84,8 @@ export interface AppStatus {
   version: string;
   maintenance: boolean;
   message: string;
+  force_stop: boolean;
+  force_stop_message: string;
 }
 export const getStatus = () => getJSON<AppStatus>("/api/status");
 

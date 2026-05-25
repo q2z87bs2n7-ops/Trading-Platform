@@ -113,15 +113,20 @@ def config() -> dict:
 
 @app.get("/api/status")
 def status() -> dict:
-    """Lightweight client poll: app version + maintenance switch. Fails open —
-    a DB blip must never strand everyone on the maintenance page."""
-    maintenance, message = False, ""
+    """Lightweight client poll: app version + the maintenance/force-stop
+    switches. Fails open — a DB blip must never strand everyone."""
+    flags = {
+        "maintenance": False,
+        "message": "",
+        "force_stop": False,
+        "force_stop_message": "",
+    }
     if db.db_enabled():
         try:
-            maintenance, message = db.get_maintenance()
+            flags = db.get_app_flags()
         except db.DbUnavailable:
             pass
-    return {"version": _version, "maintenance": maintenance, "message": message}
+    return {"version": _version, **flags}
 
 
 @app.get("/api/account", dependencies=[Depends(require_configured)])

@@ -5,10 +5,11 @@ Reference for the database layer. The main Postgres table is `assets`
 enrichment. It powers the watchlist autocomplete, chart search, `/api/assets`,
 and the AI bot's catalogue tools (`find_symbol`, `get_asset_profile`,
 `screen_assets`). A second, tiny `app_settings` key/value table holds the
-**maintenance switch** read by `/api/status` (created by
-`backend/sql/003_app_settings.sql`, run once; flip the `maintenance` row in the
-Supabase SQL editor to boot everyone to the maintenance page — see CLAUDE.md
-"Maintenance switch + version gate").
+**maintenance** and **force_stop** switches read by `/api/status` (created by
+`backend/sql/003_app_settings.sql`, run once; flip the relevant row in the
+Supabase SQL editor — graceful maintenance auto-recovers, force_stop is a
+terminal boot. Full command reference in that SQL file and CLAUDE.md
+"Maintenance / force-stop switches").
 
 Companions: `CLAUDE.md` for repo-wide rules, `docs/landmines.md` →
 "Asset catalogue / Postgres" for the hard-won gotchas, and

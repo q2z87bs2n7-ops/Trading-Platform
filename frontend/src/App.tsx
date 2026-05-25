@@ -163,7 +163,14 @@ function ThemeToggle({
 export default function App() {
   const { data: wl } = useWatchlist();
   const { data: cryptoWl } = useCryptoWatchlist();
-  const { data: status } = useAppStatus();
+  // Once force_stop is seen we latch `booted` and disable the status poll, so
+  // the terminal page makes zero further requests and never auto-recovers
+  // (manual browser reload only).
+  const [booted, setBooted] = useState(false);
+  const { data: status } = useAppStatus(!booted);
+  useEffect(() => {
+    if (status?.force_stop) setBooted(true);
+  }, [status?.force_stop]);
   const [selected, setSelected] = useState<string>("");
   const [mode, setMode] = useState<PlatformMode>("discover");
   const [assetClassMode, setAssetClassMode] = useState<AssetClassMode | null>(readAssetClassMode);
@@ -191,13 +198,14 @@ export default function App() {
   // Guarded per-version via sessionStorage to avoid a reload loop if a CDN edge
   // briefly serves the old bundle.
   useEffect(() => {
+    if (status?.force_stop) return; // terminal boot page must not reload itself
     const serverVer = status?.version;
     if (!serverVer || serverVer === __APP_VERSION__) return;
     const key = `reloaded_for_${serverVer}`;
     if (sessionStorage.getItem(key)) return;
     sessionStorage.setItem(key, "1");
     window.location.reload();
-  }, [status?.version]);
+  }, [status?.version, status?.force_stop]);
 
   // Global Cmd+K / Ctrl+K opens Ask anything from anywhere.
   // Esc exits Workspace focus mode (unless a modal/sheet has focus).
@@ -265,6 +273,8 @@ export default function App() {
         } as React.CSSProperties)
       : undefined;
 
+  if (booted || status?.force_stop)
+    return <MaintenancePage message={status?.force_stop_message} terminal />;
   if (status?.maintenance) return <MaintenancePage message={status.message} />;
 
   return (
