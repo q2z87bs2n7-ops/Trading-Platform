@@ -80,6 +80,13 @@ async function sendJSON<T>(
 export const getConfig = () =>
   getJSON<{ symbols: string[]; feed: string; paper: boolean }>("/api/config");
 
+export interface AppStatus {
+  version: string;
+  maintenance: boolean;
+  message: string;
+}
+export const getStatus = () => getJSON<AppStatus>("/api/status");
+
 export const getAccount = () => getJSON<Account>("/api/account");
 
 export const getBars = (symbol: string, timeframe = "1Day", limit = 120) =>

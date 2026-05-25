@@ -18,6 +18,19 @@ export const useConfig = () =>
     staleTime: Infinity,
   });
 
+// App version + maintenance switch. A maintenance/version signal doesn't need a
+// tight poll: check on mount, on window focus (instant for active users, free),
+// and a slow 5-min interval that tightens to 30s while down so recovery is
+// prompt when the flag is flipped back off.
+export const useAppStatus = () =>
+  useQuery({
+    queryKey: qk.status,
+    queryFn: api.getStatus,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
+    refetchInterval: (q) => (q.state.data?.maintenance ? 30_000 : 300_000),
+  });
+
 export const useAccount = () =>
   useQuery({
     queryKey: qk.account,

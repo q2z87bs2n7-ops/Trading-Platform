@@ -160,7 +160,7 @@ separate silos behind a shared account.
   **No `window.confirm` in the trade flow.**
 - **Backend:** FastAPI + `alpaca-py`. Real code in `backend/app/`;
   `api/index.py` is the Vercel shim. Endpoints under `/api/`: health,
-  config, account, bars, quotes, snapshots, stream, orders, positions,
+  config, status, account, bars, quotes, snapshots, stream, orders, positions,
   portfolio/history, pnl-history, activities, clock, calendar,
   calendar/earnings, calendar/earnings/{symbol}, calendar/economic, assets,
   asset-profile, news, watchlist, movers, most-active, indices,
@@ -247,17 +247,38 @@ separate silos behind a shared account.
   "Asset catalogue").
 - **PWA:** `vite-plugin-pwa`. NetworkFirst for API, CacheFirst for
   static; charting library excluded from precache.
-- **Persistence:** Postgres (Supabase) backs the **asset catalogue** — a
-  single `assets` table holding the full Alpaca universe (~13.8k us_equity +
-  crypto rows) plus per-source enrichment. Pure-Python `pg8000`
+- **Persistence:** Postgres (Supabase) backs the **asset catalogue** — the
+  `assets` table holding the full Alpaca universe (~13.8k us_equity +
+  crypto rows) plus per-source enrichment — and a small `app_settings`
+  key/value table (the maintenance switch). Pure-Python `pg8000`
   (3.14/Vercel-safe), per-op connections from `DATABASE_URL`, graceful
-  `DbUnavailable` → 503-style fallback when unset. The table is created by
-  `backend/sql/002_assets.sql`, run **once** in the Supabase SQL editor (no
-  auto-create). Writes only run from prod/Render (Postgres :5432 is firewalled
+  `DbUnavailable` → 503-style fallback when unset. Tables are created by
+  `backend/sql/002_assets.sql` and `backend/sql/003_app_settings.sql`, each run
+  **once** in the Supabase SQL editor (no auto-create). Writes only run from prod/Render (Postgres :5432 is firewalled
   from the sandbox + the owner's laptop). Everything else (trade journal,
   server-side watchlists, finer P/L history) is still direct-Alpaca +
   `localStorage` — backlogged. See `docs/landmines.md` → "Asset catalogue"
   and `docs/database.md`.
+- **Maintenance switch + version gate:** `/api/status` returns `{version,
+  maintenance, message}` (maintenance read from `app_settings`; fail-open if the
+  DB is unreachable so a blip can't strand everyone). The frontend polls it
+  (`useAppStatus` — on mount, on window focus, a slow 5-min interval that
+  tightens to 30s while down); when `maintenance` is on it renders
+  `MaintenancePage` and tears down the data layer (App.tsx gate), and clients
+  auto-return when the flag is flipped back. App.tsx also **self-reloads once**
+  when `status.version` ≠ built `__APP_VERSION__` (sessionStorage-guarded) so a
+  long-lived tab picks up new code. Nothing pushes: clients learn on their next
+  poll (≤5 min, instant on tab focus).
+  **To boot everyone to the maintenance page** (run in the Supabase SQL editor;
+  one-time table setup lives in `backend/sql/003_app_settings.sql`):
+  ```sql
+  -- ON (optional custom message):
+  update app_settings set value='on', updated_at=now() where key='maintenance';
+  update app_settings set value='Back shortly — scheduled maintenance.',
+    updated_at=now() where key='maintenance_message';
+  -- OFF (clients auto-return within ~30s):
+  update app_settings set value='off', updated_at=now() where key='maintenance';
+  ```
 - **Asset catalogue:** one `assets` table; each row's `asset_class` drives its
   enrichment source (no mixing). Base identity comes from Alpaca
   (`get_all_assets_for_seed` → `db.bulk_upsert_assets`); crypto enrichment from

@@ -1,10 +1,14 @@
 # Asset catalogue (Postgres / Supabase)
 
-Reference for the database layer. The platform has **one** Postgres table,
-`assets` (Supabase), holding the full Alpaca universe (base identity) plus
-per-source enrichment. It powers the watchlist autocomplete, chart search,
-`/api/assets`, and the AI bot's catalogue tools (`find_symbol`,
-`get_asset_profile`, `screen_assets`).
+Reference for the database layer. The main Postgres table is `assets`
+(Supabase), holding the full Alpaca universe (base identity) plus per-source
+enrichment. It powers the watchlist autocomplete, chart search, `/api/assets`,
+and the AI bot's catalogue tools (`find_symbol`, `get_asset_profile`,
+`screen_assets`). A second, tiny `app_settings` key/value table holds the
+**maintenance switch** read by `/api/status` (created by
+`backend/sql/003_app_settings.sql`, run once; flip the `maintenance` row in the
+Supabase SQL editor to boot everyone to the maintenance page — see CLAUDE.md
+"Maintenance switch + version gate").
 
 Companions: `CLAUDE.md` for repo-wide rules, `docs/landmines.md` →
 "Asset catalogue / Postgres" for the hard-won gotchas, and

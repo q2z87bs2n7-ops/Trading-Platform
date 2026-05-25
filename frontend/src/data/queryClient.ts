@@ -14,6 +14,7 @@ export const queryClient = new QueryClient({
 
 export const qk = {
   config: ["config"] as const,
+  status: ["status"] as const,
   account: ["account"] as const,
   positions: ["positions"] as const,
   orders: (status: string, limit: number) =>

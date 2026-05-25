@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { useCryptoWatchlist, useWatchlist } from "./data/hooks";
+import { useAppStatus, useCryptoWatchlist, useWatchlist } from "./data/hooks";
 import { useTheme } from "./hooks/useTheme";
+import MaintenancePage from "./components/MaintenancePage";
 import Positions from "./components/Positions";
 import Orders from "./components/Orders";
 import Activities from "./components/Activities";
@@ -162,6 +163,7 @@ function ThemeToggle({
 export default function App() {
   const { data: wl } = useWatchlist();
   const { data: cryptoWl } = useCryptoWatchlist();
+  const { data: status } = useAppStatus();
   const [selected, setSelected] = useState<string>("");
   const [mode, setMode] = useState<PlatformMode>("discover");
   const [assetClassMode, setAssetClassMode] = useState<AssetClassMode | null>(readAssetClassMode);
@@ -183,6 +185,19 @@ export default function App() {
   useEffect(() => {
     if (!selected && symbols.length) setSelected(symbols[0]);
   }, [symbols.join(","), selected]);
+
+  // Self-reload when the deployed build differs from this tab's bundle, so a
+  // long-lived tab picks up new code (incl. the maintenance gate) on its own.
+  // Guarded per-version via sessionStorage to avoid a reload loop if a CDN edge
+  // briefly serves the old bundle.
+  useEffect(() => {
+    const serverVer = status?.version;
+    if (!serverVer || serverVer === __APP_VERSION__) return;
+    const key = `reloaded_for_${serverVer}`;
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, "1");
+    window.location.reload();
+  }, [status?.version]);
 
   // Global Cmd+K / Ctrl+K opens Ask anything from anywhere.
   // Esc exits Workspace focus mode (unless a modal/sheet has focus).
@@ -249,6 +264,8 @@ export default function App() {
           "--accent-bg": "var(--pos-bg)",
         } as React.CSSProperties)
       : undefined;
+
+  if (status?.maintenance) return <MaintenancePage message={status.message} />;
 
   return (
     <>

@@ -13,6 +13,7 @@ import json
 import logging
 import math
 import ssl
+import time
 from contextlib import contextmanager
 from datetime import date
 from urllib.parse import unquote, urlparse
@@ -70,6 +71,39 @@ def _connect():
         raise
     finally:
         conn.close()
+
+
+# ---- app settings (maintenance switch) --------------------------------------
+
+# The maintenance flag is read on every /api/status poll; cache it briefly so a
+# long-lived process (Render) doesn't hit the DB each time. On Vercel each
+# invocation is a fresh process, so this is effectively a no-op there — fine,
+# status polls are infrequent.
+_MAINT_TTL = 15.0
+_maint_cache: tuple[float, tuple[bool, str]] | None = None
+
+
+def get_maintenance() -> tuple[bool, str]:
+    """Return ``(maintenance_on, message)`` from the ``app_settings`` table.
+    Raises ``DbUnavailable`` if the DB is unreachable so the caller can fail
+    open (DB down must never lock everyone out)."""
+    global _maint_cache
+    now = time.monotonic()
+    if _maint_cache and now - _maint_cache[0] < _MAINT_TTL:
+        return _maint_cache[1]
+    with _connect() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT key, value FROM app_settings "
+            "WHERE key IN ('maintenance', 'maintenance_message')"
+        )
+        rows = {k: v for k, v in cur.fetchall()}
+    on = str(rows.get("maintenance", "off")).strip().lower() in (
+        "on", "true", "1", "yes",
+    )
+    result = (on, rows.get("maintenance_message") or "")
+    _maint_cache = (now, result)
+    return result
 
 
 # ---- assets table -----------------------------------------------------------

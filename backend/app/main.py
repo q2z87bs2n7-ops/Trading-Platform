@@ -111,6 +111,19 @@ def config() -> dict:
     return {"symbols": s.symbols, "feed": s.alpaca_data_feed, "paper": s.alpaca_paper}
 
 
+@app.get("/api/status")
+def status() -> dict:
+    """Lightweight client poll: app version + maintenance switch. Fails open —
+    a DB blip must never strand everyone on the maintenance page."""
+    maintenance, message = False, ""
+    if db.db_enabled():
+        try:
+            maintenance, message = db.get_maintenance()
+        except db.DbUnavailable:
+            pass
+    return {"version": _version, "maintenance": maintenance, "message": message}
+
+
 @app.get("/api/account", dependencies=[Depends(require_configured)])
 def account() -> dict:
     return alpaca.get_account()
