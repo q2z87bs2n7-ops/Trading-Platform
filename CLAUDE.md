@@ -164,7 +164,12 @@ separate silos behind a shared account.
     trips in this desktop-only mode; the flip width is tuned per widget by
     column count — Orders 560, Positions 480, Activities 360); the header
     `AssetSearch` portals its
-    dropdown to `<body>` so it isn't clipped by the panel.
+    dropdown to `<body>` so it isn't clipped by the panel. Data widgets render
+    **bare** (the `bare` prop on `Orders`/`Activities`/`NewsCard` + the
+    `Positions` strip rows) — no per-component card border/shadow, since the
+    panel is already a closed-off module; rows separate with a hairline in both
+    the table and the narrow stacked-card layouts. Account stays clean by
+    construction.
 - **Mobile / responsive (≤ 640px).** A single `useMobile()` hook
   (`hooks/useMobile.ts`, `matchMedia("(max-width: 640px)")`) gates the
   phone layouts; it mirrors the CSS `@media (max-width: 640px)` breakpoint
@@ -354,8 +359,12 @@ Rules:
   `components/trade/`, takes only `{ symbol }`).
 - **Evolve shared components with additive, default-off props** — never change a
   shared component's default behaviour for a new surface. Precedents:
-  `PriceChart`'s `responsive` (default `false` keeps Discover unchanged) and the
-  optional `symbol` filter on `Positions`/`Orders`/`Activities`.
+  `PriceChart`'s `responsive` (default `false` keeps Discover unchanged), the
+  optional `symbol` filter on `Positions`/`Orders`/`Activities`, and the `bare`
+  flag on `Orders`/`Activities`/`NewsCard` (+ the `Positions` strip rows) that
+  drops the component's own card border/shadow inside a Workspace panel — the
+  panel already supplies the chrome, so widgets render borderless with hairline
+  row dividers instead. Default `false` keeps Discover/Portfolio boxed.
 - **File location signals reusability:** reusable cores live in `components/`;
   anything under `lib/workspace/` is Workspace-coupled by definition — don't park
   a reusable core there.
