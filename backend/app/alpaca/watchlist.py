@@ -6,7 +6,7 @@ and seeded on first access. No extra infra (Charter: Alpaca is the source
 of truth; server-side watchlist persistence without a new datastore).
 """
 
-from alpaca.trading.requests import CreateWatchlistRequest
+from alpaca.trading.requests import CreateWatchlistRequest, UpdateWatchlistRequest
 
 from ..config import get_settings
 from .client import normalize_crypto_symbol, trading_client
@@ -61,12 +61,21 @@ def add_to_watchlist(symbol: str, asset_class: str = "") -> dict:
 def remove_from_watchlist(symbol: str, asset_class: str = "") -> dict:
     sym = symbol.strip().upper()
     wl = _get_or_create(_wl_name(asset_class), _wl_defaults(asset_class))
-    # Check in normalized form
     wl_symbols = _symbols(wl, asset_class)
-    normalized_sym = normalize_crypto_symbol(sym, asset_class) if asset_class == "crypto" else sym
-    if normalized_sym in wl_symbols:
-        # Try removing with the symbol as-is first (Alpaca may accept normalized form)
-        wl = trading_client().remove_asset_from_watchlist_by_id(
-            watchlist_id=str(wl.id), symbol=normalized_sym
+    target = normalize_crypto_symbol(sym, asset_class) if asset_class == "crypto" else sym
+    if target not in wl_symbols:
+        return {"symbols": wl_symbols}
+    tc = trading_client()
+    if asset_class == "crypto":
+        # Alpaca's remove-by-id puts the symbol in the URL path
+        # (DELETE /watchlists/{id}/{symbol}); a slashed pair like BTC/USD adds a
+        # phantom path segment, so Alpaca matches nothing and returns the list
+        # unchanged. Rewrite the whole list via update (PUT, body) instead.
+        kept = [s for s in wl_symbols if s != target]
+        wl = tc.update_watchlist_by_id(
+            watchlist_id=str(wl.id),
+            watchlist_data=UpdateWatchlistRequest(name=_wl_name(asset_class), symbols=kept),
         )
+    else:
+        wl = tc.remove_asset_from_watchlist_by_id(watchlist_id=str(wl.id), symbol=target)
     return {"symbols": _symbols(wl, asset_class)}
