@@ -1148,6 +1148,12 @@ export default function Workspace({
         const api = apiRef.current;
         if (!api) return;
         const isChart = id === "chart" || id === "minichart";
+        // A channel-linked widget reads its symbol from the channel (not params),
+        // so point the channel at the requested instrument or the panel shows
+        // whatever the channel already held.
+        if (opts?.symbol && opts?.channel && opts.channel !== "none") {
+          ctxRef.current.setSymbol(opts.channel, opts.symbol);
+        }
         const params: Record<string, unknown> = {};
         if (opts?.channel) params.channel = opts.channel;
         else if (isChart && opts?.symbol) params.channel = "none";
@@ -1183,6 +1189,16 @@ export default function Workspace({
         const api = apiRef.current;
         if (!api) return;
         clearActiveLayout(assetClass);
+        // Seed channel symbols from the spec: channel-linked panels (profiles
+        // always, channel-bound charts) take their symbol from the channel, so a
+        // requested instrument is lost unless we point the channel at it. A chart
+        // carrying a symbol with a channel thus drives every widget on that
+        // channel (e.g. a paired chart + profile column).
+        for (const w of spec.widgets) {
+          if (w.symbol && w.channel && w.channel !== "none") {
+            ctxRef.current.setSymbol(w.channel, w.symbol);
+          }
+        }
         buildLayout(api, spec);
         saveActiveLayout(assetClass, api.toJSON(), "custom");
         setPanelCount(api.panels.length);

@@ -97,7 +97,13 @@ WORKSPACE_TOOLS: list[dict[str, Any]] = [
                 "widget": {"type": "string", "enum": list(WORKSPACE_WIDGET_KINDS)},
                 "symbol": {
                     "type": "string",
-                    "description": "For chart/minichart: the instrument to show.",
+                    "description": (
+                        "The instrument to show. Passed WITH a channel it points "
+                        "that channel at the symbol, so every widget on the "
+                        "channel (profile/positions/orders/chart…) follows it; a "
+                        "chart/minichart symbol WITHOUT a channel is pinned "
+                        "standalone."
+                    ),
                 },
                 "channel": _CHANNEL_PROP,
                 "silo": _SILO_PROP,
@@ -129,8 +135,14 @@ WORKSPACE_TOOLS: list[dict[str, Any]] = [
             "(find_symbol / screen_assets / your knowledge), then list one widget "
             "per panel — usually a 'chart' per instrument with its own symbol. "
             "The app sizes the grid responsively to the user's viewport; only set "
-            "'columns' to force a specific shape. For a fundamentals/research "
-            "view, pair charts with a channel-linked 'profile' panel."
+            "'columns' to force a specific shape. To pair widgets on one "
+            "instrument (e.g. a chart + a 'profile' per stock), give each "
+            "instrument its own channel (main/blue/green/amber): put the symbol "
+            "on that instrument's chart with the channel, and give its profile "
+            "(and any positions/orders) the same channel with no symbol — they "
+            "all follow. Only four channels exist, so at most four distinct "
+            "channel-linked instruments; standalone charts (symbol, no channel) "
+            "have no such limit."
         ),
         "input_schema": {
             "type": "object",
@@ -148,8 +160,12 @@ WORKSPACE_TOOLS: list[dict[str, Any]] = [
                             "symbol": {
                                 "type": "string",
                                 "description": (
-                                    "For chart/minichart. A chart with a symbol "
-                                    "and no channel is standalone (its own symbol)."
+                                    "This panel's instrument. WITH a channel it "
+                                    "points that channel at the symbol, so every "
+                                    "panel sharing the channel follows (e.g. a "
+                                    "chart + profile column on one channel). A "
+                                    "chart/minichart symbol with NO channel is "
+                                    "standalone (owns its symbol)."
                                 ),
                             },
                             "channel": _CHANNEL_PROP,
