@@ -285,6 +285,25 @@ def assets_search(
     return alpaca.search_assets(search, limit, asset_class)
 
 
+# Sibling path, NOT `/api/assets/symbols` — the greedy `/api/assets/{symbol:path}`
+# above is defined first and would capture "symbols".
+@app.get("/api/asset-symbols")
+def asset_symbols() -> dict:
+    """Full catalogue symbol universe per asset class (search visibility rule:
+    tradable + enriched). Powers the Ask-anything router's ticker validation.
+    Empty lists when the DB is unconfigured/unreachable — staleness is harmless
+    (a ticker not in the set just routes to the AI)."""
+    if db.db_enabled():
+        try:
+            return {
+                "us_equity": db.list_symbols("us_equity"),
+                "crypto": db.list_symbols("crypto"),
+            }
+        except db.DbUnavailable:
+            pass
+    return {"us_equity": [], "crypto": []}
+
+
 # --- Write path (Stage 2). Every route below carries the no-op write-auth
 # seam so the Charter shared-token gate drops in with no rewiring. -----------
 

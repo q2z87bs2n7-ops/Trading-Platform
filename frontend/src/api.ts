@@ -142,6 +142,17 @@ export const searchAssets = (query: string, assetClass = "") =>
 
 export const getIndices = () => getJSON<IndicesResponse>("/api/indices");
 
+// Full catalogue symbol universe per asset class (DB-backed; tradable +
+// enriched). Fetched once and cached stale-while-revalidate to validate
+// tickers in the Ask-anything router.
+export interface AssetSymbols {
+  us_equity: string[];
+  crypto: string[];
+}
+
+export const getAssetSymbols = () =>
+  getJSON<AssetSymbols>("/api/asset-symbols");
+
 // ── Ask anything AI ────────────────────────────────────────────────────────
 // One-shot Q&A against /api/ai/ask. The endpoint resolves backend read
 // tools server-side; no frontend tool loop. 503 → "AI not configured"
