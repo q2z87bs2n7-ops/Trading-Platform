@@ -32,6 +32,7 @@ export const qk = {
   pnlHistory: (assetClass: string, period: string) =>
     ["pnlHistory", assetClass, period] as const,
   asset: (symbol: string) => ["asset", symbol] as const,
+  assetProfile: (symbol: string) => ["assetProfile", symbol] as const,
   calendar: (start: string, end: string) =>
     ["calendar", start, end] as const,
   watchlist: ["watchlist"] as const,

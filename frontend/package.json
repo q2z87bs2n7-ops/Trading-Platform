@@ -1,7 +1,7 @@
 {
   "name": "trading-platform-frontend",
   "private": true,
-  "version": "0.48.11",
+  "version": "0.52.1",
   "type": "module",
   "scripts": {
     "dev": "vite",

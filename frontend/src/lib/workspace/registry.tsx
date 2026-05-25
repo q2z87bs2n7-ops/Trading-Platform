@@ -8,6 +8,7 @@ import TVChartWidget from "../../components/TVChartWidget";
 import PriceChart from "../../components/PriceChart";
 import OrderTicketInline from "../../components/trade/OrderTicketInline";
 import AccountPanel from "../../components/AccountPanel";
+import AssetProfile from "../../components/AssetProfile";
 import Watchlist from "../../components/Watchlist";
 import { AssetSearch } from "../../components/AssetSearch";
 import { NewsCard, NewsCardSkeleton } from "../../components/discover/NewsCard";
@@ -651,6 +652,34 @@ function TradeWidget(props: IDockviewPanelProps) {
   );
 }
 
+// Catalogue enrichment for the linked symbol (fundamentals for stocks,
+// tokenomics + price extremes for crypto). Always symbol-linked (no account
+// view), so it mirrors the Trade widget: default "main", no "none" option.
+function ProfileWidget(props: IDockviewPanelProps) {
+  const { getSymbol, setSymbol, assetClass } = useWorkspace();
+  const [channel, setChannel] = useChannel(props, "main");
+  const symbol = getSymbol(channel).toUpperCase();
+  return (
+    <WidgetShell
+      header={
+        <LinkHeader
+          label={symbol}
+          channel={channel}
+          setChannel={setChannel}
+          includeNone={false}
+          assetClass={assetClass}
+          onPickSymbol={(s) => setSymbol(channel, s)}
+          kind="Profile"
+        />
+      }
+    >
+      <Pane pad>
+        <AssetProfile symbol={symbol} assetClass={assetClass} />
+      </Pane>
+    </WidgetShell>
+  );
+}
+
 // id → React component, consumed by DockviewReact's `components` map.
 export const WIDGET_COMPONENTS: Record<
   string,
@@ -665,6 +694,7 @@ export const WIDGET_COMPONENTS: Record<
   orders: OrdersWidget,
   activity: ActivityWidget,
   news: NewsWidget,
+  profile: ProfileWidget,
 };
 
 // Drives the "add widget" menu and panel titles. Grouped + described to power
@@ -721,6 +751,13 @@ export const WIDGET_CATALOG: WidgetMeta[] = [
     title: "News",
     desc: "Symbol or market feed (per linked channel)",
     iconPath: "M3 3 H13 V13 H3 Z M5 6 H11 M5 9 H11 M5 12 H9",
+  },
+  {
+    id: "profile",
+    group: "Market data",
+    title: "Profile",
+    desc: "Fundamentals & enrichment — sector, supply, ATH, links",
+    iconPath: "M2 8 A6 6 0 1 1 14 8 A6 6 0 1 1 2 8 M8 7.2 V11.2 M8 4.7 L8.01 4.7",
   },
   {
     id: "positions",

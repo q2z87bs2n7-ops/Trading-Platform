@@ -2,6 +2,7 @@ import type {
   Account,
   Activity,
   Asset,
+  AssetProfile,
   Bar,
   CalendarDay,
   IndicesResponse,
@@ -131,6 +132,11 @@ export const getCalendar = (start?: string, end?: string) =>
 
 export const getAsset = (symbol: string) =>
   getJSON<Asset>(`/api/assets/${symbol}`);
+
+// Full catalogue enrichment for one symbol (sibling path to dodge the greedy
+// `/api/assets/{symbol:path}` capture). Powers the Workspace Profile widget.
+export const getAssetProfile = (symbol: string) =>
+  getJSON<AssetProfile>(`/api/asset-profile/${symbol}`);
 
 // Symbol/name search over the catalogue (DB-backed; ranked by market cap).
 // assetClass: "" = all, "us_equity", or "crypto".

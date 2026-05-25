@@ -232,6 +232,17 @@ export const useAsset = (symbol: string) =>
     retry: false,
   });
 
+// Full catalogue enrichment for one symbol (Profile widget). Enrichment is
+// effectively static, so cache hard and skip auto-refetch.
+export const useAssetProfile = (symbol: string) =>
+  useQuery({
+    queryKey: qk.assetProfile(symbol),
+    queryFn: () => api.getAssetProfile(symbol),
+    enabled: symbol.trim().length > 0,
+    staleTime: 60 * 60_000,
+    retry: false,
+  });
+
 // Market calendar for a fixed [start, end] window. Sessions only change
 // with holiday schedules, so cache hard and skip auto-refetch.
 export const useCalendar = (start: string, end: string) =>

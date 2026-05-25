@@ -197,6 +197,24 @@ def asset(symbol: str) -> dict:
     return alpaca.get_asset(symbol)
 
 
+@app.get("/api/asset-profile/{symbol:path}", dependencies=[Depends(require_configured)])
+def asset_profile(symbol: str) -> dict:
+    # Full catalogue enrichment for one symbol (FMP for stocks, CoinGecko for
+    # crypto) — every column, with NULL keys dropped so a stock row never carries
+    # empty crypto fields and vice versa. Powers the Workspace Profile widget.
+    # Sibling path (not `/api/assets/{symbol}/profile`) to dodge the greedy
+    # `:path` capture, mirroring `/api/asset-symbols`. Falls back to Alpaca base
+    # identity when the DB is unconfigured or the symbol isn't seeded.
+    if db.db_enabled():
+        try:
+            row = db.get_asset_profile(symbol)
+            if row is not None:
+                return row
+        except db.DbUnavailable:
+            pass
+    return alpaca.get_asset(symbol)
+
+
 @app.get("/api/bars", dependencies=[Depends(require_configured)])
 def bars(
     symbol: str = Query(..., min_length=1),
