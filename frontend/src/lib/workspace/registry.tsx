@@ -778,6 +778,7 @@ function EarningsWidget(props: IDockviewPanelProps) {
                   bare
                   dense={dense}
                   showYear={!isMarket}
+                  onSelect={(s) => setSymbol(channel, s)}
                 />
               )}
             </>
