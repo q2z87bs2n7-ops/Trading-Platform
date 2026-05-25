@@ -372,7 +372,7 @@ Rules:
 | `ai_drawings_v1` | `tv-drawings.ts` | `tv-drawings.ts` | Per-symbol drawing UUIDs replayed on chart load. |
 | `chart_blotter_collapsed` | `ChartBlotter` | `ChartBlotter` | `"1"` collapsed. With no stored value, defaults collapsed on mobile (≤640px) and expanded on desktop. |
 | `market_summary_v1` / `crypto_market_summary_v1` | `useMarketSummary` | `useMarketSummary` + Ask-anything summary card | Per-silo cached AI market summary (window, date, content). |
-| `app_settings_v1` | `lib/settings.ts` | `useSettings` + `SettingsMenu` | JSON-encoded `AppSettings`. Today: `askAiEnabled` (default `true`). |
+| `app_settings_v1` | `lib/settings.ts` | `useSettings` + `SettingsMenu` + `MobileNavDrawer` | JSON-encoded `AppSettings`. Three per-surface AI toggles, each default `true`: `marketSummaryAiEnabled` / `askAiEnabled` / `chartbotEnabled`. When a surface is off it renders a shared `AiDisabledNotice` ("…enable in Settings") instead of calling Claude. |
 | `workspace_layouts_stocks_v2` / `workspace_layouts_crypto_v2` | `components/Workspace.tsx` | `components/Workspace.tsx` | Per-silo Workspace layouts — `{ active: { name, layout }, saved: {} }`. `active.layout` is the live Dockview `api.toJSON()`; `active.name` records the last-applied preset (Trader / Researcher / Watcher / Focus). `saved` is reserved for the future "Save current as…" UI. Migrates transparently from the old `workspace_layout_{silo}_v1` (raw layout) on first load after upgrade; the v1 key is then removed. Cleared by applying a preset from the in-canvas Layouts menu. |
 | `workspace_channels_v1` | `components/Workspace.tsx` | `components/Workspace.tsx` | Per-silo colour-channel symbols (`{stocks,crypto}` → channel → symbol). Seeded from `CHANNEL_DEFAULTS`; persists header-search picks across reloads. "main" is not stored here (it proxies the app's selected symbol). |
 
@@ -456,7 +456,8 @@ instant); **violet = real Claude API call** (Anthropic credits, slow).
   `history` so follow-ups have context; it's session-only (reset on close).
 - **AI market summary** (`hooks/useMarketSummary.ts` + `MarketSummaryCard`,
   Discover hero). Auto-generates a per-window summary via `/api/ai/ask`
-  (real Claude call; same gating as above). Per silo: **stocks** uses US
+  (real Claude call; gated by its own `marketSummaryAiEnabled` toggle — off
+  shows the `AiDisabledNotice`, no generation). Per silo: **stocks** uses US
   market windows (open/midday/close EST) and US headlines; **crypto** uses
   four 6-hour UTC windows (00–06 / 06–12 / 12–18 / 18–24 UTC) and
   BTC/crypto news; labels show the UTC range explicitly so they are
@@ -464,7 +465,10 @@ instant); **violet = real Claude API call** (Anthropic credits, slow).
   (`market_summary_v1` / `crypto_market_summary_v1`); the `market_summary`
   intent card reads the matching cache.
 - **ChartBot side panel** (`components/chat/`, Chart mode only, gated
-  by `AI_CHAT_ENABLED`). 380px violet right-edge panel. Hybrid
+  by `AI_CHAT_ENABLED` operator-side **and** the user `chartbotEnabled`
+  toggle — when the user toggle is off the panel renders the
+  `AiDisabledNotice` in its body instead of the transcript/composer).
+  380px violet right-edge panel. Hybrid
   tool-use loop in `backend/app/ai/router.py`: backend-executed read
   tools run server-side; frontend-executed chart tools (drawings,
   studies, symbol/resolution, screenshots, order viz) declared in the

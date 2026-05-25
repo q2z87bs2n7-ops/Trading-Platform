@@ -8,6 +8,8 @@
 import { useEffect, useState } from "react";
 import { useChatSession } from "../../hooks/useChatSession";
 import { useMobile } from "../../hooks/useMobile";
+import { useSettings } from "../../hooks/useSettings";
+import AiDisabledNotice from "../AiDisabledNotice";
 import ChatHeader from "./ChatHeader";
 import ChatTranscript from "./ChatTranscript";
 import ChatComposer from "./ChatComposer";
@@ -23,6 +25,7 @@ interface Props {
 
 export default function ChatPanel({ symbol, resolution = "D" }: Props) {
   const isMobile = useMobile();
+  const enabled = useSettings().chartbotEnabled;
   // Always start expanded — user can collapse mid-session but it
   // re-opens on every Chart-mode mount. The two prior collapse keys
   // are removed on first mount so old "1" values can't drag the panel
@@ -105,23 +108,31 @@ export default function ChatPanel({ symbol, resolution = "D" }: Props) {
           />
         </button>
         <ChatHeader
-          canClear={!session.busy && session.turns.length > 0}
+          canClear={enabled && !session.busy && session.turns.length > 0}
           onCollapse={() => setOpen(false)}
           onClear={session.clear}
         />
-        <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-          <ChatTranscript
-            turns={session.turns}
-            busy={session.busy}
-            onSuggestion={(text) => void session.send(text)}
-            onRetry={session.retryLast}
-          />
-        </div>
-        <ChatComposer
-          busy={session.busy}
-          onSend={(text) => void session.send(text)}
-          onCancel={session.cancel}
-        />
+        {enabled ? (
+          <>
+            <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+              <ChatTranscript
+                turns={session.turns}
+                busy={session.busy}
+                onSuggestion={(text) => void session.send(text)}
+                onRetry={session.retryLast}
+              />
+            </div>
+            <ChatComposer
+              busy={session.busy}
+              onSend={(text) => void session.send(text)}
+              onCancel={session.cancel}
+            />
+          </>
+        ) : (
+          <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <AiDisabledNotice surface="chartbot" accent="var(--cb-accent)" />
+          </div>
+        )}
         <style>{`@keyframes mob-sheet-in { from { transform: translateY(100%) } to { transform: none } }`}</style>
       </div>
     );
@@ -163,23 +174,31 @@ export default function ChatPanel({ symbol, resolution = "D" }: Props) {
       }}
     >
       <ChatHeader
-        canClear={!session.busy && session.turns.length > 0}
+        canClear={enabled && !session.busy && session.turns.length > 0}
         onCollapse={() => setCollapsed(true)}
         onClear={session.clear}
       />
-      {/* Transcript flex-grows to fill the gap; composer is always the
-         last child and so always pinned at the bottom of the panel. */}
-      <ChatTranscript
-        turns={session.turns}
-        busy={session.busy}
-        onSuggestion={(text) => void session.send(text)}
-        onRetry={session.retryLast}
-      />
-      <ChatComposer
-        busy={session.busy}
-        onSend={(text) => void session.send(text)}
-        onCancel={session.cancel}
-      />
+      {enabled ? (
+        <>
+          {/* Transcript flex-grows to fill the gap; composer is always the
+             last child and so always pinned at the bottom of the panel. */}
+          <ChatTranscript
+            turns={session.turns}
+            busy={session.busy}
+            onSuggestion={(text) => void session.send(text)}
+            onRetry={session.retryLast}
+          />
+          <ChatComposer
+            busy={session.busy}
+            onSend={(text) => void session.send(text)}
+            onCancel={session.cancel}
+          />
+        </>
+      ) : (
+        <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <AiDisabledNotice surface="chartbot" accent="var(--cb-accent)" />
+        </div>
+      )}
     </div>
   );
 }

@@ -1,4 +1,7 @@
+import { useState } from "react";
+
 import type { MarketSummaryCache } from "../hooks/useMarketSummary";
+import AiDisabledNotice from "./AiDisabledNotice";
 
 function relTime(ts: number): string {
   const diff = Math.max(0, (Date.now() - ts) / 1000);
@@ -13,6 +16,7 @@ interface Props {
   isGenerating: boolean;
   windowLabel: string;
   onDismiss: () => void;
+  disabled?: boolean;
 }
 
 export default function MarketSummaryCard({
@@ -20,7 +24,35 @@ export default function MarketSummaryCard({
   isGenerating,
   windowLabel,
   onDismiss,
+  disabled,
 }: Props) {
+  const [noticeHidden, setNoticeHidden] = useState(false);
+
+  if (disabled) {
+    if (noticeHidden) return null;
+    return (
+      <div
+        className="rounded-card-lg mb-6 relative"
+        style={{
+          background: "var(--panel)",
+          border: "1px solid var(--border)",
+          boxShadow: "var(--shadow-sm)",
+          padding: "10px 12px",
+        }}
+      >
+        <button
+          onClick={() => setNoticeHidden(true)}
+          className="absolute top-2 right-2 text-[18px] leading-none px-1 hover:opacity-70 transition-opacity"
+          style={{ color: "var(--mute)" }}
+          aria-label="Dismiss"
+        >
+          ×
+        </button>
+        <AiDisabledNotice surface="market" compact />
+      </div>
+    );
+  }
+
   if (cache?.dismissed && !isGenerating) return null;
 
   return (

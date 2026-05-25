@@ -216,6 +216,7 @@ export default function DiscoverPage({
         isGenerating={marketSummary.isGenerating}
         windowLabel={marketSummary.windowLabel}
         onDismiss={marketSummary.dismiss}
+        disabled={marketSummary.disabled}
       />
 
       {/* Watchlist */}

@@ -13,6 +13,7 @@ import type { AssetClass } from "../../../lib/ask-intent";
 import { applyWorkspaceActions } from "../../../lib/workspace/controller";
 import type { ApplyResult } from "../../../lib/workspace/actions";
 import AskResultCard from "../AskResultCard";
+import AiDisabledNotice from "../../AiDisabledNotice";
 import { WorkspaceResult } from "./WorkspaceCard";
 
 type OnAiResponse = (resp: AiAskResponse) => void;
@@ -32,22 +33,8 @@ function downloadCsv(report: AiAskReport) {
 
 function FallbackCard({ text }: { text: string }) {
   return (
-    <AskResultCard title="No match for that phrase" meta={text || "(empty)"}>
-      <div className="text-[13px]" style={{ color: "var(--text-2)" }}>
-        Ask anything only knows a handful of shortcuts when AI is off.
-        Open the settings menu (top-right) to enable the AI fallback,
-        or try one of the recognised phrases:
-      </div>
-      <ul
-        className="mt-2 flex flex-col gap-1 text-[12.5px]"
-        style={{ color: "var(--mute)" }}
-      >
-        <li>· "buy 50 AMD at market"</li>
-        <li>· "how's NVDA?"</li>
-        <li>· "show top gainers"</li>
-        <li>· "news on Tesla"</li>
-        <li>· "close my TSLA position"</li>
-      </ul>
+    <AskResultCard title="Ask anything" meta={text || "(empty)"}>
+      <AiDisabledNotice surface="ask" compact />
     </AskResultCard>
   );
 }

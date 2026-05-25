@@ -6,12 +6,23 @@ import {
   type MarketSummaryCache,
 } from "../../../hooks/useMarketSummary";
 import type { AssetClass } from "../../../lib/ask-intent";
+import { useSettings } from "../../../hooks/useSettings";
 import AskResultCard from "../AskResultCard";
+import AiDisabledNotice from "../../AiDisabledNotice";
 
 export function MarketSummaryIntentCard({ assetClass }: { assetClass: AssetClass }) {
+  const enabled = useSettings().marketSummaryAiEnabled;
   const [cache] = useState<MarketSummaryCache | null>(() =>
     readMarketSummaryCache(assetClass),
   );
+
+  if (!enabled) {
+    return (
+      <AskResultCard title="✦ Market summary">
+        <AiDisabledNotice surface="market" compact />
+      </AskResultCard>
+    );
+  }
 
   const label = cache
     ? windowLabel(cache.window, assetClass)

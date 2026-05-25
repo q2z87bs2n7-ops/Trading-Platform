@@ -115,9 +115,25 @@ export default function MobileNavDrawer({ open, onClose, onOpenHub, version }: P
 
         <DrawerItem
           icon="✦"
-          label="AI Ask anything"
+          label="AI · Market summary"
+          right={settings.marketSummaryAiEnabled ? "On" : "Off"}
+          onClick={() =>
+            updateSettings({ marketSummaryAiEnabled: !settings.marketSummaryAiEnabled })
+          }
+        />
+
+        <DrawerItem
+          icon="✦"
+          label="AI · Ask anything"
           right={settings.askAiEnabled ? "On" : "Off"}
           onClick={() => updateSettings({ askAiEnabled: !settings.askAiEnabled })}
+        />
+
+        <DrawerItem
+          icon="✦"
+          label="AI · ChartBot"
+          right={settings.chartbotEnabled ? "On" : "Off"}
+          onClick={() => updateSettings({ chartbotEnabled: !settings.chartbotEnabled })}
         />
 
         <DrawerItem

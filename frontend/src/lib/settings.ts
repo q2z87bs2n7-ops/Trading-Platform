@@ -7,12 +7,18 @@
 const KEY = "app_settings_v1";
 
 export interface AppSettings {
+  /** Auto-generate the per-window AI market/crypto summary on Discover. */
+  marketSummaryAiEnabled: boolean;
   /** Ask anything: route unrecognised phrases through /api/ai/ask. */
   askAiEnabled: boolean;
+  /** ChartBot side panel in Chart mode. */
+  chartbotEnabled: boolean;
 }
 
 const DEFAULTS: AppSettings = {
+  marketSummaryAiEnabled: true,
   askAiEnabled: true,
+  chartbotEnabled: true,
 };
 
 function load(): AppSettings {
