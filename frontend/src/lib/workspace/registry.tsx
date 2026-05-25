@@ -17,6 +17,7 @@ import {
   EarningsCardSkeleton,
 } from "../../components/discover/EarningsCard";
 import ErrorBanner from "../../components/ErrorBanner";
+import { isCryptoSymbol } from "../asset-class";
 import {
   useEarningsCalendar,
   useMarketNews,
@@ -703,11 +704,14 @@ function EarningsWidget(props: IDockviewPanelProps) {
   const [channel, setChannel] = useChannel(props, "none");
   const isMarket = channel === "none";
   const symbol = isMarket ? "" : getSymbol(channel).toUpperCase();
+  // Crypto has no earnings — skip the fetch and show a clear notice instead of
+  // the backend's bare "not found".
+  const isCrypto = !isMarket && isCryptoSymbol(symbol);
   const ref = useRef<HTMLDivElement>(null);
   const dense = useContainerNarrow(ref, EARNINGS_DENSE_W);
 
   const market = useEarningsCalendar(isMarket);
-  const perSymbol = useSymbolEarnings(symbol, !isMarket);
+  const perSymbol = useSymbolEarnings(symbol, !isMarket && !isCrypto);
   const active = isMarket ? market : perSymbol;
 
   return (
@@ -726,15 +730,24 @@ function EarningsWidget(props: IDockviewPanelProps) {
     >
       <div ref={ref} style={{ height: "100%" }}>
         <Pane pad>
-          {active.error && <ErrorBanner message={active.error.message} />}
-          {!active.data && !active.error && <EarningsCardSkeleton bare />}
-          {active.data && (
-            <EarningsCard
-              rows={active.data.earnings}
-              bare
-              dense={dense}
-              showYear={!isMarket}
-            />
+          {isCrypto ? (
+            <p className="text-[13px]" style={{ color: "var(--mute)" }}>
+              Crypto assets don’t report earnings. Link this widget to a stock,
+              or switch it to Market.
+            </p>
+          ) : (
+            <>
+              {active.error && <ErrorBanner message={active.error.message} />}
+              {!active.data && !active.error && <EarningsCardSkeleton bare />}
+              {active.data && (
+                <EarningsCard
+                  rows={active.data.earnings}
+                  bare
+                  dense={dense}
+                  showYear={!isMarket}
+                />
+              )}
+            </>
           )}
         </Pane>
       </div>
