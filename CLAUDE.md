@@ -135,7 +135,13 @@ separate silos behind a shared account.
     equity, day P/L, buying power, cash, positions value, portfolio value,
     margin (initial/maintenance), and short value when non-zero), a **Watchlist**
     (`components/Watchlist.tsx` — silo watchlist spark cards; a click writes to
-    the widget's channel), positions, orders, activity, news.
+    the widget's channel), positions, orders, activity, news, and an asset
+    **Profile** (`components/AssetProfile.tsx` — symbol-linked catalogue
+    enrichment off `/api/asset-profile`: fundamentals for stocks (sector,
+    market cap, beta, CEO, employees, HQ, IPO, description) and tokenomics for
+    crypto (circulating/max supply bar, market-cap rank, ATH/ATL with live
+    distance, categories, whitepaper/GitHub links); always symbol-linked like
+    Trade — default Main, no None).
     Each widget carries a **link channel** (None + Main/blue/green/amber,
     persisted in the panel's Dockview params): a symbol channel filters the
     widget to that one instrument (Positions/Orders/Activities take a `symbol`
@@ -219,7 +225,7 @@ separate silos behind a shared account.
   `api/index.py` is the Vercel shim. Endpoints under `/api/`: health,
   config, account, bars, quotes, snapshots, stream, orders, positions,
   portfolio/history, pnl-history, activities, clock, calendar, assets,
-  news, watchlist, movers, most-active, indices,
+  asset-profile, news, watchlist, movers, most-active, indices,
   market-news, crypto/tickers, ai/chat, ai/ask (last two gated by
   `AI_CHAT_ENABLED`; require `ANTHROPIC_API_KEY`). `/api/indices` and
   `/api/market-news` hit Yahoo Finance directly via `requests` (no yfinance,
@@ -227,13 +233,17 @@ separate silos behind a shared account.
   served but only consumed by the AI tool loop — don't delete them. `/api/assets`
   (search) and `/api/assets/{symbol}` are **DB-backed** off the catalogue (clean
   enum values, sector/logo/market_cap; Alpaca fallback) and power the watchlist
-  autocomplete, chart search, and the bot's `find_symbol`. The Postgres **asset
+  autocomplete, chart search, and the bot's `find_symbol`. `/api/asset-profile/
+  {symbol}` (sibling path — *not* the removed `/api/assets/{symbol}/profile`)
+  returns the full enrichment row (`db.get_asset_profile`, NULLs dropped) that
+  powers the Workspace **Profile** widget. The Postgres **asset
   catalogue** is filled by two Render-only dev seeders — `POST
   /api/_dev/seed-assets` (Alpaca base + CoinGecko crypto) and `POST
   /api/_dev/enrich-stocks` (FMP stock enrichment) — see "Asset catalogue" below
   and `docs/database.md`.
   **Path params with slashes:** `/api/assets/{symbol:path}`,
-  `/api/positions/{symbol:path}`, and `/api/watchlist/{symbol:path}`
+  `/api/asset-profile/{symbol:path}`, `/api/positions/{symbol:path}`, and
+  `/api/watchlist/{symbol:path}`
   use FastAPI's `:path` converter so `BTC/USD` passes through without
   breaking routing. Frontend never calls `encodeURIComponent` on symbol
   path segments (symbols are `[A-Z0-9/.]` only).
@@ -340,7 +350,7 @@ reusable elsewhere for free:
    `symbol` / `assetClass` / callbacks as props and knows **nothing** about the
    Workspace. Lives in `components/`. Examples: `PriceChart`, `TVChartWidget`,
    `OrderTicketInline`, `Positions`, `Orders`, `Activities`, `NewsCard`,
-   `AssetSearch`.
+   `AssetProfile`, `AssetSearch`.
 3. **Workspace adapter** — `lib/workspace/registry.tsx` (+ `Workspace.tsx`): the
    *only* layer that knows Dockview, link channels, the `LinkHeader`, and
    `useWorkspace`. It wraps a feature component and injects the cross-cutting

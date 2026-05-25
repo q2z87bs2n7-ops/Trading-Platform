@@ -45,7 +45,8 @@ desktop-only):
   widgets are bound to it, and a **Layouts ▾** picker with named presets
   (Trader / Researcher / Watcher / Focus). Widgets — bare TradingView chart,
   lightweight mini chart, watchlist, inline trade ticket, account overview,
-  positions, orders, activity, news — each carry a colour **link channel**
+  positions, orders, activity, news, asset profile (catalogue
+  fundamentals/tokenomics) — each carry a colour **link channel**
   that filters the widget to one instrument (or **None** for whole-account
   info), with a click-to-search symbol picker in each header and a coloured
   accent bar + channel dot on the tab so the canvas reads at a glance.
