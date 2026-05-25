@@ -136,8 +136,8 @@ export default function SettingsMenu() {
               </span>
             </div>
             <Toggle
-              on={settings.cmdbarAiEnabled}
-              onChange={(v) => updateSettings({ cmdbarAiEnabled: v })}
+              on={settings.askAiEnabled}
+              onChange={(v) => updateSettings({ askAiEnabled: v })}
               label="Enable AI fallback in Ask anything"
             />
           </div>

@@ -15,7 +15,7 @@ export default function MobileNavDrawer({ open, onClose, onOpenHub, version }: P
   const { theme, toggle: toggleTheme } = useTheme();
   const settings = useSettings();
 
-  // ESC + body-scroll lock when open. Pattern lifted from CmdBar.
+  // ESC + body-scroll lock when open. Pattern lifted from AskBar.
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -116,8 +116,8 @@ export default function MobileNavDrawer({ open, onClose, onOpenHub, version }: P
         <DrawerItem
           icon="✦"
           label="AI Ask anything"
-          right={settings.cmdbarAiEnabled ? "On" : "Off"}
-          onClick={() => updateSettings({ cmdbarAiEnabled: !settings.cmdbarAiEnabled })}
+          right={settings.askAiEnabled ? "On" : "Off"}
+          onClick={() => updateSettings({ askAiEnabled: !settings.askAiEnabled })}
         />
 
         <DrawerItem

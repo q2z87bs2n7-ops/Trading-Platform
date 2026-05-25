@@ -58,14 +58,14 @@
 
 ## Ask anything
 
-- **Modify / cancel-order intents.** `lib/cmd-intent.ts` returns
+- **Modify / cancel-order intents.** `lib/ask-intent.ts` returns
   `fallback` for "move my AAPL limit to 195" and "cancel order abc123".
   Cards exist in the design (`Modify card w/ old/new prices`,
   `Confirm + undo`); the blocker is fuzzy order matching from a phrase
   ("my AAPL limit" → which open AAPL order). Needs a small disambiguator
   pass when the user has multiple working orders for the same symbol.
-- **"Open Chart mode and continue in ChartBot →" fallback.** When ⌘K
-  receives a chart-ish prompt out of its lane (e.g. "draw a trendline"
+- **"Open Chart mode and continue in ChartBot →" fallback.** When the
+  Ask anything bot receives a chart-ish prompt out of its lane (e.g. "draw a trendline"
   from Discover), the fallback card should suggest opening Chart mode
   and pre-seeding the ChartBot panel with the user's phrase. Wires the
   two AI surfaces into a coherent flow.
@@ -107,7 +107,7 @@
   layer above.
 - **Discover-mode AI** — the ChartBot panel is Chart-mode-only today.
   Extending to Discover needs a mode-aware system prompt, a trimmed
-  tool set (no chart-only tools), and a new UI surface. The ⌘K bar
+  tool set (no chart-only tools), and a new UI surface. The Ask anything bot
   covers the casual side of this; a deeper ChartBot-equivalent for
   portfolio reasoning is a separate question.
 - **`createAlert` integration** — TV has a native alert API but no

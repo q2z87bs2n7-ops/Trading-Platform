@@ -42,9 +42,9 @@ def is_draw_tool(name: str) -> bool:
 
 
 def read_only_tools(web_search: bool = False) -> list[dict[str, Any]]:
-    """Subset of TOOLS exposed to the ⌘K general-purpose AI surface.
+    """Subset of TOOLS exposed to the Ask anything general-purpose AI surface.
     Excludes every chart-drawing / chart-navigation / capture tool
-    since there's no chart context in the command-bar modal.
+    since there's no chart context in the Ask anything modal.
     Pass web_search=True to append Anthropic's hosted web_search server tool."""
     result = [t for t in TOOLS if t["name"] in READ_TOOL_NAMES]
     if web_search:

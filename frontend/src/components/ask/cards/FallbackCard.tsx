@@ -9,8 +9,8 @@ import {
 } from "../../../api";
 import { qk } from "../../../data/queryClient";
 import { useSettings } from "../../../hooks/useSettings";
-import type { AssetClass } from "../../../lib/cmd-intent";
-import CmdResultCard from "../CmdResultCard";
+import type { AssetClass } from "../../../lib/ask-intent";
+import AskResultCard from "../AskResultCard";
 
 type OnAiResponse = (resp: AiAskResponse) => void;
 type OnExchange = (userText: string, assistantText: string) => void;
@@ -29,7 +29,7 @@ function downloadCsv(report: AiAskReport) {
 
 function FallbackCard({ text }: { text: string }) {
   return (
-    <CmdResultCard title="No match for that phrase" meta={text || "(empty)"}>
+    <AskResultCard title="No match for that phrase" meta={text || "(empty)"}>
       <div className="text-[13px]" style={{ color: "var(--text-2)" }}>
         Ask anything only knows a handful of shortcuts when AI is off.
         Open the settings menu (top-right) to enable the AI fallback,
@@ -45,7 +45,7 @@ function FallbackCard({ text }: { text: string }) {
         <li>· "news on Tesla"</li>
         <li>· "close my TSLA position"</li>
       </ul>
-    </CmdResultCard>
+    </AskResultCard>
   );
 }
 
@@ -103,7 +103,7 @@ function AiAskCard({
   }, [text, assetClass]);
 
   return (
-    <CmdResultCard title="✦ AI" meta={text || "(empty)"}>
+    <AskResultCard title="✦ AI" meta={text || "(empty)"}>
       {pending && (
         <div className="text-[13px]" style={{ color: "var(--mute)" }}>
           Thinking…
@@ -177,7 +177,7 @@ function AiAskCard({
           )}
         </>
       )}
-    </CmdResultCard>
+    </AskResultCard>
   );
 }
 
@@ -197,7 +197,7 @@ export function FallbackOrAiCard({
   onExchange?: OnExchange;
 }) {
   const settings = useSettings();
-  return settings.cmdbarAiEnabled ? (
+  return settings.askAiEnabled ? (
     <AiAskCard
       text={text}
       assetClass={assetClass}

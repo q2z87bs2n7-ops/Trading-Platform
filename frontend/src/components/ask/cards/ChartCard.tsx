@@ -1,6 +1,6 @@
 import { useBars, useSnapshots } from "../../../data/hooks";
 import { money, pct } from "../../../lib/format";
-import CmdResultCard from "../CmdResultCard";
+import AskResultCard from "../AskResultCard";
 
 const compact = (n: number) =>
   n.toLocaleString("en-US", { notation: "compact", maximumFractionDigits: 1 });
@@ -43,7 +43,7 @@ export function ChartCard({
   }
 
   return (
-    <CmdResultCard
+    <AskResultCard
       title={symbol}
       meta={snap?.last_price ? money(snap.last_price) : undefined}
     >
@@ -97,6 +97,6 @@ export function ChartCard({
       >
         Open {symbol} in Chart workspace →
       </button>
-    </CmdResultCard>
+    </AskResultCard>
   );
 }

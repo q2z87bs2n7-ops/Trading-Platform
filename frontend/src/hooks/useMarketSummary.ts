@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { postAiAsk } from "../api";
-import type { AssetClass } from "../lib/cmd-intent";
+import type { AssetClass } from "../lib/ask-intent";
 
 export type SummaryWindow = "overnight" | "open" | "midday" | "close";
 

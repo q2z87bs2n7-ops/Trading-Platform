@@ -1,8 +1,8 @@
 import { useCryptoTickers, useMovers } from "../../../data/hooks";
-import type { AssetClass } from "../../../lib/cmd-intent";
+import type { AssetClass } from "../../../lib/ask-intent";
 import { pct } from "../../../lib/format";
 import type { Mover, Snapshot } from "../../../types";
-import CmdResultCard from "../CmdResultCard";
+import AskResultCard from "../AskResultCard";
 
 function MoversList({ title, rows }: { title: string; rows: Mover[] }) {
   return (
@@ -68,11 +68,11 @@ function CryptoMoversCard({ kind }: { kind: Kind }) {
 
   if (!tickers.data) {
     return (
-      <CmdResultCard title="Crypto movers">
+      <AskResultCard title="Crypto movers">
         <div className="text-[13px]" style={{ color: "var(--mute)" }}>
           {tickers.error ? (tickers.error as Error).message : "Loading…"}
         </div>
-      </CmdResultCard>
+      </AskResultCard>
     );
   }
 
@@ -83,7 +83,7 @@ function CryptoMoversCard({ kind }: { kind: Kind }) {
     .slice(0, 8);
 
   return (
-    <CmdResultCard title="Crypto movers" meta="from your crypto tickers">
+    <AskResultCard title="Crypto movers" meta="from your crypto tickers">
       <div className="flex flex-col gap-3">
         {(kind === "gainers" || kind === "both") && (
           <MoversList title="Gainers" rows={gainers} />
@@ -92,7 +92,7 @@ function CryptoMoversCard({ kind }: { kind: Kind }) {
           <MoversList title="Losers" rows={losers} />
         )}
       </div>
-    </CmdResultCard>
+    </AskResultCard>
   );
 }
 
@@ -100,15 +100,15 @@ function StockMoversCard({ kind }: { kind: Kind }) {
   const movers = useMovers(8);
   if (!movers.data) {
     return (
-      <CmdResultCard title="Movers">
+      <AskResultCard title="Movers">
         <div className="text-[13px]" style={{ color: "var(--mute)" }}>
           {movers.error ? movers.error.message : "Loading…"}
         </div>
-      </CmdResultCard>
+      </AskResultCard>
     );
   }
   return (
-    <CmdResultCard title="Today's movers" meta="free IEX feed">
+    <AskResultCard title="Today's movers" meta="free IEX feed">
       <div className="flex flex-col gap-3">
         {(kind === "gainers" || kind === "both") && (
           <MoversList title="Top gainers" rows={movers.data.gainers} />
@@ -117,7 +117,7 @@ function StockMoversCard({ kind }: { kind: Kind }) {
           <MoversList title="Top losers" rows={movers.data.losers} />
         )}
       </div>
-    </CmdResultCard>
+    </AskResultCard>
   );
 }
 

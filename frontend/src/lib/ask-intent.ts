@@ -1,6 +1,6 @@
 // Ask anything intent parser. Strict-ish regex over a small surface;
 // returns the first matching intent or { type: "fallback" }. The result
-// card per intent is rendered by components/cmd/cards.tsx.
+// card per intent is rendered by components/ask/cards.tsx.
 
 export type Intent =
   | {
@@ -114,7 +114,7 @@ function findSymbol(text: string, assetClass?: AssetClass): string | undefined {
 }
 
 // All ticker/pair candidates in the text, preserving order. Exported so
-// CmdBar can extract symbols from AI response text for dynamic follow-up chips.
+// AskBar can extract symbols from AI response text for dynamic follow-up chips.
 export function extractSymbols(text: string): string[] {
   const up = text.toUpperCase();
   const seen = new Set<string>();

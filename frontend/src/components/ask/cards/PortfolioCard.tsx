@@ -1,8 +1,8 @@
-import type { AssetClass } from "../../../lib/cmd-intent";
+import type { AssetClass } from "../../../lib/ask-intent";
 import { usePositions } from "../../../data/hooks";
 import { isCryptoPosition } from "../../../lib/asset-class";
 import { money } from "../../../lib/format";
-import CmdResultCard from "../CmdResultCard";
+import AskResultCard from "../AskResultCard";
 
 export function PortfolioCard({ assetClass }: { assetClass: AssetClass }) {
   const positions = usePositions();
@@ -14,7 +14,7 @@ export function PortfolioCard({ assetClass }: { assetClass: AssetClass }) {
   const label = assetClass === "crypto" ? "Crypto" : "Stocks";
 
   return (
-    <CmdResultCard title={`${label} portfolio`} meta={`Holdings ${money(total)}`}>
+    <AskResultCard title={`${label} portfolio`} meta={`Holdings ${money(total)}`}>
       {rows.length === 0 ? (
         <div className="text-[13px]" style={{ color: "var(--mute)" }}>
           No open {label.toLowerCase()} positions.
@@ -76,6 +76,6 @@ export function PortfolioCard({ assetClass }: { assetClass: AssetClass }) {
           })}
         </div>
       )}
-    </CmdResultCard>
+    </AskResultCard>
   );
 }

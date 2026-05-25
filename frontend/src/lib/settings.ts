@@ -8,11 +8,11 @@ const KEY = "app_settings_v1";
 
 export interface AppSettings {
   /** Ask anything: route unrecognised phrases through /api/ai/ask. */
-  cmdbarAiEnabled: boolean;
+  askAiEnabled: boolean;
 }
 
 const DEFAULTS: AppSettings = {
-  cmdbarAiEnabled: true,
+  askAiEnabled: true,
 };
 
 function load(): AppSettings {

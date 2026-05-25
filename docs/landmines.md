@@ -273,7 +273,7 @@ desktop / iPad (> 640px) render byte-identical. A few things bite:
   they're only ever read inside mobile-gated code.
 - **Mobile overlays render `position: fixed`.** The nav drawer, the ChartBot
   slide-up + its launcher, the OrderSheet / EquitySheet / watchlist-add
-  sheets, and the full-screen CmdBar are all fixed. That's why `App.tsx`'s
+  sheets, and the full-screen AskBar are all fixed. That's why `App.tsx`'s
   chart-mode flex row needs no mobile branch — on mobile `ChatPanel` is out
   of flow, so the chart's `flex:1` wrapper already takes the full width.
   Don't "fix" it by adding a mobile ternary there.

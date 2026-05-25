@@ -1,5 +1,5 @@
 import type { AiAskMessage, AiAskResponse } from "../../api";
-import type { AssetClass, Intent } from "../../lib/cmd-intent";
+import type { AssetClass, Intent } from "../../lib/ask-intent";
 import { ChartCard } from "./cards/ChartCard";
 import { CloseCard } from "./cards/CloseCard";
 import { FallbackOrAiCard } from "./cards/FallbackCard";
@@ -10,7 +10,7 @@ import { OrderCard } from "./cards/OrderCard";
 import { OrdersCard } from "./cards/OrdersCard";
 import { PortfolioCard } from "./cards/PortfolioCard";
 
-export function CmdResult({
+export function AskResult({
   intent,
   assetClass,
   history = [],

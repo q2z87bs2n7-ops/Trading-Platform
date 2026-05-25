@@ -6,12 +6,12 @@ import {
   extractSymbols,
   type AssetClass,
   type Intent,
-} from "../../lib/cmd-intent";
+} from "../../lib/ask-intent";
 import { isCryptoPosition } from "../../lib/asset-class";
 import type { Position } from "../../types";
 import { useCryptoWatchlist, usePositions, useWatchlist } from "../../data/hooks";
 import { useMobile } from "../../hooks/useMobile";
-import { CmdResult } from "./cards";
+import { AskResult } from "./cards";
 
 interface Turn {
   id: number;
@@ -140,7 +140,7 @@ interface Props {
   onOpenInWorkspace: (symbol: string) => void;
 }
 
-export default function CmdBar({ open, assetClass, onClose, onOpenInWorkspace }: Props) {
+export default function AskBar({ open, assetClass, onClose, onOpenInWorkspace }: Props) {
   const [text, setText] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [lastAiResp, setLastAiResp] = useState<AiAskResponse | null>(null);
@@ -278,10 +278,10 @@ export default function CmdBar({ open, assetClass, onClose, onOpenInWorkspace }:
           borderRadius: isMobile ? 0 : "var(--r-xl)",
           boxShadow: "var(--shadow-lg)",
           overflow: "hidden",
-          animation: "cmd-up 180ms ease",
+          animation: "ask-up 180ms ease",
         }}
       >
-        <style>{`@keyframes cmd-up{from{transform:translateY(-20px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
+        <style>{`@keyframes ask-up{from{transform:translateY(-20px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
 
         {/* Header — sparkle brand + close. Keeps a small top frame around
            the transcript without putting input controls up here. */}
@@ -372,7 +372,7 @@ export default function CmdBar({ open, assetClass, onClose, onOpenInWorkspace }:
                   >
                     {turn.query}
                   </div>
-                  <CmdResult
+                  <AskResult
                     intent={turn.intent}
                     assetClass={assetClass}
                     history={turn.history}

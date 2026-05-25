@@ -441,7 +441,7 @@ def ai_chat(req: ChatRequest) -> ChatResponse:
     )
 
 
-# --- ⌘K general-purpose ask endpoint ----------------------------------------
+# --- Ask anything general-purpose ask endpoint ------------------------------
 # Smaller surface area than /api/ai/chat: no frontend tools, no per-request
 # chart context, no streaming. One-shot Q&A with backend reads grounding the
 # answer. The modal clears its transcript on close, so history is bounded

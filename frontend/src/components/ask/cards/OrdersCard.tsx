@@ -1,7 +1,7 @@
 import { useOrders } from "../../../data/hooks";
-import type { AssetClass } from "../../../lib/cmd-intent";
+import type { AssetClass } from "../../../lib/ask-intent";
 import { isCryptoOrder } from "../../../lib/asset-class";
-import CmdResultCard from "../CmdResultCard";
+import AskResultCard from "../AskResultCard";
 
 export function OrdersCard({ assetClass }: { assetClass: AssetClass }) {
   const orders = useOrders("open", 50);
@@ -12,15 +12,15 @@ export function OrdersCard({ assetClass }: { assetClass: AssetClass }) {
   const label = assetClass === "crypto" ? "crypto" : "stock";
   if (!orders.data) {
     return (
-      <CmdResultCard title="Open orders">
+      <AskResultCard title="Open orders">
         <div className="text-[13px]" style={{ color: "var(--mute)" }}>
           {orders.error ? orders.error.message : "Loading…"}
         </div>
-      </CmdResultCard>
+      </AskResultCard>
     );
   }
   return (
-    <CmdResultCard title="Open orders" meta={`${rows.length} working`}>
+    <AskResultCard title="Open orders" meta={`${rows.length} working`}>
       {rows.length === 0 ? (
         <div className="text-[13px]" style={{ color: "var(--mute)" }}>
           No working {label} orders. Recent fills appear in the blotter.
@@ -86,6 +86,6 @@ export function OrdersCard({ assetClass }: { assetClass: AssetClass }) {
           })}
         </div>
       )}
-    </CmdResultCard>
+    </AskResultCard>
   );
 }

@@ -177,7 +177,7 @@ separate silos behind a shared account.
   (`⋯` overflow popover for type/indicators), and the ChartBot panel
   becomes a floating **violet launcher + slide-up sheet** (the header `✦`
   stays Ask-anything — teal — in every mode). `OrderSheet` and the
-  Ask-anything `CmdBar` go full-screen with safe-area-padded sticky
+  Ask-anything `AskBar` go full-screen with safe-area-padded sticky
   footers; `TradeBar` and the watchlist add-sheet clear the home
   indicator. Mobile tokens (`--mob-*`, `--safe-*`) live in `index.css`;
   `--mob-hero-value` is deliberately scoped to the media query, not
@@ -369,7 +369,7 @@ Rules:
 | `ai_drawings_v1` | `tv-drawings.ts` | `tv-drawings.ts` | Per-symbol drawing UUIDs replayed on chart load. |
 | `chart_blotter_collapsed` | `ChartBlotter` | `ChartBlotter` | `"1"` collapsed. With no stored value, defaults collapsed on mobile (≤640px) and expanded on desktop. |
 | `market_summary_v1` / `crypto_market_summary_v1` | `useMarketSummary` | `useMarketSummary` + Ask-anything summary card | Per-silo cached AI market summary (window, date, content). |
-| `app_settings_v1` | `lib/settings.ts` | `useSettings` + `SettingsMenu` | JSON-encoded `AppSettings`. Today: `cmdbarAiEnabled` (default `true`). |
+| `app_settings_v1` | `lib/settings.ts` | `useSettings` + `SettingsMenu` | JSON-encoded `AppSettings`. Today: `askAiEnabled` (default `true`). |
 | `workspace_layouts_stocks_v2` / `workspace_layouts_crypto_v2` | `components/Workspace.tsx` | `components/Workspace.tsx` | Per-silo Workspace layouts — `{ active: { name, layout }, saved: {} }`. `active.layout` is the live Dockview `api.toJSON()`; `active.name` records the last-applied preset (Trader / Researcher / Watcher / Focus). `saved` is reserved for the future "Save current as…" UI. Migrates transparently from the old `workspace_layout_{silo}_v1` (raw layout) on first load after upgrade; the v1 key is then removed. Cleared by applying a preset from the in-canvas Layouts menu. |
 | `workspace_channels_v1` | `components/Workspace.tsx` | `components/Workspace.tsx` | Per-silo colour-channel symbols (`{stocks,crypto}` → channel → symbol). Seeded from `CHANNEL_DEFAULTS`; persists header-search picks across reloads. "main" is not stored here (it proxies the app's selected symbol). |
 
@@ -401,18 +401,18 @@ Watchlists are not in localStorage — server-side via `/api/watchlist`.
 Accent colour is the tell: **teal = local intent parser** (free,
 instant); **violet = real Claude API call** (Anthropic credits, slow).
 
-- **Ask anything module** (`components/cmd/`, all modes). Opened by the
+- **Ask anything module** (`components/ask/`, all modes). Opened by the
   "Ask anything" pill or a global `Cmd+K` / `Ctrl+K` listener in
-  `App.tsx`. `lib/cmd-intent.ts` runs a regex/keyword chain and
+  `App.tsx`. `lib/ask-intent.ts` runs a regex/keyword chain and
   returns one of 9 typed intents (`order`, `close`, `portfolio`,
   `movers`, `news`, `orders`, `chart`, `market_summary`, `fallback`);
-  each renders a `CmdResultCard` composing existing hooks. **Silo-aware:**
-  `CmdBar` takes the active `assetClass`; `parseIntent(text, assetClass)`
+  each renders a `AskResultCard` composing existing hooks. **Silo-aware:**
+  `AskBar` takes the active `assetClass`; `parseIntent(text, assetClass)`
   recognises crypto pairs (`BTC/USD`) and normalises bare coins → `COIN/USD`
   in the crypto silo, and the cards behave per silo (portfolio/news/movers
   filter to the silo; crypto movers are derived client-side from the crypto
   tickers since Alpaca has no crypto screener). `fallback` intents
-  optionally POST to `/api/ai/ask` (gated by `cmdbarAiEnabled` in
+  optionally POST to `/api/ai/ask` (gated by `askAiEnabled` in
   `app_settings_v1`, default on; trimmed tool set —
   `read_only_tools()` in `backend/app/ai/tools.py`; the active `asset_class`
   is sent so the model steers to the right symbols/news). The fallback bot
@@ -434,7 +434,7 @@ instant); **violet = real Claude API call** (Anthropic credits, slow).
   draw — order is load-bearing for prefix-cache hits) and re-exports the public
   API (`TOOLS`/`read_only_tools`/`ask_tools`/…). Edit schemas in the split
   files; never reorder `TOOLS`.** Multi-turn within a session:
-  `CmdBar` keeps a running `apiHistory` and sends prior fallback Q&A as
+  `AskBar` keeps a running `apiHistory` and sends prior fallback Q&A as
   `history` so follow-ups have context; it's session-only (reset on close).
 - **AI market summary** (`hooks/useMarketSummary.ts` + `MarketSummaryCard`,
   Discover hero). Auto-generates a per-window summary via `/api/ai/ask`
