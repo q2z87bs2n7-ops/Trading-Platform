@@ -164,8 +164,52 @@ const WORKSPACE_WIDGETS: Record<string, WidgetId> = {
   tradeticket: "trade",
 };
 
+// Well-known crypto base tickers. Used only so a bare-coin watch list typed
+// from the stocks silo ("watch BTC ETH SOL") is recognised as crypto and
+// switches silo locally; anything not here (or ambiguous) falls to the AI.
+const CRYPTO_BASES = new Set([
+  "BTC", "ETH", "SOL", "XRP", "ADA", "DOGE", "AVAX", "DOT", "LINK", "MATIC",
+  "LTC", "BCH", "UNI", "ATOM", "XLM", "ETC", "NEAR", "APT", "ARB", "OP",
+  "SHIB", "TRX", "FIL", "AAVE", "MKR", "SUI", "PEPE", "ICP", "INJ", "RNDR",
+  "USDT", "USDC", "DAI",
+]);
+
+// Parse a "watch <list>" tail into a build-layout action — but ONLY when the
+// tail is a clean list of UPPERCASE tickers/pairs. Natural language ("the seven
+// best tech companies") returns null so it falls to the AI, which resolves names
+// and silo. An all-crypto list from the stocks silo carries a `silo` switch.
+function cleanWatchList(tail: string, assetClass?: AssetClass): SiloedAction | null {
+  const tokens = tail.split(/[\s,]+/).filter((t) => t && t.toLowerCase() !== "and");
+  if (!tokens.length) return null;
+  const TICKER = /^[A-Z]{1,5}(?:\.[A-Z])?$/;
+  const PAIR = /^[A-Z]{2,5}\/[A-Z]{3,4}$/;
+  if (!tokens.every((t) => TICKER.test(t) || PAIR.test(t))) return null;
+
+  const isCryptoTok = (t: string) => t.includes("/") || CRYPTO_BASES.has(t);
+  let silo: AssetClass | undefined;
+  let syms: string[];
+  if (assetClass === "crypto") {
+    syms = tokens.map((t) => toSymbol(t, "crypto"));
+  } else if (tokens.every(isCryptoTok)) {
+    silo = "crypto"; // crypto coins typed from the stocks silo → switch silo
+    syms = tokens.map((t) => toSymbol(t, "crypto"));
+  } else if (tokens.some(isCryptoTok)) {
+    return null; // mixed stock + crypto — let the AI sort it out
+  } else {
+    syms = tokens.map((t) => toSymbol(t, "stocks"));
+  }
+
+  const action: SiloedAction = {
+    kind: "build_layout",
+    spec: { widgets: syms.map((s) => ({ kind: "chart", symbol: s })), arrangement: "grid" },
+  };
+  if (silo) action.silo = silo;
+  return action;
+}
+
 function parseWorkspace(text: string, assetClass?: AssetClass): Intent | null {
-  const lower = text.toLowerCase();
+  const trimmed = text.trim();
+  const lower = trimmed.toLowerCase();
 
   // Apply a named preset: "trader layout", "use the researcher layout".
   const preset = lower.match(/\b(trader|researcher|watcher|focus)\b/);
@@ -186,21 +230,14 @@ function parseWorkspace(text: string, assetClass?: AssetClass): Intent | null {
     };
   }
 
-  // Watch grid: "watch AAPL NVDA TSLA" → one standalone chart per symbol.
-  const watch = lower.match(/\bwatch\s+(.+)$/);
+  // Watch grid: must START the message and be a clean UPPERCASE ticker/pair
+  // list ("watch AAPL NVDA TSLA"). A natural-language tail ("watch the seven
+  // best tech companies") falls to the AI instead of guessing tickers.
+  const watch = trimmed.match(/^watch\s+(.+)$/i);
   if (watch) {
-    const syms = extractSymbols(watch[1]).map((s) => toSymbol(s, assetClass));
-    if (syms.length) {
-      return {
-        type: "workspace",
-        actions: [
-          {
-            kind: "build_layout",
-            spec: { widgets: syms.map((s) => ({ kind: "chart", symbol: s })), arrangement: "grid" },
-          },
-        ],
-      };
-    }
+    const action = cleanWatchList(watch[1], assetClass);
+    if (action) return { type: "workspace", actions: [action] };
+    return { type: "fallback", text };
   }
 
   // Add a single widget: "add a chart", "add a news widget", "add chart of AAPL".
@@ -213,6 +250,16 @@ function parseWorkspace(text: string, assetClass?: AssetClass): Intent | null {
       const symbol = add[2] ? toSymbol(add[2], assetClass) : undefined;
       return { type: "workspace", actions: [{ kind: "add_widget", widget, symbol }] };
     }
+  }
+
+  // Natural-language layout/workspace construction ("create a layout to watch
+  // the seven best tech companies", "build me a workspace of …") → hand to the
+  // AI before the movers/order/etc. matchers can mis-grab a word like "best".
+  if (
+    /\b(layout|workspace|dashboard|grid of)\b/.test(lower) &&
+    /\b(create|build|make|set ?up|give me|show me|watch|arrange|open|put)\b/.test(lower)
+  ) {
+    return { type: "fallback", text };
   }
 
   return null;
