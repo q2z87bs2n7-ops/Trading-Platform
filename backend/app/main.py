@@ -452,12 +452,20 @@ def enrich_fundamentals(
     symbols: str = Query(""),
     limit: int = Query(0, ge=0, le=20000),
     force: bool = Query(False),
+    background: bool = Query(False),
 ) -> dict:
     """Populate annual fundamentals (FMP) for us_equity rows. Dev tool;
     Render-only (3 FMP calls/symbol, ~1s each). Either an explicit list, or the
     next ``limit`` eligible stocks (profile-enriched, non-ETF, largest cap
     first). Resumable — re-run to continue; add ?force=true for a full refresh:
-    curl -X POST 'https://<render-url>/api/_dev/enrich-fundamentals?limit=1500'"""
+    curl -X POST 'https://<render-url>/api/_dev/enrich-fundamentals?limit=200'
+
+    ``?background=true`` fires the whole remaining backfill in a server-side
+    daemon thread and returns immediately, so the caller can disconnect:
+    curl -X POST 'https://<render-url>/api/_dev/enrich-fundamentals?background=true'"""
+    if background:
+        from .seed import enrich_fundamentals_background as _bg
+        return _bg()
     syms = [s.strip().upper() for s in symbols.split(",") if s.strip()]
     from .seed import enrich_fundamentals as _enrich
     return _enrich(symbols=syms or None, limit=limit, force=force)

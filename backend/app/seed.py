@@ -10,12 +10,18 @@ Render URL, not Vercel: curl -X POST https://<render-url>/api/_dev/seed-assets
 from __future__ import annotations
 
 import logging
+import threading
 import time
 
 from . import coingecko, db, fmp
 from .alpaca.trading import get_all_assets_for_seed
 
 _log = logging.getLogger(__name__)
+
+# Guards the fire-and-forget fundamentals backfill so a second kickoff while one
+# is already running returns "already_running" instead of stacking threads.
+_fundamentals_bg_lock = threading.Lock()
+_fundamentals_bg_running = False
 
 
 def enrich_stocks(
@@ -127,6 +133,54 @@ def enrich_fundamentals(
         "fundamentals_failed":     failed,
         "duration_seconds":        round(time.monotonic() - t0, 1),
     }
+
+
+def enrich_fundamentals_background() -> dict:
+    """Fire-and-forget: spawn a daemon thread that backfills ALL remaining
+    un-enriched fundamentals (in 300-symbol batches) and return immediately, so
+    one quick call finishes the job server-side without the caller's machine
+    staying online. Only fills the missing set — a forced full refresh still uses
+    the chunked synchronous path. A second call while one is running is a no-op.
+    """
+    global _fundamentals_bg_running
+    if not db.db_enabled():
+        return {"error": "DATABASE_URL not configured"}
+    if not fmp.configured():
+        return {"error": "FMP_API_KEY not configured"}
+
+    with _fundamentals_bg_lock:
+        if _fundamentals_bg_running:
+            return {"status": "already_running"}
+        _fundamentals_bg_running = True
+
+    try:
+        remaining = len(db.fundamentals_target_symbols(1_000_000, only_missing=True))
+    except Exception:
+        remaining = None
+
+    def _run() -> None:
+        global _fundamentals_bg_running
+        total = 0
+        try:
+            seen: set[str] = set()  # skip not_found/failed rows so we never re-loop them
+            while True:
+                batch = [
+                    s for s in db.fundamentals_target_symbols(300, only_missing=True)
+                    if s not in seen
+                ]
+                if not batch:
+                    break
+                seen.update(batch)
+                res = enrich_fundamentals(symbols=batch, force=False)
+                total += int(res.get("fundamentals_enriched", 0) or 0)
+            _log.info("enrich-fundamentals background run done: %d enriched", total)
+        except Exception:
+            _log.exception("enrich-fundamentals background run crashed after %d", total)
+        finally:
+            _fundamentals_bg_running = False
+
+    threading.Thread(target=_run, name="enrich-fundamentals-bg", daemon=True).start()
+    return {"status": "started", "remaining": remaining}
 
 
 def run_seed(force: bool = False, base: bool = True) -> dict:
