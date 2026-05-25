@@ -114,7 +114,11 @@ one clause.
   (`{total_matches, returned, has_more, sorted_by, filters_applied, results}`).
   - Stock filters: `sector` (11-GICS enum), `industry` (partial), `asset_type`
     (`stock`/`etf`/`adr`/`any`, default `stock` — excludes ETFs/funds),
-    `beta`, `exchange`, `ipo_after/before`, `market_cap` range.
+    `beta`, `exchange`, `ipo_after/before`, `market_cap` range, plus annual
+    fundamentals: `pe_min/max`, `dividend_yield_min`, `net_margin_min`,
+    `roe_min`, `revenue_growth_min` (fractions, e.g. 0.2 = 20%) and the matching
+    `pe_*`/`dividend_yield_desc`/`net_margin_desc`/`roe_desc`/`revenue_growth_desc`
+    sorts.
   - Crypto filters: curated `category` (keys in `db.CRYPTO_CATEGORY_MAP` →
     raw CoinGecko tags); results collapse to one row per base coin (prefer
     `/USD`).

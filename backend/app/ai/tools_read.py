@@ -310,11 +310,16 @@ READ_TOOLS: list[dict[str, Any]] = [
         "description": (
             "Full catalogue profile for ONE known symbol. Stocks: sector, "
             "industry, country, CEO, employees, IPO date, market cap, beta, "
-            "description. Crypto: category tags, market-cap rank, "
+            "description, AND annual fundamentals — P/E, P/S, P/B, EV/EBITDA, "
+            "PEG, gross/operating/net margin, ROE, ROIC, debt/equity, current "
+            "ratio, diluted EPS, free cash flow, revenue & EPS YoY growth, "
+            "dividend yield/payout, and a 5-year revenue/net-income/EPS/FCF "
+            "trend (financials_annual). Crypto: category tags, market-cap rank, "
             "circulating/total/max supply, all-time high/low, description. Use "
             "when the user names a specific ticker and asks about its "
-            "fundamentals, classification, or background (e.g. 'what sector is "
-            "NVDA', 'when did Coinbase IPO', 'what is BTC's max supply'). To "
+            "fundamentals, financials, valuation, profitability, classification, "
+            "or background (e.g. 'what's NVDA's net margin', 'is AAPL's revenue "
+            "growing', 'when did Coinbase IPO', 'what is BTC's max supply'). To "
             "resolve a vague description to a ticker, use find_symbol instead."
         ),
         "input_schema": {
@@ -335,7 +340,10 @@ READ_TOOLS: list[dict[str, Any]] = [
             "top matches ranked by market cap. Use when the user describes a "
             "SET of assets by attributes rather than naming one (e.g. 'large-cap "
             "healthcare stocks', 'biotech under $2B', 'high-beta tech names', "
-            "'DeFi coins', 'meme coins'). For a single named ticker use "
+            "'cheap profitable value stocks', 'high-dividend names', "
+            "'fast-growing software', 'DeFi coins', 'meme coins'). Stock screens "
+            "support annual-fundamentals filters/sorts (P/E, dividend yield, net "
+            "margin, ROE, revenue growth). For a single named ticker use "
             "get_asset_profile; to resolve a vague NAME to a ticker use "
             "find_symbol. Screens only the curated, enriched universe (large & "
             "options-listed US stocks + major crypto), not every listed "
@@ -411,17 +419,51 @@ READ_TOOLS: list[dict[str, Any]] = [
                     "type": "string",
                     "description": "Stocks only. IPO on/before this date (YYYY-MM-DD).",
                 },
+                "pe_min": {"type": "number", "description": "Stocks only. Minimum P/E ratio."},
+                "pe_max": {
+                    "type": "number",
+                    "description": "Stocks only. Maximum P/E ratio (e.g. 15 for 'cheap' value names).",
+                },
+                "dividend_yield_min": {
+                    "type": "number",
+                    "description": (
+                        "Stocks only. Minimum dividend yield as a FRACTION "
+                        "(0.03 = 3%). Use for 'dividend' / 'income' / 'high-yield' "
+                        "requests."
+                    ),
+                },
+                "net_margin_min": {
+                    "type": "number",
+                    "description": (
+                        "Stocks only. Minimum net profit margin as a FRACTION "
+                        "(0.2 = 20%). Use for 'profitable' / 'high-margin'."
+                    ),
+                },
+                "roe_min": {
+                    "type": "number",
+                    "description": "Stocks only. Minimum return on equity as a FRACTION (0.15 = 15%).",
+                },
+                "revenue_growth_min": {
+                    "type": "number",
+                    "description": (
+                        "Stocks only. Minimum YoY revenue growth as a FRACTION "
+                        "(0.2 = 20%). Use for 'fast-growing' / 'growth' names."
+                    ),
+                },
                 "sort_by": {
                     "type": "string",
                     "enum": [
                         "market_cap_desc", "market_cap_asc", "beta_desc",
                         "beta_asc", "ipo_newest", "ipo_oldest",
+                        "pe_asc", "pe_desc", "dividend_yield_desc",
+                        "net_margin_desc", "roe_desc", "revenue_growth_desc",
                     ],
                     "description": (
                         "Result ordering (default 'market_cap_desc' = biggest "
                         "first). Use 'market_cap_asc' for smallest/cheapest "
-                        "first. beta_* and ipo_* are stocks-only; crypto "
-                        "supports only the market_cap sorts."
+                        "first. beta_*, ipo_*, pe_*, dividend_yield_desc, "
+                        "net_margin_desc, roe_desc and revenue_growth_desc are "
+                        "stocks-only; crypto supports only the market_cap sorts."
                     ),
                 },
                 "limit": {

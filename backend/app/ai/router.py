@@ -216,6 +216,12 @@ def _execute_read_tool(
                 exchange=args.get("exchange"),
                 ipo_after=args.get("ipo_after"),
                 ipo_before=args.get("ipo_before"),
+                pe_min=args.get("pe_min"),
+                pe_max=args.get("pe_max"),
+                dividend_yield_min=args.get("dividend_yield_min"),
+                net_margin_min=args.get("net_margin_min"),
+                roe_min=args.get("roe_min"),
+                revenue_growth_min=args.get("revenue_growth_min"),
                 sort_by=args.get("sort_by"),
                 limit=args.get("limit", 20),
             )

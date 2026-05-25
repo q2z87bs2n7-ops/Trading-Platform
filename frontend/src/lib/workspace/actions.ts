@@ -17,6 +17,7 @@ export type WidgetId =
   | "activity"
   | "news"
   | "profile"
+  | "fundamentals"
   | "earnings";
 
 export type Arrangement = "grid" | "focus" | "columns" | "rows";
@@ -64,6 +65,7 @@ export const WIDGET_IDS: readonly WidgetId[] = [
   "activity",
   "news",
   "profile",
+  "fundamentals",
   "earnings",
 ];
 

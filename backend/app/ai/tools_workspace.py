@@ -24,6 +24,7 @@ WORKSPACE_WIDGET_KINDS = (
     "news",
     "profile",
     "earnings",
+    "fundamentals",
 )
 
 _SILO_PROP = {
@@ -92,7 +93,10 @@ WORKSPACE_TOOLS: list[dict[str, Any]] = [
             "fundamentals (stocks) or tokenomics (crypto) for one symbol — it is "
             "symbol-linked like trade, so give it a channel. 'earnings' shows a "
             "symbol's report history when given a channel, or the market-wide "
-            "earnings calendar when left whole-account (no channel)."
+            "earnings calendar when left whole-account (no channel). "
+            "'fundamentals' shows annual statement metrics for one STOCK "
+            "(revenue & net-income trend, valuation, margins, growth, dividend) "
+            "— stocks-only and symbol-linked, so give it a channel."
         ),
         "input_schema": {
             "type": "object",

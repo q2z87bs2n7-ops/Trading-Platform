@@ -300,12 +300,18 @@ _SCREEN_EXCHANGES = frozenset({"NASDAQ", "NYSE", "ARCA", "BATS", "AMEX", "OTC"})
 # Whitelisted sort keys -> fixed ORDER BY fragments. Values never come from the
 # caller, so the fragment is safe to inline; the model only picks a key.
 _SORT_MAP = {
-    "market_cap_desc": "market_cap DESC NULLS LAST",
-    "market_cap_asc":  "market_cap ASC NULLS LAST",
-    "beta_desc":       "beta DESC NULLS LAST",
-    "beta_asc":        "beta ASC NULLS LAST",
-    "ipo_newest":      "ipo_date DESC NULLS LAST",
-    "ipo_oldest":      "ipo_date ASC NULLS LAST",
+    "market_cap_desc":     "market_cap DESC NULLS LAST",
+    "market_cap_asc":      "market_cap ASC NULLS LAST",
+    "beta_desc":           "beta DESC NULLS LAST",
+    "beta_asc":            "beta ASC NULLS LAST",
+    "ipo_newest":          "ipo_date DESC NULLS LAST",
+    "ipo_oldest":          "ipo_date ASC NULLS LAST",
+    "pe_asc":              "pe_ratio ASC NULLS LAST",
+    "pe_desc":             "pe_ratio DESC NULLS LAST",
+    "dividend_yield_desc": "dividend_yield DESC NULLS LAST",
+    "net_margin_desc":     "net_margin DESC NULLS LAST",
+    "roe_desc":            "roe DESC NULLS LAST",
+    "revenue_growth_desc": "revenue_growth_yoy DESC NULLS LAST",
 }
 _CRYPTO_SORTS = frozenset({"market_cap_desc", "market_cap_asc"})  # crypto rows have no beta/ipo
 
@@ -352,6 +358,8 @@ def _screen_filters(
     asset_class, sector, industry, asset_type, category,
     market_cap_min, market_cap_max, beta_min, beta_max,
     exchange, ipo_after, ipo_before,
+    pe_min=None, pe_max=None, dividend_yield_min=None,
+    net_margin_min=None, roe_min=None, revenue_growth_min=None,
 ):
     """Pure filter builder -> (where_sql, params, applied, ignored, resolved
     class). No DB access. The security boundary lives here: every value is
@@ -386,7 +394,10 @@ def _screen_filters(
                            ("asset_type", asset_type if asset_type != "stock" else None),
                            ("exchange", exchange), ("beta_min", beta_min),
                            ("beta_max", beta_max), ("ipo_after", ipo_after),
-                           ("ipo_before", ipo_before)):
+                           ("ipo_before", ipo_before), ("pe_min", pe_min),
+                           ("pe_max", pe_max), ("dividend_yield_min", dividend_yield_min),
+                           ("net_margin_min", net_margin_min), ("roe_min", roe_min),
+                           ("revenue_growth_min", revenue_growth_min)):
             if val not in (None, ""):
                 ignored.append(f"{label} (stocks-only)")
     else:
@@ -429,6 +440,27 @@ def _screen_filters(
             if hi:
                 where.append("ipo_date <= %s"); params.append(hi); applied["ipo_before"] = hi.isoformat()
 
+        # Fundamentals filters (annual, FMP) — fractions for margin/roe/growth/yield
+        # (0.2 = 20%); only enriched rows carry these, NULLs drop out of >= / <=.
+        pmn = _clampf(pe_min)
+        if pmn is not None:
+            where.append("pe_ratio >= %s"); params.append(pmn); applied["pe_min"] = pmn
+        pmx = _clampf(pe_max)
+        if pmx is not None:
+            where.append("pe_ratio <= %s"); params.append(pmx); applied["pe_max"] = pmx
+        dymn = _clampf(dividend_yield_min, lo=0)
+        if dymn is not None:
+            where.append("dividend_yield >= %s"); params.append(dymn); applied["dividend_yield_min"] = dymn
+        nmmn = _clampf(net_margin_min, lo=-100, hi=100)
+        if nmmn is not None:
+            where.append("net_margin >= %s"); params.append(nmmn); applied["net_margin_min"] = nmmn
+        roemn = _clampf(roe_min, lo=-100, hi=100)
+        if roemn is not None:
+            where.append("roe >= %s"); params.append(roemn); applied["roe_min"] = roemn
+        rgmn = _clampf(revenue_growth_min, lo=-100, hi=100)
+        if rgmn is not None:
+            where.append("revenue_growth_yoy >= %s"); params.append(rgmn); applied["revenue_growth_min"] = rgmn
+
         if category:
             ignored.append("category (crypto-only)")
 
@@ -439,6 +471,8 @@ def screen_assets(*, asset_class="us_equity", sector=None, industry=None,
                   asset_type="stock", category=None, market_cap_min=None,
                   market_cap_max=None, beta_min=None, beta_max=None,
                   exchange=None, ipo_after=None, ipo_before=None,
+                  pe_min=None, pe_max=None, dividend_yield_min=None,
+                  net_margin_min=None, roe_min=None, revenue_growth_min=None,
                   sort_by=None, limit=20) -> dict:
     """Structured screen over the catalogue — visibility-filtered (enriched +
     tradable), parameterised, capped. Returns a count + top-N-by-market-cap
@@ -455,6 +489,8 @@ def screen_assets(*, asset_class="us_equity", sector=None, industry=None,
         asset_class, sector, industry, asset_type, category,
         market_cap_min, market_cap_max, beta_min, beta_max,
         exchange, ipo_after, ipo_before,
+        pe_min, pe_max, dividend_yield_min, net_margin_min, roe_min,
+        revenue_growth_min,
     )
     is_crypto = ac == "crypto"
     order_sql, sorted_key, sort_ignored = _resolve_sort(sort_by, is_crypto)
@@ -484,11 +520,14 @@ def screen_assets(*, asset_class="us_equity", sector=None, industry=None,
             total = int(cur.fetchone()[0])
             cur.execute(
                 "SELECT symbol, COALESCE(name, symbol), sector, industry, market_cap,"
-                " beta FROM assets WHERE " + where_sql +
+                " beta, pe_ratio, dividend_yield, net_margin, roe, revenue_growth_yoy"
+                " FROM assets WHERE " + where_sql +
                 " ORDER BY " + order_sql + ", symbol LIMIT %s",
                 params + [lim],
             )
-            cols = ("symbol", "name", "sector", "industry", "market_cap", "beta")
+            cols = ("symbol", "name", "sector", "industry", "market_cap", "beta",
+                    "pe_ratio", "dividend_yield", "net_margin", "roe",
+                    "revenue_growth_yoy")
             results = [dict(zip(cols, r)) for r in cur.fetchall()]
 
         out: dict = {
