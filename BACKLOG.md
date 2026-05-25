@@ -162,19 +162,28 @@ positions, orders, activity, news; symbol-linking channel groups with a
 tab; live quotes and bars each deduped through one shared ref-counted
 stream (`data/quoteStream.ts` + `data/barStream.ts`).
 
+**Shipped since:** **AI Workspace control.** The **Ask anything** bot (teal —
+not a separate violet module) can set channel instruments, apply named presets,
+add/remove widgets, and **build a custom, viewport-responsive grid** from natural
+language ("watch the seven best tech names"), plus deterministic local commands
+("watch AAPL NVDA TSLA", "trader layout", "set blue to NVDA"). Tools live in
+`ai/tools_workspace.py` (assembled into `ask_tools()`); they don't run
+server-side — each queues a client directive into `AskResponse.workspace_actions`
+(same deferred-artifact channel as reports), replayed by `ask/cards/FallbackCard`
+against the lazy canvas through the `lib/workspace/controller.ts` singleton (+
+`lib/workspace/build.ts` grid builder and the `lib/workspace/actions.ts`
+contract; App registers mode/silo hooks, Workspace registers an imperative handle
+on `onReady`, auto-switching into Workspace mode/silo first). Distinct per-chart
+symbols beyond the four channels reuse the chart widgets' standalone **None**
+mode (`params.symbol`). Diverged from the original sketch: no `lib/ai-client.ts`
+frontend tool loop (the Ask path is one-shot, so the directive/artifact channel
+carries it) and no dedicated toolbar input — it rides the existing Ask-anything
+bar, gated by `askAiEnabled`.
+
 Remaining:
 
 - **Named user layouts** — the v2 persistence shape reserves
   `saved: Record<name, layout>` for "Save current as…". Build the Save /
   Rename / Delete UI inside the Layouts menu (the popover already has the
-  card grid + Apply confirm to extend).
-- **AI layout module** — a violet (real Claude) module that builds/edits the
-  Workspace from natural language ("give me a layout of the top 5 bio stocks").
-  Add frontend-executed layout tools (`set_workspace_layout` / `add_workspace_
-  widget`) to the `lib/ai-client.ts` dispatcher, run against the Dockview `api`
-  (clear + `addPanel` with widget / channel / position, seeding channel
-  symbols); schema in a new split file assembled in `ai/tools.py` (mind the
-  prefix-cache ordering); symbol resolution via `screen_assets` / `web_search` /
-  model knowledge. Surface as a dedicated Workspace-toolbar input (desktop-only,
-  gated like the other AI surfaces). Build once the rest of the Workspace scope
-  is closed.
+  card grid + Apply confirm to extend). The AI builder currently writes its
+  custom layout into `active` (named `"custom"`), not `saved`.

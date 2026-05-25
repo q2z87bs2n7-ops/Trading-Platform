@@ -292,9 +292,11 @@ desktop / iPad (> 640px) render byte-identical. A few things bite:
   `backend/app/ai/tools.py` are **cache-marked** (`cache_control`) so
   multi-turn chats hit the Anthropic prefix cache on every turn. Keep
   the markers. The schemas live in `ai/tools_read.py` / `tools_draw.py` /
-  `tools_action.py`; `tools.py` assembles `TOOLS` as `READ_TOOLS + DRAW_TOOLS`.
-  **Never reorder `TOOLS` or edit schema text gratuitously** — both shift the
-  cached prefix and cost every subsequent cache hit.
+  `tools_action.py` / `tools_workspace.py`; `tools.py` assembles `TOOLS` as
+  `READ_TOOLS + DRAW_TOOLS` (ChartBot) and `ask_tools()` as read + action +
+  workspace (Ask anything). **Never reorder `TOOLS` or edit schema text
+  gratuitously** — both shift the cached prefix and cost every subsequent cache
+  hit. Workspace tools are append-only in `ask_tools()` and never in `TOOLS`.
 - The ChartBot frontend-executed tool catalog is declared server-side
   in `tools.py` but dispatched client-side in `lib/ai-client.ts`
   against `lib/tv-drawings.ts`. Results are folded into the next
@@ -315,6 +317,27 @@ desktop / iPad (> 640px) render byte-identical. A few things bite:
   to the TV widget so `ChatPanel` and friends can call TV APIs without
   being children of `TVPlatform`. `subscribeTVWidget(cb)` lets
   consumers react to mount/unmount.
+- **Ask-anything Workspace control** is *not* a frontend tool loop (the
+  `/api/ai/ask` path is one-shot). The workspace tools in `tools_workspace.py`
+  queue client directives into `AskResponse.workspace_actions` (mirroring the
+  `reports` artifact channel); the frontend replays them via the
+  `lib/workspace/controller.ts` module singleton — App registers mode/silo
+  hooks, `Workspace` registers an imperative handle on `onReady`. **Remount
+  race:** switching silo bumps `<DockviewReact key={assetClass}>`, so the
+  controller nulls its handle on a silo switch and `awaitHandle()` blocks for
+  the *fresh* `onReady` — don't grab the handle before the switch settles. The
+  `"main"` channel must be written through `workspaceCtx.setSymbol` (App's
+  `onSelect`), never the colour-channel map, because `switchAssetClass` resets
+  `selected` to `""`.
+- **Standalone charts (`params.symbol`):** chart/minichart accept the `none`
+  channel as a standalone mode that owns its symbol in `params.symbol` (so an
+  AI grid can show N>4 distinct symbols beyond the four colour channels).
+  Dockview *merges* `updateParameters`, so writing `{ symbol }` leaves the
+  channel intact; a local mirror in `useChartSymbol` forces the re-render.
+- The three AI surfaces (market summary / Ask anything / ChartBot) each gate on
+  their own `app_settings_v1` flag (`marketSummaryAiEnabled` / `askAiEnabled` /
+  `chartbotEnabled`), **all default off**; a disabled surface renders the shared
+  `AiDisabledNotice` instead of calling Claude.
 
 ## AI web search (Ask anything)
 

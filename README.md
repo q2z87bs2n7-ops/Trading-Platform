@@ -57,11 +57,16 @@ mode — press `⌘K` (or `Ctrl+K`), or click the "Ask anything" pill in the
 top nav. It is a local regex-based intent parser (no LLM, no Anthropic
 credits) that handles orders ("buy 50 AMD at market"), portfolio queries,
 movers, news, open orders, and inline symbol previews. It is **silo-aware**
-(stocks vs crypto). When the optional AI fallback is enabled (see *AI chat*
-below), free-text questions also reach a Claude-backed bot that can read your
-account, edit watchlists in bulk ("add the top 10 pharma stocks"), and export
-data to downloadable CSVs (positions/orders/activities/P&L, plus price history
-and other readable data); it keeps context across follow-ups within a session.
+(stocks vs crypto). The three Claude-backed surfaces — the **market summary**,
+the **Ask anything** AI fallback, and the **ChartBot** panel — each have an
+independent toggle in Settings and are **off by default** (opt-in; no Anthropic
+credits are spent until you enable one, and a disabled surface shows a short
+"enable in Settings" notice). With the Ask-anything fallback on, free-text
+questions reach a Claude-backed bot that can read your account, edit watchlists
+in bulk ("add the top 10 pharma stocks"), arrange the desktop Workspace ("watch
+the seven best tech names"), and export data to downloadable CSVs
+(positions/orders/activities/P&L, plus price history and other readable data);
+it keeps context across follow-ups within a session.
 
 Theme switches between light and dark via the moon / sun toggle in the
 top nav; preference persists in `localStorage`.

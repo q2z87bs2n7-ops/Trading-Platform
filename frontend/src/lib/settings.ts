@@ -15,10 +15,12 @@ export interface AppSettings {
   chartbotEnabled: boolean;
 }
 
+// All three AI surfaces default OFF — opt-in, so a fresh session spends no
+// Anthropic credits until the user enables a surface in Settings.
 const DEFAULTS: AppSettings = {
-  marketSummaryAiEnabled: true,
-  askAiEnabled: true,
-  chartbotEnabled: true,
+  marketSummaryAiEnabled: false,
+  askAiEnabled: false,
+  chartbotEnabled: false,
 };
 
 function load(): AppSettings {
