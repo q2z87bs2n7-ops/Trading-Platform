@@ -34,58 +34,124 @@ const HISTORY_CAP = 16;
 // Display label for a symbol — strips the /USD quote off crypto pairs.
 const coin = (s: string) => (s.includes("/") ? s.split("/")[0] : s);
 
-function buildSuggestions(
+// Top position by absolute unrealised P/L (coin label), if the silo holds any.
+function topHoldingLabel(positions?: Position[]): string | undefined {
+  if (!positions?.length) return undefined;
+  const sorted = [...positions].sort(
+    (a, b) => Math.abs(b.unrealized_pl) - Math.abs(a.unrealized_pl),
+  );
+  return coin(sorted[0].symbol);
+}
+
+// First watchlist symbol not already held (coin label), if any.
+function freshWatchlistLabel(
+  watchlist?: string[],
+  positions?: Position[],
+): string | undefined {
+  const held = new Set(positions?.map((p) => p.symbol) ?? []);
+  const sym = (watchlist ?? []).find((s) => !held.has(s));
+  return sym ? coin(sym) : undefined;
+}
+
+interface ChipGroup {
+  label: string;
+  chips: string[];
+}
+
+// Empty-state suggestion chips, grouped by skill so the less-obvious
+// capabilities (workspace layouts, watchlist edits, CSV export, AI research)
+// are visible — not just trade/portfolio/news. Every group is silo-tailored;
+// the AI-routed groups are hidden when the Ask bot is disabled because they'd
+// otherwise land on the "enable AI" notice.
+function buildCapabilityGroups(
   positions: Position[] | undefined,
   watchlist: string[] | undefined,
   assetClass: AssetClass,
-): string[] {
+  aiEnabled: boolean,
+): ChipGroup[] {
   const crypto = assetClass === "crypto";
-  const chips: string[] = [];
+  const holding = topHoldingLabel(positions);
+  const wlSym = freshWatchlistLabel(watchlist, positions);
 
-  if (crypto) {
-    chips.push("Crypto summary");
-  } else {
-    // Time-of-day aware opening chip (US Eastern).
-    const etHour = Number(
-      new Date().toLocaleString("en-US", {
-        hour: "numeric",
-        hour12: false,
-        timeZone: "America/New_York",
-      }),
+  const groups: ChipGroup[] = [
+    {
+      label: "Markets",
+      chips: [crypto ? "Crypto summary" : "Market summary", "Top gainers", "What changed today?"],
+    },
+    {
+      label: "Your portfolio",
+      chips: [
+        holding ? `How's my ${holding}?` : "Portfolio",
+        "Open orders",
+        ...(wlSym ? [`News on ${wlSym}`] : []),
+      ],
+    },
+    {
+      label: "Trade",
+      chips: [
+        crypto ? "Buy 0.1 ETH" : "Buy 50 AMD at market",
+        ...(holding ? [`Close my ${holding}`] : []),
+      ],
+    },
+    {
+      label: "Workspace",
+      chips: crypto
+        ? ["Watcher layout", "Watch BTC/USD ETH/USD SOL/USD", "Set blue to ETH/USD"]
+        : ["Trader layout", "Watch AAPL NVDA TSLA", "Set blue to NVDA"],
+    },
+  ];
+
+  // Research / watchlist edits / exports all run through the AI fallback bot,
+  // so only advertise them when it's switched on.
+  if (aiEnabled) {
+    groups.push(
+      {
+        label: "Research",
+        chips: crypto
+          ? ["What is Solana?", "Why is BTC moving today?"]
+          : ["What's NVDA's P/E?", "Why is AAPL up today?"],
+      },
+      {
+        label: "Watchlist",
+        chips: crypto
+          ? ["Add the top 5 layer-1 coins", "Remove DOGE from my watchlist"]
+          : ["Add the top 10 AI stocks", "Remove TSLA from my watchlist"],
+      },
+      {
+        label: "Export",
+        chips: crypto
+          ? ["Export my crypto activity to CSV", "Download my P/L history"]
+          : ["Export my activity to CSV", "Download my P/L history"],
+      },
     );
-    if (etHour < 9 || (etHour === 9 && new Date().getMinutes() < 30)) {
-      chips.push("Pre-market movers");
-    } else if (etHour >= 16) {
-      chips.push("After-hours movers");
-    } else {
-      chips.push("Market summary");
-    }
   }
 
-  // Top 2 positions by absolute unrealised P/L.
-  if (positions?.length) {
-    const sorted = [...positions].sort(
-      (a, b) => Math.abs(b.unrealized_pl) - Math.abs(a.unrealized_pl),
-    );
-    for (const p of sorted.slice(0, 2)) chips.push(`How's my ${coin(p.symbol)}?`);
+  // Global dedup by label so a symbol shared across positions/watchlist can't
+  // surface the same chip twice (the old flat list could repeat "News on …").
+  const seen = new Set<string>();
+  for (const g of groups) {
+    g.chips = g.chips.filter((c) => {
+      const k = c.toLowerCase();
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
   }
+  return groups.filter((g) => g.chips.length > 0);
+}
 
-  // Watchlist symbols not already represented via positions.
-  const posSyms = new Set(positions?.map((p) => p.symbol) ?? []);
-  for (const sym of (watchlist ?? []).filter((s) => !posSyms.has(s)).slice(0, 2)) {
-    chips.push(`News on ${coin(sym)}`);
+// One-line plain-English nudge under the chips — the "I can also…" hint.
+// Silo-specific, and trims the AI-only skills when the bot is off.
+function capabilityHint(assetClass: AssetClass, aiEnabled: boolean): string {
+  const crypto = assetClass === "crypto";
+  if (!aiEnabled) {
+    return crypto
+      ? "Plain English works too — pull up charts, place trades, scan crypto movers, and build custom workspace layouts."
+      : "Plain English works too — pull up charts, place trades, scan market movers, and build custom workspace layouts.";
   }
-
-  // Fill remaining slots with generic chips.
-  const generic = crypto
-    ? ["Top gainers", "What changed today?", "Open orders", "Buy 0.1 ETH"]
-    : ["Show me top gainers", "What changed today?", "Open orders", "Buy 50 AMD at market"];
-  for (const g of generic) {
-    if (chips.length >= 7) break;
-    chips.push(g);
-  }
-
-  return chips;
+  return crypto
+    ? "Plain English works too — ask about tokenomics & technicals, build multi-chart layouts, curate your watchlist, or export to CSV."
+    : "Plain English works too — ask about fundamentals, earnings & technicals, build multi-chart layouts, curate your watchlist, or export to CSV.";
 }
 
 function buildFollowups(
@@ -173,11 +239,15 @@ export default function AskBar({ open, assetClass, onClose, onOpenInWorkspace }:
   const siloWatchlist =
     assetClass === "crypto" ? cryptoWl?.symbols : wl?.symbols;
 
-  const suggestions = useMemo(
-    () => buildSuggestions(siloPositions, siloWatchlist, assetClass),
+  const capabilityGroups = useMemo(
+    () => buildCapabilityGroups(siloPositions, siloWatchlist, assetClass, aiEnabled),
     // Recompute when data arrives or the modal reopens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [siloPositions, siloWatchlist, assetClass, open],
+    [siloPositions, siloWatchlist, assetClass, aiEnabled, open],
+  );
+  const hint = useMemo(
+    () => capabilityHint(assetClass, aiEnabled),
+    [assetClass, aiEnabled],
   );
 
   const lastTurn = turns[turns.length - 1];
@@ -337,34 +407,44 @@ export default function AskBar({ open, assetClass, onClose, onOpenInWorkspace }:
           style={{ background: "var(--bg)" }}
         >
           {turns.length === 0 ? (
-            <div>
-              <div
-                className="text-[11px] uppercase mb-3"
-                style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
-              >
-                Try
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {suggestions.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => submit(s)}
-                    className="text-[13px] cursor-pointer transition-colors"
-                    style={{
-                      padding: isMobile ? "12px 14px" : "8px 12px",
-                      minHeight: isMobile ? "var(--mob-tap)" : undefined,
-                      width: isMobile ? "100%" : "auto",
-                      textAlign: isMobile ? "left" : "center",
-                      background: "var(--panel)",
-                      border: "1px solid var(--border)",
-                      color: "var(--text-2)",
-                      borderRadius: "var(--r)",
-                    }}
+            <div className="flex flex-col gap-4">
+              {capabilityGroups.map((g) => (
+                <div key={g.label}>
+                  <div
+                    className="text-[11px] uppercase mb-2"
+                    style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
                   >
-                    {s}
-                  </button>
-                ))}
+                    {g.label}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {g.chips.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => submit(s)}
+                        className="text-[13px] cursor-pointer transition-colors"
+                        style={{
+                          padding: isMobile ? "12px 14px" : "8px 12px",
+                          minHeight: isMobile ? "var(--mob-tap)" : undefined,
+                          width: isMobile ? "100%" : "auto",
+                          textAlign: isMobile ? "left" : "center",
+                          background: "var(--panel)",
+                          border: "1px solid var(--border)",
+                          color: "var(--text-2)",
+                          borderRadius: "var(--r)",
+                        }}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <div
+                className="text-[12px] mt-1"
+                style={{ color: "var(--mute)", lineHeight: 1.5 }}
+              >
+                {hint}
               </div>
             </div>
           ) : (
