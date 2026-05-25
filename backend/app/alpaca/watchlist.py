@@ -24,13 +24,6 @@ def _symbols(wl, asset_class: str = "") -> list[str]:
     return symbols
 
 
-def _to_alpaca_symbol(symbol: str, asset_class: str = "") -> str:
-    """Convert symbol to Alpaca's format (remove slash from crypto pairs)."""
-    if asset_class != "crypto" or "/" not in symbol:
-        return symbol
-    return symbol.replace("/", "")
-
-
 def _get_or_create(name: str, defaults: list[str] | None = None):
     tc = trading_client()
     for wl in tc.get_watchlists():
@@ -59,10 +52,8 @@ def add_to_watchlist(symbol: str, asset_class: str = "") -> dict:
     wl_symbols = _symbols(wl, asset_class)
     normalized_sym = normalize_crypto_symbol(sym, asset_class) if asset_class == "crypto" else sym
     if normalized_sym and normalized_sym not in wl_symbols:
-        # Add in Alpaca's expected format
-        alpaca_sym = _to_alpaca_symbol(normalized_sym, asset_class)
         wl = trading_client().add_asset_to_watchlist_by_id(
-            watchlist_id=str(wl.id), symbol=alpaca_sym
+            watchlist_id=str(wl.id), symbol=normalized_sym
         )
     return {"symbols": _symbols(wl, asset_class)}
 
@@ -74,9 +65,8 @@ def remove_from_watchlist(symbol: str, asset_class: str = "") -> dict:
     wl_symbols = _symbols(wl, asset_class)
     normalized_sym = normalize_crypto_symbol(sym, asset_class) if asset_class == "crypto" else sym
     if normalized_sym in wl_symbols:
-        # Remove in Alpaca's expected format
-        alpaca_sym = _to_alpaca_symbol(normalized_sym, asset_class)
+        # Try removing with the symbol as-is first (Alpaca may accept normalized form)
         wl = trading_client().remove_asset_from_watchlist_by_id(
-            watchlist_id=str(wl.id), symbol=alpaca_sym
+            watchlist_id=str(wl.id), symbol=normalized_sym
         )
     return {"symbols": _symbols(wl, asset_class)}
