@@ -192,7 +192,12 @@ separate silos behind a shared account.
   `POST /api/_dev/refresh-all-stocks` (Profile + Fundamentals) and `POST
   /api/_dev/refresh-all-crypto`. Each re-pulls every DB value its card shows for
   already-enriched rows (`?include_missing=true` also onboards new ones);
-  fire-and-forget, sensible monthly. See "Asset catalogue" below and
+  fire-and-forget, sensible monthly. Alpaca base/trading-status (tradable,
+  active/inactive, options, increments) is refreshed by `POST
+  /api/_dev/refresh-alpaca` (background; the only routine touching the
+  Alpaca-sourced fields, also onboards new listings); `GET /api/_dev/new-symbols`
+  is a fast read-only check for new listings/IPOs not yet in the catalogue. See
+  "Asset catalogue" below and
   `docs/database.md`.
   **Path params with slashes:** `/api/assets/{symbol:path}`,
   `/api/asset-profile/{symbol:path}`, `/api/positions/{symbol:path}`, and

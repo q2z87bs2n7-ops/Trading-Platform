@@ -117,9 +117,10 @@ The relay image is built from `backend/Dockerfile`. Two things bit us:
 ## Asset catalogue / Postgres (Supabase)
 
 The `assets` table (`backend/app/db.py`, enriched via `coingecko.py` + `fmp.py`,
-onboarded via `/api/_dev/seed-assets` and refreshed via the per-widget
-`/api/_dev/refresh-profile-stocks` / `-crypto` / `refresh-fundamentals` routines).
-Each item cost a round of debugging:
+onboarded via `/api/_dev/seed-assets` / `refresh-alpaca` and refreshed via the
+per-widget `/api/_dev/refresh-profile-stocks` / `-crypto` / `refresh-fundamentals`
+routines; `new-symbols` is the read-only new-listing check). Each item cost a
+round of debugging:
 
 - **Postgres :5432/:6543 is unreachable except from prod.** The sandbox blocks
   raw TCP (only :443 is open even on a loosened egress policy) and the owner's
