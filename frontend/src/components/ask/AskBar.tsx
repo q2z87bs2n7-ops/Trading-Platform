@@ -2,14 +2,20 @@ import { useMemo, useEffect, useRef, useState } from "react";
 
 import type { AiAskMessage, AiAskResponse } from "../../api";
 import {
-  parseIntent,
+  routeQuery,
   extractSymbols,
   type AssetClass,
   type Intent,
 } from "../../lib/ask-intent";
 import { isCryptoPosition } from "../../lib/asset-class";
 import type { Position } from "../../types";
-import { useCryptoWatchlist, usePositions, useWatchlist } from "../../data/hooks";
+import {
+  useCryptoWatchlist,
+  usePositions,
+  useSymbolUniverse,
+  useWatchlist,
+} from "../../data/hooks";
+import { useSettings } from "../../hooks/useSettings";
 import { useMobile } from "../../hooks/useMobile";
 import { AskResult } from "./cards";
 
@@ -153,6 +159,8 @@ export default function AskBar({ open, assetClass, onClose, onOpenInWorkspace }:
   const { data: posData } = usePositions();
   const { data: wl } = useWatchlist();
   const { data: cryptoWl } = useCryptoWatchlist();
+  const symbolUniverse = useSymbolUniverse();
+  const aiEnabled = useSettings().askAiEnabled;
   const isMobile = useMobile();
 
   const siloPositions = useMemo(
@@ -236,12 +244,15 @@ export default function AskBar({ open, assetClass, onClose, onOpenInWorkspace }:
     if (!trimmed) return;
     counter.current += 1;
     setLastAiResp(null);
+    const intent = routeQuery(trimmed, { assetClass, aiEnabled, symbolUniverse });
+    // Drop the force-AI prefix from the displayed query bubble.
+    const display = trimmed.replace(/^(?:ai|ask):\s*/i, "");
     setTurns((t) => [
       ...t,
       {
         id: counter.current,
-        query: trimmed,
-        intent: parseIntent(trimmed, assetClass),
+        query: display,
+        intent,
         // Snapshot the conversation so far for this turn's AI call.
         history: [...apiHistory.current],
       },
@@ -460,6 +471,26 @@ export default function AskBar({ open, assetClass, onClose, onOpenInWorkspace }:
               padding: "8px 10px",
             }}
           />
+          <button
+            type="button"
+            onClick={() => submit(`ai: ${text}`)}
+            disabled={!text.trim()}
+            aria-label="Send to AI"
+            title="Send straight to the AI"
+            className="cursor-pointer font-semibold disabled:cursor-not-allowed"
+            style={{
+              background: "var(--panel-2)",
+              border: "1px solid var(--border)",
+              color: "var(--text-2)",
+              padding: isMobile ? "0 14px" : "0 12px",
+              height: isMobile ? 44 : 36,
+              borderRadius: "var(--r)",
+              opacity: text.trim() ? 1 : 0.5,
+              fontSize: isMobile ? 14 : 13,
+            }}
+          >
+            ✦ AI
+          </button>
           <button
             type="button"
             onClick={() => submit(text)}
