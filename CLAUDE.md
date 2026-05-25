@@ -183,12 +183,15 @@ separate silos behind a shared account.
   returns the full enrichment row (`db.get_asset_profile`, NULLs dropped — now
   including the FMP **annual-fundamentals** columns) that powers the Workspace
   **Profile** and **Fundamentals** widgets. The Postgres **asset
-  catalogue** is filled by three Render-only dev seeders — `POST
-  /api/_dev/seed-assets` (Alpaca base + CoinGecko crypto), `POST
-  /api/_dev/enrich-stocks` (FMP stock profile), and `POST
-  /api/_dev/enrich-fundamentals` (FMP annual statements → P/E, margins, ROE,
-  dividend, 5yr revenue/net-income trend; small `?limit=` chunks — 3 calls/symbol)
-  — see "Asset catalogue" below and `docs/database.md`.
+  catalogue** is **onboarded** by the Render-only `POST /api/_dev/seed-assets`
+  (Alpaca base + CoinGecko crypto), then kept fresh by three Render-only,
+  background, per-widget **refresh routines** — `POST
+  /api/_dev/refresh-profile-stocks` (FMP `/profile`), `POST
+  /api/_dev/refresh-profile-crypto` (CoinGecko), and `POST
+  /api/_dev/refresh-fundamentals` (FMP annual statements). Each re-pulls every DB
+  value its card shows for already-enriched rows (`?include_missing=true` also
+  onboards new ones); fire-and-forget, sensible monthly. See "Asset catalogue"
+  below and `docs/database.md`.
   **Path params with slashes:** `/api/assets/{symbol:path}`,
   `/api/asset-profile/{symbol:path}`, `/api/positions/{symbol:path}`, and
   `/api/watchlist/{symbol:path}`
@@ -260,9 +263,11 @@ separate silos behind a shared account.
   static base-ticker→id map); stock enrichment from FMP's **stable** profile
   endpoint (`fmp.py` — single-symbol on the paid **Starter** tier, 300/min, same
   key; no 250/day free cap. `profile-bulk` + the constituent lists need a higher
-  tier still — 402 on Starter). Both seeders are resumable (skip already-enriched);
-  `enrich-stocks` takes an explicit `?symbols=` list or `?limit=N` to backfill
-  the next N un-enriched stocks (options-listed first). **Visibility rule:**
+  tier still — 402 on Starter); fundamentals from FMP statements
+  (`income-statement`+`cash-flow-statement`+`ratios`, annual). Refresh of any
+  card is the background routine for that card (`refresh-profile-stocks` /
+  `-crypto` / `refresh-fundamentals`); `?include_missing=true` onboards new rows.
+  **Visibility rule:**
   `db.search_assets` only returns `tradable` + enriched rows, so the un-enriched
   long tail (SPAC shells, warrants, dead OTC) stays out of discovery and
   enrichment status doubles as the curation filter — enrich a symbol and it

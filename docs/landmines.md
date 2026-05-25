@@ -117,8 +117,9 @@ The relay image is built from `backend/Dockerfile`. Two things bit us:
 ## Asset catalogue / Postgres (Supabase)
 
 The `assets` table (`backend/app/db.py`, enriched via `coingecko.py` + `fmp.py`,
-seeded through the `/api/_dev/seed-assets`, `/api/_dev/enrich-stocks`, and
-`/api/_dev/enrich-fundamentals` dev tools). Each item cost a round of debugging:
+onboarded via `/api/_dev/seed-assets` and refreshed via the per-widget
+`/api/_dev/refresh-profile-stocks` / `-crypto` / `refresh-fundamentals` routines).
+Each item cost a round of debugging:
 
 - **Postgres :5432/:6543 is unreachable except from prod.** The sandbox blocks
   raw TCP (only :443 is open even on a loosened egress policy) and the owner's
@@ -167,16 +168,14 @@ seeded through the `/api/_dev/seed-assets`, `/api/_dev/enrich-stocks`, and
 - **The base upsert is slow (~14 min for ~13.8k rows)** — row-by-row over the
   pooler. `seed-assets?base=false` skips it to (re)enrich crypto only (~45s);
   both seeders are resumable (skip already-enriched).
-- **Stock enrich is sequential, not rate-limit-bound.** Each symbol is one FMP
+- **Enrichment is sequential, not rate-limit-bound.** Each symbol is one+ FMP
   fetch + pacing + a fresh DB connection, so real throughput is ~100/min even on
-  a paid 300/min tier — the whole universe is ~1.5–2.5 hr. Run `enrich-stocks
-  ?limit=N` in chunks (resumable); don't expect the rate ceiling.
-- **`enrich-fundamentals` is 3 FMP calls/symbol → a big `?limit` 502s.** At
-  ~1.5s/symbol a `limit=1500` run runs ~35 min and Render's gateway severs the
-  connection with a **502** (returns an HTML page, not JSON) long before it
-  finishes. Per-symbol commits mean the rows done before the cut **persist**, so
-  it's resumable — but run it in **small chunks (~200) in a loop**, not one big
-  call. The eligible set is profile-enriched, non-ETF US equities (~4k).
+  a paid 300/min tier — a full stock pass is ~1.5–2.5 hr. **This is why the
+  refresh routines are background daemon threads** (`_start_background` in
+  `seed.py`): a synchronous request that long gets a **502** from Render's gateway
+  (returns an HTML page, not JSON) mid-run. Fundamentals is **3 FMP calls/symbol**,
+  so it's the slowest. Per-symbol commits persist, so everything is resumable;
+  fire the routine and disconnect rather than holding a long request open.
 - **FMP fundamentals are annual-only on the Starter tier** (quarterly / "full
   fundamentals" needs Premium). `map_fundamentals` therefore stores ≤5yr annual
   figures, **derives** margins + YoY growth from the income statement (well-known

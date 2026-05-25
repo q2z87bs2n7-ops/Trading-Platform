@@ -47,41 +47,48 @@ fundamentals backfill resumes independently of the profile enrichment.
 | `backend/app/alpaca/trading.py` | `get_all_assets_for_seed()` → full us_equity + crypto list; `_full_asset_dict` captures base fields. `_enum_value` extracts the wire value from Alpaca SDK enums (see landmines). |
 | `backend/app/coingecko.py` | Crypto enrichment. Static **base-ticker → coingecko-id** map (BTC/USD, BTC/USDT … → `bitcoin`), Demo-key header when `COINGECKO_API_KEY` set, 429 backoff. |
 | `backend/app/fmp.py` | Stock enrichment via FMP's **stable** `/profile` (single-symbol). Maps ~20 columns; translates dot-class symbols to dash for the query (`BRK.B`→`BRK-B`). Also `map_fundamentals` off `income-statement`+`cash-flow-statement`+`ratios` (annual): derives margins/growth from the statements, pulls valuation/quality ratios with alias fallbacks (stable field names vary). |
-| `backend/app/seed.py` | `run_seed(force, base)` — Alpaca base upsert + CoinGecko crypto enrich; `enrich_stocks(symbols, limit, force)` — FMP stock enrich (explicit list or next `limit` un-enriched). Both resumable. |
+| `backend/app/seed.py` | Onboarding: `run_seed(force, base)` — Alpaca base upsert + CoinGecko crypto enrich. Per-widget **refresh routines** (background daemon via `_start_background`): `refresh_profile_stocks`, `refresh_profile_crypto`, `refresh_fundamentals` (each `include_missing` to also onboard). `enrich_stocks`/`enrich_fundamentals` remain as the per-symbol executors the refreshers loop over. |
 | `backend/app/main.py` | Endpoints: `/api/assets` (search), `/api/assets/{symbol}` (both DB-backed w/ Alpaca fallback), and the dev seeders below. |
 | `backend/app/ai/tools_read.py`, `ai/router.py` | The AI catalogue tools (`get_asset_profile`, `screen_assets`) — schemas + server-side execution. |
 
 ---
 
-## Populating the catalogue (seeders)
+## Onboarding & refresh routines (dev endpoints)
 
-Postgres :5432 is unreachable from the sandbox and the owner's laptop, so
-**seeding only runs from prod/Render.** Both endpoints sit behind
-`require_configured` and are idempotent + resumable.
+Postgres :5432 is unreachable from the sandbox and the owner's laptop, so these
+**only run from prod/Render.** All sit behind `require_configured`. There are two
+concepts: **onboarding** (add NEW Alpaca rows + their first enrichment) and the
+per-widget **refresh routines** (re-pull the DB values an already-enriched card
+shows). On the paid FMP **Starter** tier (single-symbol, 300/min, no daily cap),
+real throughput is ~100/min — a full stock pass is ~1.5–2.5 hr.
+
+### Onboarding — `seed-assets` (add new instruments)
 
 ```bash
-# Base (Alpaca) + crypto (CoinGecko). ~15 min (base upsert dominates).
+# Base identity for the whole Alpaca universe (~14 min) + CoinGecko crypto enrich.
 curl -X POST "https://<render-url>/api/_dev/seed-assets"
-
-# Crypto enrich only — skips the slow base upsert (~45s). Add &force=true to
-# re-enrich rows already done.
+# Crypto enrich only — skip the slow base upsert (~45s). &force=true re-does all.
 curl -X POST "https://<render-url>/api/_dev/seed-assets?base=false"
-
-# Stock enrich — explicit symbol list...
-curl -X POST "https://<render-url>/api/_dev/enrich-stocks?symbols=AAPL,MSFT,NVDA"
-# ...or backfill the next N un-enriched stocks (options-listed first), repeat.
-curl -X POST "https://<render-url>/api/_dev/enrich-stocks?limit=2500"
-
-# Stock fundamentals enrich (FMP annual statements) — profile-enriched, non-ETF
-# stocks only, largest cap first. 3 FMP calls/symbol, so use SMALL chunks
-# (~200) and loop — a big limit overruns Render's gateway and 502s mid-run.
-# Resumable (per-symbol commits persist), add &force=true for a full refresh.
-curl -X POST "https://<render-url>/api/_dev/enrich-fundamentals?limit=200"
 ```
 
-We're on the paid FMP **Starter** tier: single-symbol, 300/min (no 250/day free
-cap). It enriches the whole universe in repeated `?limit=` chunks (~1.5–2.5 hr
-total — sequential per-symbol latency, not the rate ceiling, is the floor).
+### Refresh routines — one per widget/card (fire-and-forget)
+
+Each routine **completes one card**: it re-fetches every DB field that widget
+shows, **only for rows already enriched for that card**. All run in a background
+daemon thread on Render and **return immediately** (`{"status":"started",…}`) —
+fire once and disconnect; a second call of the same routine while it's running
+returns `already_running`. `?include_missing=true` additionally **onboards** rows
+that card hasn't enriched yet (e.g. a newly listed stock).
+
+| Routine | Card it completes | Source | Curl |
+| --- | --- | --- | --- |
+| `refresh-profile-stocks` | **Profile** (stocks) | FMP `/profile` | `curl -X POST "https://<render-url>/api/_dev/refresh-profile-stocks"` |
+| `refresh-profile-crypto` | **Profile** (crypto) | CoinGecko | `curl -X POST "https://<render-url>/api/_dev/refresh-profile-crypto"` |
+| `refresh-fundamentals` | **Fundamentals** (stocks) | FMP statements | `curl -X POST "https://<render-url>/api/_dev/refresh-fundamentals"` |
+
+Onboard new instruments instead of just refreshing: add `?include_missing=true`
+(stocks/fundamentals routines). A sensible **monthly** cadence is all three
+(no built-in scheduler — trigger manually or via an external cron).
 
 For current row counts and coverage, run the verification queries below rather
 than trusting a number in this doc (it would drift).

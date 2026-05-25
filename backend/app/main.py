@@ -432,43 +432,36 @@ def seed_assets(force: bool = Query(False), base: bool = Query(True)) -> dict:
     return run_seed(force=force, base=base)
 
 
-@app.post("/api/_dev/enrich-stocks", dependencies=[Depends(require_configured)])
-def enrich_stocks(
-    symbols: str = Query(""),
-    limit: int = Query(0, ge=0, le=20000),
-    force: bool = Query(False),
-) -> dict:
-    """Enrich us_equity rows from FMP. Dev tool; Render-only. Either an explicit
-    list, or the next ``limit`` un-enriched stocks (options-listed first) for a
-    universe backfill:
-    curl -X POST 'https://<render-url>/api/_dev/enrich-stocks?limit=2500'"""
-    syms = [s.strip().upper() for s in symbols.split(",") if s.strip()]
-    from .seed import enrich_stocks as _enrich
-    return _enrich(symbols=syms or None, limit=limit, force=force)
+# --- Per-widget refresh routines (background; re-pull already-enriched rows) ---
+# Each routine "completes a card": every DB value that widget shows is re-fetched.
+# All return immediately and run in a daemon thread on Render. ?include_missing=
+# true also onboards rows that card hasn't enriched yet (new instruments).
+
+@app.post("/api/_dev/refresh-profile-stocks", dependencies=[Depends(require_configured)])
+def refresh_profile_stocks(include_missing: bool = Query(False)) -> dict:
+    """Refresh the **Profile** card's stock fields (FMP /profile) for enriched
+    stocks; ?include_missing=true also onboards un-enriched ones. Render-only:
+    curl -X POST 'https://<render-url>/api/_dev/refresh-profile-stocks'"""
+    from .seed import refresh_profile_stocks as _r
+    return _r(include_missing=include_missing)
 
 
-@app.post("/api/_dev/enrich-fundamentals", dependencies=[Depends(require_configured)])
-def enrich_fundamentals(
-    symbols: str = Query(""),
-    limit: int = Query(0, ge=0, le=20000),
-    force: bool = Query(False),
-    background: bool = Query(False),
-) -> dict:
-    """Populate annual fundamentals (FMP) for us_equity rows. Dev tool;
-    Render-only (3 FMP calls/symbol, ~1s each). Either an explicit list, or the
-    next ``limit`` eligible stocks (profile-enriched, non-ETF, largest cap
-    first). Resumable — re-run to continue; add ?force=true for a full refresh:
-    curl -X POST 'https://<render-url>/api/_dev/enrich-fundamentals?limit=200'
+@app.post("/api/_dev/refresh-profile-crypto", dependencies=[Depends(require_configured)])
+def refresh_profile_crypto() -> dict:
+    """Refresh the **Profile** card's crypto fields (CoinGecko) for crypto rows.
+    Render-only:
+    curl -X POST 'https://<render-url>/api/_dev/refresh-profile-crypto'"""
+    from .seed import refresh_profile_crypto as _r
+    return _r()
 
-    ``?background=true`` fires the whole remaining backfill in a server-side
-    daemon thread and returns immediately, so the caller can disconnect:
-    curl -X POST 'https://<render-url>/api/_dev/enrich-fundamentals?background=true'"""
-    if background:
-        from .seed import enrich_fundamentals_background as _bg
-        return _bg()
-    syms = [s.strip().upper() for s in symbols.split(",") if s.strip()]
-    from .seed import enrich_fundamentals as _enrich
-    return _enrich(symbols=syms or None, limit=limit, force=force)
+
+@app.post("/api/_dev/refresh-fundamentals", dependencies=[Depends(require_configured)])
+def refresh_fundamentals(include_missing: bool = Query(False)) -> dict:
+    """Refresh the **Fundamentals** card (FMP statements) for stocks that already
+    carry fundamentals; ?include_missing=true also fills gaps. Render-only:
+    curl -X POST 'https://<render-url>/api/_dev/refresh-fundamentals'"""
+    from .seed import refresh_fundamentals as _r
+    return _r(include_missing=include_missing)
 
 
 @app.get("/api/stream")

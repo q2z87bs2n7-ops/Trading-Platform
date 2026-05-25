@@ -18,10 +18,38 @@ from .alpaca.trading import get_all_assets_for_seed
 
 _log = logging.getLogger(__name__)
 
-# Guards the fire-and-forget fundamentals backfill so a second kickoff while one
-# is already running returns "already_running" instead of stacking threads.
-_fundamentals_bg_lock = threading.Lock()
-_fundamentals_bg_running = False
+# Guards the fire-and-forget refresh routines so a second kickoff of the *same*
+# routine while one is running returns "already_running" instead of stacking
+# threads (different routines can run concurrently).
+_bg_lock = threading.Lock()
+_bg_running: set[str] = set()
+
+
+def _start_background(name: str, count_fn, worker) -> dict:
+    """Run ``worker()`` in a daemon thread and return immediately. One run per
+    routine ``name`` at a time; ``count_fn`` gives a best-effort target count for
+    the reply (purely informational)."""
+    with _bg_lock:
+        if name in _bg_running:
+            return {"status": "already_running", "routine": name}
+        _bg_running.add(name)
+    try:
+        targets = count_fn()
+    except Exception:
+        targets = None
+
+    def _run() -> None:
+        try:
+            worker()
+            _log.info("%s: background run done", name)
+        except Exception:
+            _log.exception("%s: background run crashed", name)
+        finally:
+            with _bg_lock:
+                _bg_running.discard(name)
+
+    threading.Thread(target=_run, name=name, daemon=True).start()
+    return {"status": "started", "routine": name, "targets": targets}
 
 
 def enrich_stocks(
@@ -135,52 +163,62 @@ def enrich_fundamentals(
     }
 
 
-def enrich_fundamentals_background() -> dict:
-    """Fire-and-forget: spawn a daemon thread that backfills ALL remaining
-    un-enriched fundamentals (in 300-symbol batches) and return immediately, so
-    one quick call finishes the job server-side without the caller's machine
-    staying online. Only fills the missing set — a forced full refresh still uses
-    the chunked synchronous path. A second call while one is running is a no-op.
-    """
-    global _fundamentals_bg_running
+# ── Per-widget refresh routines (background; refresh = re-pull already-enriched
+# rows). Each completes one card: every DB value the card shows is re-fetched.
+# `include_missing=True` additionally onboards rows that card hasn't enriched yet.
+
+def refresh_profile_stocks(include_missing: bool = False) -> dict:
+    """Refresh every **Profile** card stock field (FMP `/profile`: sector,
+    industry, market cap, beta, CEO, employees, HQ, IPO, logo, description) for
+    already-enriched stocks, in a background thread."""
     if not db.db_enabled():
         return {"error": "DATABASE_URL not configured"}
     if not fmp.configured():
         return {"error": "FMP_API_KEY not configured"}
 
-    with _fundamentals_bg_lock:
-        if _fundamentals_bg_running:
-            return {"status": "already_running"}
-        _fundamentals_bg_running = True
+    def _worker() -> None:
+        syms = set(db.enriched_stock_symbols())
+        if include_missing:
+            syms |= set(db.unenriched_stock_symbols(1_000_000))
+        enrich_stocks(symbols=sorted(syms), force=True)
 
-    try:
-        remaining = len(db.fundamentals_target_symbols(1_000_000, only_missing=True))
-    except Exception:
-        remaining = None
+    return _start_background(
+        "refresh-profile-stocks", lambda: len(db.enriched_stock_symbols()), _worker
+    )
 
-    def _run() -> None:
-        global _fundamentals_bg_running
-        total = 0
-        try:
-            seen: set[str] = set()  # skip not_found/failed rows so we never re-loop them
-            while True:
-                batch = [
-                    s for s in db.fundamentals_target_symbols(300, only_missing=True)
-                    if s not in seen
-                ]
-                if not batch:
-                    break
-                seen.update(batch)
-                res = enrich_fundamentals(symbols=batch, force=False)
-                total += int(res.get("fundamentals_enriched", 0) or 0)
-            _log.info("enrich-fundamentals background run done: %d enriched", total)
-        except Exception:
-            _log.exception("enrich-fundamentals background run crashed after %d", total)
-        finally:
-            _fundamentals_bg_running = False
 
-    threading.Thread(target=_run, name="enrich-fundamentals-bg", daemon=True).start()
-    return {"status": "started", "remaining": remaining}
+def refresh_profile_crypto() -> dict:
+    """Refresh every **Profile** card crypto field (CoinGecko: categories, supply,
+    market-cap rank, ATH/ATL, links, description) for crypto rows, in a
+    background thread."""
+    if not db.db_enabled():
+        return {"error": "DATABASE_URL not configured"}
+
+    return _start_background(
+        "refresh-profile-crypto",
+        lambda: len(db.enriched_crypto_symbols()),
+        lambda: run_seed(force=True, base=False),
+    )
+
+
+def refresh_fundamentals(include_missing: bool = False) -> dict:
+    """Refresh every **Fundamentals** card field (FMP statements: valuation,
+    margins, ROE/ROIC, growth, dividend, 5-yr trend) for stocks that already
+    carry fundamentals, in a background thread."""
+    if not db.db_enabled():
+        return {"error": "DATABASE_URL not configured"}
+    if not fmp.configured():
+        return {"error": "FMP_API_KEY not configured"}
+
+    def _worker() -> None:
+        syms = set(db.fundamentals_enriched_symbols())
+        if include_missing:
+            syms |= set(db.fundamentals_target_symbols(1_000_000, only_missing=True))
+        enrich_fundamentals(symbols=sorted(syms), force=True)
+
+    return _start_background(
+        "refresh-fundamentals", lambda: len(db.fundamentals_enriched_symbols()), _worker
+    )
 
 
 def run_seed(force: bool = False, base: bool = True) -> dict:
