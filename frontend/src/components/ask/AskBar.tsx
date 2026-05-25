@@ -146,12 +146,12 @@ function capabilityHint(assetClass: AssetClass, aiEnabled: boolean): string {
   const crypto = assetClass === "crypto";
   if (!aiEnabled) {
     return crypto
-      ? "Plain English works too — pull up charts, place trades, scan crypto movers, and build custom workspace layouts."
-      : "Plain English works too — pull up charts, place trades, scan market movers, and build custom workspace layouts.";
+      ? "Just tell it what you want — pull up any chart, fire off a trade, scan the day's hottest crypto movers, and snap together your own multi-panel workspace in seconds. No menus, no hunting."
+      : "Just tell it what you want — pull up any chart, fire off a trade, scan the day's biggest market movers, and snap together your own multi-panel workspace in seconds. No menus, no hunting.";
   }
   return crypto
-    ? "Plain English works too — ask about tokenomics & technicals, build multi-chart layouts, curate your watchlist, or export to CSV."
-    : "Plain English works too — ask about fundamentals, earnings & technicals, build multi-chart layouts, curate your watchlist, or export to CSV.";
+    ? "Just tell it what you want — and it does far more than the chips above. Pull charts and place trades, dig into tokenomics & technicals, spin up multi-chart layouts, build themed watchlists on command, and export anything to CSV — all in plain English."
+    : "Just tell it what you want — and it does far more than the chips above. Pull charts and place trades, dig into fundamentals, earnings & technicals, spin up multi-chart layouts, build themed watchlists on command, and export anything to CSV — all in plain English.";
 }
 
 function buildFollowups(
