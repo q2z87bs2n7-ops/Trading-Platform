@@ -19,9 +19,16 @@ area.
   `CryptoDataStream` does **not** take a `feed` parameter; omit it.
 - Watchlist **prefers the stream and auto-falls-back to polling
   `/api/quotes`** when the stream is unreachable (Vercel/Pages have no
-  relay). Load-bearing — keep it. `EventSource` auto-reconnect is
-  deliberately disabled so failure → polling, not a silent reconnect
-  loop.
+  relay). Load-bearing — keep it. `EventSource`'s *native* auto-reconnect
+  stays disabled (it would silently loop against a dead relay). Instead
+  `quoteStream.ts` owns recovery: an SSE drop falls back to polling
+  immediately, **then retries the stream on an exponential backoff**
+  (`STREAM_RETRY_BASE_MS` 3 s → `STREAM_RETRY_MAX_MS` 60 s). The first tick
+  from a reopened stream stops polling and resets the backoff, so a single
+  transient close (proxy connection recycling, relay restart) self-heals
+  instead of stranding the app on polling forever. Without this, *any* drop
+  on a healthy long-lived connection was a permanent downgrade to polling
+  until the symbol union changed or the page reloaded.
 - **SSE keepalive must be a named event, not a comment.** The idle keepalive
   in `/api/stream` uses `event: keepalive\ndata: {}\n\n` instead of the SSE
   comment form (`: keepalive`). Both are valid SSE, but HTTP/2 proxies (Render's
