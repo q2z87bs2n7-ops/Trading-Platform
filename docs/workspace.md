@@ -66,7 +66,11 @@ Widgets reuse existing surfaces:
   `bare`/`dense` props (like `NewsCard`/`NewsWidget`): on a colour channel it
   shows that symbol's report history (`/api/calendar/earnings/{symbol}`); on
   **None** it shows the curated whole-market upcoming calendar
-  (`/api/calendar/earnings`), mirroring NewsWidget's market mode. No economic
+  (`/api/calendar/earnings`), mirroring NewsWidget's market mode. The per-symbol
+  view passes the card's additive `showYear` prop (dates render `May 30 '26`)
+  since its rows span quarters; Discover and the market view stay year-less.
+  A crypto-linked symbol short-circuits the fetch and shows a "crypto has no
+  earnings" notice instead of the backend's bare 404. No economic
   widget — the economic calendar has no per-symbol form and stays Discover-only.
 
 ## Link channels

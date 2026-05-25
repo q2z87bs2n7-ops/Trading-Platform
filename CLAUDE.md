@@ -67,7 +67,11 @@ separate silos behind a shared account.
     (`assetClass` prop), sharing the hero / AI summary / watchlist / inline
     chart / news scaffold across both silos and branching only where they
     differ. Silo-specific data hooks are gated with `enabled` so the inactive
-    silo never fetches.
+    silo never fetches. Watchlist sparkline cards and the crypto ticker render
+    the **live stream price** (`useLiveQuotes` quote mid) over the snapshot's
+    `prev_close` (the daily-change baseline) — matching the chart and the
+    Workspace Watchlist widget; the REST snapshot/ticker calls now seed only
+    `prev_close`.
     - *Stocks*: holdings + allocation hero (stock positions
       only; `BalanceCard` headline is silo holdings, with silo day P/L and
       stock buying power — no shared cash), indices marquee ticker,
