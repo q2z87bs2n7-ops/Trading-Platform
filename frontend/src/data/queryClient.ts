@@ -32,12 +32,18 @@ export const qk = {
   pnlHistory: (assetClass: string, period: string) =>
     ["pnlHistory", assetClass, period] as const,
   asset: (symbol: string) => ["asset", symbol] as const,
+  assetProfile: (symbol: string) => ["assetProfile", symbol] as const,
   calendar: (start: string, end: string) =>
     ["calendar", start, end] as const,
   watchlist: ["watchlist"] as const,
   cryptoWatchlist: ["watchlist", "crypto"] as const,
   cryptoTickers: ["cryptoTickers"] as const,
   indices: ["indices"] as const,
+  earningsCalendar: (include: string) =>
+    ["earningsCalendar", include] as const,
+  symbolEarnings: (symbol: string) => ["symbolEarnings", symbol] as const,
+  economicCalendar: ["economicCalendar"] as const,
+  assetSymbols: ["assetSymbols"] as const,
   marketNews: ["marketNews"] as const,
   news: (symbol: string) => ["news", symbol] as const,
 };

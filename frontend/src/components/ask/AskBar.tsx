@@ -2,16 +2,22 @@ import { useMemo, useEffect, useRef, useState } from "react";
 
 import type { AiAskMessage, AiAskResponse } from "../../api";
 import {
-  parseIntent,
+  routeQuery,
   extractSymbols,
   type AssetClass,
   type Intent,
-} from "../../lib/cmd-intent";
+} from "../../lib/ask-intent";
 import { isCryptoPosition } from "../../lib/asset-class";
 import type { Position } from "../../types";
-import { useCryptoWatchlist, usePositions, useWatchlist } from "../../data/hooks";
+import {
+  useCryptoWatchlist,
+  usePositions,
+  useSymbolUniverse,
+  useWatchlist,
+} from "../../data/hooks";
+import { useSettings } from "../../hooks/useSettings";
 import { useMobile } from "../../hooks/useMobile";
-import { CmdResult } from "./cards";
+import { AskResult } from "./cards";
 
 interface Turn {
   id: number;
@@ -28,58 +34,124 @@ const HISTORY_CAP = 16;
 // Display label for a symbol — strips the /USD quote off crypto pairs.
 const coin = (s: string) => (s.includes("/") ? s.split("/")[0] : s);
 
-function buildSuggestions(
+// Top position by absolute unrealised P/L (coin label), if the silo holds any.
+function topHoldingLabel(positions?: Position[]): string | undefined {
+  if (!positions?.length) return undefined;
+  const sorted = [...positions].sort(
+    (a, b) => Math.abs(b.unrealized_pl) - Math.abs(a.unrealized_pl),
+  );
+  return coin(sorted[0].symbol);
+}
+
+// First watchlist symbol not already held (coin label), if any.
+function freshWatchlistLabel(
+  watchlist?: string[],
+  positions?: Position[],
+): string | undefined {
+  const held = new Set(positions?.map((p) => p.symbol) ?? []);
+  const sym = (watchlist ?? []).find((s) => !held.has(s));
+  return sym ? coin(sym) : undefined;
+}
+
+interface ChipGroup {
+  label: string;
+  chips: string[];
+}
+
+// Empty-state suggestion chips, grouped by skill so the less-obvious
+// capabilities (workspace layouts, watchlist edits, CSV export, AI research)
+// are visible — not just trade/portfolio/news. Every group is silo-tailored;
+// the AI-routed groups are hidden when the Ask bot is disabled because they'd
+// otherwise land on the "enable AI" notice.
+function buildCapabilityGroups(
   positions: Position[] | undefined,
   watchlist: string[] | undefined,
   assetClass: AssetClass,
-): string[] {
+  aiEnabled: boolean,
+): ChipGroup[] {
   const crypto = assetClass === "crypto";
-  const chips: string[] = [];
+  const holding = topHoldingLabel(positions);
+  const wlSym = freshWatchlistLabel(watchlist, positions);
 
-  if (crypto) {
-    chips.push("Crypto summary");
-  } else {
-    // Time-of-day aware opening chip (US Eastern).
-    const etHour = Number(
-      new Date().toLocaleString("en-US", {
-        hour: "numeric",
-        hour12: false,
-        timeZone: "America/New_York",
-      }),
+  const groups: ChipGroup[] = [
+    {
+      label: "Market pulse",
+      chips: [crypto ? "Crypto summary" : "Market summary", "Top gainers", "What changed today?"],
+    },
+    {
+      label: "Your portfolio",
+      chips: [
+        holding ? `How's my ${holding}?` : "Portfolio",
+        "Open orders",
+        ...(wlSym ? [`News on ${wlSym}`] : []),
+      ],
+    },
+    {
+      label: "Quick trade",
+      chips: [
+        crypto ? "Buy 0.1 ETH" : "Buy 50 AMD at market",
+        ...(holding ? [`Close my ${holding}`] : []),
+      ],
+    },
+    {
+      label: "Your workspace",
+      chips: crypto
+        ? ["Watcher layout", "Watch BTC/USD ETH/USD SOL/USD", "Set blue to ETH/USD"]
+        : ["Trader layout", "Watch AAPL NVDA TSLA", "Set blue to NVDA"],
+    },
+  ];
+
+  // Research / watchlist edits / exports all run through the AI fallback bot,
+  // so only advertise them when it's switched on.
+  if (aiEnabled) {
+    groups.push(
+      {
+        label: "Deep dive",
+        chips: crypto
+          ? ["What is Solana?", "Why is BTC moving today?"]
+          : ["What's NVDA's P/E?", "Why is AAPL up today?"],
+      },
+      {
+        label: "Curate a watchlist",
+        chips: crypto
+          ? ["Add the top 5 layer-1 coins", "Remove DOGE from my watchlist"]
+          : ["Add the top 10 AI stocks", "Remove TSLA from my watchlist"],
+      },
+      {
+        label: "Export & share",
+        chips: crypto
+          ? ["Export my crypto activity to CSV", "Download my P/L history"]
+          : ["Export my activity to CSV", "Download my P/L history"],
+      },
     );
-    if (etHour < 9 || (etHour === 9 && new Date().getMinutes() < 30)) {
-      chips.push("Pre-market movers");
-    } else if (etHour >= 16) {
-      chips.push("After-hours movers");
-    } else {
-      chips.push("Market summary");
-    }
   }
 
-  // Top 2 positions by absolute unrealised P/L.
-  if (positions?.length) {
-    const sorted = [...positions].sort(
-      (a, b) => Math.abs(b.unrealized_pl) - Math.abs(a.unrealized_pl),
-    );
-    for (const p of sorted.slice(0, 2)) chips.push(`How's my ${coin(p.symbol)}?`);
+  // Global dedup by label so a symbol shared across positions/watchlist can't
+  // surface the same chip twice (the old flat list could repeat "News on …").
+  const seen = new Set<string>();
+  for (const g of groups) {
+    g.chips = g.chips.filter((c) => {
+      const k = c.toLowerCase();
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
   }
+  return groups.filter((g) => g.chips.length > 0);
+}
 
-  // Watchlist symbols not already represented via positions.
-  const posSyms = new Set(positions?.map((p) => p.symbol) ?? []);
-  for (const sym of (watchlist ?? []).filter((s) => !posSyms.has(s)).slice(0, 2)) {
-    chips.push(`News on ${coin(sym)}`);
+// One-line plain-English nudge under the chips — the "I can also…" hint.
+// Silo-specific, and trims the AI-only skills when the bot is off.
+function capabilityHint(assetClass: AssetClass, aiEnabled: boolean): string {
+  const crypto = assetClass === "crypto";
+  if (!aiEnabled) {
+    return crypto
+      ? "Just tell it what you want — pull up any chart, fire off a trade, scan the day's hottest crypto movers, and snap together your own multi-panel workspace in seconds. No menus, no hunting."
+      : "Just tell it what you want — pull up any chart, fire off a trade, scan the day's biggest market movers, and snap together your own multi-panel workspace in seconds. No menus, no hunting.";
   }
-
-  // Fill remaining slots with generic chips.
-  const generic = crypto
-    ? ["Top gainers", "What changed today?", "Open orders", "Buy 0.1 ETH"]
-    : ["Show me top gainers", "What changed today?", "Open orders", "Buy 50 AMD at market"];
-  for (const g of generic) {
-    if (chips.length >= 7) break;
-    chips.push(g);
-  }
-
-  return chips;
+  return crypto
+    ? "Just tell it what you want — and it does far more than the chips above. Pull charts and place trades, dig into tokenomics & technicals, spin up multi-chart layouts, build themed watchlists on command, and export anything to CSV — all in plain English."
+    : "Just tell it what you want — and it does far more than the chips above. Pull charts and place trades, dig into fundamentals, earnings & technicals, spin up multi-chart layouts, build themed watchlists on command, and export anything to CSV — all in plain English.";
 }
 
 function buildFollowups(
@@ -140,7 +212,7 @@ interface Props {
   onOpenInWorkspace: (symbol: string) => void;
 }
 
-export default function CmdBar({ open, assetClass, onClose, onOpenInWorkspace }: Props) {
+export default function AskBar({ open, assetClass, onClose, onOpenInWorkspace }: Props) {
   const [text, setText] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [lastAiResp, setLastAiResp] = useState<AiAskResponse | null>(null);
@@ -153,6 +225,8 @@ export default function CmdBar({ open, assetClass, onClose, onOpenInWorkspace }:
   const { data: posData } = usePositions();
   const { data: wl } = useWatchlist();
   const { data: cryptoWl } = useCryptoWatchlist();
+  const symbolUniverse = useSymbolUniverse();
+  const aiEnabled = useSettings().askAiEnabled;
   const isMobile = useMobile();
 
   const siloPositions = useMemo(
@@ -165,11 +239,15 @@ export default function CmdBar({ open, assetClass, onClose, onOpenInWorkspace }:
   const siloWatchlist =
     assetClass === "crypto" ? cryptoWl?.symbols : wl?.symbols;
 
-  const suggestions = useMemo(
-    () => buildSuggestions(siloPositions, siloWatchlist, assetClass),
+  const capabilityGroups = useMemo(
+    () => buildCapabilityGroups(siloPositions, siloWatchlist, assetClass, aiEnabled),
     // Recompute when data arrives or the modal reopens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [siloPositions, siloWatchlist, assetClass, open],
+    [siloPositions, siloWatchlist, assetClass, aiEnabled, open],
+  );
+  const hint = useMemo(
+    () => capabilityHint(assetClass, aiEnabled),
+    [assetClass, aiEnabled],
   );
 
   const lastTurn = turns[turns.length - 1];
@@ -236,12 +314,15 @@ export default function CmdBar({ open, assetClass, onClose, onOpenInWorkspace }:
     if (!trimmed) return;
     counter.current += 1;
     setLastAiResp(null);
+    const intent = routeQuery(trimmed, { assetClass, aiEnabled, symbolUniverse });
+    // Drop the force-AI prefix from the displayed query bubble.
+    const display = trimmed.replace(/^(?:ai|ask):\s*/i, "");
     setTurns((t) => [
       ...t,
       {
         id: counter.current,
-        query: trimmed,
-        intent: parseIntent(trimmed, assetClass),
+        query: display,
+        intent,
         // Snapshot the conversation so far for this turn's AI call.
         history: [...apiHistory.current],
       },
@@ -278,10 +359,10 @@ export default function CmdBar({ open, assetClass, onClose, onOpenInWorkspace }:
           borderRadius: isMobile ? 0 : "var(--r-xl)",
           boxShadow: "var(--shadow-lg)",
           overflow: "hidden",
-          animation: "cmd-up 180ms ease",
+          animation: "ask-up 180ms ease",
         }}
       >
-        <style>{`@keyframes cmd-up{from{transform:translateY(-20px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
+        <style>{`@keyframes ask-up{from{transform:translateY(-20px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
 
         {/* Header — sparkle brand + close. Keeps a small top frame around
            the transcript without putting input controls up here. */}
@@ -326,34 +407,44 @@ export default function CmdBar({ open, assetClass, onClose, onOpenInWorkspace }:
           style={{ background: "var(--bg)" }}
         >
           {turns.length === 0 ? (
-            <div>
-              <div
-                className="text-[11px] uppercase mb-3"
-                style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
-              >
-                Try
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {suggestions.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => submit(s)}
-                    className="text-[13px] cursor-pointer transition-colors"
-                    style={{
-                      padding: isMobile ? "12px 14px" : "8px 12px",
-                      minHeight: isMobile ? "var(--mob-tap)" : undefined,
-                      width: isMobile ? "100%" : "auto",
-                      textAlign: isMobile ? "left" : "center",
-                      background: "var(--panel)",
-                      border: "1px solid var(--border)",
-                      color: "var(--text-2)",
-                      borderRadius: "var(--r)",
-                    }}
+            <div className="flex flex-col gap-4">
+              {capabilityGroups.map((g) => (
+                <div key={g.label}>
+                  <div
+                    className="text-[11px] uppercase mb-2"
+                    style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
                   >
-                    {s}
-                  </button>
-                ))}
+                    {g.label}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {g.chips.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => submit(s)}
+                        className="text-[13px] cursor-pointer transition-colors"
+                        style={{
+                          padding: isMobile ? "12px 14px" : "8px 12px",
+                          minHeight: isMobile ? "var(--mob-tap)" : undefined,
+                          width: isMobile ? "100%" : "auto",
+                          textAlign: isMobile ? "left" : "center",
+                          background: "var(--panel)",
+                          border: "1px solid var(--border)",
+                          color: "var(--text-2)",
+                          borderRadius: "var(--r)",
+                        }}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <div
+                className="text-[12px] mt-1"
+                style={{ color: "var(--mute)", lineHeight: 1.5 }}
+              >
+                {hint}
               </div>
             </div>
           ) : (
@@ -372,7 +463,7 @@ export default function CmdBar({ open, assetClass, onClose, onOpenInWorkspace }:
                   >
                     {turn.query}
                   </div>
-                  <CmdResult
+                  <AskResult
                     intent={turn.intent}
                     assetClass={assetClass}
                     history={turn.history}
@@ -460,6 +551,26 @@ export default function CmdBar({ open, assetClass, onClose, onOpenInWorkspace }:
               padding: "8px 10px",
             }}
           />
+          <button
+            type="button"
+            onClick={() => submit(`ai: ${text}`)}
+            disabled={!text.trim()}
+            aria-label="Send to AI"
+            title="Send straight to the AI"
+            className="cursor-pointer font-semibold disabled:cursor-not-allowed"
+            style={{
+              background: "var(--panel-2)",
+              border: "1px solid var(--border)",
+              color: "var(--text-2)",
+              padding: isMobile ? "0 14px" : "0 12px",
+              height: isMobile ? 44 : 36,
+              borderRadius: "var(--r)",
+              opacity: text.trim() ? 1 : 0.5,
+              fontSize: isMobile ? 14 : 13,
+            }}
+          >
+            ✦ AI
+          </button>
           <button
             type="button"
             onClick={() => submit(text)}

@@ -1,5 +1,6 @@
+/// <reference types="vitest/config" />
 import { readFileSync } from "node:fs";
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
@@ -53,7 +54,8 @@ export default defineConfig({
           // Live market data must never be served from cache.
           // NetworkOnly passes straight through — no timeout race, no stale quotes.
           {
-            urlPattern: ({ url }: { url: URL }) => url.pathname.startsWith("/api/"),
+            urlPattern: ({ url, sameOrigin }: { url: URL; sameOrigin: boolean }) =>
+              sameOrigin && url.pathname.startsWith("/api/"),
             handler: "NetworkOnly",
           },
           {
@@ -76,5 +78,10 @@ export default defineConfig({
     proxy: {
       "/api": "http://localhost:8000",
     },
+  },
+  test: {
+    // Pure functions — no DOM needed.
+    environment: "node",
+    include: ["src/**/*.test.ts"],
   },
 });

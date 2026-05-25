@@ -1,6 +1,9 @@
+import { useMemo } from "react";
+
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import * as api from "../api";
+import { isCryptoOrder, isCryptoPosition } from "../lib/asset-class";
 import type { ReplaceOrderInput, SubmitOrderInput } from "../types";
 import { qk } from "./queryClient";
 
@@ -111,6 +114,147 @@ export const useIndices = (enabled = true) =>
     enabled,
   });
 
+// Stock symbols the user holds / has working orders on / watches — always kept
+// in the curated earnings calendar regardless of market cap. Crypto is excluded
+// (no earnings). Deduped + sorted so the query key is stable.
+const useEarningsIncludeSymbols = (): string[] => {
+  const positions = usePositions();
+  const orders = useOrders();
+  const watchlist = useWatchlist();
+  return useMemo(() => {
+    const set = new Set<string>();
+    positions.data?.positions.forEach((p) => {
+      if (!isCryptoPosition(p)) set.add(p.symbol.toUpperCase());
+    });
+    orders.data?.orders.forEach((o) => {
+      if (!isCryptoOrder(o)) set.add(o.symbol.toUpperCase());
+    });
+    watchlist.data?.symbols.forEach((s) => set.add(s.toUpperCase()));
+    return [...set].sort();
+  }, [positions.data, orders.data, watchlist.data]);
+};
+
+export const useEarningsCalendar = (enabled = true) => {
+  const include = useEarningsIncludeSymbols();
+  return useQuery({
+    queryKey: qk.earningsCalendar(include.join(",")),
+    queryFn: () => api.getEarningsCalendar(include),
+    refetchInterval: 300_000, // matches backend cache TTL
+    staleTime: 120_000,
+    enabled,
+  });
+};
+
+export const useSymbolEarnings = (symbol: string, enabled = true) =>
+  useQuery({
+    queryKey: qk.symbolEarnings(symbol),
+    queryFn: () => api.getSymbolEarnings(symbol),
+    enabled: enabled && symbol.length > 0,
+    staleTime: 300_000,
+  });
+
+export const useEconomicCalendar = (enabled = true) =>
+  useQuery({
+    queryKey: qk.economicCalendar,
+    queryFn: api.getEconomicCalendar,
+    refetchInterval: 300_000,
+    staleTime: 120_000,
+    enabled,
+  });
+
+// --- Asset symbol universe (Ask-anything router ticker validation) -------
+// The full catalogue is fetched once a day and served instantly from a
+// localStorage snapshot (stale-while-revalidate). Staleness is harmless: a
+// ticker missing from the set just routes to the AI rather than a canned card.
+
+const ASSET_SYMBOLS_KEY = "asset_symbols_v1";
+const ASSET_SYMBOLS_MAX_AGE = 24 * 60 * 60 * 1000; // refresh ≤ 1×/day
+
+// Cold-load seed so crypto pairs still route correctly in the brief window
+// before the universe (or its localStorage snapshot) is available.
+const CRYPTO_SEED = ["BTC/USD", "ETH/USD", "SOL/USD"];
+
+interface AssetSymbolsCache {
+  ts: number;
+  us_equity: string[];
+  crypto: string[];
+}
+
+function readAssetSymbolsCache(): AssetSymbolsCache | undefined {
+  if (typeof localStorage === "undefined") return undefined;
+  try {
+    const raw = localStorage.getItem(ASSET_SYMBOLS_KEY);
+    if (!raw) return undefined;
+    const parsed = JSON.parse(raw) as AssetSymbolsCache;
+    if (
+      typeof parsed?.ts !== "number" ||
+      !Array.isArray(parsed.us_equity) ||
+      !Array.isArray(parsed.crypto)
+    ) {
+      localStorage.removeItem(ASSET_SYMBOLS_KEY);
+      return undefined;
+    }
+    return parsed;
+  } catch {
+    try {
+      localStorage.removeItem(ASSET_SYMBOLS_KEY);
+    } catch {
+      /* ignore */
+    }
+    return undefined;
+  }
+}
+
+function writeAssetSymbolsCache(data: api.AssetSymbols): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(
+      ASSET_SYMBOLS_KEY,
+      JSON.stringify({ ts: Date.now(), ...data }),
+    );
+  } catch {
+    /* quota / private mode — non-fatal, the network fetch still serves */
+  }
+}
+
+export const useAssetSymbols = () =>
+  useQuery({
+    queryKey: qk.assetSymbols,
+    queryFn: async () => {
+      const data = await api.getAssetSymbols();
+      writeAssetSymbolsCache(data);
+      return data;
+    },
+    staleTime: ASSET_SYMBOLS_MAX_AGE,
+    gcTime: Infinity,
+    initialData: () => {
+      const c = readAssetSymbolsCache();
+      return c ? { us_equity: c.us_equity, crypto: c.crypto } : undefined;
+    },
+    initialDataUpdatedAt: () => readAssetSymbolsCache()?.ts,
+  });
+
+export interface SymbolUniverse {
+  stocks: Set<string>;
+  crypto: Set<string>;
+  loaded: boolean;
+}
+
+// FE silo "stocks" maps to backend "us_equity". Before the universe loads,
+// `crypto` carries the seed and `loaded` is false so the router can apply its
+// cold-load heuristic.
+export const useSymbolUniverse = (): SymbolUniverse => {
+  const { data } = useAssetSymbols();
+  return useMemo(
+    () => ({
+      stocks: new Set(data?.us_equity ?? []),
+      crypto: new Set(data?.crypto ?? CRYPTO_SEED),
+      loaded: data != null,
+    }),
+    [data],
+  );
+};
+
 export const usePortfolioHistory = (period = "1M", timeframe = "1D") =>
   useQuery({
     queryKey: qk.portfolioHistory(period, timeframe),
@@ -134,6 +278,17 @@ export const useAsset = (symbol: string) =>
     queryFn: () => api.getAsset(symbol),
     enabled: symbol.trim().length > 0,
     staleTime: 5 * 60_000,
+    retry: false,
+  });
+
+// Full catalogue enrichment for one symbol (Profile widget). Enrichment is
+// effectively static, so cache hard and skip auto-refetch.
+export const useAssetProfile = (symbol: string) =>
+  useQuery({
+    queryKey: qk.assetProfile(symbol),
+    queryFn: () => api.getAssetProfile(symbol),
+    enabled: symbol.trim().length > 0,
+    staleTime: 60 * 60_000,
     retry: false,
   });
 

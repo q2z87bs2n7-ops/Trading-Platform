@@ -29,6 +29,12 @@ import {
   applyPreset,
   type LayoutPreset,
 } from "../lib/workspace/presets";
+import { buildCustomLayout as buildLayout } from "../lib/workspace/build";
+import {
+  registerWorkspace,
+  unregisterWorkspace,
+  type WorkspaceHandle,
+} from "../lib/workspace/controller";
 
 interface Props {
   symbol: string;
@@ -321,6 +327,9 @@ function AddWidgetMenu({
               borderRadius: 10,
               boxShadow: "var(--shadow-lg)",
               padding: 6,
+              display: "flex",
+              flexDirection: "column",
+              maxHeight: `calc(100vh - ${pos.top + 8}px)`,
             }}
           >
             <div
@@ -333,6 +342,7 @@ function AddWidgetMenu({
                 background: "var(--panel-2)",
                 borderRadius: 6,
                 border: "1px solid var(--border)",
+                flexShrink: 0,
               }}
             >
               <svg
@@ -377,6 +387,7 @@ function AddWidgetMenu({
               </span>
             </div>
 
+            <div style={{ overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
             {filtered.length === 0 && (
               <div
                 style={{
@@ -477,6 +488,7 @@ function AddWidgetMenu({
                 </div>
               );
             })}
+            </div>
           </div>,
           document.body,
         )}
@@ -994,6 +1006,7 @@ export default function Workspace({
   const disposableRef = useRef<{ dispose: () => void } | null>(null);
   const addGroupDisposableRef = useRef<{ dispose: () => void } | null>(null);
   const saveTimerRef = useRef<number | undefined>(undefined);
+  const handleRef = useRef<WorkspaceHandle | null>(null);
   const [tabsHidden, setTabsHidden] = useState(false);
   const tabsHiddenRef = useRef(false);
 
@@ -1066,6 +1079,11 @@ export default function Workspace({
     ],
   );
 
+  // Keep a live ref to the context so the imperative handle (built once in
+  // onReady) always reads the current onSelect / channel symbols.
+  const ctxRef = useRef(workspaceCtx);
+  ctxRef.current = workspaceCtx;
+
   // Drives the empty-state overlay. -1 = not yet measured (avoids a flash of
   // empty state before onReady runs the first-run preset). Updated from
   // Dockview's panel add/remove events.
@@ -1120,6 +1138,81 @@ export default function Workspace({
         saveActiveLayout(assetClass, event.api.toJSON());
       }, 400);
     });
+
+    // Imperative handle for the Ask-anything controller bridge. Built once per
+    // mount (silo remounts via key={assetClass}, so `assetClass` here is current).
+    const handle: WorkspaceHandle = {
+      assetClass,
+      setChannelSymbol: (channel, sym) => ctxRef.current.setSymbol(channel, sym),
+      applyPreset: (presetId) => {
+        const p = PRESETS.find((x) => x.id === presetId);
+        if (!p) return false;
+        applyLayoutPreset(p);
+        return true;
+      },
+      addWidget: (id, opts) => {
+        const api = apiRef.current;
+        if (!api) return;
+        const isChart = id === "chart" || id === "minichart";
+        // A channel-linked widget reads its symbol from the channel (not params),
+        // so point the channel at the requested instrument or the panel shows
+        // whatever the channel already held.
+        if (opts?.symbol && opts?.channel && opts.channel !== "none") {
+          ctxRef.current.setSymbol(opts.channel, opts.symbol);
+        }
+        const params: Record<string, unknown> = {};
+        if (opts?.channel) params.channel = opts.channel;
+        else if (isChart && opts?.symbol) params.channel = "none";
+        if (isChart && opts?.symbol) params.symbol = opts.symbol;
+        api.addPanel({
+          id: `${id}-${Date.now()}`,
+          component: id,
+          title: WIDGET_TITLES[id],
+          params: Object.keys(params).length ? params : undefined,
+        });
+        saveActiveLayout(assetClass, api.toJSON());
+        setPanelCount(api.panels.length);
+      },
+      removeWidget: ({ widget, panelId }) => {
+        const api = apiRef.current;
+        if (!api) return false;
+        let panel = panelId
+          ? api.panels.find((p) => p.id === panelId)
+          : undefined;
+        if (!panel && widget) {
+          const matches = api.panels.filter(
+            (p) => p.id === widget || p.id.startsWith(`${widget}-`),
+          );
+          panel = matches[matches.length - 1];
+        }
+        if (!panel) return false;
+        api.removePanel(panel);
+        saveActiveLayout(assetClass, api.toJSON());
+        setPanelCount(api.panels.length);
+        return true;
+      },
+      buildCustomLayout: (spec) => {
+        const api = apiRef.current;
+        if (!api) return;
+        clearActiveLayout(assetClass);
+        // Seed channel symbols from the spec: channel-linked panels (profiles
+        // always, channel-bound charts) take their symbol from the channel, so a
+        // requested instrument is lost unless we point the channel at it. A chart
+        // carrying a symbol with a channel thus drives every widget on that
+        // channel (e.g. a paired chart + profile column).
+        for (const w of spec.widgets) {
+          if (w.symbol && w.channel && w.channel !== "none") {
+            ctxRef.current.setSymbol(w.channel, w.symbol);
+          }
+        }
+        buildLayout(api, spec);
+        saveActiveLayout(assetClass, api.toJSON(), "custom");
+        setPanelCount(api.panels.length);
+      },
+      panelIds: () => apiRef.current?.panels.map((p) => p.id) ?? [],
+    };
+    handleRef.current = handle;
+    registerWorkspace(handle);
   };
 
   useEffect(
@@ -1131,6 +1224,7 @@ export default function Workspace({
       if (saveTimerRef.current !== undefined) {
         window.clearTimeout(saveTimerRef.current);
       }
+      if (handleRef.current) unregisterWorkspace(handleRef.current);
     },
     [],
   );

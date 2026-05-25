@@ -2,7 +2,7 @@ import { useEffect } from "react";
 
 import { useOrderTicket } from "../../../hooks/useOrderTicket";
 import { money } from "../../../lib/format";
-import CmdResultCard from "../CmdResultCard";
+import AskResultCard from "../AskResultCard";
 
 export function OrderCard({
   side,
@@ -41,7 +41,7 @@ export function OrderCard({
   const tintBg = side === "buy" ? "var(--pos-bg)" : "var(--neg-bg)";
 
   return (
-    <CmdResultCard
+    <AskResultCard
       title={`${side === "buy" ? "Buy" : "Sell"} ${qty} ${symbol}`}
       meta={otype === "limit" ? `LIMIT ${price ?? "—"}` : "MARKET"}
     >
@@ -132,6 +132,6 @@ export function OrderCard({
         Paper account · no live funds at risk
       </div>
       <div className="hidden" style={{ background: tintBg }} />
-    </CmdResultCard>
+    </AskResultCard>
   );
 }

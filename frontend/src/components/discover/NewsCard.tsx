@@ -1,7 +1,58 @@
 import { relTime } from "../../lib/format";
 import type { MarketNewsArticle } from "../../types";
 
-export function NewsCard({ articles }: { articles: MarketNewsArticle[] }) {
+export function NewsCard({
+  articles,
+  bare = false,
+}: {
+  articles: MarketNewsArticle[];
+  bare?: boolean;
+}) {
+  const body = (
+    <div>
+      {articles.length === 0 && (
+        <p className="text-[13px]" style={{ color: "var(--mute)" }}>
+          No headlines this hour.
+        </p>
+      )}
+      {articles.map((a, i) => (
+        <a
+          key={`${a.pub_time}-${i}`}
+          href={a.link}
+          target="_blank"
+          rel="noreferrer"
+          className="flex gap-4 items-start no-underline"
+          style={{
+            padding: "14px 0",
+            borderTop: i === 0 ? "none" : "1px solid var(--border)",
+            color: "var(--text)",
+          }}
+        >
+          <span
+            className="font-mono text-[11px] min-w-[60px] pt-px"
+            style={{ color: "var(--mute)" }}
+          >
+            {relTime(a.pub_time)}
+          </span>
+          <div className="flex-1">
+            <div
+              className="text-[11px] font-medium uppercase"
+              style={{
+                color: "var(--accent-2)",
+                letterSpacing: "0.04em",
+              }}
+            >
+              {a.source}
+            </div>
+            <div className="text-[15px] mt-0.5">{a.title}</div>
+          </div>
+        </a>
+      ))}
+    </div>
+  );
+
+  if (bare) return body;
+
   return (
     <div
       className="p-[18px]"
@@ -12,60 +63,14 @@ export function NewsCard({ articles }: { articles: MarketNewsArticle[] }) {
         boxShadow: "var(--shadow-sm)",
       }}
     >
-      <div>
-        {articles.length === 0 && (
-          <p className="text-[13px]" style={{ color: "var(--mute)" }}>
-            No headlines this hour.
-          </p>
-        )}
-        {articles.map((a, i) => (
-          <a
-            key={`${a.pub_time}-${i}`}
-            href={a.link}
-            target="_blank"
-            rel="noreferrer"
-            className="flex gap-4 items-start no-underline"
-            style={{
-              padding: "14px 0",
-              borderTop: i === 0 ? "none" : "1px solid var(--border)",
-              color: "var(--text)",
-            }}
-          >
-            <span
-              className="font-mono text-[11px] min-w-[60px] pt-px"
-              style={{ color: "var(--mute)" }}
-            >
-              {relTime(a.pub_time)}
-            </span>
-            <div className="flex-1">
-              <div
-                className="text-[11px] font-medium uppercase"
-                style={{
-                  color: "var(--accent-2)",
-                  letterSpacing: "0.04em",
-                }}
-              >
-                {a.source}
-              </div>
-              <div className="text-[15px] mt-0.5">{a.title}</div>
-            </div>
-          </a>
-        ))}
-      </div>
+      {body}
     </div>
   );
 }
 
-export function NewsCardSkeleton() {
-  return (
-    <div
-      className="p-[18px] animate-pulse"
-      style={{
-        background: "var(--panel)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--r-lg)",
-      }}
-    >
+export function NewsCardSkeleton({ bare = false }: { bare?: boolean } = {}) {
+  const body = (
+    <div className="animate-pulse">
       {Array.from({ length: 4 }).map((_, i) => (
         <div
           key={i}
@@ -79,6 +84,21 @@ export function NewsCardSkeleton() {
           </div>
         </div>
       ))}
+    </div>
+  );
+
+  if (bare) return body;
+
+  return (
+    <div
+      className="p-[18px]"
+      style={{
+        background: "var(--panel)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--r-lg)",
+      }}
+    >
+      {body}
     </div>
   );
 }

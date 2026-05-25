@@ -5,13 +5,24 @@ import {
   windowLabel,
   type MarketSummaryCache,
 } from "../../../hooks/useMarketSummary";
-import type { AssetClass } from "../../../lib/cmd-intent";
-import CmdResultCard from "../CmdResultCard";
+import type { AssetClass } from "../../../lib/ask-intent";
+import { useSettings } from "../../../hooks/useSettings";
+import AskResultCard from "../AskResultCard";
+import AiDisabledNotice from "../../AiDisabledNotice";
 
 export function MarketSummaryIntentCard({ assetClass }: { assetClass: AssetClass }) {
+  const enabled = useSettings().marketSummaryAiEnabled;
   const [cache] = useState<MarketSummaryCache | null>(() =>
     readMarketSummaryCache(assetClass),
   );
+
+  if (!enabled) {
+    return (
+      <AskResultCard title="✦ Market summary">
+        <AiDisabledNotice surface="market" compact />
+      </AskResultCard>
+    );
+  }
 
   const label = cache
     ? windowLabel(cache.window, assetClass)
@@ -30,7 +41,7 @@ export function MarketSummaryIntentCard({ assetClass }: { assetClass: AssetClass
     : null;
 
   return (
-    <CmdResultCard
+    <AskResultCard
       title={`✦ ${label}`}
       meta={genTime ? `Generated ${genTime} ${tzLabel}` : "No summary yet"}
     >
@@ -48,6 +59,6 @@ export function MarketSummaryIntentCard({ assetClass }: { assetClass: AssetClass
             : "No summary available yet. It generates automatically at midnight, market open (9:30), midday (12:00), and market close (4:30) EST — open the Stocks Discover page to trigger it."}
         </p>
       )}
-    </CmdResultCard>
+    </AskResultCard>
   );
 }

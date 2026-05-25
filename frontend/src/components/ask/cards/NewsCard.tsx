@@ -1,7 +1,7 @@
 import { useMarketNews, useNews } from "../../../data/hooks";
-import type { AssetClass } from "../../../lib/cmd-intent";
+import type { AssetClass } from "../../../lib/ask-intent";
 import { relTime } from "../../../lib/format";
-import CmdResultCard from "../CmdResultCard";
+import AskResultCard from "../AskResultCard";
 
 function NewsRow({
   href,
@@ -54,16 +54,16 @@ function TickerNewsCard({ symbol, label }: { symbol: string; label: string }) {
   const { data, error } = useNews(query, 10);
   if (!data) {
     return (
-      <CmdResultCard title={`News · ${label}`}>
+      <AskResultCard title={`News · ${label}`}>
         <div className="text-[13px]" style={{ color: "var(--mute)" }}>
           {error ? (error as Error).message : "Loading…"}
         </div>
-      </CmdResultCard>
+      </AskResultCard>
     );
   }
   const items = data.news.slice(0, 6);
   return (
-    <CmdResultCard title={`News · ${label}`} meta={`${items.length} items`}>
+    <AskResultCard title={`News · ${label}`} meta={`${items.length} items`}>
       {items.length === 0 ? (
         <div className="text-[13px]" style={{ color: "var(--mute)" }}>
           No recent Benzinga coverage for {label}.
@@ -82,7 +82,7 @@ function TickerNewsCard({ symbol, label }: { symbol: string; label: string }) {
           ))}
         </div>
       )}
-    </CmdResultCard>
+    </AskResultCard>
   );
 }
 
@@ -90,15 +90,15 @@ function MarketNewsCard() {
   const { data, error } = useMarketNews(8);
   if (!data) {
     return (
-      <CmdResultCard title="Headlines">
+      <AskResultCard title="Headlines">
         <div className="text-[13px]" style={{ color: "var(--mute)" }}>
           {error ? (error as Error).message : "Loading…"}
         </div>
-      </CmdResultCard>
+      </AskResultCard>
     );
   }
   return (
-    <CmdResultCard
+    <AskResultCard
       title="Market headlines"
       meta={`${data.articles.length} items`}
     >
@@ -114,7 +114,7 @@ function MarketNewsCard() {
           />
         ))}
       </div>
-    </CmdResultCard>
+    </AskResultCard>
   );
 }
 

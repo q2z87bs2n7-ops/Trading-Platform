@@ -2,7 +2,7 @@ import { useEffect } from "react";
 
 import { useClosePosition, usePositions } from "../../../data/hooks";
 import { money, pct } from "../../../lib/format";
-import CmdResultCard from "../CmdResultCard";
+import AskResultCard from "../AskResultCard";
 
 export function CloseCard({
   symbol,
@@ -25,26 +25,26 @@ export function CloseCard({
 
   if (positions.isPending) {
     return (
-      <CmdResultCard title={`Close ${symbol}`}>
+      <AskResultCard title={`Close ${symbol}`}>
         <div className="text-[13px]" style={{ color: "var(--mute)" }}>
           Loading position…
         </div>
-      </CmdResultCard>
+      </AskResultCard>
     );
   }
   if (!pos) {
     return (
-      <CmdResultCard title={`Close ${symbol}`}>
+      <AskResultCard title={`Close ${symbol}`}>
         <div className="text-[13px]" style={{ color: "var(--mute)" }}>
           You have no open position in {symbol}.
         </div>
-      </CmdResultCard>
+      </AskResultCard>
     );
   }
 
   const plUp = pos.unrealized_pl >= 0;
   return (
-    <CmdResultCard
+    <AskResultCard
       title={`Close ${symbol}`}
       meta={`${pos.qty} shares · ${pos.side}`}
     >
@@ -109,6 +109,6 @@ export function CloseCard({
       >
         {close.isPending ? "Closing…" : `Close position`}
       </button>
-    </CmdResultCard>
+    </AskResultCard>
   );
 }

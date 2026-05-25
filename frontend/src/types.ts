@@ -145,6 +145,60 @@ export interface Asset {
   market_cap?: number | null;
 }
 
+// Full catalogue enrichment for one symbol (/api/asset-profile). NULL columns
+// are dropped server-side, so everything past identity is optional and the set
+// present depends on asset_class (FMP fields for stocks, CoinGecko for crypto).
+export interface AssetProfile {
+  symbol: string;
+  name: string;
+  asset_class: string;
+  exchange?: string;
+  status?: string;
+  tradable?: boolean;
+  marginable?: boolean;
+  shortable?: boolean;
+  fractionable?: boolean;
+  // Common enrichment.
+  description?: string;
+  website?: string;
+  logo_url?: string;
+  market_cap?: number;
+  // Stock enrichment (FMP).
+  sector?: string;
+  industry?: string;
+  country?: string;
+  city?: string;
+  state?: string;
+  ipo_date?: string;
+  isin?: string;
+  cik?: string;
+  is_etf?: boolean;
+  is_adr?: boolean;
+  is_fund?: boolean;
+  is_actively_trading?: boolean;
+  ceo?: string;
+  employees?: number;
+  beta?: number;
+  // Crypto enrichment (CoinGecko).
+  coingecko_id?: string;
+  hashing_algorithm?: string;
+  genesis_date?: string;
+  categories?: string[];
+  whitepaper_url?: string;
+  github_url?: string;
+  circulating_supply?: number;
+  total_supply?: number;
+  max_supply?: number;
+  market_cap_rank?: number;
+  ath_usd?: number;
+  ath_date?: string;
+  atl_usd?: number;
+  atl_date?: string;
+  // Metadata.
+  enriched_at?: string;
+  enrichment_source?: string;
+}
+
 export interface Snapshot {
   symbol: string;
   prev_close: number | null;
@@ -192,6 +246,42 @@ export interface MarketNewsArticle {
 
 export interface MarketNewsResponse {
   articles: MarketNewsArticle[];
+}
+
+// FMP earnings calendar row (/api/calendar/earnings[/{symbol}]). `date` is
+// YYYY-MM-DD; estimates are null until reported, actuals null until released.
+export interface EarningsRow {
+  symbol: string;
+  date: string;
+  eps_estimate: number | null;
+  eps_actual: number | null;
+  revenue_estimate: number | null;
+  revenue_actual: number | null;
+  market_cap?: number | null;
+}
+
+export interface EarningsResponse {
+  earnings: EarningsRow[];
+  as_of?: number;
+}
+
+// FMP economic calendar row (/api/calendar/economic). `date` is
+// "YYYY-MM-DD HH:MM:SS" (UTC); `impact` is "High" | "Medium" | "Low".
+export interface EconomicRow {
+  date: string;
+  country: string | null;
+  event: string | null;
+  currency: string | null;
+  impact: string | null;
+  previous: number | null;
+  estimate: number | null;
+  actual: number | null;
+  unit: string | null;
+}
+
+export interface EconomicResponse {
+  economic: EconomicRow[];
+  as_of?: number;
 }
 
 // Benzinga ticker news via Alpaca /api/news

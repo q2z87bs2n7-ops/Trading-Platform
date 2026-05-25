@@ -12,7 +12,8 @@ import SectionHeading from "./components/SectionHeading";
 import TVPlatform from "./components/TVPlatform";
 import ChatPanel from "./components/chat/ChatPanel";
 import TradeBar from "./components/trade/TradeBar";
-import CmdBar from "./components/cmd/CmdBar";
+import AskBar from "./components/ask/AskBar";
+import { registerAppHooks } from "./lib/workspace/controller";
 import SettingsMenu from "./components/SettingsMenu";
 import Toaster from "./components/Toaster";
 import IconButton from "./components/IconButton";
@@ -164,7 +165,7 @@ export default function App() {
   const [selected, setSelected] = useState<string>("");
   const [mode, setMode] = useState<PlatformMode>("discover");
   const [assetClassMode, setAssetClassMode] = useState<AssetClassMode | null>(readAssetClassMode);
-  const [cmdOpen, setCmdOpen] = useState(false);
+  const [askOpen, setAskOpen] = useState(false);
   const [hubOpen, setHubOpen] = useState(false);
   // The platform always lands on the market-picker / account overview, so
   // this starts open on every load (no last-page restore).
@@ -189,7 +190,7 @@ export default function App() {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setCmdOpen((v) => !v);
+        setAskOpen((v) => !v);
         return;
       }
       if (e.key === "Escape" && focusMode) {
@@ -219,9 +220,22 @@ export default function App() {
     setHubOpen(false);
   }
 
-  function openCmdBar() {
-    setCmdOpen(true);
+  function openAskBar() {
+    setAskOpen(true);
   }
+
+  // Bridge App-level mode/silo control to the Ask-anything Workspace controller
+  // so the bot can auto-switch into Workspace mode (and silo) before applying.
+  useEffect(() => {
+    registerAppHooks({
+      enterWorkspace: (silo) => {
+        if (silo && silo !== activeClass) switchAssetClass(silo);
+        switchMode("workspace");
+      },
+      getEnv: () => ({ mode, assetClass: activeClass, isMobile }),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, activeClass, isMobile]);
 
   // Per-silo accent: stocks → green, crypto → default (blue). Overriding the
   // accent tokens here recolours selection borders, button highlights and
@@ -246,7 +260,7 @@ export default function App() {
             mode={mode}
             activeClass={activeClass}
             onOpenDrawer={() => setDrawerOpen(true)}
-            onOpenCmd={openCmdBar}
+            onOpenAsk={openAskBar}
             onSwitchMode={switchMode}
             onSwitchAssetClass={switchAssetClass}
           />
@@ -296,7 +310,7 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2">
-            <AskPill onClick={openCmdBar} />
+            <AskPill onClick={openAskBar} />
             <ThemeToggle theme={theme} onToggle={toggleTheme} />
             <SettingsMenu />
           </div>
@@ -377,12 +391,12 @@ export default function App() {
       )}
 
       {/* Ask anything — mounted in the app shell so it's available from
-         every mode. Closed by default; openCmdBar() drives the pill click
+         every mode. Closed by default; openAskBar() drives the pill click
          and the global Cmd+K / Ctrl+K hotkey toggles it. */}
-      <CmdBar
-        open={cmdOpen}
+      <AskBar
+        open={askOpen}
         assetClass={activeClass}
-        onClose={() => setCmdOpen(false)}
+        onClose={() => setAskOpen(false)}
         onOpenInWorkspace={(sym) => {
           setSelected(sym);
           switchMode("chart");

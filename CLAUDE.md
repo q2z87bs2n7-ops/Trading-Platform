@@ -1,10 +1,12 @@
 # CLAUDE.md
 
 Guidance for working in this repo. Read in full before changing deploy
-config, dependencies, or the streaming path. See `README.md` for setup
-and deployment, `BACKLOG.md` for deferred work, and `docs/landmines.md`
-for the Vercel-Python / TradingView / streaming details that took
-several iterations to land — don't undo them.
+config, dependencies, or the streaming path. Companion docs:
+`README.md` (setup & deployment), `BACKLOG.md` (deferred work),
+`docs/landmines.md` (Vercel-Python / TradingView / streaming details
+that took several iterations to land — don't undo them),
+`docs/workspace.md` (Workspace mode + module pattern), `docs/ai.md`
+(the two AI surfaces), `docs/database.md` (Postgres asset catalogue).
 
 ## What this is
 
@@ -70,7 +72,11 @@ separate silos behind a shared account.
       only; `BalanceCard` headline is silo holdings, with silo day P/L and
       stock buying power — no shared cash), indices marquee ticker,
       watchlist sparkline cards, inline chart, gainers/losers tabbed card
-      (with most-active volume), market news.
+      (with most-active volume), **earnings calendar**
+      (`discover/EarningsCard.tsx`, paginated 10/page), **economic calendar**
+      (`discover/EconomicCard.tsx`, US high/medium-impact, day-paginated —
+      defaults to today, falls back to the next day with events), market news.
+      Both pagers share `discover/CardPager.tsx`.
     - *Crypto*: crypto price marquee ticker (`discover/CryptoTicker.tsx`),
       holdings + allocation hero (crypto positions only;
       `non_marginable_buying_power`), crypto watchlist sparkline cards,
@@ -94,74 +100,14 @@ separate silos behind a shared account.
     for open orders/positions draw. Datafeed: `lib/tv-datafeed.ts`.
     Broker: `lib/tv-broker.ts`. ChartBot side panel mounts here when
     `AI_CHAT_ENABLED=true`.
-  - **Workspace** (desktop only — hidden on mobile) — a dockable
-    widget canvas (`components/Workspace.tsx` + `lib/workspace/registry.tsx`
-    + `lib/workspace/presets.tsx`) built on Dockview (`dockview-react`,
-    lazy-loaded): drag-to-dock, tab-stack, float and pop-out panels, per-silo
-    layout persistence (`workspace_layouts_{stocks,crypto}_v2` —
-    `{ active: { name, layout }, saved: {} }`; a transparent migration from
-    the old `workspace_layout_{silo}_v1` runs on first load after upgrade).
-    Toolbar: a primary **＋ Add widget** menu (320px `<body>`-portaled popover
-    with a search input, grouped sections — Charts / Trade / Market data /
-    Activity — and inline single-stroke icons; ↑/↓/Enter/Esc), a live
-    **Channels strip** (one chip per symbol channel showing the channel
-    symbol + a count of widgets bound to it; click opens `AssetSearch` to
-    retarget the channel everywhere), a **Layouts ▾** picker that opens a
-    480px popover of named presets (Trader / Researcher / Watcher / Focus —
-    see `presets.tsx`; Trader = the old default, applied on first run; Apply
-    confirms then clobbers the canvas), a **Tab bars** toggle (per-group
-    header via Dockview), and a **Focus** toggle (hides the app header for a
-    near-full-screen canvas; `Esc` exits unless a `[role=dialog]` is focused).
-    When the canvas has zero panels an empty-state overlay shows ＋ Add
-    widget / Browse layouts CTAs that imperatively open the toolbar menus.
-    The mode also goes **full-bleed** (`.app.bleed` in `index.css` — no
-    max-width/gutters, a full-height flex column so the dock fills the
-    viewport) and **drops the `TopBar` equity strip** (account figures live
-    in the Account widget).
-    Widgets reuse existing surfaces — the primary **Chart** is a **bare**
-    TradingView chart (`components/TVChartWidget.tsx`: TV's native chrome only,
-    *none* of the `TVPlatform` chrome; account manager off + object tree
-    collapsed; a ResizeObserver hides the legend + shrinks the scale font on
-    small panels, layering on TV's own autosize); an opt-in **Mini chart**
-    offers the lighter lightweight-charts
-    `PriceChart` (no iframe, `responsive` prop — sheds chrome + chart axes to
-    fit its panel via ResizeObserver, and at the smallest **spark** tier swaps
-    the candles for a bare close-price area sparkline) as an extra — the
-    "bare-TV-only" rule governs the primary Chart, not this explicit add-on.
-    Plus an inline trade
-    ticket (`components/trade/OrderTicketInline.tsx` — reuses `useOrderTicket` +
-    the OrderSheet inputs; always symbol-linked, no None channel), an **Account**
-    widget (`components/AccountPanel.tsx` — curated whole-account overview:
-    equity, day P/L, buying power, cash, positions value, portfolio value,
-    margin (initial/maintenance), and short value when non-zero), a **Watchlist**
-    (`components/Watchlist.tsx` — silo watchlist spark cards; a click writes to
-    the widget's channel), positions, orders, activity, news.
-    Each widget carries a **link channel** (None + Main/blue/green/amber,
-    persisted in the panel's Dockview params): a symbol channel filters the
-    widget to that one instrument (Positions/Orders/Activities take a `symbol`
-    filter prop, news uses instrument-specific `useNews`); **None** shows
-    whole-account info (Trade and the chart widgets are symbol-only, no None;
-    the Account widget is `lockedChannel` — always None, picker hidden).
-    "Main" proxies the app's selected symbol. The widget header (`LinkHeader`)
-    carries a 2px channel-coloured accent bar across the top, a primary mono
-    symbol label that doubles as a click-to-search picker (`AssetSearch`),
-    and a quiet `kind` label (e.g. `AAPL · Chart`); each panel tab also
-    renders a small channel-coloured dot via a custom Dockview
-    `tabComponents.default` (`TabWithChannel`, reads `params.channel` —
-    seeded on mount by `useChannel`). `useChannel` also reports up to the
-    Workspace context so the toolbar Channels strip can count widgets per
-    channel (Dockview emits no params-changed event). Live
-    quotes and bars are deduped across all widgets through shared ref-counted
-    streams (`data/quoteStream.ts`,
-    `data/barStream.ts`); `useLiveQuotes` and `lib/tv-datafeed.ts` ride them.
-    **Panel-size fit:** charts shed chrome/axes as their panel shrinks (see the
-    chart widgets above); Positions/Orders/Activities flip to their stacked
-    card layout in narrow panels via `hooks/useContainerNarrow` + an additive
-    `dense` prop (panel-width, since `useMobile` is viewport-only and never
-    trips in this desktop-only mode; the flip width is tuned per widget by
-    column count — Orders 560, Positions 480, Activities 360); the header
-    `AssetSearch` portals its
-    dropdown to `<body>` so it isn't clipped by the panel.
+  - **Workspace** (desktop only — hidden on mobile) — a dockable widget
+    canvas on Dockview (`components/Workspace.tsx` + `lib/workspace/`):
+    per-silo layout persistence, link-channel widgets (None +
+    Main/blue/green/amber), named layout presets, and an Ask-anything
+    control path. Goes full-bleed and drops the `TopBar` equity strip
+    (account figures live in the Account widget). **Full detail — widget
+    catalogue, channels, toolbar, panel-size fit, and the module-reuse
+    pattern — is in `docs/workspace.md`.**
 - **Mobile / responsive (≤ 640px).** A single `useMobile()` hook
   (`hooks/useMobile.ts`, `matchMedia("(max-width: 640px)")`) gates the
   phone layouts; it mirrors the CSS `@media (max-width: 640px)` breakpoint
@@ -177,7 +123,7 @@ separate silos behind a shared account.
   (`⋯` overflow popover for type/indicators), and the ChartBot panel
   becomes a floating **violet launcher + slide-up sheet** (the header `✦`
   stays Ask-anything — teal — in every mode). `OrderSheet` and the
-  Ask-anything `CmdBar` go full-screen with safe-area-padded sticky
+  Ask-anything `AskBar` go full-screen with safe-area-padded sticky
   footers; `TradeBar` and the watchlist add-sheet clear the home
   indicator. Mobile tokens (`--mob-*`, `--safe-*`) live in `index.css`;
   `--mob-hero-value` is deliberately scoped to the media query, not
@@ -210,22 +156,34 @@ separate silos behind a shared account.
 - **Backend:** FastAPI + `alpaca-py`. Real code in `backend/app/`;
   `api/index.py` is the Vercel shim. Endpoints under `/api/`: health,
   config, account, bars, quotes, snapshots, stream, orders, positions,
-  portfolio/history, pnl-history, activities, clock, calendar, assets,
-  news, watchlist, movers, most-active, indices,
+  portfolio/history, pnl-history, activities, clock, calendar,
+  calendar/earnings, calendar/earnings/{symbol}, calendar/economic, assets,
+  asset-profile, news, watchlist, movers, most-active, indices,
   market-news, crypto/tickers, ai/chat, ai/ask (last two gated by
   `AI_CHAT_ENABLED`; require `ANTHROPIC_API_KEY`). `/api/indices` and
   `/api/market-news` hit Yahoo Finance directly via `requests` (no yfinance,
-  no C extensions — Python 3.14 safe). `/api/news` and `/api/most-active` are
+  no C extensions — Python 3.14 safe). `/api/calendar/{earnings,economic}`
+  are **FMP-backed**, live-proxied with an in-process cache (`calendar_fmp.py`,
+  the indices/market-news pattern — never persisted, no scheduler); they need
+  no Alpaca keys and return `[]` when `FMP_API_KEY` is unset. The earnings
+  calendar curates the noisy whole-market feed by **market cap**
+  (`db.market_cap_map()`) but always unions the user's positions / open orders /
+  watchlist symbols (passed as `?include=`); when the DB is unreachable it
+  degrades to those `include` symbols only. FMP economic times are **UTC**. `/api/news` and `/api/most-active` are
   served but only consumed by the AI tool loop — don't delete them. `/api/assets`
   (search) and `/api/assets/{symbol}` are **DB-backed** off the catalogue (clean
   enum values, sector/logo/market_cap; Alpaca fallback) and power the watchlist
-  autocomplete, chart search, and the bot's `find_symbol`. The Postgres **asset
+  autocomplete, chart search, and the bot's `find_symbol`. `/api/asset-profile/
+  {symbol}` (sibling path — *not* the removed `/api/assets/{symbol}/profile`)
+  returns the full enrichment row (`db.get_asset_profile`, NULLs dropped) that
+  powers the Workspace **Profile** widget. The Postgres **asset
   catalogue** is filled by two Render-only dev seeders — `POST
   /api/_dev/seed-assets` (Alpaca base + CoinGecko crypto) and `POST
   /api/_dev/enrich-stocks` (FMP stock enrichment) — see "Asset catalogue" below
   and `docs/database.md`.
   **Path params with slashes:** `/api/assets/{symbol:path}`,
-  `/api/positions/{symbol:path}`, and `/api/watchlist/{symbol:path}`
+  `/api/asset-profile/{symbol:path}`, `/api/positions/{symbol:path}`, and
+  `/api/watchlist/{symbol:path}`
   use FastAPI's `:path` converter so `BTC/USD` passes through without
   breaking routing. Frontend never calls `encodeURIComponent` on symbol
   path segments (symbols are `[A-Z0-9/.]` only).
@@ -322,42 +280,16 @@ separate silos behind a shared account.
 
 ## Workspace module pattern (reuse strategy)
 
-Adding surfaces — Workspace widgets, or anything that may live in more than one
-place — follows a strict three-layer split so a module built for one surface is
-reusable elsewhere for free:
-
-1. **Engine** — hooks + data + types (`use*`, `data/`, `api`, `types.ts`). Pure
-   logic, no UI; shared platform-wide.
-2. **Feature component** — presentational and *location-agnostic*: takes
-   `symbol` / `assetClass` / callbacks as props and knows **nothing** about the
-   Workspace. Lives in `components/`. Examples: `PriceChart`, `TVChartWidget`,
-   `OrderTicketInline`, `Positions`, `Orders`, `Activities`, `NewsCard`,
-   `AssetSearch`.
-3. **Workspace adapter** — `lib/workspace/registry.tsx` (+ `Workspace.tsx`): the
-   *only* layer that knows Dockview, link channels, the `LinkHeader`, and
-   `useWorkspace`. It wraps a feature component and injects the cross-cutting
-   Workspace behaviours (channel symbol, header symbol picker, shared streams).
-
-Rules:
-
-- **Never put Workspace concerns inside a feature component** — no
-  `useWorkspace()`, Dockview params, channel logic, or `LinkHeader`. If a feature
-  component reaches for `useWorkspace()`, lift that into the adapter. A feature
-  component importing from `lib/workspace/` is a smell.
-- **Build new modules as a layer-2 component first** (props in, callbacks out)
-  even when the Workspace is the only consumer today, then add a ~15-line
-  registry wrapper — reuse elsewhere is then just rendering it with props.
-  `OrderTicketInline` is the precedent (built for the Workspace, lives in
-  `components/trade/`, takes only `{ symbol }`).
-- **Evolve shared components with additive, default-off props** — never change a
-  shared component's default behaviour for a new surface. Precedents:
-  `PriceChart`'s `responsive` (default `false` keeps Discover unchanged) and the
-  optional `symbol` filter on `Positions`/`Orders`/`Activities`.
-- **File location signals reusability:** reusable cores live in `components/`;
-  anything under `lib/workspace/` is Workspace-coupled by definition — don't park
-  a reusable core there.
-- The registry is the single catalogue (`widgetId → component`); expose or retire
-  a Workspace module there.
+Surfaces that may live in more than one place follow a strict three-layer
+split: **engine** (hooks/data/types, no UI) → **feature component**
+(presentational, location-agnostic, props in / callbacks out, lives in
+`components/`, knows **nothing** about the Workspace) → **Workspace adapter**
+(`lib/workspace/registry.tsx`, the only layer that knows Dockview, link
+channels, and `LinkHeader`). A feature component importing from
+`lib/workspace/` or calling `useWorkspace()` is a smell. Evolve shared
+components with **additive, default-off props** — never change a default for a
+new surface. Full rules, precedents, and examples: `docs/workspace.md` →
+"Module pattern".
 
 ## localStorage keys (single-user app)
 
@@ -369,7 +301,7 @@ Rules:
 | `ai_drawings_v1` | `tv-drawings.ts` | `tv-drawings.ts` | Per-symbol drawing UUIDs replayed on chart load. |
 | `chart_blotter_collapsed` | `ChartBlotter` | `ChartBlotter` | `"1"` collapsed. With no stored value, defaults collapsed on mobile (≤640px) and expanded on desktop. |
 | `market_summary_v1` / `crypto_market_summary_v1` | `useMarketSummary` | `useMarketSummary` + Ask-anything summary card | Per-silo cached AI market summary (window, date, content). |
-| `app_settings_v1` | `lib/settings.ts` | `useSettings` + `SettingsMenu` | JSON-encoded `AppSettings`. Today: `cmdbarAiEnabled` (default `true`). |
+| `app_settings_v1` | `lib/settings.ts` | `useSettings` + `SettingsMenu` + `MobileNavDrawer` | JSON-encoded `AppSettings`. Three per-surface AI toggles, each default `false` (opt-in — no Anthropic credits until enabled): `marketSummaryAiEnabled` / `askAiEnabled` / `chartbotEnabled`. When a surface is off it renders a shared `AiDisabledNotice` ("…enable in Settings") instead of calling Claude. |
 | `workspace_layouts_stocks_v2` / `workspace_layouts_crypto_v2` | `components/Workspace.tsx` | `components/Workspace.tsx` | Per-silo Workspace layouts — `{ active: { name, layout }, saved: {} }`. `active.layout` is the live Dockview `api.toJSON()`; `active.name` records the last-applied preset (Trader / Researcher / Watcher / Focus). `saved` is reserved for the future "Save current as…" UI. Migrates transparently from the old `workspace_layout_{silo}_v1` (raw layout) on first load after upgrade; the v1 key is then removed. Cleared by applying a preset from the in-canvas Layouts menu. |
 | `workspace_channels_v1` | `components/Workspace.tsx` | `components/Workspace.tsx` | Per-silo colour-channel symbols (`{stocks,crypto}` → channel → symbol). Seeded from `CHANNEL_DEFAULTS`; persists header-search picks across reloads. "main" is not stored here (it proxies the app's selected symbol). |
 
@@ -398,72 +330,18 @@ Watchlists are not in localStorage — server-side via `/api/watchlist`.
 
 ## Two AI surfaces (teal Ask anything vs violet ChartBot)
 
-Accent colour is the tell: **teal = local intent parser** (free,
-instant); **violet = real Claude API call** (Anthropic credits, slow).
-
-- **Ask anything module** (`components/cmd/`, all modes). Opened by the
-  "Ask anything" pill or a global `Cmd+K` / `Ctrl+K` listener in
-  `App.tsx`. `lib/cmd-intent.ts` runs a regex/keyword chain and
-  returns one of 9 typed intents (`order`, `close`, `portfolio`,
-  `movers`, `news`, `orders`, `chart`, `market_summary`, `fallback`);
-  each renders a `CmdResultCard` composing existing hooks. **Silo-aware:**
-  `CmdBar` takes the active `assetClass`; `parseIntent(text, assetClass)`
-  recognises crypto pairs (`BTC/USD`) and normalises bare coins → `COIN/USD`
-  in the crypto silo, and the cards behave per silo (portfolio/news/movers
-  filter to the silo; crypto movers are derived client-side from the crypto
-  tickers since Alpaca has no crypto screener). `fallback` intents
-  optionally POST to `/api/ai/ask` (gated by `cmdbarAiEnabled` in
-  `app_settings_v1`, default on; trimmed tool set —
-  `read_only_tools()` in `backend/app/ai/tools.py`; the active `asset_class`
-  is sent so the model steers to the right symbols/news). The fallback bot
-  defaults to the active silo but **can** answer cross-silo / whole-account
-  questions on request — `get_positions`/`get_orders`/`get_account` are
-  whole-account, and `get_watchlist`/`find_symbol` take an `asset_class`
-  arg to target the other silo; the system context tells it not to pull the
-  other silo proactively. It also has **action tools** (Ask-anything only,
-  not ChartBot): `add_to_watchlist`/`remove_from_watchlist` (bulk, validate
-  tradability first — themed lists like "top 10 pharma" come from model
-  knowledge, with `web_search` for current/ranked lists) and
-  `generate_report` (positions/orders/activities/pnl → CSV) and `export_csv`
-  (any other readable data — bars/quotes/news/custom tables — the model fetches
-  then passes as rows). Both surface as a download via `AskResponse.reports`;
-  CSVs are built in `backend/app/ai/reports.py`. These live in `ask_tools()`,
-  not `TOOLS`. **Tool schemas are split across `ai/tools_read.py` (backend),
-  `ai/tools_draw.py` (frontend), and `ai/tools_action.py` (Ask-anything
-  write/report); `ai/tools.py` is the assembler that builds `TOOLS` (read then
-  draw — order is load-bearing for prefix-cache hits) and re-exports the public
-  API (`TOOLS`/`read_only_tools`/`ask_tools`/…). Edit schemas in the split
-  files; never reorder `TOOLS`.** Multi-turn within a session:
-  `CmdBar` keeps a running `apiHistory` and sends prior fallback Q&A as
-  `history` so follow-ups have context; it's session-only (reset on close).
-- **AI market summary** (`hooks/useMarketSummary.ts` + `MarketSummaryCard`,
-  Discover hero). Auto-generates a per-window summary via `/api/ai/ask`
-  (real Claude call; same gating as above). Per silo: **stocks** uses US
-  market windows (open/midday/close EST) and US headlines; **crypto** uses
-  four 6-hour UTC windows (00–06 / 06–12 / 12–18 / 18–24 UTC) and
-  BTC/crypto news; labels show the UTC range explicitly so they are
-  unambiguous for users in any timezone. Cached per silo
-  (`market_summary_v1` / `crypto_market_summary_v1`); the `market_summary`
-  intent card reads the matching cache.
-- **ChartBot side panel** (`components/chat/`, Chart mode only, gated
-  by `AI_CHAT_ENABLED`). 380px violet right-edge panel. Hybrid
-  tool-use loop in `backend/app/ai/router.py`: backend-executed read
-  tools run server-side; frontend-executed chart tools (drawings,
-  studies, symbol/resolution, screenshots, order viz) declared in the
-  same `tools.py` schema but dispatched in `lib/ai-client.ts` against
-  `lib/tv-drawings.ts`, with results folded into the next round (up
-  to 10 outer rounds). Session persists to `chartbot_session` under a
-  256 KB budget. System prompt + tool schemas are cache-marked for
-  Anthropic prefix cache hits — keep the markers.
-
-Tunables: `AI_CHAT_ENABLED`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`
-(default `claude-sonnet-4-6`), `AI_MAX_TOKENS` (4096),
-`AI_MAX_TOOL_ITERATIONS` (16), `AI_WEB_SEARCH_ENABLED` (default `false` —
-Anthropic hosted web_search for the Ask anything bot; requires the org to
-have web search enabled or the API 400s. The bot is internal-first and
-self-heals: if web search is on but unsupported it drops the tool and
-retries from its own tools/knowledge). 60s Anthropic client timeout;
-auth/config errors surface as 503.
+Accent colour is the tell: **teal = local intent parser** (free, instant) —
+the Ask anything module (`components/ask/` + `lib/ask-intent/`), available in
+all modes, with an optional `/api/ai/ask` fallback that adds watchlist/report
+and Workspace-control tools. **violet = real Claude API call** (Anthropic
+credits, slow) — the Discover AI market summary and the Chart-mode ChartBot
+side panel (`backend/app/ai/router.py` hybrid tool loop). All three surfaces
+are opt-in via per-surface toggles in `app_settings_v1` (default off; off
+renders a shared `AiDisabledNotice`). Tunables: `AI_CHAT_ENABLED`,
+`ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `AI_MAX_TOKENS`,
+`AI_MAX_TOOL_ITERATIONS`, `AI_WEB_SEARCH_ENABLED` (default off). **Full wiring
+— tools, the schema split, prefix-cache markers, multi-turn, and per-surface
+gating — is in `docs/ai.md`.**
 
 ## Dual requirements.txt trap
 

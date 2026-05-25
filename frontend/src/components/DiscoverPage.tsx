@@ -7,6 +7,8 @@ import {
   useAddToWatchlist,
   useCryptoTickers,
   useCryptoWatchlist,
+  useEarningsCalendar,
+  useEconomicCalendar,
   useIndices,
   useMarketNews,
   useMostActive,
@@ -29,6 +31,8 @@ import { BalanceCard } from "./discover/BalanceCard";
 import { CardsRow } from "./discover/CardsRow";
 import { ChartCard } from "./discover/ChartCard";
 import { CryptoTicker } from "./discover/CryptoTicker";
+import { EarningsCard, EarningsCardSkeleton } from "./discover/EarningsCard";
+import { EconomicCard, EconomicCardSkeleton } from "./discover/EconomicCard";
 import { HeroCardMobile } from "./discover/HeroCardMobile";
 import { IndicesTicker } from "./discover/IndicesTicker";
 import { MostActiveCard, MostActiveCardSkeleton } from "./discover/MostActiveCard";
@@ -84,6 +88,11 @@ export default function DiscoverPage({
   const movers = useMovers(8, !isCrypto);
   const mostActiveVolume = useMostActive(8, "volume", !isCrypto);
   const mostActiveTrades = useMostActive(8, "trades", !isCrypto);
+
+  // Earnings + economic calendars are stocks-only (no crypto earnings; macro
+  // shown in the equities silo).
+  const earnings = useEarningsCalendar(!isCrypto);
+  const economic = useEconomicCalendar(!isCrypto);
 
   // News source differs per silo: market-wide headlines vs Alpaca BTC feed.
   const stockNews = useMarketNews(8, !isCrypto);
@@ -216,6 +225,7 @@ export default function DiscoverPage({
         isGenerating={marketSummary.isGenerating}
         windowLabel={marketSummary.windowLabel}
         onDismiss={marketSummary.dismiss}
+        disabled={marketSummary.disabled}
       />
 
       {/* Watchlist */}
@@ -373,6 +383,23 @@ export default function DiscoverPage({
                 />
               </div>
             ))}
+        </>
+      )}
+
+      {/* Earnings + economic calendars — stocks only */}
+      {!isCrypto && (
+        <>
+          <SectionHeading label="Earnings" ctx="next 2 weeks" />
+          {earnings.error && <ErrorBanner message={earnings.error.message} />}
+          {!earnings.data && !earnings.error && <EarningsCardSkeleton />}
+          {earnings.data && (
+            <EarningsCard rows={earnings.data.earnings} onSelect={onSelect} />
+          )}
+
+          <SectionHeading label="Economic calendar" ctx="US · high & medium impact" />
+          {economic.error && <ErrorBanner message={economic.error.message} />}
+          {!economic.data && !economic.error && <EconomicCardSkeleton />}
+          {economic.data && <EconomicCard rows={economic.data.economic} />}
         </>
       )}
 

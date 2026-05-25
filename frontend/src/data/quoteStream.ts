@@ -11,18 +11,30 @@
  * buffering from the original hook.
  */
 
-import { getQuotes, streamQuotes } from "../api";
+import { getQuotes, pingRelayHealth, streamQuotes } from "../api";
 import { setStreamStatus } from "../lib/stream-status";
 import type { Quote } from "../types";
 import { qk, queryClient } from "./queryClient";
 
-const POLL_MS = 2000;
+// Fallback is already degraded (stream is down); 15s keeps Vercel edge-request
+// usage reasonable vs the previous 2s default.
+const POLL_MS = 15000;
 // Buffer stream ticks and flush at most this often (mirrors the Watchlist's
 // load-bearing constant from CLAUDE.md). Tune, don't remove.
 const FLUSH_MS = 500;
+// Ping the Render relay every 9 minutes to prevent spindown-triggered fallback.
+const KEEPALIVE_MS = 9 * 60 * 1000;
 // Coalesce a burst of (un)subscribes — e.g. several widgets mounting in the
 // same tick — into one reconnect.
 const RECONNECT_DEBOUNCE_MS = 60;
+// On an SSE drop we fall back to polling immediately, then try to restore the
+// stream on an exponential backoff (3s → 6s → … capped at 60s). A single
+// transient close (proxy connection recycling, relay restart, network blip) is
+// then self-healing instead of a permanent downgrade to polling. Backoff (not a
+// tight loop) avoids hammering a relay that's genuinely down — polling covers
+// data meanwhile; the backoff resets once a reopened stream delivers a tick.
+const STREAM_RETRY_BASE_MS = 3000;
+const STREAM_RETRY_MAX_MS = 60000;
 
 type QuoteMap = Record<string, Quote>;
 type TickListener = (q: Quote) => void;
@@ -34,6 +46,9 @@ let stopStream: (() => void) | null = null;
 let pollId: number | undefined;
 let flushId: number | undefined;
 let reconnectId: number | undefined;
+let keepaliveId: number | undefined;
+let streamRetryId: number | undefined;
+let streamBackoff = 0;
 let pending: QuoteMap = {};
 
 function unionSymbols(): string[] {
@@ -98,9 +113,29 @@ function clearPolling() {
   }
 }
 
+function startKeepalive() {
+  if (keepaliveId !== undefined) return;
+  keepaliveId = window.setInterval(pingRelayHealth, KEEPALIVE_MS);
+}
+
+function clearKeepalive() {
+  if (keepaliveId !== undefined) {
+    window.clearInterval(keepaliveId);
+    keepaliveId = undefined;
+  }
+}
+
+function clearStreamRetry() {
+  if (streamRetryId !== undefined) {
+    window.clearTimeout(streamRetryId);
+    streamRetryId = undefined;
+  }
+}
+
 function teardownTransport() {
   stopStream?.();
   stopStream = null;
+  clearStreamRetry();
   clearPolling();
 }
 
@@ -110,10 +145,12 @@ function connect(symbols: string[], seed: string[]) {
   teardownTransport();
   if (symbols.length === 0) {
     clearFlusher();
+    clearKeepalive();
     setStreamStatus("idle");
     return;
   }
   ensureFlusher();
+  startKeepalive();
   if (seed.length) {
     // Seed immediately so consumers aren't blank while the first tick lands
     // (can take several seconds on a new instrument / cold relay wake-up).
@@ -123,15 +160,50 @@ function connect(symbols: string[], seed: string[]) {
         /* stream or poll will follow */
       });
   }
+  streamBackoff = 0;
   setStreamStatus("streaming");
+  openStream(symbols);
+}
+
+// Open (or re-open) the SSE transport for `symbols`. A tick arriving while we
+// were polling means the stream has recovered: stop polling, flip status back,
+// reset the backoff. On error, fall back to polling and schedule a backoff'd
+// retry so a transient drop self-heals.
+function openStream(symbols: string[]) {
   stopStream = streamQuotes(
     symbols,
     (q) => {
+      if (pollId !== undefined) {
+        clearPolling();
+        setStreamStatus("streaming");
+        streamBackoff = 0;
+      }
       pending[q.symbol] = q;
       notifyTicks([q]);
     },
-    () => startPolling(symbols),
+    () => {
+      stopStream = null;
+      startPolling(symbols);
+      scheduleStreamRetry(symbols);
+    },
   );
+}
+
+function scheduleStreamRetry(symbols: string[]) {
+  if (streamRetryId !== undefined) return;
+  const delay = Math.min(
+    STREAM_RETRY_BASE_MS * 2 ** streamBackoff,
+    STREAM_RETRY_MAX_MS,
+  );
+  streamBackoff += 1;
+  streamRetryId = window.setTimeout(() => {
+    streamRetryId = undefined;
+    // A union change tears down the transport (clearing this timer), so a fired
+    // retry means the union is unchanged; guard anyway. Polling keeps running
+    // until the reopened stream delivers its first tick.
+    if (symbols.join(",") !== currentKey) return;
+    openStream(symbols);
+  }, delay);
 }
 
 function scheduleReconnect() {

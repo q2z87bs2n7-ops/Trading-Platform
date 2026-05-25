@@ -8,11 +8,21 @@ import TVChartWidget from "../../components/TVChartWidget";
 import PriceChart from "../../components/PriceChart";
 import OrderTicketInline from "../../components/trade/OrderTicketInline";
 import AccountPanel from "../../components/AccountPanel";
+import AssetProfile from "../../components/AssetProfile";
 import Watchlist from "../../components/Watchlist";
 import { AssetSearch } from "../../components/AssetSearch";
 import { NewsCard, NewsCardSkeleton } from "../../components/discover/NewsCard";
+import {
+  EarningsCard,
+  EarningsCardSkeleton,
+} from "../../components/discover/EarningsCard";
 import ErrorBanner from "../../components/ErrorBanner";
-import { useMarketNews, useNews } from "../../data/hooks";
+import {
+  useEarningsCalendar,
+  useMarketNews,
+  useNews,
+  useSymbolEarnings,
+} from "../../data/hooks";
 
 export type AssetClass = "stocks" | "crypto";
 
@@ -147,6 +157,7 @@ function LinkHeader({
   onPickSymbol,
   lockedChannel,
   kind,
+  pickOnNone,
 }: {
   label: string;
   channel: Channel;
@@ -156,9 +167,12 @@ function LinkHeader({
   onPickSymbol?: (sym: string) => void;
   lockedChannel?: boolean;
   kind?: string;
+  // Charts on the `none` channel are standalone (own their symbol), so they
+  // still allow the symbol picker; data widgets on `none` are account-wide.
+  pickOnNone?: boolean;
 }) {
   const [searching, setSearching] = useState(false);
-  const canPick = channel !== "none" && !!onPickSymbol;
+  const canPick = (channel !== "none" || !!pickOnNone) && !!onPickSymbol;
   const accent = channel === "none" ? "transparent" : CHANNEL_META[channel].color;
   return (
     <div
@@ -308,10 +322,50 @@ function WidgetShell({
   );
 }
 
+// Standalone-chart symbol. On a colour/`main` channel a chart follows that
+// channel's shared symbol; on `none` it's standalone and owns its symbol,
+// persisted in the panel's `params.symbol` (so N>4 charts can each show a
+// distinct instrument without burning a colour channel). A local mirror of
+// the own-symbol guarantees a re-render on pick; Dockview merges params so
+// writing just `{ symbol }` leaves the channel intact.
+function useChartSymbol(
+  props: IDockviewPanelProps,
+  channel: Channel,
+  setChannel: (c: Channel) => void,
+): { symbol: string; setSymbol: (s: string) => void; setChannel: (c: Channel) => void } {
+  const { getSymbol, setSymbol: setChannelSymbol } = useWorkspace();
+  const [ownSymbol, setOwnSymbol] = useState<string>(
+    () => (props.params?.symbol as string) ?? "",
+  );
+  const symbol =
+    channel === "none" ? ownSymbol || getSymbol("main") : getSymbol(channel);
+
+  const setSymbol = (s: string) => {
+    if (channel === "none") {
+      setOwnSymbol(s);
+      props.api.updateParameters({ symbol: s });
+    } else {
+      setChannelSymbol(channel, s);
+    }
+  };
+
+  const setChannelTo = (c: Channel) => {
+    // Going standalone: seed the panel's own symbol with what's shown so it
+    // doesn't snap to the main symbol.
+    if (c === "none" && channel !== "none") {
+      setOwnSymbol(symbol);
+      props.api.updateParameters({ symbol });
+    }
+    setChannel(c);
+  };
+
+  return { symbol, setSymbol, setChannel: setChannelTo };
+}
+
 function ChartWidget(props: IDockviewPanelProps) {
-  const { getSymbol, setSymbol, assetClass } = useWorkspace();
-  const [channel, setChannel] = useChannel(props, "main");
-  const symbol = getSymbol(channel);
+  const { assetClass } = useWorkspace();
+  const [channel, rawSetChannel] = useChannel(props, "main");
+  const { symbol, setSymbol, setChannel } = useChartSymbol(props, channel, rawSetChannel);
   return (
     <WidgetShell
       header={
@@ -319,25 +373,26 @@ function ChartWidget(props: IDockviewPanelProps) {
           label={symbol}
           channel={channel}
           setChannel={setChannel}
-          includeNone={false}
+          includeNone
+          pickOnNone
           assetClass={assetClass}
-          onPickSymbol={(s) => setSymbol(channel, s)}
+          onPickSymbol={setSymbol}
           kind="Chart"
         />
       }
     >
-      <TVChartWidget symbol={symbol} onSymbolChange={(s) => setSymbol(channel, s)} />
+      <TVChartWidget symbol={symbol} onSymbolChange={setSymbol} />
     </WidgetShell>
   );
 }
 
 // Lightweight (lightweight-charts) alternative to the heavy TV chart — a faster,
-// no-iframe option for small panels / many-up grids. Symbol-linked like the TV
-// chart (no "none").
+// no-iframe option for small panels / many-up grids. Like the TV chart it can be
+// channel-linked or standalone (`none`, owns its symbol).
 function MiniChartWidget(props: IDockviewPanelProps) {
-  const { getSymbol, setSymbol, assetClass } = useWorkspace();
-  const [channel, setChannel] = useChannel(props, "main");
-  const symbol = getSymbol(channel);
+  const { assetClass } = useWorkspace();
+  const [channel, rawSetChannel] = useChannel(props, "main");
+  const { symbol, setSymbol, setChannel } = useChartSymbol(props, channel, rawSetChannel);
   return (
     <WidgetShell
       header={
@@ -345,9 +400,10 @@ function MiniChartWidget(props: IDockviewPanelProps) {
           label={symbol}
           channel={channel}
           setChannel={setChannel}
-          includeNone={false}
+          includeNone
+          pickOnNone
           assetClass={assetClass}
-          onPickSymbol={(s) => setSymbol(channel, s)}
+          onPickSymbol={setSymbol}
           kind="Mini chart"
         />
       }
@@ -364,6 +420,8 @@ function MiniChartWidget(props: IDockviewPanelProps) {
 const POSITIONS_DENSE_W = 480;
 const ORDERS_DENSE_W = 560;
 const ACTIVITY_DENSE_W = 360;
+const PROFILE_DENSE_W = 340;
+const EARNINGS_DENSE_W = 420;
 
 function PositionsWidget(props: IDockviewPanelProps) {
   const { getSymbol, setSymbol, assetClass } = useWorkspace();
@@ -391,6 +449,7 @@ function PositionsWidget(props: IDockviewPanelProps) {
             variant="strip"
             symbol={symbol}
             dense={dense}
+            bare
             onSelect={(s) => setSymbol(channel === "none" ? "main" : channel, s)}
             assetClass={assetClass}
           />
@@ -422,7 +481,7 @@ function OrdersWidget(props: IDockviewPanelProps) {
     >
       <div ref={ref} style={{ height: "100%" }}>
         <Pane pad>
-          <Orders assetClass={assetClass} symbol={symbol} dense={dense} />
+          <Orders assetClass={assetClass} symbol={symbol} dense={dense} bare />
         </Pane>
       </div>
     </WidgetShell>
@@ -496,15 +555,16 @@ function NewsWidget(props: IDockviewPanelProps) {
         {useMarket ? (
           <>
             {market.error && <ErrorBanner message={market.error.message} />}
-            {!market.data && !market.error && <NewsCardSkeleton />}
-            {market.data && <NewsCard articles={market.data.articles} />}
+            {!market.data && !market.error && <NewsCardSkeleton bare />}
+            {market.data && <NewsCard articles={market.data.articles} bare />}
           </>
         ) : (
           <>
             {perSymbol.error && <ErrorBanner message={perSymbol.error.message} />}
-            {!perSymbol.data && !perSymbol.error && <NewsCardSkeleton />}
+            {!perSymbol.data && !perSymbol.error && <NewsCardSkeleton bare />}
             {perSymbol.data && (
               <NewsCard
+                bare
                 articles={perSymbol.data.news.map((n) => ({
                   title: n.headline,
                   link: n.url,
@@ -603,6 +663,80 @@ function TradeWidget(props: IDockviewPanelProps) {
   );
 }
 
+// Catalogue enrichment for the linked symbol (fundamentals for stocks,
+// tokenomics + price extremes for crypto). Always symbol-linked (no account
+// view), so it mirrors the Trade widget: default "main", no "none" option.
+function ProfileWidget(props: IDockviewPanelProps) {
+  const { getSymbol, setSymbol, assetClass } = useWorkspace();
+  const [channel, setChannel] = useChannel(props, "main");
+  const symbol = getSymbol(channel).toUpperCase();
+  const ref = useRef<HTMLDivElement>(null);
+  const dense = useContainerNarrow(ref, PROFILE_DENSE_W);
+  return (
+    <WidgetShell
+      header={
+        <LinkHeader
+          label={symbol}
+          channel={channel}
+          setChannel={setChannel}
+          includeNone={false}
+          assetClass={assetClass}
+          onPickSymbol={(s) => setSymbol(channel, s)}
+          kind="Profile"
+        />
+      }
+    >
+      <div ref={ref} style={{ height: "100%" }}>
+        <Pane pad>
+          <AssetProfile symbol={symbol} assetClass={assetClass} dense={dense} />
+        </Pane>
+      </div>
+    </WidgetShell>
+  );
+}
+
+// Earnings widget: symbol-linked (a colour channel shows that ticker's report
+// history) or whole-market on the `none` channel (the curated upcoming calendar,
+// mirroring NewsWidget's market mode).
+function EarningsWidget(props: IDockviewPanelProps) {
+  const { getSymbol, setSymbol, assetClass } = useWorkspace();
+  const [channel, setChannel] = useChannel(props, "none");
+  const isMarket = channel === "none";
+  const symbol = isMarket ? "" : getSymbol(channel).toUpperCase();
+  const ref = useRef<HTMLDivElement>(null);
+  const dense = useContainerNarrow(ref, EARNINGS_DENSE_W);
+
+  const market = useEarningsCalendar(isMarket);
+  const perSymbol = useSymbolEarnings(symbol, !isMarket);
+  const active = isMarket ? market : perSymbol;
+
+  return (
+    <WidgetShell
+      header={
+        <LinkHeader
+          label={isMarket ? "Market" : symbol}
+          channel={channel}
+          setChannel={setChannel}
+          includeNone
+          assetClass={assetClass}
+          onPickSymbol={(s) => setSymbol(channel, s)}
+          kind="Earnings"
+        />
+      }
+    >
+      <div ref={ref} style={{ height: "100%" }}>
+        <Pane pad>
+          {active.error && <ErrorBanner message={active.error.message} />}
+          {!active.data && !active.error && <EarningsCardSkeleton bare />}
+          {active.data && (
+            <EarningsCard rows={active.data.earnings} bare dense={dense} />
+          )}
+        </Pane>
+      </div>
+    </WidgetShell>
+  );
+}
+
 // id → React component, consumed by DockviewReact's `components` map.
 export const WIDGET_COMPONENTS: Record<
   string,
@@ -617,6 +751,8 @@ export const WIDGET_COMPONENTS: Record<
   orders: OrdersWidget,
   activity: ActivityWidget,
   news: NewsWidget,
+  profile: ProfileWidget,
+  earnings: EarningsWidget,
 };
 
 // Drives the "add widget" menu and panel titles. Grouped + described to power
@@ -673,6 +809,20 @@ export const WIDGET_CATALOG: WidgetMeta[] = [
     title: "News",
     desc: "Symbol or market feed (per linked channel)",
     iconPath: "M3 3 H13 V13 H3 Z M5 6 H11 M5 9 H11 M5 12 H9",
+  },
+  {
+    id: "profile",
+    group: "Market data",
+    title: "Profile",
+    desc: "Fundamentals & enrichment — sector, supply, ATH, links",
+    iconPath: "M2 8 A6 6 0 1 1 14 8 A6 6 0 1 1 2 8 M8 7.2 V11.2 M8 4.7 L8.01 4.7",
+  },
+  {
+    id: "earnings",
+    group: "Market data",
+    title: "Earnings",
+    desc: "Upcoming & recent earnings — one symbol or the market calendar",
+    iconPath: "M3 2 V4 M11 2 V4 M2 5 H13 V13 H2 Z M2 7 H13 M5 9.5 H6 M8 9.5 H9",
   },
   {
     id: "positions",

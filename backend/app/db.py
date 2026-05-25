@@ -163,6 +163,14 @@ _PROFILE_COLS = (
     "enriched_at", "enrichment_source",
 )
 
+# NUMERIC columns come back from pg8000 as Decimal, which serialises to a JSON
+# string — coerce to float so the frontend gets real numbers (BIGINT/INTEGER
+# columns like market_cap / employees / market_cap_rank already arrive as int).
+_PROFILE_FLOAT_COLS = frozenset({
+    "beta", "circulating_supply", "total_supply", "max_supply",
+    "ath_usd", "atl_usd",
+})
+
 
 def get_asset_profile(symbol: str) -> dict | None:
     """Full catalogue row for one symbol — base identity plus every enrichment
@@ -181,7 +189,28 @@ def get_asset_profile(symbol: str) -> dict | None:
         row = cur.fetchone()
         if not row:
             return None
-        return {k: v for k, v in zip(_PROFILE_COLS, row) if v is not None}
+        out: dict = {}
+        for k, v in zip(_PROFILE_COLS, row):
+            if v is None:
+                continue
+            out[k] = float(v) if k in _PROFILE_FLOAT_COLS else v
+        return out
+
+
+def market_cap_map() -> dict[str, int]:
+    """``{symbol: market_cap}`` for the visible US-equity universe (tradable +
+    enriched + has a cap). Used by the earnings calendar to drop the OTC/microcap
+    long tail and rank by size. Raises ``DbUnavailable`` like the other readers;
+    callers swallow it into an empty map.
+    """
+    with _connect() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT symbol, market_cap FROM assets WHERE asset_class = 'us_equity' "
+            "AND tradable = true AND enrichment_source IS NOT NULL "
+            "AND market_cap IS NOT NULL"
+        )
+        return {row[0]: int(row[1]) for row in cur.fetchall()}
 
 
 def search_assets(query: str, asset_class: str, limit: int) -> list[dict]:
@@ -489,18 +518,30 @@ def screen_assets(*, asset_class="us_equity", sector=None, industry=None,
     return out
 
 
-def _symbols(asset_class: str, enriched: bool | None) -> set[str]:
+def _symbols(
+    asset_class: str, enriched: bool | None, tradable_only: bool = False
+) -> set[str]:
     """Catalogue symbols for one asset class, optionally filtered by enrichment
-    state (None = all, True = enriched, False = un-enriched)."""
+    state (None = all, True = enriched, False = un-enriched) and tradability."""
     where = "asset_class = %s"
     if enriched is True:
         where += " AND enrichment_source IS NOT NULL"
     elif enriched is False:
         where += " AND enrichment_source IS NULL"
+    if tradable_only:
+        where += " AND tradable = true"
     with _connect() as conn:
         cur = conn.cursor()
         cur.execute("SELECT symbol FROM assets WHERE " + where, (asset_class,))
         return {row[0] for row in cur.fetchall()}
+
+
+def list_symbols(asset_class: str) -> list[str]:
+    """Public symbol universe for one asset class under the search visibility
+    rule (`tradable = true AND enrichment_source IS NOT NULL`) — the set the
+    Ask-anything router validates tickers against. Sorted for a stable payload
+    (deterministic gzip / caching)."""
+    return sorted(_symbols(asset_class, enriched=True, tradable_only=True))
 
 
 def crypto_symbols() -> set[str]:

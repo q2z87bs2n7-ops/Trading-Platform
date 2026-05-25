@@ -142,11 +142,13 @@ function OrderCardMobile({
   onModify,
   onCancel,
   cancelPending,
+  bare = false,
 }: {
   o: Order;
   onModify: (o: Order) => void;
   onCancel: (o: Order) => void;
   cancelPending: boolean;
+  bare?: boolean;
 }) {
   const buy = enumTail(o.side) === "buy";
   const val = orderValue(o);
@@ -155,12 +157,13 @@ function OrderCardMobile({
   return (
     <div
       style={{
-        background: "var(--panel)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--mob-card-radius)",
+        background: bare ? "transparent" : "var(--panel)",
+        border: bare ? "none" : "1px solid var(--border)",
+        borderBottom: bare ? "1px solid var(--hairline)" : undefined,
+        borderRadius: bare ? 0 : "var(--mob-card-radius)",
         padding: 14,
-        marginBottom: 8,
-        boxShadow: "var(--shadow-sm)",
+        marginBottom: bare ? 0 : 8,
+        boxShadow: bare ? "none" : "var(--shadow-sm)",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -264,10 +267,12 @@ export default function Orders({
   assetClass,
   symbol,
   dense = false,
+  bare = false,
 }: {
   assetClass?: "stocks" | "crypto";
   symbol?: string;
   dense?: boolean;
+  bare?: boolean;
 } = {}) {
   const [status, setStatus] = useState<StatusFilter>("all");
   const { data, error, isPending } = useOrders(status, 25);
@@ -290,16 +295,8 @@ export default function Orders({
   const [confirmCancelAll, setConfirmCancelAll] = useState(false);
   const stacked = useMobile() || dense;
 
-  return (
-    <div
-      className="p-3"
-      style={{
-        background: "var(--panel)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--r-lg)",
-        boxShadow: "var(--shadow-sm)",
-      }}
-    >
+  const body = (
+    <>
       <div className="flex items-center gap-2 mb-2">
         <div className="inline-flex gap-px">
           {STATUSES.map((s) => {
@@ -355,6 +352,7 @@ export default function Orders({
             <OrderCardMobile
               key={o.id}
               o={o}
+              bare={bare}
               onModify={setModifyingOrder}
               onCancel={(or) =>
                 cancel.mutate(or.id, {
@@ -614,6 +612,22 @@ export default function Orders({
           onCancel={() => setConfirmCancelAll(false)}
         />
       )}
+    </>
+  );
+
+  if (bare) return body;
+
+  return (
+    <div
+      className="p-3"
+      style={{
+        background: "var(--panel)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--r-lg)",
+        boxShadow: "var(--shadow-sm)",
+      }}
+    >
+      {body}
     </div>
   );
 }

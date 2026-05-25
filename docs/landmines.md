@@ -19,9 +19,41 @@ area.
   `CryptoDataStream` does **not** take a `feed` parameter; omit it.
 - Watchlist **prefers the stream and auto-falls-back to polling
   `/api/quotes`** when the stream is unreachable (Vercel/Pages have no
-  relay). Load-bearing — keep it. `EventSource` auto-reconnect is
-  deliberately disabled so failure → polling, not a silent reconnect
-  loop.
+  relay). Load-bearing — keep it. `EventSource`'s *native* auto-reconnect
+  stays disabled (it would silently loop against a dead relay). Instead
+  `quoteStream.ts` owns recovery: an SSE drop falls back to polling
+  immediately, **then retries the stream on an exponential backoff**
+  (`STREAM_RETRY_BASE_MS` 3 s → `STREAM_RETRY_MAX_MS` 60 s). The first tick
+  from a reopened stream stops polling and resets the backoff, so a single
+  transient close (proxy connection recycling, relay restart) self-heals
+  instead of stranding the app on polling forever. Without this, *any* drop
+  on a healthy long-lived connection was a permanent downgrade to polling
+  until the symbol union changed or the page reloaded.
+- **SSE keepalive must be a named event, not a comment.** The idle keepalive
+  in `/api/stream` uses `event: keepalive\ndata: {}\n\n` instead of the SSE
+  comment form (`: keepalive`). Both are valid SSE, but HTTP/2 proxies (Render's
+  nginx) may not count comment frames as stream activity and will RST the stream
+  after their idle timeout (~30 s). A named event is an unambiguous HTTP/2 DATA
+  frame and resets the timer. The browser silently ignores it — `onmessage` only
+  fires for events with no `event:` field; named events need an explicit
+  `addEventListener('keepalive', ...)` which we don't register.
+- **Service worker must not intercept the cross-origin Render SSE stream.**
+  The Workbox `NetworkOnly` route in `vite.config.ts` uses a `sameOrigin`
+  guard so it only applies to same-origin `/api/*` calls (Vercel REST). Without
+  it, the SW intercepts `trading-relay-ywqp.onrender.com/api/stream`, tries to
+  proxy a streaming SSE response through `event.respondWith`, and Chrome drops
+  the connection after ~12 s. Symptom: `ERR_CONNECTION_CLOSED 200 OK` with
+  `(ServiceWorker)` in the Network tab initiator column.
+- **`POLL_MS` is intentionally 15 000 ms (not 2 s).** At 2 s the fallback
+  generates ~43 k Vercel edge requests/day and burns the free-tier 1 M
+  allowance in ~3 weeks. 15 s is still responsive for a degraded path.
+  Don't reduce it without considering the edge-request budget.
+- **Render relay keepalive.** `quoteStream.ts` pings `STREAM_BASE/api/health`
+  every 9 minutes while any symbol is subscribed. This prevents Render
+  spindown, which is what triggers stream failures and the expensive
+  polling fallback. The ping is a no-op if `VITE_STREAM_BASE` is unset
+  (Vercel-only setups). `pingRelayHealth` in `api.ts` is the single call
+  site — don't add a second one.
 - `useLiveQuotes` fires a one-shot `getQuotes()` REST call on mount to
   seed the cache before the first stream tick arrives — otherwise the
   order sheet's est-cost shows blank until Alpaca pushes a tick.
@@ -141,6 +173,39 @@ tools). Each item cost a round of debugging:
   symbol X in search?" → it isn't enriched yet. Direct resolution (`get_asset`)
   and positions/watchlist are *not* filtered, so existing holdings still render.
 
+## Earnings / economic calendars (FMP)
+
+`backend/app/calendar_fmp.py` serves `/api/calendar/{earnings,economic}` (+
+`/api/calendar/earnings/{symbol}`) off Financial Modeling Prep. Things that took
+a beat to get right — don't undo them:
+
+- **Not DB data.** Calendars are small, time-windowed and roll forward daily, so
+  they are **live-proxied + in-process cached** (the `indices.py` /
+  `market_news.py` pattern — TTL ~1h), never persisted. There is intentionally
+  **no scheduler / cron**; the cache self-refreshes on the next request. Don't
+  "promote" calendars into the `assets` table.
+- **The DB is only a market-cap lookup.** The raw whole-market earnings feed
+  leads with OTC/microcap junk, so the list is filtered to the catalogue's
+  visible US-equity universe and ranked by `db.market_cap_map()`. The user's
+  positions / open orders / watchlist symbols are **always unioned in** (passed
+  as `?include=`, gathered client-side in `useEarningsCalendar`) regardless of
+  cap. When Postgres is unreachable (sandbox/laptop — :5432 is firewalled) the
+  cap map is empty and the list **degrades to `include`-only** — clean, but it
+  shows only your own names until prod fills the caps. That's expected, not a bug.
+- **Stocks-only on Discover.** Earnings has no crypto equivalent and the economic
+  card lives in the equities silo; both Discover cards are gated `{!isCrypto}`.
+- **FMP economic times are UTC** ("YYYY-MM-DD HH:MM:SS", no zone). `EconomicCard`
+  appends `Z` before parsing so they render in the user's local time — don't drop
+  that or every release shows in the wrong hour. The card also **day-paginates by
+  the local date** (group + "today" default computed from the converted
+  timestamp, not the raw UTC date) so the day boundaries match the times shown.
+- **No new dependency / no DB write.** `requests` is transitive via `alpaca-py`;
+  calendars are read-only. Endpoints need no Alpaca keys and return `[]` when
+  `FMP_API_KEY` is unset (graceful, like the other proxy endpoints).
+- **Calendar coverage is on the paid FMP Starter plan** the catalogue already
+  uses — both endpoints 200 on it (the public docs ambiguously imply Premium;
+  the live key proves otherwise).
+
 ## Symbols with slashes (crypto path params)
 
 Alpaca crypto symbols contain a slash (`BTC/USD`). This breaks standard
@@ -148,8 +213,8 @@ FastAPI path parameters:
 
 - **Backend:** any route whose `{symbol}` might be a crypto pair must
   use `{symbol:path}` (FastAPI's path converter). Currently applied to
-  `/api/assets/{symbol:path}`, `/api/positions/{symbol:path}`, and
-  `/api/watchlist/{symbol:path}`.
+  `/api/assets/{symbol:path}`, `/api/asset-profile/{symbol:path}`,
+  `/api/positions/{symbol:path}`, and `/api/watchlist/{symbol:path}`.
 - **Frontend:** never call `encodeURIComponent` on a symbol used in a
   path segment. Alpaca symbols are `[A-Z0-9/.]` only — pass them
   literally. `encodeURIComponent("BTC/USD")` → `BTC%2FUSD` which the
@@ -273,7 +338,7 @@ desktop / iPad (> 640px) render byte-identical. A few things bite:
   they're only ever read inside mobile-gated code.
 - **Mobile overlays render `position: fixed`.** The nav drawer, the ChartBot
   slide-up + its launcher, the OrderSheet / EquitySheet / watchlist-add
-  sheets, and the full-screen CmdBar are all fixed. That's why `App.tsx`'s
+  sheets, and the full-screen AskBar are all fixed. That's why `App.tsx`'s
   chart-mode flex row needs no mobile branch — on mobile `ChatPanel` is out
   of flow, so the chart's `flex:1` wrapper already takes the full width.
   Don't "fix" it by adding a mobile ternary there.
@@ -292,9 +357,11 @@ desktop / iPad (> 640px) render byte-identical. A few things bite:
   `backend/app/ai/tools.py` are **cache-marked** (`cache_control`) so
   multi-turn chats hit the Anthropic prefix cache on every turn. Keep
   the markers. The schemas live in `ai/tools_read.py` / `tools_draw.py` /
-  `tools_action.py`; `tools.py` assembles `TOOLS` as `READ_TOOLS + DRAW_TOOLS`.
-  **Never reorder `TOOLS` or edit schema text gratuitously** — both shift the
-  cached prefix and cost every subsequent cache hit.
+  `tools_action.py` / `tools_workspace.py`; `tools.py` assembles `TOOLS` as
+  `READ_TOOLS + DRAW_TOOLS` (ChartBot) and `ask_tools()` as read + action +
+  workspace (Ask anything). **Never reorder `TOOLS` or edit schema text
+  gratuitously** — both shift the cached prefix and cost every subsequent cache
+  hit. Workspace tools are append-only in `ask_tools()` and never in `TOOLS`.
 - The ChartBot frontend-executed tool catalog is declared server-side
   in `tools.py` but dispatched client-side in `lib/ai-client.ts`
   against `lib/tv-drawings.ts`. Results are folded into the next
@@ -315,6 +382,27 @@ desktop / iPad (> 640px) render byte-identical. A few things bite:
   to the TV widget so `ChatPanel` and friends can call TV APIs without
   being children of `TVPlatform`. `subscribeTVWidget(cb)` lets
   consumers react to mount/unmount.
+- **Ask-anything Workspace control** is *not* a frontend tool loop (the
+  `/api/ai/ask` path is one-shot). The workspace tools in `tools_workspace.py`
+  queue client directives into `AskResponse.workspace_actions` (mirroring the
+  `reports` artifact channel); the frontend replays them via the
+  `lib/workspace/controller.ts` module singleton — App registers mode/silo
+  hooks, `Workspace` registers an imperative handle on `onReady`. **Remount
+  race:** switching silo bumps `<DockviewReact key={assetClass}>`, so the
+  controller nulls its handle on a silo switch and `awaitHandle()` blocks for
+  the *fresh* `onReady` — don't grab the handle before the switch settles. The
+  `"main"` channel must be written through `workspaceCtx.setSymbol` (App's
+  `onSelect`), never the colour-channel map, because `switchAssetClass` resets
+  `selected` to `""`.
+- **Standalone charts (`params.symbol`):** chart/minichart accept the `none`
+  channel as a standalone mode that owns its symbol in `params.symbol` (so an
+  AI grid can show N>4 distinct symbols beyond the four colour channels).
+  Dockview *merges* `updateParameters`, so writing `{ symbol }` leaves the
+  channel intact; a local mirror in `useChartSymbol` forces the re-render.
+- The three AI surfaces (market summary / Ask anything / ChartBot) each gate on
+  their own `app_settings_v1` flag (`marketSummaryAiEnabled` / `askAiEnabled` /
+  `chartbotEnabled`), **all default off**; a disabled surface renders the shared
+  `AiDisabledNotice` instead of calling Claude.
 
 ## AI web search (Ask anything)
 

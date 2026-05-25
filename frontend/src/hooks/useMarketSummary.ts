@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 
 import { postAiAsk } from "../api";
-import type { AssetClass } from "../lib/cmd-intent";
+import type { AssetClass } from "../lib/ask-intent";
+import { useSettings } from "./useSettings";
 
 export type SummaryWindow = "overnight" | "open" | "midday" | "close";
 
@@ -167,6 +168,7 @@ export function useMarketSummary(
   watchlistSymbols: string[],
   assetClass: AssetClass = "stocks",
 ) {
+  const enabled = useSettings().marketSummaryAiEnabled;
   const [cache, setCache] = useState<MarketSummaryCache | null>(() =>
     readCache(assetClass),
   );
@@ -190,7 +192,7 @@ export function useMarketSummary(
   }, [assetClass]);
 
   useEffect(() => {
-    if (isCurrent || generatingRef.current) return;
+    if (!enabled || isCurrent || generatingRef.current) return;
     generatingRef.current = true;
     setIsGenerating(true);
 
@@ -215,7 +217,7 @@ export function useMarketSummary(
       });
     // wlKey is the stable representation of watchlistSymbols
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCurrent, currentWindow, currentDate, wlKey, assetClass]);
+  }, [enabled, isCurrent, currentWindow, currentDate, wlKey, assetClass]);
 
   function dismiss() {
     if (!cache) return;
@@ -227,6 +229,7 @@ export function useMarketSummary(
   return {
     cache,
     isGenerating,
+    disabled: !enabled,
     dismiss,
     windowLabel: windowLabel(currentWindow, assetClass),
     currentWindow,

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useAccount, useClock } from "../data/hooks";
 import { useStreamStatus } from "../hooks/useStreamStatus";
 import { useMobile } from "../hooks/useMobile";
-import type { AssetClass } from "../lib/cmd-intent";
+import type { AssetClass } from "../lib/ask-intent";
 import type { Account, MarketClock } from "../types";
 
 const money = (n: number) =>

@@ -100,7 +100,15 @@ one clause.
   fallback). Backs `/api/assets/{symbol}`.
 - **`get_asset_profile(symbol)`** — full single-symbol profile (all base +
   enrichment columns, NULLs dropped). Direct resolution, not visibility-filtered.
-  AI tool of the same name (both surfaces).
+  Backs `/api/asset-profile/{symbol}` (Workspace **Profile** widget) and the AI
+  tool of the same name (both surfaces).
+- **`market_cap_map()`** — `{symbol: market_cap}` for the visible US-equity
+  universe (`tradable` + enriched + has a cap). Used only by `calendar_fmp` to
+  curate/rank the earnings calendar (see `docs/landmines.md` → "Earnings /
+  economic calendars"); raises `DbUnavailable` like the other readers, which the
+  caller swallows into an empty map (the calendar then falls back to the user's
+  own symbols). The catalogue is read here as a cap lookup — calendar rows are
+  never stored.
 - **`screen_assets(...)`** — structured, parameterised, visibility-filtered
   filter returning a count + top-N envelope
   (`{total_matches, returned, has_more, sorted_by, filters_applied, results}`).
@@ -211,9 +219,10 @@ FROM assets WHERE enrichment_source='fmp' GROUP BY sector ORDER BY 2 DESC;
 3. **Catalogue-grounded market summary.** Parked — the catalogue is *static*
    (no price/time-series), so it can't surface "what moved today"; the Discover
    summary already has movers + news. Marginal value.
-4. **Catalogue/screener UI** — a Discover/Chart company card + screener surface
-   on top of `get_asset_profile` / `screen_assets`. Parked (backend is complete;
-   this is the only frontend piece).
+4. **Catalogue/screener UI** — the Workspace **Profile** widget
+   (`components/AssetProfile.tsx`, off `/api/asset-profile`) now consumes
+   `get_asset_profile`. Still parked: a `screen_assets`-backed **screener**
+   surface and any Discover/Chart company card.
 
 History: this catalogue replaced an earlier lazy `company_profiles` cache
 (FMP-only, 7-day TTL, behind `GET /api/assets/{symbol}/profile`). That table,

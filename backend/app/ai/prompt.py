@@ -185,7 +185,7 @@ def build_system(chart_symbol: str, chart_resolution: str) -> list[dict[str, Any
     ]
 
 
-# ── General-purpose ⌘K command-bar prompt ────────────────────────────────────
+# ── General-purpose Ask anything prompt ──────────────────────────────────────
 # Same paper-trading platform, but the surface is a quick-look modal that
 # can appear from any mode. No chart-drawing tools wired in here — only
 # the backend read tools. Cached as one frozen block.
@@ -193,7 +193,7 @@ def build_system(chart_symbol: str, chart_resolution: str) -> list[dict[str, Any
 SYSTEM_GENERAL = """\
 You are a financial assistant embedded inside a paper-trading platform on \
 Alpaca's API. The user is asking a quick question from a modal that's \
-available across the whole app (the ⌘K command bar). They get short, \
+available across the whole app (the Ask anything bot). They get short, \
 direct answers — there is no chart in front of them in this context, so \
 do not propose drawings or chart navigation.
 
@@ -274,7 +274,7 @@ a developer to investigate the root cause.
 
 
 def build_general_system(context: str | None = None) -> list[dict[str, Any]]:
-    """System prompt for the ⌘K command-bar AI fallback. Frozen cached
+    """System prompt for the Ask anything AI fallback. Frozen cached
     block + optional volatile suffix (e.g. current UTC time)."""
     blocks: list[dict[str, Any]] = [
         {

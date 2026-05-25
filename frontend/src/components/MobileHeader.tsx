@@ -16,7 +16,7 @@ interface Props {
   mode: Mode;
   activeClass: AssetClass;
   onOpenDrawer: () => void;
-  onOpenCmd: () => void;
+  onOpenAsk: () => void;
   onSwitchMode: (m: Mode) => void;
   onSwitchAssetClass: (m: AssetClass) => void;
 }
@@ -25,7 +25,7 @@ export default function MobileHeader({
   mode,
   activeClass,
   onOpenDrawer,
-  onOpenCmd,
+  onOpenAsk,
   onSwitchMode,
   onSwitchAssetClass,
 }: Props) {
@@ -69,7 +69,7 @@ export default function MobileHeader({
         </div>
 
         <IconButton
-          onClick={onOpenCmd}
+          onClick={onOpenAsk}
           aria-label="Ask anything"
           className="w-9 h-9 justify-center text-[16px]"
           style={{

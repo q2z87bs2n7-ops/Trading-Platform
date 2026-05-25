@@ -1,6 +1,6 @@
 """Ask-anything action tool schemas: watchlist mutation and report/CSV export.
 
-Available ONLY to the ⌘K Ask anything bot (not ChartBot, which uses ``TOOLS``
+Available ONLY to the Ask anything bot (not ChartBot, which uses ``TOOLS``
 and would mis-route any non-read tool to the frontend). Resolved server-side in
 ``router._execute_read_tool``. Split out of ``tools.py``; ``ask_tools()`` there
 appends these to the read tools. Schema text is load-bearing for Anthropic

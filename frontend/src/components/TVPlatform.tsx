@@ -233,7 +233,7 @@ export default function TVPlatform({ symbol, onSymbolChange, assetClass }: Props
     if (readyRef.current) applyTheme(theme);
   }, [theme, applyTheme]);
 
-  // Push external symbol changes (cmd-bar Open-in-workspace) into the
+  // Push external symbol changes (Ask anything Open-in-workspace) into the
   // running widget. Bail out when the widget is already on this symbol
   // so an in-TV change that flows out to App.tsx → back into this prop
   // doesn't trigger another setSymbol (which would refire

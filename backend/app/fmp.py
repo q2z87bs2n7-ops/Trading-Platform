@@ -42,6 +42,34 @@ def fetch_profile(symbol: str) -> dict | None:
     return arr[0] if arr else None
 
 
+def _get(path: str, params: dict) -> list:
+    """One GET against the FMP stable API; always returns a list."""
+    r = requests.get(
+        f"{_BASE}/{path}",
+        params={**params, "apikey": get_settings().fmp_api_key},
+        headers=_HEADERS,
+        timeout=15,
+    )
+    r.raise_for_status()
+    data = r.json()
+    return data if isinstance(data, list) else []
+
+
+def fetch_earnings_calendar(from_date: str, to_date: str) -> list[dict]:
+    """Whole-market earnings calendar for a date window (YYYY-MM-DD)."""
+    return _get("earnings-calendar", {"from": from_date, "to": to_date})
+
+
+def fetch_symbol_earnings(symbol: str, limit: int = 8) -> list[dict]:
+    """Recent + upcoming earnings for one ticker (dot->dash like fetch_profile)."""
+    return _get("earnings", {"symbol": symbol.replace(".", "-"), "limit": limit})
+
+
+def fetch_economic_calendar(from_date: str, to_date: str) -> list[dict]:
+    """Global macro economic releases for a date window (YYYY-MM-DD)."""
+    return _get("economic-calendar", {"from": from_date, "to": to_date})
+
+
 def _int(v):
     try:
         return int(v)

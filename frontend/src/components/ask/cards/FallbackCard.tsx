@@ -9,8 +9,12 @@ import {
 } from "../../../api";
 import { qk } from "../../../data/queryClient";
 import { useSettings } from "../../../hooks/useSettings";
-import type { AssetClass } from "../../../lib/cmd-intent";
-import CmdResultCard from "../CmdResultCard";
+import type { AssetClass } from "../../../lib/ask-intent";
+import { applyWorkspaceActions } from "../../../lib/workspace/controller";
+import type { ApplyResult } from "../../../lib/workspace/actions";
+import AskResultCard from "../AskResultCard";
+import AiDisabledNotice from "../../AiDisabledNotice";
+import { WorkspaceResult } from "./WorkspaceCard";
 
 type OnAiResponse = (resp: AiAskResponse) => void;
 type OnExchange = (userText: string, assistantText: string) => void;
@@ -29,23 +33,9 @@ function downloadCsv(report: AiAskReport) {
 
 function FallbackCard({ text }: { text: string }) {
   return (
-    <CmdResultCard title="No match for that phrase" meta={text || "(empty)"}>
-      <div className="text-[13px]" style={{ color: "var(--text-2)" }}>
-        Ask anything only knows a handful of shortcuts when AI is off.
-        Open the settings menu (top-right) to enable the AI fallback,
-        or try one of the recognised phrases:
-      </div>
-      <ul
-        className="mt-2 flex flex-col gap-1 text-[12.5px]"
-        style={{ color: "var(--mute)" }}
-      >
-        <li>· "buy 50 AMD at market"</li>
-        <li>· "how's NVDA?"</li>
-        <li>· "show top gainers"</li>
-        <li>· "news on Tesla"</li>
-        <li>· "close my TSLA position"</li>
-      </ul>
-    </CmdResultCard>
+    <AskResultCard title="Ask anything" meta={text || "(empty)"}>
+      <AiDisabledNotice surface="ask" compact />
+    </AskResultCard>
   );
 }
 
@@ -65,6 +55,7 @@ function AiAskCard({
   const [resp, setResp] = useState<AiAskResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [pending, setPending] = useState(true);
+  const [wsResult, setWsResult] = useState<ApplyResult | null>(null);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -72,6 +63,7 @@ function AiAskCard({
     setPending(true);
     setErr(null);
     setResp(null);
+    setWsResult(null);
     postAiAsk(text, history, assetClass)
       .then((r) => {
         if (cancelled) return;
@@ -79,6 +71,12 @@ function AiAskCard({
         setPending(false);
         onAiResponse?.(r);
         if (r.text) onExchange?.(text, r.text);
+        // Replay any Workspace directives the bot emitted against the canvas.
+        if (r.workspace_actions && r.workspace_actions.length) {
+          applyWorkspaceActions(r.workspace_actions).then((res) => {
+            if (!cancelled) setWsResult(res);
+          });
+        }
         // The bot may have mutated the watchlist server-side; refresh both
         // lists so the Discover view reflects it.
         if (
@@ -103,7 +101,7 @@ function AiAskCard({
   }, [text, assetClass]);
 
   return (
-    <CmdResultCard title="✦ AI" meta={text || "(empty)"}>
+    <AskResultCard title="✦ AI" meta={text || "(empty)"}>
       {pending && (
         <div className="text-[13px]" style={{ color: "var(--mute)" }}>
           Thinking…
@@ -167,6 +165,11 @@ function AiAskCard({
               ))}
             </div>
           )}
+          {wsResult && (
+            <div className="mt-3">
+              <WorkspaceResult result={wsResult} />
+            </div>
+          )}
           {resp.backend_stopped === "max_iterations" && (
             <div
               className="text-[11.5px] mt-2"
@@ -177,7 +180,7 @@ function AiAskCard({
           )}
         </>
       )}
-    </CmdResultCard>
+    </AskResultCard>
   );
 }
 
@@ -197,7 +200,7 @@ export function FallbackOrAiCard({
   onExchange?: OnExchange;
 }) {
   const settings = useSettings();
-  return settings.cmdbarAiEnabled ? (
+  return settings.askAiEnabled ? (
     <AiAskCard
       text={text}
       assetClass={assetClass}

@@ -7,12 +7,20 @@
 const KEY = "app_settings_v1";
 
 export interface AppSettings {
+  /** Auto-generate the per-window AI market/crypto summary on Discover. */
+  marketSummaryAiEnabled: boolean;
   /** Ask anything: route unrecognised phrases through /api/ai/ask. */
-  cmdbarAiEnabled: boolean;
+  askAiEnabled: boolean;
+  /** ChartBot side panel in Chart mode. */
+  chartbotEnabled: boolean;
 }
 
+// All three AI surfaces default OFF — opt-in, so a fresh session spends no
+// Anthropic credits until the user enables a surface in Settings.
 const DEFAULTS: AppSettings = {
-  cmdbarAiEnabled: true,
+  marketSummaryAiEnabled: false,
+  askAiEnabled: false,
+  chartbotEnabled: false,
 };
 
 function load(): AppSettings {

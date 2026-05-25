@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from . import alpaca
+from . import calendar_fmp
 from . import db
 from . import indices as market_indices
 from . import market_news
@@ -197,6 +198,24 @@ def asset(symbol: str) -> dict:
     return alpaca.get_asset(symbol)
 
 
+@app.get("/api/asset-profile/{symbol:path}", dependencies=[Depends(require_configured)])
+def asset_profile(symbol: str) -> dict:
+    # Full catalogue enrichment for one symbol (FMP for stocks, CoinGecko for
+    # crypto) — every column, with NULL keys dropped so a stock row never carries
+    # empty crypto fields and vice versa. Powers the Workspace Profile widget.
+    # Sibling path (not `/api/assets/{symbol}/profile`) to dodge the greedy
+    # `:path` capture, mirroring `/api/asset-symbols`. Falls back to Alpaca base
+    # identity when the DB is unconfigured or the symbol isn't seeded.
+    if db.db_enabled():
+        try:
+            row = db.get_asset_profile(symbol)
+            if row is not None:
+                return row
+        except db.DbUnavailable:
+            pass
+    return alpaca.get_asset(symbol)
+
+
 @app.get("/api/bars", dependencies=[Depends(require_configured)])
 def bars(
     symbol: str = Query(..., min_length=1),
@@ -224,6 +243,27 @@ def market_news_feed(limit: int = Query(20, ge=1, le=50)) -> dict:
 def indices_snapshot() -> dict:
     """Market index snapshots (Yahoo Finance). No Alpaca keys required."""
     return {"indices": market_indices.get_indices(), "as_of": int(time.time())}
+
+
+@app.get("/api/calendar/earnings")
+def earnings_calendar(include: str = Query("")) -> dict:
+    """Curated whole-market earnings calendar (FMP). No Alpaca keys required.
+    `include` is a comma-separated symbol list (the user's positions / orders /
+    watchlist) that is always kept regardless of market cap."""
+    syms = {s.strip().upper() for s in include.split(",") if s.strip()}
+    return {"earnings": calendar_fmp.get_earnings_calendar(syms), "as_of": int(time.time())}
+
+
+@app.get("/api/calendar/earnings/{symbol}")
+def symbol_earnings(symbol: str) -> dict:
+    """Recent + upcoming earnings for one ticker (FMP). No Alpaca keys required."""
+    return {"symbol": symbol.upper(), "earnings": calendar_fmp.get_symbol_earnings(symbol)}
+
+
+@app.get("/api/calendar/economic")
+def economic_calendar() -> dict:
+    """US high/medium-impact macro calendar (FMP). No Alpaca keys required."""
+    return {"economic": calendar_fmp.get_economic_calendar(), "as_of": int(time.time())}
 
 
 @app.get("/api/movers", dependencies=[Depends(require_configured)])
@@ -283,6 +323,25 @@ def assets_search(
         except db.DbUnavailable:
             pass
     return alpaca.search_assets(search, limit, asset_class)
+
+
+# Sibling path, NOT `/api/assets/symbols` — the greedy `/api/assets/{symbol:path}`
+# above is defined first and would capture "symbols".
+@app.get("/api/asset-symbols")
+def asset_symbols() -> dict:
+    """Full catalogue symbol universe per asset class (search visibility rule:
+    tradable + enriched). Powers the Ask-anything router's ticker validation.
+    Empty lists when the DB is unconfigured/unreachable — staleness is harmless
+    (a ticker not in the set just routes to the AI)."""
+    if db.db_enabled():
+        try:
+            return {
+                "us_equity": db.list_symbols("us_equity"),
+                "crypto": db.list_symbols("crypto"),
+            }
+        except db.DbUnavailable:
+            pass
+    return {"us_equity": [], "crypto": []}
 
 
 # --- Write path (Stage 2). Every route below carries the no-op write-auth
@@ -431,8 +490,11 @@ async def stream(
                     payload = await asyncio.wait_for(queue.get(), timeout=15)
                     yield f"data: {payload}\n\n"
                 except asyncio.TimeoutError:
-                    # Comment line keeps proxies from closing an idle stream.
-                    yield ": keepalive\n\n"
+                    # Named event (not a comment) so HTTP/2 proxies see a real
+                    # DATA frame and reset their stream idle timer. The browser
+                    # ignores it — EventSource only fires onmessage for unnamed
+                    # events; named 'keepalive' events have no registered listener.
+                    yield "event: keepalive\ndata: {}\n\n"
         finally:
             hub.unsubscribe(queue)
 

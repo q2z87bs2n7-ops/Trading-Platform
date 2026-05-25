@@ -64,6 +64,38 @@ function Toggle({
   );
 }
 
+function ToggleRow({
+  title,
+  desc,
+  on,
+  onChange,
+  label,
+}: {
+  title: string;
+  desc: string;
+  on: boolean;
+  onChange: (next: boolean) => void;
+  label: string;
+}) {
+  return (
+    <div
+      className="px-3 py-3 flex items-start justify-between gap-3"
+      style={{ borderTop: "1px solid var(--hairline)" }}
+    >
+      <div className="flex flex-col min-w-0">
+        <span className="text-[13px] font-medium">{title}</span>
+        <span
+          className="text-[12px] mt-0.5 leading-snug"
+          style={{ color: "var(--mute)" }}
+        >
+          {desc}
+        </span>
+      </div>
+      <Toggle on={on} onChange={onChange} label={label} />
+    </div>
+  );
+}
+
 export default function SettingsMenu() {
   const settings = useSettings();
   const [open, setOpen] = useState(false);
@@ -120,27 +152,29 @@ export default function SettingsMenu() {
             Settings
           </div>
 
-          <div
-            className="px-3 py-3 flex items-start justify-between gap-3"
-            style={{ borderTop: "1px solid var(--hairline)" }}
-          >
-            <div className="flex flex-col min-w-0">
-              <span className="text-[13px] font-medium">Ask anything AI</span>
-              <span
-                className="text-[12px] mt-0.5 leading-snug"
-                style={{ color: "var(--mute)" }}
-              >
-                When on, anything the local parser can't answer is sent to
-                Claude with read access to your account, positions, news,
-                and bars. Costs Anthropic credits per question.
-              </span>
-            </div>
-            <Toggle
-              on={settings.cmdbarAiEnabled}
-              onChange={(v) => updateSettings({ cmdbarAiEnabled: v })}
-              label="Enable AI fallback in Ask anything"
-            />
-          </div>
+          <ToggleRow
+            title="Market summary AI"
+            desc="Auto-generates the per-window market & crypto briefing on Discover. Costs Anthropic credits each new window."
+            on={settings.marketSummaryAiEnabled}
+            onChange={(v) => updateSettings({ marketSummaryAiEnabled: v })}
+            label="Enable AI market summary"
+          />
+
+          <ToggleRow
+            title="Ask anything AI"
+            desc="When on, anything the local parser can't answer is sent to Claude with read access to your account, positions, news and bars. Costs credits per question."
+            on={settings.askAiEnabled}
+            onChange={(v) => updateSettings({ askAiEnabled: v })}
+            label="Enable AI fallback in Ask anything"
+          />
+
+          <ToggleRow
+            title="ChartBot"
+            desc="The violet chart assistant in Chart mode — chat, drawings, studies and order visualisation. Costs credits per message."
+            on={settings.chartbotEnabled}
+            onChange={(v) => updateSettings({ chartbotEnabled: v })}
+            label="Enable ChartBot"
+          />
 
           <div
             className="px-3 py-3 flex items-center justify-between gap-3"

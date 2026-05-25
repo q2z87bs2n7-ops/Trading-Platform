@@ -2,8 +2,11 @@ import type {
   Account,
   Activity,
   Asset,
+  AssetProfile,
   Bar,
   CalendarDay,
+  EarningsResponse,
+  EconomicResponse,
   IndicesResponse,
   MarketClock,
   MarketNewsResponse,
@@ -19,6 +22,7 @@ import type {
   Snapshot,
   SubmitOrderInput,
 } from "./types";
+import type { SiloedAction } from "./lib/workspace/actions";
 
 // Empty for local dev (Vite proxy) and Vercel prod (same origin). Set to
 // the Vercel prod URL at build time for the GitHub Pages dev previews,
@@ -131,6 +135,11 @@ export const getCalendar = (start?: string, end?: string) =>
 export const getAsset = (symbol: string) =>
   getJSON<Asset>(`/api/assets/${symbol}`);
 
+// Full catalogue enrichment for one symbol (sibling path to dodge the greedy
+// `/api/assets/{symbol:path}` capture). Powers the Workspace Profile widget.
+export const getAssetProfile = (symbol: string) =>
+  getJSON<AssetProfile>(`/api/asset-profile/${symbol}`);
+
 // Symbol/name search over the catalogue (DB-backed; ranked by market cap).
 // assetClass: "" = all, "us_equity", or "crypto".
 export const searchAssets = (query: string, assetClass = "") =>
@@ -140,6 +149,28 @@ export const searchAssets = (query: string, assetClass = "") =>
   );
 
 export const getIndices = () => getJSON<IndicesResponse>("/api/indices");
+
+export const getEarningsCalendar = (include: string[] = []) =>
+  getJSON<EarningsResponse>(
+    `/api/calendar/earnings${include.length ? `?include=${include.join(",")}` : ""}`,
+  );
+
+export const getSymbolEarnings = (symbol: string) =>
+  getJSON<EarningsResponse>(`/api/calendar/earnings/${symbol}`);
+
+export const getEconomicCalendar = () =>
+  getJSON<EconomicResponse>("/api/calendar/economic");
+
+// Full catalogue symbol universe per asset class (DB-backed; tradable +
+// enriched). Fetched once and cached stale-while-revalidate to validate
+// tickers in the Ask-anything router.
+export interface AssetSymbols {
+  us_equity: string[];
+  crypto: string[];
+}
+
+export const getAssetSymbols = () =>
+  getJSON<AssetSymbols>("/api/asset-symbols");
 
 // ── Ask anything AI ────────────────────────────────────────────────────────
 // One-shot Q&A against /api/ai/ask. The endpoint resolves backend read
@@ -161,6 +192,9 @@ export interface AiAskResponse {
   text: string;
   tool_calls: AiAskToolCall[];
   reports?: AiAskReport[];
+  // Deferred client-side Workspace directives the bot wants applied (replayed
+  // by the FallbackCard against the Workspace controller).
+  workspace_actions?: SiloedAction[];
   usage: Record<string, unknown> | null;
   backend_stopped?: "" | "max_iterations";
 }
@@ -179,6 +213,11 @@ export const postAiAsk = (
     message,
     history,
     asset_class: assetClass,
+    // Device hint so the bot can size custom Workspace grids to the viewport.
+    viewport:
+      typeof window !== "undefined"
+        ? { width: window.innerWidth, height: window.innerHeight }
+        : undefined,
   });
 
 export const getMarketNews = (limit = 20) =>
@@ -197,6 +236,13 @@ export const addToWatchlist = (symbol: string) =>
 
 export const removeFromWatchlist = (symbol: string) =>
   sendJSON<{ symbols: string[] }>("DELETE", `/api/watchlist/${symbol}`);
+
+// Fire-and-forget ping to keep the Render relay warm (prevent spindown).
+// Only fires when a dedicated relay is configured; no-ops on Vercel-only setups.
+export function pingRelayHealth(): void {
+  if (!STREAM_BASE || STREAM_BASE === API_BASE) return;
+  fetch(`${STREAM_BASE}/api/health`).catch(() => {});
+}
 
 export const getCryptoWatchlist = () =>
   getJSON<{ symbols: string[] }>("/api/watchlist?asset_class=crypto");

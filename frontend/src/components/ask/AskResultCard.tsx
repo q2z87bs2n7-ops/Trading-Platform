@@ -1,7 +1,7 @@
 // Shared card shell for every Ask anything result. Keeps the teal
 // border-left rail and consistent padding/radius across all intent cards.
 
-export default function CmdResultCard({
+export default function AskResultCard({
   title,
   meta,
   children,

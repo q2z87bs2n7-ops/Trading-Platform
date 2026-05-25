@@ -21,6 +21,11 @@ from pydantic import BaseModel, Field
 from .. import alpaca, db, market_news
 from ..config import get_settings
 from . import prompt, reports, tools
+from .tools_workspace import (
+    WORKSPACE_CHANNELS,
+    WORKSPACE_PRESETS,
+    WORKSPACE_WIDGET_KINDS,
+)
 
 
 router = APIRouter()
@@ -76,11 +81,28 @@ class ChatResponse(BaseModel):
 # --- Backend tool dispatcher ------------------------------------------------
 
 
+def _ws_append(
+    acc: list[dict[str, Any]] | None,
+    args: dict[str, Any],
+    directive: dict[str, Any],
+) -> None:
+    """Queue a Workspace client directive, tagging the target silo if given.
+    The frontend (FallbackCard) replays these against the canvas — the backend
+    never touches UI state, mirroring how reports are queued into artifacts."""
+    if acc is None:
+        return
+    silo = args.get("silo")
+    if silo in ("stocks", "crypto"):
+        directive["silo"] = silo
+    acc.append(directive)
+
+
 def _execute_read_tool(
     name: str,
     args: dict[str, Any],
     asset_class: str | None = None,
     artifacts: list[dict[str, Any]] | None = None,
+    workspace_actions: list[dict[str, Any]] | None = None,
 ) -> str:
     """Run one read/action tool and return its JSON-serialized result string.
 
@@ -290,6 +312,79 @@ def _execute_read_tool(
             default=str,
         )
 
+    # ── Workspace control (Ask anything only) ── these don't run server-side;
+    # each queues a client directive the frontend replays against the canvas.
+    if name == "set_workspace_layout":
+        preset = str(args.get("preset", "")).lower()
+        if preset not in WORKSPACE_PRESETS:
+            raise ValueError(f"unknown layout preset '{preset}'")
+        _ws_append(workspace_actions, args, {"kind": "apply_preset", "preset": preset})
+        return json.dumps({"workspace": "layout", "preset": preset})
+
+    if name == "set_channel_instrument":
+        channel = str(args.get("channel", "")).lower()
+        if channel not in WORKSPACE_CHANNELS:
+            raise ValueError(f"unknown channel '{channel}'")
+        symbol = alpaca.normalize_crypto_symbol(str(args["symbol"]).upper())
+        _ws_append(
+            workspace_actions, args,
+            {"kind": "set_channel", "channel": channel, "symbol": symbol},
+        )
+        return json.dumps({"workspace": "channel", "channel": channel, "symbol": symbol})
+
+    if name == "add_workspace_widget":
+        widget = str(args.get("widget", "")).lower()
+        if widget not in WORKSPACE_WIDGET_KINDS:
+            raise ValueError(f"unknown widget '{widget}'")
+        directive: dict[str, Any] = {"kind": "add_widget", "widget": widget}
+        if args.get("symbol"):
+            directive["symbol"] = alpaca.normalize_crypto_symbol(str(args["symbol"]).upper())
+        if args.get("channel"):
+            ch = str(args["channel"]).lower()
+            if ch not in WORKSPACE_CHANNELS:
+                raise ValueError(f"unknown channel '{ch}'")
+            directive["channel"] = ch
+        _ws_append(workspace_actions, args, directive)
+        return json.dumps({"workspace": "add", "widget": widget})
+
+    if name == "remove_workspace_widget":
+        directive = {"kind": "remove_widget"}
+        if args.get("widget"):
+            w = str(args["widget"]).lower()
+            if w not in WORKSPACE_WIDGET_KINDS:
+                raise ValueError(f"unknown widget '{w}'")
+            directive["widget"] = w
+        if args.get("panel_id"):
+            directive["panelId"] = str(args["panel_id"])
+        _ws_append(workspace_actions, args, directive)
+        return json.dumps({"workspace": "remove"})
+
+    if name == "build_workspace_layout":
+        raw = args.get("widgets") or []
+        widgets: list[dict[str, Any]] = []
+        for w in raw[:12]:
+            kind = str(w.get("kind", "")).lower()
+            if kind not in WORKSPACE_WIDGET_KINDS:
+                raise ValueError(f"unknown widget kind '{kind}'")
+            item: dict[str, Any] = {"kind": kind}
+            if w.get("symbol"):
+                item["symbol"] = alpaca.normalize_crypto_symbol(str(w["symbol"]).upper())
+            if w.get("channel"):
+                ch = str(w["channel"]).lower()
+                if ch not in WORKSPACE_CHANNELS:
+                    raise ValueError(f"unknown channel '{ch}'")
+                item["channel"] = ch
+            widgets.append(item)
+        if not widgets:
+            raise ValueError("widgets must not be empty")
+        spec: dict[str, Any] = {"widgets": widgets}
+        if args.get("arrangement"):
+            spec["arrangement"] = str(args["arrangement"]).lower()
+        if args.get("columns"):
+            spec["columns"] = int(args["columns"])
+        _ws_append(workspace_actions, args, {"kind": "build_layout", "spec": spec})
+        return json.dumps({"workspace": "build", "panels": len(widgets)})
+
     raise ValueError(f"unknown read tool: {name}")
 
 
@@ -441,7 +536,7 @@ def ai_chat(req: ChatRequest) -> ChatResponse:
     )
 
 
-# --- ⌘K general-purpose ask endpoint ----------------------------------------
+# --- Ask anything general-purpose ask endpoint ------------------------------
 # Smaller surface area than /api/ai/chat: no frontend tools, no per-request
 # chart context, no streaming. One-shot Q&A with backend reads grounding the
 # answer. The modal clears its transcript on close, so history is bounded
@@ -455,6 +550,9 @@ class AskRequest(BaseModel):
     history: list[dict[str, Any]] = Field(default_factory=list)
     # Active silo so the model steers to the right symbols / news / tools.
     asset_class: Literal["stocks", "crypto"] | None = None
+    # Optional viewport hint so the model can size custom Workspace grids to the
+    # user's screen (the frontend still computes responsive columns).
+    viewport: dict[str, int] | None = None
 
 
 class AskToolCall(BaseModel):
@@ -471,6 +569,8 @@ class AskResponse(BaseModel):
     text: str
     tool_calls: list[AskToolCall] = Field(default_factory=list)
     reports: list[AskReport] = Field(default_factory=list)
+    # Deferred Workspace directives for the frontend to replay against the canvas.
+    workspace_actions: list[dict[str, Any]] = Field(default_factory=list)
     usage: dict[str, Any] | None = None
     backend_stopped: Literal["", "max_iterations"] = ""
 
@@ -539,6 +639,21 @@ def ai_ask(req: AskRequest) -> AskResponse:
             " do not use it for symbols, prices, news or lists you can already"
             " produce."
         )
+    context += (
+        " You can also arrange the desktop Workspace: set_channel_instrument"
+        " points a link channel at a symbol; set_workspace_layout applies a named"
+        " preset (trader/researcher/watcher/focus); add_workspace_widget adds one"
+        " panel; build_workspace_layout builds a custom grid from scratch — resolve"
+        " the symbols first (find_symbol/screen_assets/knowledge), then list one"
+        " chart per instrument. Use build_workspace_layout for 'watch the N best …'"
+        " or 'show me a grid of charts' requests. The app auto-switches into"
+        " Workspace mode and sizes grids to the viewport; Workspace is desktop-only."
+    )
+    if req.viewport:
+        context += (
+            f" Current viewport is ~{req.viewport.get('width')}x"
+            f"{req.viewport.get('height')} px."
+        )
     system = prompt.build_general_system(context=context)
     tool_list = tools.ask_tools(web_search=s.ai_web_search_enabled)
     messages = _trim_history(
@@ -547,6 +662,7 @@ def ai_ask(req: AskRequest) -> AskResponse:
 
     tool_calls: list[AskToolCall] = []
     artifacts: list[dict[str, Any]] = []
+    workspace_actions: list[dict[str, Any]] = []
 
     def _create():
         return client.messages.create(
@@ -601,6 +717,7 @@ def ai_ask(req: AskRequest) -> AskResponse:
                 text=text,
                 tool_calls=tool_calls,
                 reports=[AskReport(**a) for a in artifacts],
+                workspace_actions=workspace_actions,
                 usage=usage,
             )
 
@@ -612,7 +729,7 @@ def ai_ask(req: AskRequest) -> AskResponse:
             try:
                 result_str = _execute_read_tool(
                     tu.name, dict(tu.input), asset_class=req.asset_class,
-                    artifacts=artifacts,
+                    artifacts=artifacts, workspace_actions=workspace_actions,
                 )
                 results.append(
                     {
@@ -640,6 +757,7 @@ def ai_ask(req: AskRequest) -> AskResponse:
         text="(stopped after reaching the tool-use iteration limit — try a more direct question)",
         tool_calls=tool_calls,
         reports=[AskReport(**a) for a in artifacts],
+        workspace_actions=workspace_actions,
         usage=None,
         backend_stopped="max_iterations",
     )
