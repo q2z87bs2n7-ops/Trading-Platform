@@ -279,7 +279,16 @@ export default function App() {
 
   return (
     <>
-    <div className={mode === "workspace" ? "app bleed" : "app"} style={siloAccent}>
+    <div
+      className={
+        mode === "workspace"
+          ? "app bleed"
+          : mode === "chart" && !isMobile
+            ? "app app-chart"
+            : "app"
+      }
+      style={siloAccent}
+    >
       {!(mode === "workspace" && focusMode) && (
       <header>
         {isMobile ? (
@@ -361,8 +370,8 @@ export default function App() {
 
       {/* TradingView full terminal + ChartBot panel — Chart mode only */}
       {mode === "chart" && (
-        <div style={{ display: "flex" }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", flex: isMobile ? undefined : 1, minHeight: 0 }}>
+          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
             <TVPlatform symbol={selected} onSymbolChange={setSelected} />
           </div>
           <ChatPanel symbol={selected || (activeClass === "crypto" ? "BTC/USD" : "AAPL")} />

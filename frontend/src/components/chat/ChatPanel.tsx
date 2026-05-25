@@ -141,7 +141,7 @@ export default function ChatPanel({ symbol, resolution = "D" }: Props) {
   if (collapsed) {
     return (
       <div
-        className="flex h-[calc(100vh-60px)] w-11 items-start justify-center pt-3"
+        className="flex h-full w-11 items-start justify-center pt-3"
         style={{
           background:
             "linear-gradient(180deg, var(--cb-accent-soft) 0%, var(--bg) 100%)",
@@ -164,7 +164,7 @@ export default function ChatPanel({ symbol, resolution = "D" }: Props) {
 
   return (
     <div
-      className="flex h-[calc(100vh-60px)] flex-col min-h-0"
+      className="flex h-full flex-col min-h-0"
       style={{
         width: "min(380px, 100vw)",
         maxWidth: PANEL_WIDTH,

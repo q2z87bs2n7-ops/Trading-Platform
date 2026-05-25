@@ -172,6 +172,16 @@ body {
   flex-direction: column;
 }
 
+/* Chart mode (desktop): a full-height flex column so the chart row fills
+   the viewport below the header and the chart + ChartBot panel stretch to
+   equal heights — no magic height math. Mobile keeps the plain padded
+   block (the chart sizes itself and ChartBot is a floating sheet). */
+.app.app-chart {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
 @media (max-width: 640px) {
   :root {
     /* Hero numerals — read with a desktop fallback in BalanceCard. */

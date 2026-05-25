@@ -233,16 +233,26 @@ export default function TVPlatform({ symbol, onSymbolChange }: Props) {
   }, [symbol]);
 
   return (
-    <div className="flex flex-col gap-2" style={{ width: "100%" }}>
+    <div
+      className="flex flex-col gap-2"
+      style={
+        isMobile
+          ? { width: "100%" }
+          : { width: "100%", flex: 1, minHeight: 0 }
+      }
+    >
       <div
         ref={containerRef}
         className="border border-border"
         style={{
           width: "100%",
-          height: isMobile
-            ? "calc(100dvh - var(--mob-chrome-top) - var(--mob-chrome-top-2) - 96px)"
-            : "calc(100vh - 250px)",
-          minHeight: isMobile ? 320 : 360,
+          ...(isMobile
+            ? {
+                height:
+                  "calc(100dvh - var(--mob-chrome-top) - var(--mob-chrome-top-2) - 96px)",
+                minHeight: 320,
+              }
+            : { flex: 1, minHeight: 360 }),
           borderRadius: "var(--r-lg)",
           overflow: "hidden",
         }}
