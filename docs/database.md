@@ -47,7 +47,7 @@ fundamentals backfill resumes independently of the profile enrichment.
 | `backend/app/alpaca/trading.py` | `get_all_assets_for_seed()` → full us_equity + crypto list; `_full_asset_dict` captures base fields. `_enum_value` extracts the wire value from Alpaca SDK enums (see landmines). |
 | `backend/app/coingecko.py` | Crypto enrichment. Static **base-ticker → coingecko-id** map (BTC/USD, BTC/USDT … → `bitcoin`), Demo-key header when `COINGECKO_API_KEY` set, 429 backoff. |
 | `backend/app/fmp.py` | Stock enrichment via FMP's **stable** `/profile` (single-symbol). Maps ~20 columns; translates dot-class symbols to dash for the query (`BRK.B`→`BRK-B`). Also `map_fundamentals` off `income-statement`+`cash-flow-statement`+`ratios` (annual): derives margins/growth from the statements, pulls valuation/quality ratios with alias fallbacks (stable field names vary). |
-| `backend/app/seed.py` | Onboarding: `run_seed(force, base)` — Alpaca base upsert + CoinGecko crypto enrich. Per-widget **refresh routines** (background daemon via `_start_background`): `refresh_profile_stocks`, `refresh_profile_crypto`, `refresh_fundamentals` (each `include_missing` to also onboard). `enrich_stocks`/`enrich_fundamentals` remain as the per-symbol executors the refreshers loop over. |
+| `backend/app/seed.py` | Onboarding: `run_seed(force, base)` — Alpaca base upsert + CoinGecko crypto enrich. Per-widget **refresh routines** (background daemon via `_start_background`): `refresh_profile_stocks`, `refresh_profile_crypto`, `refresh_fundamentals` (each `include_missing` to also onboard), plus aggregate `refresh_all_stocks` (profile+fundamentals) and `refresh_all_crypto`. `enrich_stocks`/`enrich_fundamentals` remain as the per-symbol executors the refreshers loop over. |
 | `backend/app/main.py` | Endpoints: `/api/assets` (search), `/api/assets/{symbol}` (both DB-backed w/ Alpaca fallback), and the dev seeders below. |
 | `backend/app/ai/tools_read.py`, `ai/router.py` | The AI catalogue tools (`get_asset_profile`, `screen_assets`) — schemas + server-side execution. |
 
@@ -86,9 +86,20 @@ that card hasn't enriched yet (e.g. a newly listed stock).
 | `refresh-profile-crypto` | **Profile** (crypto) | CoinGecko | `curl -X POST "https://<render-url>/api/_dev/refresh-profile-crypto"` |
 | `refresh-fundamentals` | **Fundamentals** (stocks) | FMP statements | `curl -X POST "https://<render-url>/api/_dev/refresh-fundamentals"` |
 
-Onboard new instruments instead of just refreshing: add `?include_missing=true`
-(stocks/fundamentals routines). A sensible **monthly** cadence is all three
-(no built-in scheduler — trigger manually or via an external cron).
+**Aggregate flows** (supersets — run everything for a silo in one call, including
+what the per-card routines above cover):
+
+| Flow | Covers | Curl |
+| --- | --- | --- |
+| `refresh-all-stocks` | Profile **+** Fundamentals (FMP) | `curl -X POST "https://<render-url>/api/_dev/refresh-all-stocks"` |
+| `refresh-all-crypto` | all crypto enrichment (CoinGecko) | `curl -X POST "https://<render-url>/api/_dev/refresh-all-crypto"` |
+
+`refresh-all-crypto` matches `refresh-profile-crypto` today (Profile is crypto's
+only enrichment source) and also picks up un-enriched crypto. Onboard new
+instruments instead of just refreshing: add `?include_missing=true` (the
+stocks/fundamentals routines and `refresh-all-stocks`). A sensible **monthly**
+cadence is just the two aggregate flows (no built-in scheduler — trigger manually
+or via an external cron).
 
 For current row counts and coverage, run the verification queries below rather
 than trusting a number in this doc (it would drift).

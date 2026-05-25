@@ -188,10 +188,12 @@ separate silos behind a shared account.
   background, per-widget **refresh routines** — `POST
   /api/_dev/refresh-profile-stocks` (FMP `/profile`), `POST
   /api/_dev/refresh-profile-crypto` (CoinGecko), and `POST
-  /api/_dev/refresh-fundamentals` (FMP annual statements). Each re-pulls every DB
-  value its card shows for already-enriched rows (`?include_missing=true` also
-  onboards new ones); fire-and-forget, sensible monthly. See "Asset catalogue"
-  below and `docs/database.md`.
+  /api/_dev/refresh-fundamentals` (FMP annual statements), plus aggregate flows
+  `POST /api/_dev/refresh-all-stocks` (Profile + Fundamentals) and `POST
+  /api/_dev/refresh-all-crypto`. Each re-pulls every DB value its card shows for
+  already-enriched rows (`?include_missing=true` also onboards new ones);
+  fire-and-forget, sensible monthly. See "Asset catalogue" below and
+  `docs/database.md`.
   **Path params with slashes:** `/api/assets/{symbol:path}`,
   `/api/asset-profile/{symbol:path}`, `/api/positions/{symbol:path}`, and
   `/api/watchlist/{symbol:path}`

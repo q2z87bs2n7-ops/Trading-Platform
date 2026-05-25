@@ -464,6 +464,25 @@ def refresh_fundamentals(include_missing: bool = Query(False)) -> dict:
     return _r(include_missing=include_missing)
 
 
+@app.post("/api/_dev/refresh-all-stocks", dependencies=[Depends(require_configured)])
+def refresh_all_stocks(include_missing: bool = Query(False)) -> dict:
+    """Refresh ALL stock enrichment in one background flow — Profile (FMP
+    /profile) + Fundamentals (FMP statements); superset of the per-card stock
+    routines. ?include_missing=true also onboards new stocks. Render-only:
+    curl -X POST 'https://<render-url>/api/_dev/refresh-all-stocks'"""
+    from .seed import refresh_all_stocks as _r
+    return _r(include_missing=include_missing)
+
+
+@app.post("/api/_dev/refresh-all-crypto", dependencies=[Depends(require_configured)])
+def refresh_all_crypto() -> dict:
+    """Refresh ALL crypto enrichment (CoinGecko) in one background flow.
+    Render-only:
+    curl -X POST 'https://<render-url>/api/_dev/refresh-all-crypto'"""
+    from .seed import refresh_all_crypto as _r
+    return _r()
+
+
 @app.get("/api/stream")
 async def stream(
     request: Request,

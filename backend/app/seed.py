@@ -221,6 +221,47 @@ def refresh_fundamentals(include_missing: bool = False) -> dict:
     )
 
 
+def refresh_all_stocks(include_missing: bool = False) -> dict:
+    """Refresh ALL stock enrichment in one background flow — the **Profile** card
+    (FMP `/profile`) then the **Fundamentals** card (FMP statements). Superset of
+    `refresh_profile_stocks` + `refresh_fundamentals`. `include_missing=True` also
+    onboards stocks/fundamentals not enriched yet."""
+    if not db.db_enabled():
+        return {"error": "DATABASE_URL not configured"}
+    if not fmp.configured():
+        return {"error": "FMP_API_KEY not configured"}
+
+    def _worker() -> None:
+        prof = set(db.enriched_stock_symbols())
+        if include_missing:
+            prof |= set(db.unenriched_stock_symbols(1_000_000))
+        enrich_stocks(symbols=sorted(prof), force=True)
+        # Recompute after the profile pass so any rows just onboarded also get
+        # their fundamentals.
+        fund = set(db.fundamentals_enriched_symbols())
+        if include_missing:
+            fund |= set(db.fundamentals_target_symbols(1_000_000, only_missing=True))
+        enrich_fundamentals(symbols=sorted(fund), force=True)
+
+    return _start_background(
+        "refresh-all-stocks", lambda: len(db.enriched_stock_symbols()), _worker
+    )
+
+
+def refresh_all_crypto() -> dict:
+    """Refresh ALL crypto enrichment (CoinGecko) in one background flow. Crypto's
+    only enrichment source is the **Profile** card, so this matches
+    `refresh_profile_crypto` today and also picks up any un-enriched crypto."""
+    if not db.db_enabled():
+        return {"error": "DATABASE_URL not configured"}
+
+    return _start_background(
+        "refresh-all-crypto",
+        lambda: len(db.enriched_crypto_symbols()),
+        lambda: run_seed(force=True, base=False),
+    )
+
+
 def run_seed(force: bool = False, base: bool = True) -> dict:
     """Seed the catalogue. By default crypto rows already enriched are skipped
     so a re-run only fills gaps; ``force=True`` re-enriches every crypto pair.
