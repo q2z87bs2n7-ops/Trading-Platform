@@ -11,15 +11,19 @@
  * buffering from the original hook.
  */
 
-import { getQuotes, streamQuotes } from "../api";
+import { getQuotes, pingRelayHealth, streamQuotes } from "../api";
 import { setStreamStatus } from "../lib/stream-status";
 import type { Quote } from "../types";
 import { qk, queryClient } from "./queryClient";
 
-const POLL_MS = 2000;
+// Fallback is already degraded (stream is down); 15s keeps Vercel edge-request
+// usage reasonable vs the previous 2s default.
+const POLL_MS = 15000;
 // Buffer stream ticks and flush at most this often (mirrors the Watchlist's
 // load-bearing constant from CLAUDE.md). Tune, don't remove.
 const FLUSH_MS = 500;
+// Ping the Render relay every 9 minutes to prevent spindown-triggered fallback.
+const KEEPALIVE_MS = 9 * 60 * 1000;
 // Coalesce a burst of (un)subscribes — e.g. several widgets mounting in the
 // same tick — into one reconnect.
 const RECONNECT_DEBOUNCE_MS = 60;
@@ -34,6 +38,7 @@ let stopStream: (() => void) | null = null;
 let pollId: number | undefined;
 let flushId: number | undefined;
 let reconnectId: number | undefined;
+let keepaliveId: number | undefined;
 let pending: QuoteMap = {};
 
 function unionSymbols(): string[] {
@@ -98,6 +103,18 @@ function clearPolling() {
   }
 }
 
+function startKeepalive() {
+  if (keepaliveId !== undefined) return;
+  keepaliveId = window.setInterval(pingRelayHealth, KEEPALIVE_MS);
+}
+
+function clearKeepalive() {
+  if (keepaliveId !== undefined) {
+    window.clearInterval(keepaliveId);
+    keepaliveId = undefined;
+  }
+}
+
 function teardownTransport() {
   stopStream?.();
   stopStream = null;
@@ -110,10 +127,12 @@ function connect(symbols: string[], seed: string[]) {
   teardownTransport();
   if (symbols.length === 0) {
     clearFlusher();
+    clearKeepalive();
     setStreamStatus("idle");
     return;
   }
   ensureFlusher();
+  startKeepalive();
   if (seed.length) {
     // Seed immediately so consumers aren't blank while the first tick lands
     // (can take several seconds on a new instrument / cold relay wake-up).

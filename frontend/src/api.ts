@@ -237,6 +237,13 @@ export const addToWatchlist = (symbol: string) =>
 export const removeFromWatchlist = (symbol: string) =>
   sendJSON<{ symbols: string[] }>("DELETE", `/api/watchlist/${symbol}`);
 
+// Fire-and-forget ping to keep the Render relay warm (prevent spindown).
+// Only fires when a dedicated relay is configured; no-ops on Vercel-only setups.
+export function pingRelayHealth(): void {
+  if (!STREAM_BASE || STREAM_BASE === API_BASE) return;
+  fetch(`${STREAM_BASE}/api/health`).catch(() => {});
+}
+
 export const getCryptoWatchlist = () =>
   getJSON<{ symbols: string[] }>("/api/watchlist?asset_class=crypto");
 

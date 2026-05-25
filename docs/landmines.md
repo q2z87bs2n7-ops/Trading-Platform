@@ -22,6 +22,16 @@ area.
   relay). Load-bearing — keep it. `EventSource` auto-reconnect is
   deliberately disabled so failure → polling, not a silent reconnect
   loop.
+- **`POLL_MS` is intentionally 15 000 ms (not 2 s).** At 2 s the fallback
+  generates ~43 k Vercel edge requests/day and burns the free-tier 1 M
+  allowance in ~3 weeks. 15 s is still responsive for a degraded path.
+  Don't reduce it without considering the edge-request budget.
+- **Render relay keepalive.** `quoteStream.ts` pings `STREAM_BASE/api/health`
+  every 9 minutes while any symbol is subscribed. This prevents Render
+  spindown, which is what triggers stream failures and the expensive
+  polling fallback. The ping is a no-op if `VITE_STREAM_BASE` is unset
+  (Vercel-only setups). `pingRelayHealth` in `api.ts` is the single call
+  site — don't add a second one.
 - `useLiveQuotes` fires a one-shot `getQuotes()` REST call on mount to
   seed the cache before the first stream tick arrives — otherwise the
   order sheet's est-cost shows blank until Alpaca pushes a tick.
