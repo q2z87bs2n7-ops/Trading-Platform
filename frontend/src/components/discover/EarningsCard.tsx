@@ -7,24 +7,29 @@ import { CardPager } from "./CardPager";
 const PAGE_SIZE = 10;
 
 // "2026-05-30" -> "May 30" (string split avoids UTC-vs-local date drift).
-function fmtDay(d: string): string {
+// With showYear, appends a 2-digit year ("May 30 '26") — used by the Workspace
+// per-symbol view where rows span multiple quarters/years.
+function fmtDay(d: string, showYear = false): string {
   const [y, m, day] = d.split("-").map(Number);
   if (!y || !m || !day) return d;
-  return new Date(y, m - 1, day).toLocaleDateString("en-US", {
+  const base = new Date(y, m - 1, day).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
   });
+  return showYear ? `${base} '${String(y).slice(-2)}` : base;
 }
 
 function EarningsRowItem({
   r,
   rank,
   dense,
+  showYear,
   onSelect,
 }: {
   r: EarningsRow;
   rank: number;
   dense: boolean;
+  showYear: boolean;
   onSelect?: (s: string) => void;
 }) {
   const reported = r.eps_actual != null;
@@ -37,7 +42,7 @@ function EarningsRowItem({
   const inner = (
     <>
       <span className="font-mono text-[12px]" style={{ color: "var(--mute)" }}>
-        {fmtDay(r.date)}
+        {fmtDay(r.date, showYear)}
       </span>
       <div className="font-semibold text-[14px] min-w-0 truncate">{r.symbol}</div>
       <span
@@ -64,8 +69,11 @@ function EarningsRowItem({
 
   const cls =
     "w-full text-left grid items-center gap-2.5 py-2 border-0 bg-transparent";
+  const dateCol = showYear ? "72px" : "48px";
   const style = {
-    gridTemplateColumns: dense ? "48px 1fr auto" : "48px 1fr auto 72px",
+    gridTemplateColumns: dense
+      ? `${dateCol} 1fr auto`
+      : `${dateCol} 1fr auto 72px`,
     borderTop: rank === 0 ? "none" : "1px solid var(--border)",
   } as const;
 
@@ -90,11 +98,13 @@ export function EarningsCard({
   onSelect,
   bare = false,
   dense = false,
+  showYear = false,
 }: {
   rows: EarningsRow[];
   onSelect?: (s: string) => void;
   bare?: boolean;
   dense?: boolean;
+  showYear?: boolean;
 }) {
   const [page, setPage] = useState(0);
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
@@ -116,6 +126,7 @@ export function EarningsCard({
               r={r}
               rank={i}
               dense={dense}
+              showYear={showYear}
               onSelect={onSelect}
             />
           ))}

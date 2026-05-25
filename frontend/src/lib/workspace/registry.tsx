@@ -729,7 +729,12 @@ function EarningsWidget(props: IDockviewPanelProps) {
           {active.error && <ErrorBanner message={active.error.message} />}
           {!active.data && !active.error && <EarningsCardSkeleton bare />}
           {active.data && (
-            <EarningsCard rows={active.data.earnings} bare dense={dense} />
+            <EarningsCard
+              rows={active.data.earnings}
+              bare
+              dense={dense}
+              showYear={!isMarket}
+            />
           )}
         </Pane>
       </div>
