@@ -11,7 +11,10 @@ Core files: `components/Workspace.tsx` (container + toolbar) +
 (`dockview-react`, lazy-loaded): drag-to-dock, tab-stack, float and pop-out
 panels, per-silo layout persistence (`workspace_layouts_{stocks,crypto}_v2` —
 `{ active: { name, layout }, saved: {} }`; a transparent migration from the old
-`workspace_layout_{silo}_v1` runs on first load after upgrade).
+`workspace_layout_{silo}_v1` runs on first load after upgrade). `active` is the
+live canvas (autosaved on drag); `saved` is the user's **named layouts** (see
+Toolbar → Layouts), each entry `{ layout, channels }` so a restore brings back
+both the arrangement and the per-channel symbols.
 
 ## Toolbar
 
@@ -21,9 +24,14 @@ panels, per-silo layout persistence (`workspace_layouts_{stocks,crypto}_v2` —
 - **Channels strip** — one chip per symbol channel showing the channel symbol +
   a count of widgets bound to it; click opens `AssetSearch` to retarget the
   channel everywhere.
-- **Layouts ▾** — 480px popover of named presets (Trader / Researcher / Watcher
-  / Focus — see `presets.tsx`; Trader = the old default, applied on first run;
-  Apply confirms then clobbers the canvas).
+- **Layouts ▾** — 480px popover with two parts: the built-in **presets** (Trader
+  / Researcher / Watcher / Focus — see `presets.tsx`; Trader = the old default,
+  applied on first run; select a card then Apply, which clobbers the canvas), and
+  a **"My layouts"** section for the user's named saved layouts — *Save current
+  as…* (inline name input), then per-row *Apply / Rename / Delete*. A saved
+  layout snapshots the Dockview JSON **and** the current colour-channel symbols
+  into `saved[name] = { layout, channels }` (localStorage); Apply restores both.
+  Applying a preset/custom layout resets only `active` — saved layouts persist.
 - **Tab bars** toggle — per-group header via Dockview.
 - **Focus** toggle — hides the app header for a near-full-screen canvas; `Esc`
   exits unless a `[role=dialog]` is focused.
