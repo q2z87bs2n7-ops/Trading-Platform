@@ -107,7 +107,8 @@ separate silos behind a shared account.
   - **Workspace** (desktop only — hidden on mobile) — a dockable widget
     canvas on Dockview (`components/Workspace.tsx` + `lib/workspace/`):
     per-silo layout persistence, link-channel widgets (None +
-    Main/blue/green/amber), named layout presets, and an Ask-anything
+    Main/blue/green/amber), named layout presets plus user-saved layouts
+    ("Save current as…"), and an Ask-anything
     control path. Goes full-bleed and drops the `TopBar` equity strip
     (account figures live in the Account widget). **Full detail — widget
     catalogue, channels, toolbar, panel-size fit, and the module-reuse

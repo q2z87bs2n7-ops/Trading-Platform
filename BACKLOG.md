@@ -60,18 +60,18 @@ here; use `git log` for that.
 
 ## Workspace
 
-- **Split `components/Workspace.tsx` (~1325 lines)** — the container holds five
+- **Split `components/Workspace.tsx` (~1780 lines)** — the container holds six
   self-contained toolbar sub-components (`AddWidgetMenu`, `LayoutsMenu`,
-  `ChannelChip`, `EmptyState`, `ChannelsStrip` — ~860 lines together) plus the
-  layout/channel persistence helpers. Extracting the toolbar into
-  `components/workspace/` would leave the container ~450 lines. Deferred because
-  it's desktop-only Dockview UI that can't be exercised in the cloud sandbox, so
-  the split needs local verification before it ships.
-- **Named user layouts** — the v2 persistence shape reserves
-  `saved: Record<name, layout>` for "Save current as…"; build the Save / Rename /
-  Delete UI in the Layouts menu (the popover already has the card grid + Apply
-  confirm to extend). The AI builder currently writes its custom layout into
-  `active` (named `"custom"`), not `saved`.
+  `SavedLayoutRow`, `ChannelChip`, `EmptyState`, `ChannelsStrip` — ~1190 lines
+  together) plus the layout/channel persistence helpers. Extracting the toolbar
+  into `components/workspace/` would leave the container ~520 lines. Deferred
+  because it's desktop-only Dockview UI that can't be exercised in the cloud
+  sandbox, so the split needs local verification before it ships.
+- **AI-saved named layouts** — named user layouts now ship (the Layouts menu's
+  "My layouts": Save current as… / Apply / Rename / Delete, persisted in the v2
+  `saved` map as `{ layout, channels }`). The AI builder still writes its custom
+  grid into `active` (named `"custom"`), not `saved`; wiring it to save a named
+  layout is the remaining gap.
 
 ## Chart mode
 
