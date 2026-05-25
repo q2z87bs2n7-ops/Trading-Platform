@@ -33,16 +33,20 @@ interface Props {
 
 // We lean on TV's native header (symbol search, resolutions, chart type,
 // indicators, settings, …) and native Account Manager (positions /
-// orders / account blotter). Only TV's trade-*initiation* UI stays
-// suppressed: trade entry runs through our TradeBar + OrderSheet so the
-// crypto constraints and confirm flow are enforced. The broker stays
-// wired, so price-line overlays draw and the Account Manager can close
-// positions.
+// orders / account blotter — enabled but collapsed by default). Only TV's
+// trade-*initiation* UI stays suppressed: trade entry runs through our
+// TradeBar + OrderSheet so the crypto constraints and confirm flow are
+// enforced. The broker stays wired, so price-line overlays draw and the
+// Account Manager can close positions.
 const DISABLED_FEATURES = [
   "use_localstorage_for_settings",
   // Save/Load chart button: no charts-storage backend is configured, so
   // the native button would be a dead end — leave it suppressed.
   "header_saveload",
+  // Account Manager stays available (trading_account_manager is on) but
+  // starts collapsed — disabling open_account_manager keeps it from
+  // auto-expanding; the user opens it from its bottom toggle bar.
+  "open_account_manager",
   // TV-native order-entry UI — superseded by TradeBar + OrderSheet.
   "order_panel",
   "show_order_panel_on_start",
