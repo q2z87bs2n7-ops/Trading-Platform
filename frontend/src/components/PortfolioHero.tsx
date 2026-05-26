@@ -215,8 +215,7 @@ export default function PortfolioHero({ assetClass }: { assetClass: AssetClass }
             >
               <defs>
                 <linearGradient id="port-hero-pnl" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={curve.stroke} stopOpacity={0.12} />
-                  <stop offset="60%" stopColor={curve.stroke} stopOpacity={0.04} />
+                  <stop offset="0%" stopColor={curve.stroke} stopOpacity={0.18} />
                   <stop offset="100%" stopColor={curve.stroke} stopOpacity={0} />
                 </linearGradient>
               </defs>
