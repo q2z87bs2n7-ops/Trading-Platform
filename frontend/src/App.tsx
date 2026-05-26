@@ -430,14 +430,21 @@ export default function App() {
         <div className="max-w-[1280px] mx-auto pt-2">
           <PortfolioHero assetClass={activeClass} />
 
-          <SectionHeading label="Positions" />
+          {/* Positions is the primary block — promoted heading + full-width
+             list. Orders + Activity drop to a 2-col secondary row beneath. */}
+          <SectionHeading label="Positions" size="lg" />
           <Positions variant="strip" onSelect={setSelected} assetClass={activeClass} />
 
-          <SectionHeading label="Orders" />
-          <Orders assetClass={activeClass} />
-
-          <SectionHeading label="Activity" />
-          <Activities />
+          <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+            <section>
+              <SectionHeading label="Orders" />
+              <Orders assetClass={activeClass} />
+            </section>
+            <section>
+              <SectionHeading label="Activity" />
+              <Activities />
+            </section>
+          </div>
         </div>
       )}
 

@@ -7,7 +7,6 @@ import { showToast } from "../lib/toast";
 import type { Order } from "../types";
 import ErrorBanner from "./ErrorBanner";
 import Pill from "./Pill";
-import ConfirmCard from "./trade/ConfirmCard";
 import ModifyOrderCard from "./trade/ModifyOrderCard";
 
 // Statuses past which an order can no longer be cancelled/replaced.
@@ -297,38 +296,99 @@ export default function Orders({
 
   const body = (
     <>
+      {/* Toolbar row: status tabs + Cancel-all. Tapping Cancel-all swaps the
+         whole row to an inline confirm strip so the user doesn't get a modal
+         pop on a low-stakes destructive action — they can also keep glancing
+         at the list while deciding. */}
       <div className="flex items-center gap-2 mb-2">
-        <div className="inline-flex gap-px">
-          {STATUSES.map((s) => {
-            const active = status === s;
-            return (
+        {confirmCancelAll ? (
+          <>
+            <span
+              className="text-[12.5px] font-medium"
+              style={{ color: "var(--text)" }}
+            >
+              {(() => {
+                const n = rows?.filter(live).length ?? 0;
+                return `Cancel all ${n} working order${n === 1 ? "" : "s"}?`;
+              })()}
+            </span>
+            <button
+              type="button"
+              disabled={cancelAll.isPending}
+              onClick={() =>
+                cancelAll.mutate(undefined, {
+                  onSuccess: () => {
+                    setConfirmCancelAll(false);
+                    showToast("All open orders cancelled", "info");
+                  },
+                  onError: (e) =>
+                    showToast(
+                      `Couldn't cancel all: ${(e as Error).message}`,
+                      "error",
+                    ),
+                })
+              }
+              className="ml-auto cursor-pointer text-[12px] font-semibold border-0"
+              style={{
+                background: "transparent",
+                color: "var(--neg)",
+                border: "1px solid var(--neg)",
+                borderRadius: 6,
+                padding: "4px 10px",
+              }}
+            >
+              {cancelAll.isPending ? "Cancelling…" : "Yes, cancel"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmCancelAll(false)}
+              className="cursor-pointer text-[12px] font-medium"
+              style={{
+                background: "var(--panel-2)",
+                color: "var(--text-2)",
+                border: "1px solid var(--border)",
+                borderRadius: 6,
+                padding: "4px 10px",
+              }}
+            >
+              Keep them
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="inline-flex gap-px">
+              {STATUSES.map((s) => {
+                const active = status === s;
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setStatus(s)}
+                    className="text-[12px] font-medium cursor-pointer border-0 px-3 py-1.5 transition-colors"
+                    style={{
+                      background: "transparent",
+                      color: active ? "var(--accent)" : "var(--mute)",
+                      borderBottom: `2px solid ${active ? "var(--accent)" : "transparent"}`,
+                      borderRadius: 0,
+                      textTransform: "capitalize",
+                    }}
+                  >
+                    {s}
+                  </button>
+                );
+              })}
+            </div>
+            {hasLive && (
               <button
-                key={s}
+                className="btn btn-mini ml-auto"
                 type="button"
-                onClick={() => setStatus(s)}
-                className="text-[12px] font-medium cursor-pointer border-0 px-3 py-1.5 transition-colors"
-                style={{
-                  background: "transparent",
-                  color: active ? "var(--accent)" : "var(--mute)",
-                  borderBottom: `2px solid ${active ? "var(--accent)" : "transparent"}`,
-                  borderRadius: 0,
-                  textTransform: "capitalize",
-                }}
+                disabled={cancelAll.isPending}
+                onClick={() => setConfirmCancelAll(true)}
               >
-                {s}
+                Cancel all
               </button>
-            );
-          })}
-        </div>
-        {hasLive && (
-          <button
-            className="btn btn-mini ml-auto"
-            type="button"
-            disabled={cancelAll.isPending}
-            onClick={() => setConfirmCancelAll(true)}
-          >
-            Cancel all
-          </button>
+            )}
+          </>
         )}
       </div>
       {error && <ErrorBanner message={error.message} />}
@@ -589,29 +649,8 @@ export default function Orders({
           onClose={() => setModifyingOrder(null)}
         />
       )}
-      {confirmCancelAll && (
-        <ConfirmCard
-          title="Cancel all open orders?"
-          body="This will cancel every working order in your blotter."
-          confirmLabel="Cancel all orders"
-          destructive
-          pending={cancelAll.isPending}
-          onConfirm={() => {
-            cancelAll.mutate(undefined, {
-              onSuccess: () => {
-                setConfirmCancelAll(false);
-                showToast("All open orders cancelled", "info");
-              },
-              onError: (e) =>
-                showToast(
-                  `Couldn't cancel all: ${(e as Error).message}`,
-                  "error",
-                ),
-            });
-          }}
-          onCancel={() => setConfirmCancelAll(false)}
-        />
-      )}
+      {/* The cancel-all confirm now lives inline in the toolbar row above
+         — no modal needed for this low-stakes destructive action. */}
     </>
   );
 
