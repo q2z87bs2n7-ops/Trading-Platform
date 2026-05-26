@@ -15,6 +15,7 @@ import {
   useSymbolUniverse,
   useWatchlist,
 } from "../../data/hooks";
+import { useFirstOpenHint } from "../../hooks/useFirstOpenHint";
 import { useSettings } from "../../hooks/useSettings";
 import { useMobile } from "../../hooks/useMobile";
 import { AskResult } from "./cards";
@@ -228,6 +229,7 @@ export default function AskBar({ open, assetClass, onClose, onOpenInWorkspace }:
   const symbolUniverse = useSymbolUniverse();
   const aiEnabled = useSettings().askAiEnabled;
   const isMobile = useMobile();
+  const askHint = useFirstOpenHint("ask_convention");
 
   const siloPositions = useMemo(
     () =>
@@ -516,6 +518,29 @@ export default function AskBar({ open, assetClass, onClose, onOpenInWorkspace }:
             </div>
           )}
         </div>
+
+        {/* Convention hint — shown on first 3 opens of Ask anything; explains
+           why some answers are instant + free (this bar) and others spend
+           credits (ChartBot / Market summary). Dismissible. */}
+        {askHint.show && (
+          <button
+            type="button"
+            onClick={askHint.dismiss}
+            className="cursor-pointer border-0 bg-transparent text-left mx-4 mt-2"
+            style={{
+              fontSize: 9.5,
+              fontStyle: "italic",
+              color: "var(--mute)",
+              padding: "0 4px",
+            }}
+            aria-label="Dismiss tip"
+            title="Dismiss"
+          >
+            <span style={{ color: "var(--accent)", fontStyle: "normal" }}>Teal</span>
+            {" — instant local parse · free · always on. "}
+            <span style={{ color: "var(--mute)" }}>(tap to hide)</span>
+          </button>
+        )}
 
         {/* Composer — pinned at the bottom of the modal. Enter submits;
            Shift+Enter inserts a newline. */}

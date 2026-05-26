@@ -28,9 +28,9 @@ export default function MarketSummaryCard({
 }: Props) {
   const [noticeHidden, setNoticeHidden] = useState(false);
 
-  // 3px --cb-accent left rail signals cloud-AI surface; carried into the
-  // disabled state so the user retains spatial memory of where the summary
-  // lives. Per docs/ai.md: violet = real Claude call (credits).
+  // 3px --cb-accent left rail signals cloud-AI surface. Enabled state owns
+  // the rail here; the disabled-state notice carries its own (so the rail
+  // survives whether AI is on or off, retaining spatial memory).
   const cbRail = { borderLeft: "3px solid var(--cb-accent)" } as const;
 
   if (disabled) {
@@ -42,13 +42,12 @@ export default function MarketSummaryCard({
           background: "var(--panel)",
           border: "1px solid var(--border)",
           boxShadow: "var(--shadow-sm)",
-          padding: "10px 12px",
-          ...cbRail,
+          overflow: "hidden",
         }}
       >
         <button
           onClick={() => setNoticeHidden(true)}
-          className="absolute top-2 right-2 text-[18px] leading-none px-1 hover:opacity-70 transition-opacity"
+          className="absolute top-2 right-2 text-[18px] leading-none px-1 hover:opacity-70 transition-opacity z-10"
           style={{ color: "var(--mute)" }}
           aria-label="Dismiss"
         >

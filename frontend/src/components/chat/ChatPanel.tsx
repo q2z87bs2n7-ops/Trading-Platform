@@ -7,12 +7,35 @@
 
 import { useEffect, useState } from "react";
 import { useChatSession } from "../../hooks/useChatSession";
+import { useFirstOpenHint } from "../../hooks/useFirstOpenHint";
 import { useMobile } from "../../hooks/useMobile";
 import { useSettings } from "../../hooks/useSettings";
 import AiDisabledNotice from "../AiDisabledNotice";
 import ChatHeader from "./ChatHeader";
 import ChatTranscript from "./ChatTranscript";
 import ChatComposer from "./ChatComposer";
+
+function ConventionHint({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onDismiss}
+      className="cursor-pointer border-0 bg-transparent text-left"
+      style={{
+        fontSize: 9.5,
+        fontStyle: "italic",
+        color: "var(--mute)",
+        padding: "0 12px 4px",
+      }}
+      aria-label="Dismiss tip"
+      title="Dismiss"
+    >
+      <span style={{ color: "var(--cb-accent)", fontStyle: "normal" }}>Violet</span>
+      {" — cloud AI · ~3–5 s per turn. "}
+      <span style={{ color: "var(--mute)" }}>(tap to hide)</span>
+    </button>
+  );
+}
 
 const LEGACY_COLLAPSED_KEY = "ai_chat_panel_collapsed";
 const STALE_COLLAPSED_KEY = "chartbot_collapsed";
@@ -26,6 +49,7 @@ interface Props {
 export default function ChatPanel({ symbol, resolution = "D" }: Props) {
   const isMobile = useMobile();
   const enabled = useSettings().chartbotEnabled;
+  const hint = useFirstOpenHint("chartbot_convention");
   // Always start expanded — user can collapse mid-session but it
   // re-opens on every Chart-mode mount. The two prior collapse keys
   // are removed on first mount so old "1" values can't drag the panel
@@ -124,6 +148,7 @@ export default function ChatPanel({ symbol, resolution = "D" }: Props) {
                 onRetry={session.retryLast}
               />
             </div>
+            {hint.show && <ConventionHint onDismiss={hint.dismiss} />}
             <ChatComposer
               busy={session.busy}
               onSend={(text) => void session.send(text)}
@@ -217,6 +242,7 @@ export default function ChatPanel({ symbol, resolution = "D" }: Props) {
             onSuggestion={(text) => void session.send(text)}
             onRetry={session.retryLast}
           />
+          {hint.show && <ConventionHint onDismiss={hint.dismiss} />}
           <ChatComposer
             busy={session.busy}
             onSend={(text) => void session.send(text)}
