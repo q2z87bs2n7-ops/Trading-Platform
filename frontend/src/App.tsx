@@ -5,7 +5,7 @@ import MaintenancePage from "./components/MaintenancePage";
 import Positions from "./components/Positions";
 import Orders from "./components/Orders";
 import Activities from "./components/Activities";
-import TopBar from "./components/TopBar";
+import TopBar, { HeaderEquityReadout, HeaderStatusInline } from "./components/TopBar";
 import DiscoverPage from "./components/DiscoverPage";
 import AssetClassSplash from "./components/AssetClassSplash";
 import PortfolioHero from "./components/PortfolioHero";
@@ -301,37 +301,52 @@ export default function App() {
             onSwitchAssetClass={switchAssetClass}
           />
         ) : (
-        <div className="flex items-center justify-between gap-2 lg:gap-4 flex-wrap">
+        // One-row, three-zone header (Identity · Mode · Account & actions).
+        // Status / equity / day-P/L fold into the right zone from the old
+        // TopBar strip — see HeaderStatusInline + HeaderEquityReadout. BP is
+        // intentionally not surfaced here; it moves to PortfolioHero in #8.
+        <div
+          className="grid items-center gap-4"
+          style={{ gridTemplateColumns: "auto 1fr auto" }}
+        >
           <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
               onClick={() => setHubOpen(true)}
               aria-label="Open account overview"
               title="Account overview"
-              className="border-0 bg-transparent p-0 cursor-pointer"
+              className="flex items-center gap-3 border-0 bg-transparent p-0 cursor-pointer min-w-0"
             >
               <BrandMark />
+              <div className="flex flex-col min-w-0 items-start leading-tight">
+                <span
+                  className="text-[14px] font-semibold truncate"
+                  style={{ letterSpacing: "-0.005em" }}
+                >
+                  Trading Platform
+                </span>
+                <span
+                  className="text-[10.5px] tabular-nums font-mono"
+                  style={{ color: "var(--mute)" }}
+                >
+                  paper · v{__APP_VERSION__}
+                </span>
+              </div>
             </button>
-            <div className="flex flex-col min-w-0">
-              <span
-                className="text-[15px] font-semibold leading-tight truncate"
-                style={{ letterSpacing: "-0.005em" }}
-              >
-                Trading Platform
-              </span>
-              <span
-                className="text-[11px] tabular-nums"
-                style={{ color: "var(--mute)" }}
-              >
-                v{__APP_VERSION__}
-              </span>
-            </div>
+            <span
+              className="hidden lg:inline-block w-px h-6 shrink-0"
+              style={{ background: "var(--hairline)" }}
+              aria-hidden
+            />
+            <span className="hidden lg:inline-flex">
+              <HeaderStatusInline assetClass={activeClass} />
+            </span>
             <AssetClassToggle mode={activeClass} onChange={switchAssetClass} />
           </div>
 
-          {/* Three-pill mode toggle */}
+          {/* CENTRE — Mode pills, centred via justify-self */}
           <div
-            className="inline-flex items-center gap-1 p-1 rounded-card"
+            className="inline-flex items-center gap-1 p-1 rounded-card justify-self-center"
             style={{ background: "var(--panel-2)" }}
           >
             {MODES.map((m) => (
@@ -345,16 +360,22 @@ export default function App() {
             ))}
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* RIGHT — equity readout (with hairline divider) + actions */}
+          <div className="flex items-center gap-3 justify-self-end">
+            <HeaderEquityReadout assetClass={activeClass} />
+            <span
+              className="hidden lg:inline-block w-px h-7 shrink-0"
+              style={{ background: "var(--hairline)" }}
+              aria-hidden
+            />
             <AskPill onClick={openAskBar} />
             <ThemeToggle theme={theme} onToggle={toggleTheme} />
             <SettingsMenu />
           </div>
         </div>
         )}
-        {/* Status ribbon (market status + equity/P/L/BP). Omitted in Workspace
-           — the canvas reclaims the strip; account info lives in the Account
-           widget instead. */}
+        {/* Mobile-only status strip. Desktop's status/equity content folded
+           into the header grid above; <TopBar /> returns null on desktop. */}
         {mode !== "workspace" && <TopBar assetClass={activeClass} />}
       </header>
       )}
