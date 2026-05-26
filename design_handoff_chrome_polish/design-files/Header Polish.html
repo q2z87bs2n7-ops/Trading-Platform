@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Header polish · Trading Platform v0.70</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;550;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+<style>
+  /* Tokens lifted verbatim from frontend/src/index.css @ v0.70.0 (dark theme) */
+  :root {
+    --bg: #0a0c10;
+    --panel: #111418;
+    --panel-2: #181c22;
+    --panel-3: #20262e;
+    --border: #1f242c;
+    --border-2: #2f3640;
+    --hairline: rgba(255, 255, 255, 0.06);
+    --text: #e6eaef;
+    --text-2: #a8aeb8;
+    --mute: #6a6f78;
+    --accent: oklch(74% 0.09 200);
+    --accent-2: oklch(84% 0.06 200);
+    --accent-bg: oklch(74% 0.09 200 / 0.13);
+    --pos: oklch(62% 0.14 155);
+    --neg: oklch(70% 0.18 25);
+    --pos-bg: oklch(62% 0.14 155 / 0.14);
+    --neg-bg: oklch(70% 0.18 25 / 0.12);
+    --cb-accent: oklch(76% 0.14 290);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow: 0 4px 24px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.6);
+    --r: 10px;
+    --r-lg: 14px;
+    --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    color-scheme: dark;
+  }
+
+  html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv11", "ss03", "calt", "kern";
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-optical-sizing: auto;
+    letter-spacing: -0.005em;
+  }
+
+  /* Calm v2.1 desktop refinement (mirrors the @media block in index.css). */
+  button { font-weight: 550; letter-spacing: -0.008em; }
+
+  /* Artboard inner shell — neutral page surface so the header reads grounded */
+  .hb-shell {
+    width: 100%;
+    height: 100%;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Header band — matches .app padding (24px) at desktop */
+  .hb-band {
+    padding: 18px 24px;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* The 3-zone grid used in App.tsx */
+  .hb-grid {
+    display: grid;
+    align-items: center;
+    gap: 16px;
+    grid-template-columns: auto 1fr auto;
+    width: 100%;
+  }
+
+  /* A faint hairline below the band on variants that opt in (V1+) */
+  .hb-band.with-divider {
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  /* Faux page surface — gives the header something to "sit on" */
+  .hb-stage {
+    flex: 1;
+    padding: 24px;
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    gap: 16px;
+    min-height: 0;
+  }
+  .hb-block {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* === Brand zone === */
+  .hb-brand-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+  }
+  .hb-mark {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+    color: var(--panel);
+    font-weight: 700;
+    font-size: 14px;
+    flex: 0 0 auto;
+  }
+  .hb-brand-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    line-height: 1.1;
+    min-width: 0;
+  }
+  .hb-brand-title {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .hb-brand-chev {
+    color: var(--mute);
+    font-size: 10px;
+  }
+  .hb-brand-ver {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--mute);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Vertical pipe — current treatment uses --hairline / --border */
+  .hb-pipe {
+    display: inline-block;
+    width: 1px;
+    height: 24px;
+    background: var(--hairline);
+    flex: 0 0 auto;
+  }
+  .hb-pipe.tall { height: 28px; }
+
+  /* === Market status (open/closed) === */
+  .hb-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+  }
+  .hb-status .dot {
+    width: 7px; height: 7px; border-radius: 999px;
+    background: var(--neg);
+    flex: 0 0 auto;
+  }
+  .hb-status .label { color: var(--neg); }
+  .hb-status .sub { color: var(--mute); font-variant-numeric: tabular-nums; }
+
+  /* === Mode pills === */
+  .hb-modes {
+    justify-self: center;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    background: var(--panel-2);
+    border-radius: var(--r);
+  }
+  .hb-mode {
+    font-size: 13px;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 8px;
+    background: transparent;
+    border: 0;
+    color: var(--text-2);
+    cursor: pointer;
+    transition: color .15s, background .15s, box-shadow .15s;
+    letter-spacing: -0.008em;
+  }
+  .hb-mode.active {
+    color: var(--text);
+    background: var(--panel);
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* === Right zone: equity + actions === */
+  .hb-right {
+    justify-self: end;
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .hb-equity {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1.15;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+  .hb-equity .value {
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .hb-equity .delta {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--neg);
+  }
+
+  /* Ask anything pill (current IconButton treatment) */
+  .hb-ask {
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    background: var(--panel);
+    color: var(--text-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 550;
+    letter-spacing: -0.008em;
+  }
+  .hb-ask .sparkle { color: var(--accent); font-size: 14px; }
+  .hb-ask .kbd {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--mute);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    line-height: 1;
+  }
+
+  /* Square icon button (theme, settings) */
+  .hb-icon {
+    width: 34px;
+    height: 34px;
+    display: inline-grid;
+    place-items: center;
+    background: var(--panel);
+    color: var(--text-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+    font-size: 15px;
+    transition: color .15s, border-color .15s, background .15s;
+  }
+  .hb-icon:hover {
+    color: var(--text);
+    border-color: var(--border-2);
+  }
+
+  /* ─── Variant overrides (V1+) ─── */
+
+  /* V1 — Subtle refinement: better type + kbd + weight balance */
+  .v1 .hb-band { padding: 16px 24px; }
+  .v1 .hb-modes { padding: 3px; gap: 2px; }
+  .v1 .hb-mode {
+    font-size: 13px;
+    font-weight: 500;
+    padding: 7px 14px;
+    color: var(--text-2);
+    transition: color .15s, background .15s, box-shadow .15s, transform .15s;
+  }
+  .v1 .hb-mode:hover { color: var(--text); }
+  .v1 .hb-mode.active {
+    color: var(--text);
+    background: var(--panel);
+    box-shadow:
+      0 0 0 1px var(--border),
+      0 1px 1px rgba(0, 0, 0, 0.45),
+      inset 0 1px 0 rgba(255, 255, 255, 0.025);
+    font-weight: 600;
+  }
+  .v1 .hb-equity .value {
+    font-size: 15.5px;
+    font-weight: 550;
+    letter-spacing: -0.01em;
+  }
+  .v1 .hb-equity .delta {
+    font-size: 12px;
+    font-weight: 500;
+    color: color-mix(in oklch, var(--neg) 88%, var(--text));
+    opacity: 0.95;
+  }
+  .v1 .hb-ask {
+    height: 34px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 0 6px 0 12px;
+    gap: 10px;
+  }
+  .v1 .hb-ask .sparkle {
+    color: var(--accent);
+    filter: drop-shadow(0 0 6px color-mix(in oklch, var(--accent) 40%, transparent));
+  }
+  .v1 .hb-ask .kbd {
+    background: var(--panel-3);
+    border: 1px solid var(--border);
+    box-shadow:
+      inset 0 -1px 0 var(--border-2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    color: var(--text-2);
+    padding: 3px 7px;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .v1 .hb-icon {
+    background: transparent;
+    border: 1px solid transparent;
+    box-shadow: none;
+  }
+  .v1 .hb-icon:hover {
+    background: var(--panel);
+    border-color: var(--border);
+  }
+  .v1 .hb-pipe { background: var(--hairline); height: 20px; }
+
+  /* V2 — Rail-style mode nav (no container chrome) + glow ✦ */
+  .v2 .hb-band { padding: 18px 24px 14px; }
+  .v2 .hb-modes {
+    background: transparent;
+    padding: 0;
+    gap: 4px;
+    position: relative;
+  }
+  .v2 .hb-mode {
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--text-2);
+    padding: 8px 14px;
+    border-radius: 8px;
+    position: relative;
+  }
+  .v2 .hb-mode:hover { color: var(--text); background: color-mix(in oklch, var(--panel) 70%, transparent); }
+  .v2 .hb-mode.active {
+    color: var(--text);
+    background: transparent;
+    box-shadow: none;
+    font-weight: 600;
+  }
+  .v2 .hb-mode.active::after {
+    content: "";
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    bottom: -10px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--accent);
+  }
+  .v2 .hb-equity .value { font-size: 15px; font-weight: 600; }
+  .v2 .hb-equity .delta { font-size: 11.5px; font-weight: 500; color: var(--neg); }
+  .v2 .hb-ask {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 0 6px 0 12px;
+    gap: 10px;
+  }
+  .v2 .hb-ask .sparkle {
+    color: var(--accent);
+    filter: drop-shadow(0 0 8px color-mix(in oklch, var(--accent) 55%, transparent));
+  }
+  .v2 .hb-ask .kbd {
+    background: var(--panel-3);
+    border: 1px solid var(--border);
+    box-shadow: inset 0 -1px 0 var(--border-2);
+    color: var(--text-2);
+    padding: 3px 7px;
+    font-size: 10.5px;
+    font-weight: 600;
+  }
+  .v2 .hb-icon { box-shadow: none; }
+
+  /* V3 — Ask anything as a full search field (Linear/Vercel-style) */
+  .v3 .hb-band { padding: 16px 24px; }
+  .v3 .hb-mode { padding: 7px 13px; }
+  .v3 .hb-mode.active {
+    background: var(--panel);
+    box-shadow:
+      0 0 0 1px var(--border),
+      inset 0 1px 0 rgba(255, 255, 255, 0.025);
+    font-weight: 600;
+  }
+  .v3 .hb-equity .value { font-size: 15px; font-weight: 550; }
+  .v3 .hb-equity .delta { font-size: 12px; font-weight: 500; }
+  .v3 .hb-ask {
+    width: 260px;
+    justify-content: flex-start;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    box-shadow: none;
+    height: 34px;
+    padding: 0 8px 0 12px;
+    gap: 10px;
+    color: var(--mute);
+    font-weight: 500;
+  }
+  .v3 .hb-ask .label { color: var(--mute); flex: 1; text-align: left; }
+  .v3 .hb-ask .sparkle {
+    color: var(--accent);
+    filter: drop-shadow(0 0 6px color-mix(in oklch, var(--accent) 45%, transparent));
+  }
+  .v3 .hb-ask .kbd {
+    background: var(--panel-3);
+    border: 1px solid var(--border);
+    box-shadow: inset 0 -1px 0 var(--border-2);
+    color: var(--text-2);
+    padding: 3px 7px;
+    font-size: 10.5px;
+    font-weight: 600;
+    margin-left: auto;
+  }
+  .v3 .hb-icon {
+    background: transparent;
+    border: 1px solid transparent;
+    box-shadow: none;
+  }
+  .v3 .hb-icon:hover {
+    background: var(--panel);
+    border-color: var(--border);
+  }
+
+  /* V4 — Recommended ship blend: V2 rail nav + V3 search ask + V1 type/weight
+     refinement + calmer equity + flat icon buttons + accent-glowing brand. */
+  .v4 .hb-band {
+    padding: 16px 24px 14px;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .v4 .hb-mark {
+    border-radius: 9px;
+    box-shadow:
+      0 0 0 1px color-mix(in oklch, var(--accent) 30%, transparent),
+      0 4px 12px color-mix(in oklch, var(--accent) 18%, transparent);
+  }
+  /* Rail-style mode nav (V2 idea) — no container chrome, underline indicator */
+  .v4 .hb-modes {
+    background: transparent;
+    padding: 0;
+    gap: 4px;
+  }
+  .v4 .hb-mode {
+    font-size: 13.5px;
+    padding: 8px 14px;
+    color: var(--text-2);
+    font-weight: 500;
+    border-radius: 8px;
+    position: relative;
+  }
+  .v4 .hb-mode:hover {
+    color: var(--text);
+    background: color-mix(in oklch, var(--panel) 70%, transparent);
+  }
+  .v4 .hb-mode.active {
+    color: var(--text);
+    background: transparent;
+    box-shadow: none;
+    font-weight: 600;
+  }
+  .v4 .hb-mode.active::after {
+    content: "";
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    bottom: -8px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--accent);
+  }
+  .v4 .hb-equity .value {
+    font-size: 15.5px;
+    font-weight: 550;
+    letter-spacing: -0.01em;
+  }
+  .v4 .hb-equity .delta {
+    font-size: 12px;
+    font-weight: 500;
+    color: color-mix(in oklch, var(--neg) 88%, var(--text));
+  }
+  .v4 .hb-equity .delta .sep {
+    color: var(--mute);
+    margin: 0 6px;
+    font-weight: 400;
+  }
+  .v4 .hb-ask {
+    width: 260px;
+    justify-content: flex-start;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    box-shadow: none;
+    height: 34px;
+    padding: 0 6px 0 12px;
+    gap: 10px;
+    color: var(--mute);
+    font-weight: 500;
+    transition: border-color .15s, background .15s;
+  }
+  .v4 .hb-ask:hover {
+    border-color: var(--border-2);
+    background: color-mix(in oklch, var(--panel-2) 70%, var(--panel-3));
+  }
+  .v4 .hb-ask .label { color: var(--mute); flex: 1; text-align: left; }
+  .v4 .hb-ask .sparkle {
+    color: var(--accent);
+    filter: drop-shadow(0 0 6px color-mix(in oklch, var(--accent) 45%, transparent));
+  }
+  .v4 .hb-ask .kbd {
+    font-family: var(--font-mono);
+    background: var(--panel-3);
+    border: 1px solid var(--border);
+    box-shadow:
+      inset 0 -1px 0 var(--border-2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    color: var(--text-2);
+    padding: 3px 7px;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    margin-left: auto;
+  }
+  .v4 .hb-icon {
+    background: transparent;
+    border: 1px solid transparent;
+    box-shadow: none;
+  }
+  .v4 .hb-icon:hover {
+    background: var(--panel-2);
+    border-color: var(--border);
+  }
+  .v4 .hb-pipe { background: var(--hairline); height: 20px; }
+</style>
+</head>
+<body>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<div id="root"></div>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="header-variants.jsx"></script>
+<script type="text/babel">
+const { DesignCanvas, DCSection, DCArtboard, DCNote } = window;
+
+function App() {
+  return (
+    <DesignCanvas>
+      <DCSection
+        id="context"
+        title="Context · current header (v0.70)"
+        subtitle="Faithful recreation of App.tsx's three-zone header in dark mode. The baseline you flagged."
+      >
+        <DCArtboard id="v0" label="V0 · Current (baseline)" width={1480} height={220}>
+          <HeaderV0 />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection
+        id="polish"
+        title="Polish variants"
+        subtitle="Same content, same zones — only chrome, type, weight, and key cap detail change. Mobile/iPad layouts untouched (they use MobileHeader)."
+      >
+        <DCArtboard id="v1" label="V1 · Refinement (typography · weights · key cap)" width={1480} height={220}>
+          <HeaderV1 />
+        </DCArtboard>
+
+        <DCArtboard id="v2" label="V2 · Rail nav (mode pills as underline rail)" width={1480} height={220}>
+          <HeaderV2 />
+        </DCArtboard>
+
+        <DCArtboard id="v3" label="V3 · Search-field Ask anything" width={1480} height={220}>
+          <HeaderV3 />
+        </DCArtboard>
+
+        <DCArtboard id="v4" label="V4 · Recommended ship blend (V2 rail nav + V3 search ask + V1 refinement)" width={1480} height={220}>
+          <HeaderV4 />
+        </DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+
+</body>
+</html>
