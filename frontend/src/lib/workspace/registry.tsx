@@ -383,7 +383,7 @@ function ChartWidget(props: IDockviewPanelProps) {
         />
       }
     >
-      <TVChartWidget symbol={symbol} onSymbolChange={setSymbol} />
+      <TVChartWidget symbol={symbol} onSymbolChange={setSymbol} panelApi={props.api} />
     </WidgetShell>
   );
 }

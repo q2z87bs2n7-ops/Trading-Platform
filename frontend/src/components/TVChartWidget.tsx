@@ -8,6 +8,7 @@
  */
 
 import { useCallback, useEffect, useRef } from "react";
+import type { DockviewPanelApi } from "dockview-core";
 
 import { useTheme } from "../hooks/useTheme";
 import { createDatafeed } from "../lib/tv-datafeed";
@@ -20,6 +21,10 @@ declare const TradingView: {
 interface Props {
   symbol: string;
   onSymbolChange?: (s: string) => void;
+  // Dockview panel API — used to nudge TV's iframe autosize on
+  // visibility/dimension changes (TV's RO misses display:none → visible
+  // when the size hasn't changed, leaving the chart stuck).
+  panelApi?: DockviewPanelApi;
 }
 
 function normalizeSymbol(raw: string): string {
@@ -49,7 +54,7 @@ function applyDensity(w: TVWidgetInstance, small: boolean) {
   });
 }
 
-export default function TVChartWidget({ symbol, onSymbolChange }: Props) {
+export default function TVChartWidget({ symbol, onSymbolChange, panelApi }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetRef = useRef<TVWidgetInstance | null>(null);
   const readyRef = useRef(false);
@@ -197,6 +202,34 @@ export default function TVChartWidget({ symbol, onSymbolChange }: Props) {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // Dockview hides inactive panels with display:none. iframes stop laying out
+  // while hidden; on re-show at the same size, TV's internal ResizeObserver
+  // never fires and the chart stays stuck at the old (often collapsed) size.
+  // Nudge the container by 1px on visibility/dimensions changes to force the
+  // iframe autosize to re-measure.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || !panelApi) return;
+    const nudge = () => {
+      requestAnimationFrame(() => {
+        if (!containerRef.current) return;
+        containerRef.current.style.height = "calc(100% - 1px)";
+        requestAnimationFrame(() => {
+          if (!containerRef.current) return;
+          containerRef.current.style.height = "100%";
+        });
+      });
+    };
+    const d1 = panelApi.onDidVisibilityChange((e) => {
+      if (e.isVisible) nudge();
+    });
+    const d2 = panelApi.onDidDimensionsChange(() => nudge());
+    return () => {
+      d1.dispose();
+      d2.dispose();
+    };
+  }, [panelApi]);
 
   // Re-skin in place on theme toggle once the chart is ready.
   useEffect(() => {
