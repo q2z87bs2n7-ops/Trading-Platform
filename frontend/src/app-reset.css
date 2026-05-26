@@ -1,0 +1,43 @@
+/* Minimal element reset — the "Option B" pre-demo path from the V1 UX
+ * sweep handoff. Tailwind's preflight is still off
+ * (corePlugins.preflight: false) because turning it on regresses the
+ * hand-styled surfaces that never made it into the utility migration.
+ * This file zeroes the small handful of browser defaults that those
+ * surfaces would have stripped anyway — button chrome, list bullets,
+ * fieldset border, and heading margins — so a stray <button> / <ul> /
+ * <h2> doesn't render with system defaults next to its utility-styled
+ * neighbours. Imported after index.css so it always wins over body
+ * defaults but loses to inline styles + utility classes.
+ */
+
+button {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+ul,
+ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font: inherit;
+  margin: 0;
+}
