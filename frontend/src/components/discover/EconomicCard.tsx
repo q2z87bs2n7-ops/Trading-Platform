@@ -69,16 +69,12 @@ function ImpactChip({ impact }: { impact: string | null }) {
   );
 }
 
-// Prefer a direct FRED series page for the ~95 mapped recurring releases;
-// fall back to a Google search for everything else (Fed speeches, CFTC COT,
-// ISM, OPEC, …) since FMP doesn't ship a per-event URL and Trading Economics'
-// slug paths don't map cleanly to FMP's event strings.
+// Only the ~95 mapped recurring releases are clickable (deep-link to a FRED
+// series page). Unmapped rows — Fed speeches, CFTC COT, ISM, OPEC, … —
+// render as plain text rather than a generic Google search, which was rarely
+// useful.
 function eventLink(event: string | null): string | null {
-  if (!event) return null;
-  return (
-    lookupFredUrl(event) ??
-    `https://www.google.com/search?q=${encodeURIComponent(event)}`
-  );
+  return lookupFredUrl(event);
 }
 
 function EconomicRowItem({ r, rank }: { r: EconomicRow; rank: number }) {
