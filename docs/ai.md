@@ -93,12 +93,26 @@ key.
 
 `hooks/useMarketSummary.ts` + `MarketSummaryCard`, Discover hero. Auto-generates
 a per-window summary via `/api/ai/ask` (gated by its own `marketSummaryAiEnabled`
-toggle — off shows the `AiDisabledNotice`, no generation). Per silo: **stocks**
-uses US market windows (open/midday/close EST) and US headlines; **crypto** uses
-four 6-hour UTC windows (00–06 / 06–12 / 12–18 / 18–24 UTC) and BTC/crypto news;
+toggle — when off, no generation runs; if a prior summary is still cached the
+card surfaces it with an "AI off" hint instead of hiding it, and falls back to
+`AiDisabledNotice` only when nothing is cached). Per silo: **stocks** uses US
+market windows (open/midday/close EST) and US headlines; **crypto** uses four
+6-hour UTC windows (00–06 / 06–12 / 12–18 / 18–24 UTC) and BTC/crypto news;
 labels show the UTC range explicitly so they are unambiguous for users in any
 timezone. Cached per silo (`market_summary_v1` / `crypto_market_summary_v1`); the
 `market_summary` intent card reads the matching cache.
+
+**Tool diet** (deliberately narrow — the prompt restricts Claude to a curated
+subset of the Ask anything toolset to cap per-symbol fan-out and latency).
+Stocks: `get_positions`, `get_orders(closed, 50)`, `get_news`, `get_movers`,
+`get_trending_stocks` (Tipranks, once), `get_asset_profile` on up to 3 largest
+holdings (sector / P-E / margin context from Postgres), and `get_snapshot` for
+watchlist prices. Crypto: `get_positions`, `get_orders(closed, 50)`,
+`get_news(BTC)`, `get_asset_profile` on up to 3 largest holdings
+(category / market-cap rank / ATH distance), and `get_snapshot` for watchlist
+prices. The prompt explicitly forbids `get_smart_score`, `get_sentiment_signals`,
+`get_analyst_ratings`, `get_hedge_funds`, and `get_insiders` — too granular for
+a 150–200 word briefing.
 
 ## ChartBot side panel (violet — real Claude call)
 

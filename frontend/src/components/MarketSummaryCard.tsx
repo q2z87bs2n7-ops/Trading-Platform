@@ -33,7 +33,12 @@ export default function MarketSummaryCard({
   // survives whether AI is on or off, retaining spatial memory).
   const cbRail = { borderLeft: "3px solid var(--cb-accent)" } as const;
 
-  if (disabled) {
+  // When AI is off, still surface the last cached summary (don't hide work
+  // already paid for); only fall back to the standalone notice when there
+  // is nothing cached to show.
+  const showCachedWhileDisabled = disabled && cache && !cache.dismissed;
+
+  if (disabled && !showCachedWhileDisabled) {
     if (noticeHidden) return null;
     return (
       <div
@@ -81,6 +86,7 @@ export default function MarketSummaryCard({
           {cache && !isGenerating && (
             <span className="text-[11px]" style={{ color: "var(--mute)" }}>
               · {relTime(cache.generatedAt)}
+              {disabled ? " · AI off" : ""}
             </span>
           )}
           {isGenerating && (
