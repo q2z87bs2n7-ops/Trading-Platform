@@ -424,6 +424,8 @@ const ORDERS_DENSE_W = 560;
 const ORDERS_MID_W = 760;
 const ACTIVITY_DENSE_W = 360;
 const PROFILE_DENSE_W = 340;
+const FUNDAMENTALS_DENSE_W = 400;
+const FUNDAMENTALS_WIDE_W = 560;
 const EARNINGS_DENSE_W = 420;
 const NEWS_COMPACT_W = 320;
 
@@ -717,7 +719,8 @@ function FundamentalsWidget(props: IDockviewPanelProps) {
   const [channel, setChannel] = useChannel(props, "main");
   const symbol = getSymbol(channel).toUpperCase();
   const ref = useRef<HTMLDivElement>(null);
-  const dense = useContainerNarrow(ref, PROFILE_DENSE_W);
+  const dense = useContainerNarrow(ref, FUNDAMENTALS_DENSE_W);
+  const wide = !useContainerNarrow(ref, FUNDAMENTALS_WIDE_W) && !dense;
   return (
     <WidgetShell
       header={
@@ -734,7 +737,7 @@ function FundamentalsWidget(props: IDockviewPanelProps) {
     >
       <div ref={ref} style={{ height: "100%" }}>
         <Pane pad>
-          <Fundamentals symbol={symbol} assetClass={assetClass} dense={dense} />
+          <Fundamentals symbol={symbol} assetClass={assetClass} dense={dense} wide={wide} />
         </Pane>
       </div>
     </WidgetShell>

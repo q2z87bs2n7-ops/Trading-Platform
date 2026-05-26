@@ -218,10 +218,13 @@ export default function Fundamentals({
   symbol,
   assetClass,
   dense,
+  wide,
 }: {
   symbol: string;
   assetClass: "stocks" | "crypto";
   dense?: boolean;
+  // Roomy panel — promotes the stat grids from 2-col to 3-col.
+  wide?: boolean;
 }) {
   const { data: p, isLoading } = useAssetProfile(symbol);
   const isCrypto = p ? p.asset_class === "crypto" : assetClass === "crypto";
@@ -233,7 +236,7 @@ export default function Fundamentals({
   if (!hasFundamentals(p))
     return <Notice>No fundamentals for {p.symbol} yet — not in the enriched set.</Notice>;
 
-  const cols = dense ? "grid-cols-1" : "grid-cols-2";
+  const cols = dense ? "grid-cols-1" : wide ? "grid-cols-3" : "grid-cols-2";
   const cur = p.reported_currency && p.reported_currency !== "USD" ? ` · ${p.reported_currency}` : "";
   const pe = p.pe_ratio;
   const growthTone = (n?: number) =>
