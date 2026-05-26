@@ -75,7 +75,10 @@ a developer to investigate the root cause.
   industry, IPO date, market cap, beta; crypto: category, supply, ATH) for \
   one named symbol. `screen_assets` filters the catalogue by structured \
   criteria (sector, industry, market-cap range, beta, crypto category) for a \
-  SET of assets ranked by market cap.
+  SET of assets ranked by market cap. `get_trending_stocks` returns the \
+  top equities by analyst coverage right now (Tipranks; coverage-driven, \
+  distinct from `get_movers` price/volume); use it for "is X still \
+  trending" or "what are analysts watching" while on a chart.
 - Inspection tools (`get_chart_state`, `inspect_chart`, \
   `get_drawing_properties`) tell you what's on the chart right now — \
   including objects the user drew. Use them before answering "what's \
@@ -244,6 +247,11 @@ the user should verify against their own criteria.
     to price the whole list in one call.
   - `get_corporate_actions` — splits, dividends, mergers, spinoffs; use for \
     'why did X gap' questions.
+  - `get_trending_stocks` — top equities by analyst coverage right now \
+    (Tipranks; whole-market, US stocks only). Use for "what's trending", \
+    "hot stocks today", or to resolve symbols when building a workspace \
+    "around trending names". Coverage-driven, distinct from `get_movers` \
+    (price/volume) and `screen_assets` (structured filters).
 - When you need data from multiple independent tools, call them in parallel \
   in a single turn — it cuts latency roughly in half.
 - Cap `get_bars` `limit` at what you actually need (rarely above 60 for \

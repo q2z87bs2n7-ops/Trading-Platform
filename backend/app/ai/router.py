@@ -18,7 +18,7 @@ from anthropic import APIError as AnthropicAPIError
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from .. import alpaca, db, market_news
+from .. import alpaca, db, market_news, tipranks
 from ..config import get_settings
 from . import prompt, reports, tools
 from .tools_workspace import (
@@ -256,6 +256,11 @@ def _execute_read_tool(
         return json.dumps(
             {"corporate_actions": alpaca.get_corporate_actions(symbols, ca_types, since, limit)},
             default=str,
+        )
+
+    if name == "get_trending_stocks":
+        return json.dumps(
+            {"trending": tipranks.get_trending_stocks()}, default=str
         )
 
     if name == "add_to_watchlist":

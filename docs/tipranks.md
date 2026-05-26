@@ -92,6 +92,7 @@ that's better discovered up front than mid-feature).
 |---|---|---|
 | Discover **Trending** card (stocks silo only) | `/api/research/trending` → `stocks/trendingStocks` | `components/discover/TrendingResearchCard.tsx`, slotted in `DiscoverPage.tsx` between Most Active and Earnings |
 | Workspace **Trending** widget (stocks-only; crypto shows a notice) | same | `lib/workspace/registry.tsx` (`TrendingResearchWidget`) — reuses the Discover card via the `bare` prop |
+| AI bot read tool `get_trending_stocks` | same | `backend/app/ai/tools_read.py` schema + `router.py` dispatch. Available to **both** the violet Ask anything fallback (`read_only_tools()`) and ChartBot (`TOOLS`). No arguments. Lets the bots answer "what's trending" and pre-resolve symbols when building workspaces around trending names. |
 
 Backend client: `backend/app/tipranks.py` — in-process TTL cache (15min on
 `trendingStocks`), graceful empty list when env vars unset (mirrors the FMP /

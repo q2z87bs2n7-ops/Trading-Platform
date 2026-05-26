@@ -26,6 +26,7 @@ READ_TOOL_NAMES = {
     "get_calendar",
     "get_watchlist",
     "get_corporate_actions",
+    "get_trending_stocks",
 }
 
 
@@ -473,6 +474,29 @@ READ_TOOLS: list[dict[str, Any]] = [
                     "description": "Max rows to return (default 20).",
                 },
             },
+        },
+    },
+    {
+        "name": "get_trending_stocks",
+        "description": (
+            "Top trending stocks by analyst coverage (Tipranks; whole-market, "
+            "US equities only — no crypto). Returns up to ~10 names with "
+            "popularity, sentiment, analyst buy/hold/sell counts, consensus "
+            "(StrongBuy/Buy/Hold/Sell/StrongSell), average price target, "
+            "sector, market cap, and last rating date. Use when the user asks "
+            "what's trending, which stocks have the most analyst attention "
+            "right now, or names like 'hot stocks today', 'most-covered "
+            "names', 'what are analysts watching'. Distinct from get_movers "
+            "(intraday price/volume) and screen_assets (structured filters "
+            "over the catalogue) — this is coverage-driven, not price- or "
+            "fundamentals-driven. Also useful when building a Workspace "
+            "around 'trending names': call this first to resolve the "
+            "symbols, then build_workspace_layout / add_workspace_widget "
+            "with those tickers. No arguments; the list is global."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
         },
     },
 ]
