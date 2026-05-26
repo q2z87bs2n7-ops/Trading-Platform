@@ -52,6 +52,9 @@ export const qk = {
   analystRatings: (symbol: string) => ["analystRatings", symbol] as const,
   hedgeFunds: (symbol: string) => ["hedgeFunds", symbol] as const,
   insiders: (symbol: string) => ["insiders", symbol] as const,
+  relatedTickers: (symbol: string) => ["relatedTickers", symbol] as const,
+  holderDemographics: (symbol: string) =>
+    ["holderDemographics", symbol] as const,
   assetSymbols: ["assetSymbols"] as const,
   marketNews: ["marketNews"] as const,
   news: (symbol: string) => ["news", symbol] as const,

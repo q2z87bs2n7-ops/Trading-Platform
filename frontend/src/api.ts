@@ -20,7 +20,9 @@ import type {
   Quote,
   AnalystRatingsResponse,
   HedgeFundsResponse,
+  HolderDemographicsResponse,
   InsidersResponse,
+  RelatedTickersResponse,
   ReplaceOrderInput,
   SentimentResponse,
   SmartScoreResponse,
@@ -204,6 +206,14 @@ export const getHedgeFunds = (symbol: string) =>
 
 export const getInsiders = (symbol: string) =>
   getJSON<InsidersResponse>(`/api/research/insiders/${symbol}`);
+
+export const getRelatedTickers = (symbol: string) =>
+  getJSON<RelatedTickersResponse>(`/api/research/related-tickers/${symbol}`);
+
+export const getHolderDemographics = (symbol: string) =>
+  getJSON<HolderDemographicsResponse>(
+    `/api/research/holder-demographics/${symbol}`,
+  );
 
 // Full catalogue symbol universe per asset class (DB-backed; tradable +
 // enriched). Fetched once and cached stale-while-revalidate to validate

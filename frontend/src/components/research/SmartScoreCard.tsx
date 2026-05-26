@@ -1,9 +1,14 @@
 import { compact, money, pct } from "../../lib/format";
 import type { SmartScoreRow } from "../../types";
 
-// Tipranks composite score (1–10) + the six component signals. Hides the
-// fundamentals_* fields (they collide with the Fundamentals widget — FMP is
-// the higher-fidelity source); the AI still gets them via get_smart_score.
+// Tipranks composite score (1–10) + companion text labels for each component.
+// After Phase 2 dedup verdict: drop the raw numerics for components that have
+// dedicated owning widgets (Sentiment owns blogger/news/investor magnitudes;
+// HedgeFunds + Insiders own those flows); keep only the categorical text
+// labels as one-line verdicts so this card stays a TRUE composite summary.
+// Numerics retained only for the technicals row (no other widget owns it)
+// and for the hedge-fund / insider flow rows where the share count is the
+// quickest read alongside the text label.
 
 function scoreColor(score: number | null): string {
   if (score == null) return "var(--mute)";
@@ -22,47 +27,79 @@ function scoreLabel(score: number | null): string {
   return "Very Bearish";
 }
 
-function Signal({
+// Tipranks text-label sentiment → color. Matches the underlying numeric
+// component's tone so the row's label visually reinforces the signal.
+function labelColor(s: string | null): string {
+  if (!s || s === "-" || s.toLowerCase() === "neutral") return "var(--mute)";
+  const lc = s.toLowerCase();
+  if (
+    lc.includes("positive") ||
+    lc.includes("bullish") ||
+    lc === "buy" ||
+    lc === "strongbuy" ||
+    lc === "increased" ||
+    lc === "buying"
+  ) {
+    return "var(--pos)";
+  }
+  if (
+    lc.includes("negative") ||
+    lc.includes("bearish") ||
+    lc === "sell" ||
+    lc === "strongsell" ||
+    lc === "decreased" ||
+    lc === "selling"
+  ) {
+    return "var(--neg)";
+  }
+  return "var(--mute)";
+}
+
+function Row({
   label,
   value,
-  tone,
+  status,
   hint,
 }: {
   label: string;
-  value: React.ReactNode;
-  tone?: string;
+  /** Optional left-side numeric (kept only where it's a one-glance read). */
+  value?: React.ReactNode;
+  /** Right-side categorical label from Tipranks. */
+  status: string | null;
   hint?: string;
 }) {
   return (
     <div
-      className="flex items-center justify-between py-1.5"
+      className="flex items-center justify-between gap-2 py-1.5"
       style={{ borderTop: "1px solid var(--border)" }}
     >
       <span
-        className="text-[12px]"
+        className="text-[12px] flex-shrink-0"
         style={{ color: "var(--mute)" }}
         title={hint}
       >
         {label}
       </span>
-      <span
-        className="font-mono text-[13px] tabular-nums"
-        style={{ color: tone ?? "var(--text)" }}
-      >
-        {value}
-      </span>
+      <div className="flex items-center gap-2 min-w-0">
+        {value !== undefined && (
+          <span
+            className="font-mono text-[12px] tabular-nums"
+            style={{ color: "var(--mute)" }}
+          >
+            {value}
+          </span>
+        )}
+        <span
+          className="text-[12px] truncate"
+          style={{ color: labelColor(status) }}
+        >
+          {status || "—"}
+        </span>
+      </div>
     </div>
   );
 }
 
-// Bipolar number: positive=green, negative=red, zero=mute.
-function signedColor(n: number | null): string {
-  if (n == null || n === 0) return "var(--mute)";
-  return n > 0 ? "var(--pos)" : "var(--neg)";
-}
-
-// Render a count of shares (the hedge-fund trend value / insider sum), with a
-// thousand-friendly compact format so a -1,209,112 reads as -1.21M.
 function fmtShares(n: number | null): string {
   if (n == null) return "—";
   const sign = n < 0 ? "−" : n > 0 ? "+" : "";
@@ -83,8 +120,8 @@ export function SmartScoreCard({
       </p>
     ) : (
       <div className="flex flex-col gap-2">
-        {/* Composite headline */}
-        <div className="flex items-baseline gap-3">
+        {/* Headline: composite score + label + Tipranks PT inline */}
+        <div className="flex items-baseline gap-3 flex-wrap">
           <span
             className="font-mono tabular-nums leading-none"
             style={{
@@ -99,76 +136,66 @@ export function SmartScoreCard({
             / 10
           </span>
           <span
-            className="text-[13px] ml-auto"
+            className="text-[13px]"
             style={{ color: scoreColor(row.smart_score) }}
           >
             {scoreLabel(row.smart_score)}
           </span>
+          {row.price_target != null && (
+            <span
+              className="font-mono text-[12px] tabular-nums ml-auto"
+              style={{ color: "var(--text)" }}
+              title="Tipranks composite price target"
+            >
+              PT {money(row.price_target)}
+            </span>
+          )}
         </div>
 
-        {/* Tipranks price target (NOT unified with trending's avg PT) */}
-        <Signal
-          label="Price Target"
-          value={row.price_target != null ? money(row.price_target) : "—"}
-          hint="Tipranks composite price target"
-        />
-
-        {/* Analyst-driven signals */}
-        <Signal
-          label="Bloggers (bullish)"
+        {/* Technicals — no other widget owns this, keep numeric + SMA label */}
+        <Row
+          label="12M momentum"
           value={
-            row.blogger_bullish_sentiment != null
-              ? pct(row.blogger_bullish_sentiment)
-              : "—"
-          }
-          hint={
-            row.blogger_sector_avg != null
-              ? `Sector avg ${pct(row.blogger_sector_avg)}`
+            row.technicals_twelve_months_momentum != null
+              ? pct(row.technicals_twelve_months_momentum)
               : undefined
           }
-        />
-        <Signal
-          label="News (bullish · bearish)"
-          value={
-            row.news_sentiments_bullish_percent != null &&
-            row.news_sentiments_bearish_percent != null
-              ? `${pct(row.news_sentiments_bullish_percent)} · ${pct(row.news_sentiments_bearish_percent)}`
-              : "—"
-          }
+          status={row.sma}
+          hint="12-month price momentum + Simple Moving Average signal"
         />
 
-        {/* Flow signals */}
-        <Signal
-          label="Hedge fund flow (last Q)"
+        {/* Hedge fund flow — keep numeric (share count is the quick read) */}
+        <Row
+          label="Hedge funds"
           value={fmtShares(row.hedge_fund_trend_value)}
-          tone={signedColor(row.hedge_fund_trend_value)}
-          hint="Net shares traded by hedge funds in the most recent quarter"
+          status={row.hedge_fund_trend}
+          hint="Net shares traded by hedge funds (last quarter)"
         />
-        <Signal
-          label="Insider activity (3mo)"
+
+        {/* Insider 3-month — keep numeric (Insiders widget reframes as $ flow) */}
+        <Row
+          label="Insiders (3mo)"
           value={fmtShares(row.insiders_last_3_months_sum)}
-          tone={signedColor(row.insiders_last_3_months_sum)}
+          status={row.insider_trend}
           hint="Net insider transactions over the last 3 months"
         />
 
-        {/* Investor sentiment deltas */}
-        <Signal
-          label="Investors (7d Δ)"
-          value={
-            row.investor_holding_change_last_7_days != null
-              ? pct(row.investor_holding_change_last_7_days)
-              : "—"
-          }
-          tone={signedColor(row.investor_holding_change_last_7_days)}
+        {/* Sentiment-family rows — text label ONLY (Sentiment widget owns
+            the bars and ratios; SmartScore stays a summary).               */}
+        <Row
+          label="Bloggers"
+          status={row.blogger_consensus}
+          hint="Blogger consensus (see Sentiment widget for ratios + per-source breakdown)"
         />
-        <Signal
-          label="Investors (30d Δ)"
-          value={
-            row.investor_holding_change_last_30_days != null
-              ? pct(row.investor_holding_change_last_30_days)
-              : "—"
-          }
-          tone={signedColor(row.investor_holding_change_last_30_days)}
+        <Row
+          label="News"
+          status={row.news_sentiment}
+          hint="News sentiment (see Sentiment widget for stock vs sector breakdown)"
+        />
+        <Row
+          label="Investors"
+          status={row.investor_sentiment}
+          hint="Tipranks-investor sentiment (see Sentiment widget for 7d/30d deltas + holder demographics)"
         />
       </div>
     );

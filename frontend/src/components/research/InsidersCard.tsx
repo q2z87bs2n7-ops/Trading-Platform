@@ -1,6 +1,22 @@
 import { useState } from "react";
 
 import { compact, money } from "../../lib/format";
+
+function StarBar({ stars }: { stars: number | null }) {
+  if (stars == null || Number.isNaN(stars)) return null;
+  // upstream returns 0-5 float
+  const filled = Math.round(Math.max(0, Math.min(5, stars)));
+  return (
+    <span
+      className="text-[10px] tabular-nums"
+      style={{ color: "var(--mute)" }}
+      title={`Insider rating ${stars.toFixed(1)} / 5`}
+    >
+      {"★".repeat(filled)}
+      {"☆".repeat(5 - filled)}
+    </span>
+  );
+}
 import type { InsidersRow, InsiderTransaction } from "../../types";
 import { CardPager } from "../discover/CardPager";
 
@@ -36,6 +52,14 @@ function txnColor(t: string | null): string {
   const lc = t.toLowerCase();
   if (lc.includes("buy")) return "var(--pos)";
   if (lc.includes("sell")) return "var(--neg)";
+  return "var(--mute)";
+}
+
+function scoreChipColor(s: string | null): string {
+  if (!s) return "var(--mute)";
+  const lc = s.toLowerCase();
+  if (lc.includes("positive")) return "var(--pos)";
+  if (lc.includes("negative")) return "var(--neg)";
   return "var(--mute)";
 }
 
@@ -84,22 +108,47 @@ function TxnRow({
   rank: number;
   dense: boolean;
 }) {
+  const isInformative =
+    !!t.transaction && t.transaction.toLowerCase().startsWith("informative");
+  const accent = txnColor(t.transaction);
   return (
     <div
-      className="grid items-center gap-2.5 py-2"
+      className="grid items-center gap-2 py-2"
       style={{
         gridTemplateColumns: dense
-          ? "1fr auto 72px"
-          : "1fr 100px auto 72px",
+          ? "3px 1fr auto 72px auto"
+          : "3px 1fr 100px auto auto 72px auto",
         borderTop: rank === 0 ? "none" : "1px solid var(--border)",
       }}
     >
-      <span
-        className="text-[12.5px] font-semibold min-w-0 truncate"
-        title={t.insider_name || ""}
-      >
-        {t.insider_name || "—"}
-      </span>
+      {/* Left-rail accent — color = side, saturation = informative vs routine */}
+      <div
+        style={{
+          width: 3,
+          height: "100%",
+          minHeight: 28,
+          background: accent,
+          opacity: isInformative ? 1 : 0.35,
+          borderRadius: 1.5,
+        }}
+        title={t.transaction || ""}
+      />
+      <div className="flex flex-col min-w-0">
+        <span
+          className="text-[12.5px] font-semibold truncate"
+          title={t.insider_name || ""}
+        >
+          {t.insider_name || "—"}
+        </span>
+        {dense && t.position && (
+          <span
+            className="text-[10.5px] truncate"
+            style={{ color: "var(--mute)" }}
+          >
+            {t.position}
+          </span>
+        )}
+      </div>
       {!dense && (
         <span
           className="text-[11px] min-w-0 truncate"
@@ -109,9 +158,10 @@ function TxnRow({
           {t.position || ""}
         </span>
       )}
+      {!dense && <StarBar stars={t.stars} />}
       <span
         className="font-mono text-[12px] tabular-nums text-right"
-        style={{ color: txnColor(t.transaction) }}
+        style={{ color: accent }}
         title={t.transaction || ""}
       >
         {t.amount != null ? money(t.amount) : "—"}
@@ -122,6 +172,21 @@ function TxnRow({
       >
         {fmtInsiderDate(t.date)}
       </span>
+      {t.form_url ? (
+        <a
+          href={t.form_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="text-[12px]"
+          style={{ color: "var(--mute)", textDecoration: "none" }}
+          title="View SEC Form 4 filing"
+        >
+          ↗
+        </a>
+      ) : (
+        <span style={{ width: 12 }} />
+      )}
     </div>
   );
 }
@@ -156,22 +221,41 @@ export function InsidersCard({
       </p>
     ) : (
       <div className="flex flex-col gap-3">
-        {/* Confidence signal */}
-        <div className="flex items-baseline gap-3">
+        {/* Net flow + confidence signal. `trend` is a signed $ amount
+            (not a 0-1 score), so render it with compact $ formatting.
+            `confidence_signal.score` is a label string ("Negative
+            Sentiment" / "NA"), not a number. */}
+        <div className="flex items-baseline gap-3 flex-wrap">
           <div className="flex flex-col gap-0.5">
             <span
               className="text-[10px] uppercase"
               style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
             >
-              Insider trend
+              Net 12-mo flow
             </span>
             <span
               className="font-mono text-[15px] tabular-nums"
               style={{ color: signedColor(row.trend) }}
+              title="Net insider $ flow over the trailing year"
             >
-              {row.trend != null ? row.trend.toFixed(2) : "—"}
+              {row.trend != null
+                ? `${row.trend < 0 ? "−" : row.trend > 0 ? "+" : ""}$${compact(Math.abs(row.trend))}`
+                : "—"}
             </span>
           </div>
+          {row.confidence_signal.score && (
+            <span
+              className="text-[11px] px-1.5 py-0.5 rounded ml-2"
+              style={{
+                color: scoreChipColor(row.confidence_signal.score),
+                background:
+                  "color-mix(in oklab, currentColor 12%, transparent)",
+              }}
+              title="Tipranks confidence signal"
+            >
+              {row.confidence_signal.score}
+            </span>
+          )}
           {row.confidence_signal.stock_score != null && (
             <div className="flex flex-col gap-0.5 ml-auto text-right">
               <span

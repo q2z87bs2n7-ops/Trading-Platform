@@ -48,13 +48,17 @@ function FundRow({
   rank: number;
   dense: boolean;
 }) {
+  const pct =
+    f.percentage_of_portfolio != null
+      ? Math.min(100, Math.max(0, f.percentage_of_portfolio))
+      : 0;
   return (
     <div
-      className="grid items-center gap-2.5 py-2"
+      className="grid items-center gap-2 py-2"
       style={{
         gridTemplateColumns: dense
-          ? "1fr auto 72px"
-          : "1fr 140px auto 80px",
+          ? "1fr auto auto 64px"
+          : "1fr 130px auto auto 64px 64px",
         borderTop: rank === 0 ? "none" : "1px solid var(--border)",
       }}
     >
@@ -73,6 +77,22 @@ function FundRow({
           {f.institution_name || ""}
         </span>
       )}
+      {f.action && (
+        <span
+          className="text-[10px] uppercase font-medium tracking-wide px-1 py-0.5 rounded"
+          style={{
+            color: actionColor(f.action),
+            background: "color-mix(in oklab, currentColor 12%, transparent)",
+          }}
+          title={f.action}
+        >
+          {f.action === "New Position"
+            ? "New"
+            : f.action === "Closed Position"
+              ? "Closed"
+              : f.action}
+        </span>
+      )}
       <span
         className="font-mono text-[12px] tabular-nums text-right"
         style={{ color: signedColor(f.shares_traded) }}
@@ -80,15 +100,62 @@ function FundRow({
       >
         {signedCompact(f.shares_traded)}
       </span>
-      <span
-        className="font-mono text-[11px] tabular-nums text-right"
-        style={{ color: "var(--mute)" }}
-        title="Remaining shares held"
+      <div
+        className="flex flex-col items-end"
+        title={`${f.percentage_of_portfolio?.toFixed(2) ?? "?"}% of fund's portfolio`}
       >
-        {f.remaining_shares != null ? compact(f.remaining_shares) : "—"}
-      </span>
+        <span
+          className="font-mono text-[10.5px] tabular-nums"
+          style={{ color: "var(--mute)" }}
+        >
+          {f.percentage_of_portfolio != null
+            ? `${f.percentage_of_portfolio.toFixed(2)}%`
+            : "—"}
+        </span>
+        <div
+          className="rounded"
+          style={{
+            width: 48,
+            height: 3,
+            background: "var(--panel-2)",
+            position: "relative",
+          }}
+        >
+          <div
+            style={{
+              width: `${Math.min(pct * 10, 100)}%`,
+              height: "100%",
+              background:
+                pct >= 5
+                  ? "var(--pos)"
+                  : pct >= 1
+                    ? "var(--text)"
+                    : "var(--mute)",
+              borderRadius: 2,
+            }}
+          />
+        </div>
+      </div>
+      {!dense && (
+        <span
+          className="font-mono text-[11px] tabular-nums text-right"
+          style={{ color: "var(--mute)" }}
+          title="Reported $ value of position"
+        >
+          {f.reported_value != null && f.reported_value > 0
+            ? "$" + compact(f.reported_value)
+            : "—"}
+        </span>
+      )}
     </div>
   );
+}
+
+function actionColor(a: string | null): string {
+  if (!a) return "var(--mute)";
+  if (a === "New Position" || a === "Added") return "var(--pos)";
+  if (a === "Closed Position" || a === "Reduced") return "var(--neg)";
+  return "var(--mute)";
 }
 
 export function HedgeFundsCard({

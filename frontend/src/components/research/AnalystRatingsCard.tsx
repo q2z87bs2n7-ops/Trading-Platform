@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { pct } from "../../lib/format";
 import type { AnalystRatingRow } from "../../types";
 import { CardPager } from "../discover/CardPager";
 
@@ -29,6 +30,33 @@ function recColor(rec: string | null): string {
   return "var(--mute)";
 }
 
+// Action chip color — upgraded is the most newsworthy, downgraded next, etc.
+function actionColor(a: string | null): string {
+  if (!a) return "var(--mute)";
+  const lc = a.toLowerCase();
+  if (lc.startsWith("upgrad")) return "var(--pos)";
+  if (lc.startsWith("downgrad")) return "var(--neg)";
+  if (lc.startsWith("initiat")) return "var(--accent, var(--text))";
+  return "var(--mute)";
+}
+
+function ActionBadge({ action }: { action: string | null }) {
+  if (!action) return null;
+  const color = actionColor(action);
+  return (
+    <span
+      className="text-[10px] uppercase font-medium tracking-wide px-1 py-0.5 rounded"
+      style={{
+        color,
+        background: "color-mix(in oklab, currentColor 12%, transparent)",
+      }}
+      title={action}
+    >
+      {action.length > 10 ? action.slice(0, 8) + "…" : action}
+    </span>
+  );
+}
+
 function RowItem({
   r,
   rank,
@@ -38,44 +66,100 @@ function RowItem({
   rank: number;
   dense: boolean;
 }) {
+  const ptLabel =
+    r.price_target != null
+      ? `${r.price_target_currency_code && r.price_target_currency_code !== "USD" ? r.price_target_currency_code + " " : ""}$${r.price_target.toFixed(0)}`
+      : null;
+  const stockHit =
+    r.stock_success_rate != null ? pct(r.stock_success_rate) : null;
+
+  // Row click opens the analyst's article URL in a new tab (when available).
+  const onClick = r.url
+    ? () => window.open(r.url!, "_blank", "noopener,noreferrer")
+    : undefined;
+
   return (
     <div
-      className="grid items-center gap-2.5 py-2"
+      className="py-2 cursor-default"
       style={{
-        gridTemplateColumns: dense
-          ? "1fr auto 64px"
-          : "1fr 140px auto 72px",
         borderTop: rank === 0 ? "none" : "1px solid var(--border)",
+        cursor: onClick ? "pointer" : "default",
       }}
+      onClick={onClick}
     >
-      <span
-        className="text-[13px] font-semibold min-w-0 truncate"
-        title={r.analyst_name || ""}
-      >
-        {r.analyst_name || "—"}
-      </span>
-      {!dense && (
+      {/* Line 1: name (+ firm) on the left, action badge + recommendation on the right */}
+      <div className="flex items-center gap-2">
+        <div className="flex flex-col min-w-0 flex-1">
+          <span
+            className="text-[13px] font-semibold truncate"
+            title={r.analyst_name || ""}
+          >
+            {r.analyst_name || "—"}
+          </span>
+          {!dense && r.firm_name && (
+            <span
+              className="text-[11px] truncate"
+              style={{ color: "var(--mute)" }}
+            >
+              {r.firm_name}
+            </span>
+          )}
+        </div>
+        <ActionBadge action={r.analyst_action} />
         <span
-          className="text-[12px] min-w-0 truncate"
-          style={{ color: "var(--mute)" }}
-          title={r.firm_name || ""}
+          className="text-[12px] tabular-nums font-semibold"
+          style={{ color: recColor(r.recommendation) }}
+          title="Recommendation"
         >
-          {r.firm_name || ""}
+          {r.recommendation || "—"}
         </span>
-      )}
-      <span
-        className="text-[12px] tabular-nums text-right"
-        style={{ color: recColor(r.recommendation) }}
-        title="Recommendation"
-      >
-        {r.recommendation || "—"}
-      </span>
-      <span
-        className="text-[11px] font-mono tabular-nums text-right"
-        style={{ color: "var(--mute)" }}
-      >
-        {fmtDate(r.recommendation_date, !dense)}
-      </span>
+      </div>
+
+      {/* Line 2: PT · this-stock hit rate · date */}
+      <div className="flex items-center gap-2 mt-0.5">
+        {ptLabel && (
+          <span
+            className="text-[11px] font-mono tabular-nums"
+            style={{ color: "var(--text)" }}
+            title="Analyst price target"
+          >
+            PT {ptLabel}
+          </span>
+        )}
+        {!dense && stockHit && (
+          <span
+            className="text-[11px] tabular-nums"
+            style={{
+              color:
+                r.stock_success_rate != null && r.stock_success_rate >= 0.55
+                  ? "var(--pos)"
+                  : r.stock_success_rate != null && r.stock_success_rate <= 0.45
+                    ? "var(--neg)"
+                    : "var(--mute)",
+            }}
+            title={
+              r.stock_total_recommendations != null
+                ? `${r.stock_good_recommendations ?? 0} of ${r.stock_total_recommendations} calls on this stock`
+                : "Track record on this stock"
+            }
+          >
+            {stockHit} hit
+            {r.stock_avg_return != null && (
+              <span style={{ color: "var(--mute)" }}>
+                {" "}
+                · {r.stock_avg_return > 0 ? "+" : ""}
+                {r.stock_avg_return.toFixed(1)}% avg
+              </span>
+            )}
+          </span>
+        )}
+        <span
+          className="text-[11px] font-mono tabular-nums ml-auto"
+          style={{ color: "var(--mute)" }}
+        >
+          {fmtDate(r.recommendation_date, !dense)}
+        </span>
+      </div>
     </div>
   );
 }

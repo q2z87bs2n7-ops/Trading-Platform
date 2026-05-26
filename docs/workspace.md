@@ -149,11 +149,30 @@ Widgets reuse existing surfaces:
   shares traded. Symbol-linked (default Main, no None), stocks-only. TTL is
   6h because the underlying 13F filings are quarterly.
 - **Insiders** — `research/InsidersCard.tsx`, Form-4 insider transactions
-  for one stock. Insider trend + stock/sector confidence scores,
-  discretionary vs uninformative counts, last-6-months buy/sell bars, and
-  paginated recent transactions (insider name, position, amount, date with
-  DD/MM/YYYY upstream format defensively parsed). Symbol-linked (default
-  Main, no None), stocks-only.
+  for one stock. **`trend` is rendered as Net 12-month $ flow** — it's a
+  signed dollar amount upstream, not a 0-1 score, and was reframed in the
+  v1 redesign. `confidenceSignal.score` is a label string ("Negative
+  Sentiment" / "NA") rendered as a chip, NOT a number. Stock/sector
+  confidence sub-scores, discretionary vs uninformative counts (also act
+  as filter affordances later), last-6-months buy/sell bars (last-3 in
+  narrow tier), and paginated recent transactions with: left-rail accent
+  encoding side × informative class, 0-5 star rating per insider, amount
+  + position + DD/MM/YYYY-parsed date, and a "↗" SEC-filing link
+  (`formURL`). Symbol-linked (default Main, no None), stocks-only.
+- **Related Tickers** — `research/RelatedTickersCard.tsx`, discovery feed
+  from Tipranks `investorsAlsoBought` plus three age-cohort variants
+  (youngest / midRange / eldest). Cohort selector pills inside the card;
+  empty cohorts auto-hide. Row click writes the picked ticker into the
+  widget's channel — same pattern as Watchlist. Paginated 8/page. Shares
+  the InvestorSentiment backend cache with Sentiment + HolderDemographics
+  (one upstream call serves all three widgets). Symbol-linked, stocks-only.
+- **Holder Demographics** — `research/HolderDemographicsCard.tsx`,
+  behavioural profile of the stock's holder base from Tipranks
+  `ageDistribution`. Three cohorts (eldest / midRange / youngest) shown
+  side-by-side at full width (stacked at narrow), each with % holders,
+  7d/30d holding change, average portfolio beta, monthly return, dividend
+  yield, P/E. Footer with sector + best-investor benchmark. Shares the
+  InvestorSentiment cache. Symbol-linked, stocks-only.
 
 ## Link channels
 
@@ -214,6 +233,13 @@ so the transition isn't a single hard flip:
   label stays readable.
 - **Insiders** — dense 420 drops the position column on the transactions list;
   `narrow` 340 reduces the monthly buy/sell bars from last-6 to last-3 months.
+- **Related Tickers** — dense 320 drops the company name + market-cap columns;
+  `narrow` 240 also drops the 30d-change column.
+- **Holder Demographics** — `narrow` 360 stacks the three cohort columns
+  vertically (one cohort per row) instead of side-by-side.
+- **SmartScore / Sentiment** — flex-based vertical stacks; adapt naturally
+  via `justify-between` rows + `truncate` text. No explicit breakpoint
+  needed; fit cleanly to 240px+ in inspection.
 - **SmartScore** / **Sentiment** — no dense flip; vertical-stack layout fits
   280px and up.
 - **News** — `compact` 320 stacks the rel-time *above* source+title instead of

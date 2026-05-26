@@ -41,6 +41,14 @@ import {
   InsidersCard,
   InsidersCardSkeleton,
 } from "../../components/research/InsidersCard";
+import {
+  RelatedTickersCard,
+  RelatedTickersCardSkeleton,
+} from "../../components/research/RelatedTickersCard";
+import {
+  HolderDemographicsCard,
+  HolderDemographicsCardSkeleton,
+} from "../../components/research/HolderDemographicsCard";
 import ErrorBanner from "../../components/ErrorBanner";
 import { isCryptoSymbol } from "../asset-class";
 import {
@@ -50,7 +58,9 @@ import {
   useSymbolEarnings,
   useAnalystRatings,
   useHedgeFunds,
+  useHolderDemographics,
   useInsiders,
+  useRelatedTickers,
   useSentiment,
   useSmartScore,
   useTrendingResearch,
@@ -477,6 +487,13 @@ const HEDGEFUNDS_DENSE_W = 420;
 const HEDGEFUNDS_NARROW_W = 340;
 const INSIDERS_DENSE_W = 420;
 const INSIDERS_NARROW_W = 340;
+// Responsive tiers for new widgets. SmartScore + Sentiment are
+// flex-based vertical stacks that adapt naturally to narrow widths —
+// no explicit breakpoint needed (rows already use justify-between +
+// truncate). Documented in docs/workspace.md size-fit section.
+const RELATED_TICKERS_DENSE_W = 320;
+const RELATED_TICKERS_NARROW_W = 240;
+const HOLDER_DEMOGRAPHICS_NARROW_W = 360;
 const NEWS_COMPACT_W = 320;
 
 function PositionsWidget(props: IDockviewPanelProps) {
@@ -1153,6 +1170,115 @@ function InsidersWidget(props: IDockviewPanelProps) {
   );
 }
 
+// RelatedTickers widget: 'investorsAlsoBought' — tickers also held by
+// investors who hold the linked symbol. Per-cohort selector inside the
+// card. Row click writes the picked ticker into the widget's channel.
+function RelatedTickersWidget(props: IDockviewPanelProps) {
+  const { getSymbol, setSymbol, assetClass } = useWorkspace();
+  const [channel, setChannel] = useChannel(props, "main");
+  const symbol = getSymbol(channel).toUpperCase();
+  const isCrypto = assetClass === "crypto" || isCryptoSymbol(symbol);
+  const ref = useRef<HTMLDivElement>(null);
+  const dense = useContainerNarrow(ref, RELATED_TICKERS_DENSE_W);
+  const narrow = useContainerNarrow(ref, RELATED_TICKERS_NARROW_W);
+  const data = useRelatedTickers(symbol, !isCrypto && symbol.length > 0);
+
+  return (
+    <WidgetShell
+      header={
+        <LinkHeader
+          label={symbol || "—"}
+          channel={channel}
+          setChannel={setChannel}
+          includeNone={false}
+          assetClass={assetClass}
+          onPickSymbol={(s) => setSymbol(channel, s)}
+          kind="Related"
+        />
+      }
+    >
+      <div ref={ref} style={{ height: "100%" }}>
+        <Pane pad>
+          {isCrypto ? (
+            <p className="text-[13px]" style={{ color: "var(--mute)" }}>
+              Related tickers are stocks-only. Link this widget to a stock.
+            </p>
+          ) : (
+            <>
+              {data.error && <ErrorBanner message={data.error.message} />}
+              {!data.data && !data.error && (
+                <RelatedTickersCardSkeleton bare />
+              )}
+              {data.data && (
+                <RelatedTickersCard
+                  row={data.data.related}
+                  bare
+                  dense={dense}
+                  narrow={narrow}
+                  onSelect={(s) => setSymbol(channel, s)}
+                />
+              )}
+            </>
+          )}
+        </Pane>
+      </div>
+    </WidgetShell>
+  );
+}
+
+// HolderDemographics widget: ageDistribution × 3 cohorts + sector/best
+// benchmark footer. Side-by-side cohorts at full width; stacks vertically
+// at narrow widths.
+function HolderDemographicsWidget(props: IDockviewPanelProps) {
+  const { getSymbol, setSymbol, assetClass } = useWorkspace();
+  const [channel, setChannel] = useChannel(props, "main");
+  const symbol = getSymbol(channel).toUpperCase();
+  const isCrypto = assetClass === "crypto" || isCryptoSymbol(symbol);
+  const ref = useRef<HTMLDivElement>(null);
+  const narrow = useContainerNarrow(ref, HOLDER_DEMOGRAPHICS_NARROW_W);
+  const data = useHolderDemographics(symbol, !isCrypto && symbol.length > 0);
+
+  return (
+    <WidgetShell
+      header={
+        <LinkHeader
+          label={symbol || "—"}
+          channel={channel}
+          setChannel={setChannel}
+          includeNone={false}
+          assetClass={assetClass}
+          onPickSymbol={(s) => setSymbol(channel, s)}
+          kind="Holders"
+        />
+      }
+    >
+      <div ref={ref} style={{ height: "100%" }}>
+        <Pane pad>
+          {isCrypto ? (
+            <p className="text-[13px]" style={{ color: "var(--mute)" }}>
+              Holder demographics are stocks-only.
+            </p>
+          ) : (
+            <>
+              {data.error && <ErrorBanner message={data.error.message} />}
+              {!data.data && !data.error && (
+                <HolderDemographicsCardSkeleton bare />
+              )}
+              {data.data && (
+                <HolderDemographicsCard
+                  row={data.data.demographics}
+                  bare
+                  narrow={narrow}
+                />
+              )}
+            </>
+          )}
+        </Pane>
+      </div>
+    </WidgetShell>
+  );
+}
+
 // id → React component, consumed by DockviewReact's `components` map.
 export const WIDGET_COMPONENTS: Record<
   string,
@@ -1176,6 +1302,8 @@ export const WIDGET_COMPONENTS: Record<
   analysts: AnalystRatingsWidget,
   hedgefunds: HedgeFundsWidget,
   insiders: InsidersWidget,
+  relatedtickers: RelatedTickersWidget,
+  holderdemographics: HolderDemographicsWidget,
 };
 
 // Drives the "add widget" menu and panel titles. Grouped + described to power
@@ -1249,11 +1377,25 @@ export const WIDGET_CATALOG: WidgetMeta[] = [
     iconPath: "M2 13 H14 M4 13 V8 L8 4 L12 8 V13 M7 13 V10 H9 V13",
   },
   {
+    id: "holderdemographics",
+    group: "Market data",
+    title: "Holder Demographics",
+    desc: "Per-age-cohort behavioural profile of who holds the stock",
+    iconPath: "M5 5 A2 2 0 1 1 5 9 A2 2 0 1 1 5 9 M11 5 A2 2 0 1 1 11 9 A2 2 0 1 1 11 9 M2 14 V12 A2 2 0 0 1 4 10 H6 A2 2 0 0 1 8 12 M8 14 V12 A2 2 0 0 1 10 10 H12 A2 2 0 0 1 14 12",
+  },
+  {
     id: "insiders",
     group: "Market data",
     title: "Insiders",
     desc: "Form-4 insider transactions + monthly buy/sell history for one stock",
     iconPath: "M8 8 A2.5 2.5 0 1 1 8 3 A2.5 2.5 0 1 1 8 8 M3 14 V12 A3 3 0 0 1 6 9 H10 A3 3 0 0 1 13 12 V14",
+  },
+  {
+    id: "relatedtickers",
+    group: "Market data",
+    title: "Related Tickers",
+    desc: "Other tickers held by investors who hold this stock",
+    iconPath: "M4 4 H8 V8 H4 Z M10 4 H14 V8 H10 Z M4 10 H8 V14 H4 Z M10 10 H14 V14 H10 Z M8 6 H10 M6 8 V10 M12 8 V10",
   },
   {
     id: "news",

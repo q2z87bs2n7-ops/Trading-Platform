@@ -60,24 +60,36 @@ function TrendingRowItem({
           className="font-mono text-[13px] tabular-nums"
           style={{ color: "var(--text)" }}
           title={
-            r.total_analysts != null
-              ? `Average of ${r.total_analysts} analyst targets`
-              : "Average price target"
+            r.low_price_target != null && r.high_price_target != null
+              ? `Range ${money(r.low_price_target)}–${money(r.high_price_target)}${
+                  r.total_analysts != null
+                    ? ` · ${r.total_analysts} analysts`
+                    : ""
+                }`
+              : r.total_analysts != null
+                ? `Average of ${r.total_analysts} analyst targets`
+                : "Average price target"
           }
         >
           {r.average_price_target != null ? money(r.average_price_target) : "—"}
         </span>
-        {!dense &&
-          r.low_price_target != null &&
-          r.high_price_target != null && (
-            <span
-              className="font-mono text-[10.5px] tabular-nums"
-              style={{ color: "var(--mute)" }}
-              title="Analyst price-target range (Tipranks overview)"
-            >
-              {money(r.low_price_target)}–{money(r.high_price_target)}
-            </span>
-          )}
+        {!dense && r.price_target_upside != null && (
+          <span
+            className="font-mono text-[10.5px] tabular-nums"
+            style={{
+              color:
+                r.price_target_upside > 0
+                  ? "var(--pos)"
+                  : r.price_target_upside < 0
+                    ? "var(--neg)"
+                    : "var(--mute)",
+            }}
+            title="Upside vs current price"
+          >
+            {r.price_target_upside > 0 ? "+" : ""}
+            {r.price_target_upside.toFixed(1)}%
+          </span>
+        )}
       </div>
       {!dense && (
         <span

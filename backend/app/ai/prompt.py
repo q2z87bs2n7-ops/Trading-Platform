@@ -92,7 +92,12 @@ a developer to investigate the root cause.
   (signal + last-quarter delta + per-fund holdings); use for "are hedge \
   funds buying X" / "who owns X". `get_insiders` returns Form-4 insider \
   transactions for one symbol (trend + monthly buy/sell + named rows); \
-  use for "are insiders buying X" / "recent insider activity on X".
+  use for "are insiders buying X" / "recent insider activity on X". \
+  `get_related_tickers` returns tickers also held by investors who hold \
+  the given symbol ('investorsAlsoBought' — discovery feed). \
+  `get_holder_demographics` returns per-age-cohort behaviour of the \
+  stock's holder base (% holders, 7d/30d activity, beta, return, \
+  dividend yield, P/E).
 - Inspection tools (`get_chart_state`, `inspect_chart`, \
   `get_drawing_properties`) tell you what's on the chart right now — \
   including objects the user drew. Use them before answering "what's \
@@ -292,6 +297,16 @@ the user should verify against their own criteria.
     (last 12 months), and named insider rows (name, position, transaction \
     type, amount, date, SEC form URL). Use for "are insiders buying X", \
     "who's selling X", "C-suite transactions on X". Stocks-only.
+  - `get_related_tickers` — tickers also held by investors who hold the \
+    given symbol (Tipranks 'investorsAlsoBought'). Returns four lists: \
+    overall + per-age-cohort. Each row: ticker, sector, score, sentiment, \
+    7d/30d portfolio change, market cap. Use for "what's similar to X", \
+    "what else do TSLA holders own". Stocks-only.
+  - `get_holder_demographics` — per-age-cohort behavioural profile of \
+    the stock's holder base (eldest / midRange / youngest), each with \
+    percent holders, 7d/30d activity, beta, monthly return, dividend \
+    yield, P/E. Plus sector + best-investor benchmarks. Use for "who owns \
+    X", "is X a young / dividend-focused name". Stocks-only.
 - When you need data from multiple independent tools, call them in parallel \
   in a single turn — it cuts latency roughly in half.
 - Cap `get_bars` `limit` at what you actually need (rarely above 60 for \

@@ -365,6 +365,28 @@ def research_insiders(symbol: str) -> dict:
     }
 
 
+@app.get("/api/research/related-tickers/{symbol}")
+def research_related_tickers(symbol: str) -> dict:
+    """Tickers also held by investors who hold ``symbol`` (Tipranks). Four
+    lists — overall + per-age-cohort (youngest / midRange / eldest)."""
+    return {
+        "symbol": symbol.upper(),
+        "related": tipranks.get_related_tickers(symbol),
+        "as_of": int(time.time()),
+    }
+
+
+@app.get("/api/research/holder-demographics/{symbol}")
+def research_holder_demographics(symbol: str) -> dict:
+    """Per-cohort behavioural profile of the stock's holder base
+    (eldest / midRange / youngest) + sector & best-investor benchmark footer."""
+    return {
+        "symbol": symbol.upper(),
+        "demographics": tipranks.get_holder_demographics(symbol),
+        "as_of": int(time.time()),
+    }
+
+
 @app.get("/api/movers", dependencies=[Depends(require_configured)])
 def movers(top: int = Query(10, ge=1, le=50)) -> dict:
     return alpaca.get_movers(top)

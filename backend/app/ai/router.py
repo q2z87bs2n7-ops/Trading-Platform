@@ -298,6 +298,20 @@ def _execute_read_tool(
             default=str,
         )
 
+    if name == "get_related_tickers":
+        symbol = str(args["symbol"]).upper()
+        return json.dumps(
+            {"symbol": symbol, "related": tipranks.get_related_tickers(symbol)},
+            default=str,
+        )
+
+    if name == "get_holder_demographics":
+        symbol = str(args["symbol"]).upper()
+        return json.dumps(
+            {"symbol": symbol, "demographics": tipranks.get_holder_demographics(symbol)},
+            default=str,
+        )
+
     if name == "add_to_watchlist":
         req_ac = args.get("asset_class") or asset_class
         default_class = "crypto" if req_ac == "crypto" else ""

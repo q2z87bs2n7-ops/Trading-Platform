@@ -32,6 +32,8 @@ READ_TOOL_NAMES = {
     "get_analyst_ratings",
     "get_hedge_funds",
     "get_insiders",
+    "get_related_tickers",
+    "get_holder_demographics",
 }
 
 
@@ -616,6 +618,53 @@ READ_TOOLS: list[dict[str, Any]] = [
             "share count, filing date, link to SEC form). Use for 'are "
             "insiders buying X', 'who's selling X', 'recent insider activity "
             "on X', 'C-suite transactions on X'. Stocks only."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symbol": {
+                    "type": "string",
+                    "description": "Exact ticker, e.g. AAPL.",
+                },
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "get_related_tickers",
+        "description": (
+            "Tickers also held by investors who hold ONE given stock symbol "
+            "(Tipranks 'investorsAlsoBought' — a recommendation/discovery "
+            "feed). Returns four lists: overall + per-age-cohort (youngest, "
+            "midRange, eldest). Each row has ticker, company name, sector, "
+            "average holding size, 7d/30d portfolio-holding change, score, "
+            "sentiment text, market cap. Use when the user asks 'what's "
+            "similar to X', 'what else do TSLA holders own', or wants "
+            "discovery from a starting symbol. Stocks-only."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symbol": {
+                    "type": "string",
+                    "description": "Exact ticker, e.g. AAPL.",
+                },
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "get_holder_demographics",
+        "description": (
+            "Per-cohort behavioural profile of a stock's holder base "
+            "(Tipranks-investor demographics, ageDistribution). Returns "
+            "three cohorts (eldest / midRange / youngest), each with: "
+            "percent of holders, 7d & 30d holding-change, average portfolio "
+            "beta, average monthly return, dividend yield, average P/E. "
+            "Plus a footer with sector-average score + sentiment + best-"
+            "investor benchmark. Use when asked 'who owns this stock', "
+            "'is this a young/old investor name', 'do dividend-focused "
+            "investors hold X'. Stocks-only."
         ),
         "input_schema": {
             "type": "object",

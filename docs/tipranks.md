@@ -177,6 +177,21 @@ the bottom of this section if multiple runs disagree.
 | AI bot read tool `get_hedge_funds` | same | One symbol arg. Returns signal + holdings_history + institutional_holdings. |
 | Workspace **Insiders** widget (per-symbol, stocks-only) | `/api/research/insiders/{symbol}` → `insiders/{ticker}` | `components/research/InsidersCard.tsx` + `InsidersWidget`. Trend + confidence signal (stock vs sector), discretionary vs uninformative counts, monthly buy/sell bars (last 6 months), recent named transactions. 4h TTL — Form-4 filings within 2 business days. |
 | AI bot read tool `get_insiders` | same | One symbol arg. Returns confidence_signal + monthly + transactions. |
+| Workspace **Related Tickers** widget (per-symbol, stocks-only) | `/api/research/related-tickers/{symbol}` (shares the InvestorSentiment cache with Sentiment + HolderDemographics — one upstream call serves all three) | `components/research/RelatedTickersCard.tsx` + `RelatedTickersWidget`. Discovery feed from `investorsAlsoBought` + the three age-cohort variants. Cohort selector pills inside the card; row click writes the picked ticker into the widget's channel (same pattern as Watchlist). Paginated 8/page. |
+| AI bot read tool `get_related_tickers` | same | One symbol arg. Returns four lists: overall + per-cohort (youngest / midRange / eldest). Each row: ticker, sector, score, sentiment, 7d/30d portfolio change, market cap. |
+| Workspace **Holder Demographics** widget (per-symbol, stocks-only) | `/api/research/holder-demographics/{symbol}` (shared InvestorSentiment cache) | `components/research/HolderDemographicsCard.tsx` + `HolderDemographicsWidget`. Per-age-cohort behavioural profile from `ageDistribution` — % holders, 7d/30d change, beta, monthly return, dividend yield, P/E across eldest/mid/young. Footer with sector + best-investor benchmark. |
+| AI bot read tool `get_holder_demographics` | same | One symbol arg. Returns three cohorts × 7 behavioural metrics + sector + best-investor benchmark. |
+
+### Field-coverage expansion in v1 redesigns
+
+The shipped redesigns capture **all available fields** from each upstream endpoint (data is in the payload + visible to AI bots via the read tools, even if not rendered in the UI). Notable additions per endpoint that the cards now surface:
+
+- **SmartScore** — added all 7 categorical text labels (`sma`, `analystConsensus`, `hedgeFundTrend`, `insiderTrend`, `investorSentiment`, `newsSentiment`, `bloggerConsensus`) paired as same-row suffixes; added `technicalsTwelveMonthsMomentum`. Per the Phase 2 dedup verdict, the card **drops** numeric components owned by other widgets — keeps only the categorical label as a one-line verdict (this is the biggest visible change to the card).
+- **Trending** — added `priceTargetUpside` as a coloured sub-line under the avg PT; PT range becomes a tooltip on the avg PT (with analyst count folded in).
+- **Sentiment** — added `newsScore` + `sectorScore` header; `newsBuzz` chip ("Buzz 2.3×" with this-week / weekly-average tooltip); `wordCloud` chip row footer in the News block; `investorScore` + `sentiment` text header + `bestInvestorStatsOverview` subset in the Investor block. Deferred for a future batch: `newsSentiment.counts` (23-week stacked sparkline), `bullishBearish` directional ratios.
+- **AnalystRatings** — added per-analyst `priceTarget`, `analystAction` badge (upgraded / downgraded / initiated / maintained), per-stock track record (`stockSuccessRate` + `stockAvgReturn` + `stockTotalRecommendations` tooltip), and row-click opens the analyst's article (`url`).
+- **HedgeFunds** — added `action` pre-classified pill (New / Closed / Added / Reduced), `percentageOfPortfolio` as a conviction mini-bar in each row, `reportedValue` `$` column, hedge-fund-rank context via `numberOfRankedHedgeFunds`.
+- **Insiders** — **reframed `trend`** as Net 12-month $ flow (was rendered as a raw number; it's a dollar amount, not a 0-1 score); `confidence_signal.score` is now correctly handled as a label string (was assumed number); per-transaction `stars` rendered as a 0-5 glyph; `formURL` icon → SEC filing.
 
 Backend client: `backend/app/tipranks.py` — in-process TTL cache (15min on
 `trendingStocks`), graceful empty list when env vars unset (mirrors the FMP /

@@ -113,7 +113,7 @@ export function SentimentCard({
       </p>
     ) : (
       <div className="flex flex-col gap-3">
-        {/* News sentiment — stock vs sector */}
+        {/* News sentiment — stock vs sector + score header + buzz chip */}
         <Section
           label="News"
           empty={
@@ -121,6 +121,38 @@ export function SentimentCard({
             row.news.stock.negative == null
           }
         >
+          {/* Header row: news score vs sector + buzz chip on the right */}
+          {(row.news.score.stock_score || row.news.buzz.buzz != null) && (
+            <div className="flex items-center justify-between mb-1">
+              {row.news.score.stock_score && (
+                <span
+                  className="text-[11px]"
+                  style={{ color: "var(--text)" }}
+                >
+                  {row.news.score.stock_score}
+                  {row.news.score.sector_score != null && (
+                    <span style={{ color: "var(--mute)" }}>
+                      {" "}
+                      · vs sector {row.news.score.sector_score.toFixed(2)}
+                    </span>
+                  )}
+                </span>
+              )}
+              {row.news.buzz.buzz != null && (
+                <span
+                  className="text-[10.5px] tabular-nums"
+                  style={{ color: "var(--mute)" }}
+                  title={
+                    row.news.buzz.weekly_average != null
+                      ? `${row.news.buzz.this_week ?? "?"} this week · ${row.news.buzz.weekly_average.toFixed(0)} avg`
+                      : "News article volume vs trailing average"
+                  }
+                >
+                  Buzz {row.news.buzz.buzz.toFixed(2)}×
+                </span>
+              )}
+            </div>
+          )}
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-2">
               <span
@@ -165,6 +197,24 @@ export function SentimentCard({
               </span>
             </div>
           </div>
+          {/* Word cloud — top phrases from recent news (capped at 6 upstream) */}
+          {row.news.word_cloud.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {row.news.word_cloud.slice(0, 6).map((w, i) => (
+                <span
+                  key={i}
+                  className="text-[10.5px] px-1.5 py-0.5 rounded"
+                  style={{
+                    background: "var(--panel-2)",
+                    color: "var(--mute)",
+                  }}
+                  title="Phrase extracted from recent news"
+                >
+                  {w}
+                </span>
+              ))}
+            </div>
+          )}
         </Section>
 
         {/* Blogger consensus */}
@@ -228,6 +278,39 @@ export function SentimentCard({
             row.investor.portfolios_holding_stock === 0
           }
         >
+          {/* Header: investor score + sector benchmark + sentiment label */}
+          {(row.investor.investor_score != null ||
+            row.investor.sentiment) && (
+            <div
+              className="flex items-center gap-2 mb-1 text-[11px]"
+            >
+              {row.investor.investor_score != null && (
+                <span style={{ color: "var(--text)" }}>
+                  Score {row.investor.investor_score.toFixed(2)}
+                </span>
+              )}
+              {row.investor.sector_average_score != null && (
+                <span style={{ color: "var(--mute)" }}>
+                  · vs sector {row.investor.sector_average_score.toFixed(2)}
+                </span>
+              )}
+              {row.investor.sentiment && (
+                <span
+                  className="ml-auto"
+                  style={{
+                    color:
+                      row.investor.sentiment.toLowerCase().includes("positive")
+                        ? "var(--pos)"
+                        : row.investor.sentiment.toLowerCase().includes("negative")
+                          ? "var(--neg)"
+                          : "var(--mute)",
+                  }}
+                >
+                  {row.investor.sentiment}
+                </span>
+              )}
+            </div>
+          )}
           <div className="flex flex-col gap-1">
             <StatRow
               label="Portfolios holding"
@@ -263,6 +346,58 @@ export function SentimentCard({
               }
               tone={signedColor(row.investor.percent_over_last_30_days)}
             />
+            {/* Best investors subset — Tipranks-ranked top performers only */}
+            {row.investor.best &&
+              row.investor.best.portfolios_holding_stock != null &&
+              row.investor.best.portfolios_holding_stock > 0 && (
+                <div
+                  className="flex flex-col gap-0.5 mt-1 pt-1"
+                  style={{ borderTop: "1px solid var(--border)" }}
+                >
+                  <span
+                    className="text-[10px] uppercase"
+                    style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
+                  >
+                    Best investors
+                  </span>
+                  {row.investor.best.investor_score != null && (
+                    <StatRow
+                      label="Score"
+                      value={row.investor.best.investor_score.toFixed(2)}
+                    />
+                  )}
+                  <StatRow
+                    label="Allocation"
+                    value={
+                      row.investor.best.average_allocation != null
+                        ? pct(row.investor.best.average_allocation)
+                        : "—"
+                    }
+                  />
+                  <StatRow
+                    label="7d change"
+                    value={
+                      row.investor.best.percent_over_last_7_days != null
+                        ? pct(row.investor.best.percent_over_last_7_days)
+                        : "—"
+                    }
+                    tone={signedColor(
+                      row.investor.best.percent_over_last_7_days,
+                    )}
+                  />
+                  <StatRow
+                    label="30d change"
+                    value={
+                      row.investor.best.percent_over_last_30_days != null
+                        ? pct(row.investor.best.percent_over_last_30_days)
+                        : "—"
+                    }
+                    tone={signedColor(
+                      row.investor.best.percent_over_last_30_days,
+                    )}
+                  />
+                </div>
+              )}
           </div>
         </Section>
       </div>

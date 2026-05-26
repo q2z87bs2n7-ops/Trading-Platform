@@ -246,6 +246,24 @@ export const useInsiders = (symbol: string, enabled = true) =>
     enabled: enabled && symbol.length > 0,
   });
 
+export const useRelatedTickers = (symbol: string, enabled = true) =>
+  useQuery({
+    queryKey: qk.relatedTickers(symbol),
+    queryFn: () => api.getRelatedTickers(symbol),
+    refetchInterval: 1_800_000, // 30min — shares backend InvestorSentiment cache
+    staleTime: 900_000,
+    enabled: enabled && symbol.length > 0,
+  });
+
+export const useHolderDemographics = (symbol: string, enabled = true) =>
+  useQuery({
+    queryKey: qk.holderDemographics(symbol),
+    queryFn: () => api.getHolderDemographics(symbol),
+    refetchInterval: 1_800_000, // 30min — shares backend InvestorSentiment cache
+    staleTime: 900_000,
+    enabled: enabled && symbol.length > 0,
+  });
+
 // --- Asset symbol universe (Ask-anything router ticker validation) -------
 // The full catalogue is fetched once a day and served instantly from a
 // localStorage snapshot (stale-while-revalidate). Staleness is harmless: a

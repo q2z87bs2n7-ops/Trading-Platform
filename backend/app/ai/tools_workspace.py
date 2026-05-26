@@ -31,6 +31,8 @@ WORKSPACE_WIDGET_KINDS = (
     "analysts",
     "hedgefunds",
     "insiders",
+    "relatedtickers",
+    "holderdemographics",
 )
 
 _SILO_PROP = {
@@ -120,7 +122,14 @@ WORKSPACE_TOOLS: list[dict[str, Any]] = [
             "quarterly trend — symbol-linked. "
             "'insiders' shows Form-4 insider transactions for one STOCK: "
             "trend, monthly buy/sell bars, recent named-insider rows — "
-            "symbol-linked."
+            "symbol-linked. "
+            "'relatedtickers' shows tickers also held by investors who hold "
+            "the linked symbol (Tipranks 'investorsAlsoBought' — discovery "
+            "feed). Symbol-linked. "
+            "'holderdemographics' shows per-age-cohort behavioural profile "
+            "of the stock's holder base (eldest / midRange / youngest), "
+            "each with % holders, 7d/30d activity, beta, return, dividend "
+            "yield, P/E. Symbol-linked."
         ),
         "input_schema": {
             "type": "object",

@@ -339,6 +339,7 @@ export interface TrendingResearchRow {
   low_price_target: number | null;
   high_price_target: number | null;
   total_analysts: number | null;
+  price_target_upside: number | null;
 }
 
 export interface TrendingResearchResponse {
@@ -354,6 +355,7 @@ export interface SmartScoreRow {
   ticker: string;
   smart_score: number | null;
   price_target: number | null;
+  price_target_currency_code: string | null;
   hedge_fund_trend_value: number | null;
   blogger_bullish_sentiment: number | null;
   blogger_sector_avg: number | null;
@@ -364,6 +366,15 @@ export interface SmartScoreRow {
   investor_holding_change_last_30_days: number | null;
   fundamentals_return_on_equity: number | null;
   fundamentals_asset_growth: number | null;
+  technicals_twelve_months_momentum: number | null;
+  // Text-label companions paired with the numeric components above.
+  sma: string | null;
+  analyst_consensus: string | null;
+  hedge_fund_trend: string | null;
+  insider_trend: string | null;
+  investor_sentiment: string | null;
+  news_sentiment: string | null;
+  blogger_consensus: string | null;
 }
 
 export interface SmartScoreResponse {
@@ -385,9 +396,34 @@ export interface SentimentNewsBlock {
   neutral: number | null;
   negative: number | null;
 }
+export interface SentimentNewsCount {
+  week_start: string | null;
+  buy: number | null;
+  sell: number | null;
+  neutral: number | null;
+  all: number | null;
+}
 export interface SentimentNews {
   stock: SentimentNewsBlock;
   sector: SentimentNewsBlock;
+  counts: SentimentNewsCount[];
+  score: {
+    stock_score: string | null;
+    stock_score_value: number | null;
+    sector_score: number | null;
+  };
+  buzz: {
+    weekly_average: number | null;
+    this_week: number | null;
+    buzz: number | null;
+  };
+  bullish_bearish: {
+    stock_bullish: number | null;
+    stock_bearish: number | null;
+    sector_bullish: number | null;
+    sector_bearish: number | null;
+  };
+  word_cloud: string[];
 }
 export interface SentimentInvestor {
   number_of_portfolios: number | null;
@@ -395,6 +431,17 @@ export interface SentimentInvestor {
   average_allocation: number | null;
   percent_over_last_7_days: number | null;
   percent_over_last_30_days: number | null;
+  investor_score: number | null;
+  sector_average_score: number | null;
+  sentiment: string | null;
+  sector_average_sentiment: string | null;
+  best: {
+    portfolios_holding_stock: number | null;
+    average_allocation: number | null;
+    percent_over_last_7_days: number | null;
+    percent_over_last_30_days: number | null;
+    investor_score: number | null;
+  };
 }
 export interface SentimentRow {
   ticker: string;
@@ -415,6 +462,19 @@ export interface AnalystRatingRow {
   recommendation: string | null;
   recommendation_date: string | null;
   expert_uid: string | null;
+  url: string | null;
+  url_slug: string | null;
+  article_title: string | null;
+  analyst_action: string | null;
+  analyst_rank: number | null;
+  number_of_ranked_experts: number | null;
+  num_of_stars: number | null;
+  stock_success_rate: number | null;
+  stock_avg_return: number | null;
+  stock_total_recommendations: number | null;
+  stock_good_recommendations: number | null;
+  price_target: number | null;
+  price_target_currency_code: string | null;
 }
 export interface AnalystRatingsResponse {
   symbol: string;
@@ -439,6 +499,12 @@ export interface HedgeFundRow {
   shares_traded: number | null;
   percentage_of_portfolio: number | null;
   hedge_fund_rank: number | null;
+  number_of_ranked_hedge_funds: number | null;
+  is_active_investor: boolean | null;
+  // Pre-classified action: "New Position" / "Closed Position" / "Added" /
+  // "Reduced" / "Maintained" — use verbatim, don't re-infer from share-delta.
+  action: string | null;
+  stars: number | null;
   expert_uid: string | null;
 }
 export interface HedgeFundsRow {
@@ -483,12 +549,15 @@ export interface InsiderTransaction {
   stars: number | null;
   form_url: string | null;
   expert_uid: string | null;
+  currency_code: string | null;
 }
 export interface InsidersRow {
   ticker: string;
   trend: number | null;
   confidence_signal: {
-    score: number | null;
+    // NB: upstream `score` is a label string ("Negative Sentiment" / "NA"),
+    // not a numeric — render as a chip, not a meter.
+    score: string | null;
     sector_score: number | null;
     stock_score: number | null;
   };
@@ -500,6 +569,62 @@ export interface InsidersRow {
 export interface InsidersResponse {
   symbol: string;
   insiders: InsidersRow | null;
+  as_of?: number;
+}
+
+// Tipranks related tickers (/api/research/related-tickers/{symbol}).
+// "Investors who hold X also hold ..." — discovery feed.
+export interface RelatedTickerRow {
+  ticker: string;
+  company_name: string | null;
+  sector: string | null;
+  sector_name: string | null;
+  average_holding_size: number | null;
+  last_seven_day_change: number | null;
+  last_thirty_day_change: number | null;
+  score: number | null;
+  sentiment: string | null;
+  market_cap: number | null;
+  market_cap_currency_code: string | null;
+}
+export interface RelatedTickersRow {
+  ticker: string;
+  all: RelatedTickerRow[];
+  youngest: RelatedTickerRow[];
+  mid_range: RelatedTickerRow[];
+  eldest: RelatedTickerRow[];
+}
+export interface RelatedTickersResponse {
+  symbol: string;
+  related: RelatedTickersRow | null;
+  as_of?: number;
+}
+
+// Tipranks holder demographics (/api/research/holder-demographics/{symbol}).
+// Per-age-cohort behavioural profile of the stock's holder base.
+export interface HolderCohort {
+  percent_holders: number | null;
+  last_7_days_change: number | null;
+  last_30_days_change: number | null;
+  average_beta: number | null;
+  average_monthly_return: number | null;
+  dividend_yield: number | null;
+  average_pe_ratio: number | null;
+}
+export interface HolderDemographicsRow {
+  ticker: string;
+  eldest: HolderCohort;
+  mid_range: HolderCohort;
+  youngest: HolderCohort;
+  sector_average_score: number | null;
+  sector_average_sentiment: string | null;
+  best_investors_score: number | null;
+  best_investors_holding: number | null;
+  best_investors_allocation: number | null;
+}
+export interface HolderDemographicsResponse {
+  symbol: string;
+  demographics: HolderDemographicsRow | null;
   as_of?: number;
 }
 

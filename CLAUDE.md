@@ -231,8 +231,10 @@ separate silos behind a shared account.
   calendar/earnings, calendar/earnings/{symbol}, calendar/economic,
   research/trending, research/smart-score/{symbol},
   research/sentiment/{symbol}, research/analysts/{symbol},
-  research/hedge-funds/{symbol}, research/insiders/{symbol}, assets,
-  asset-profile, news, watchlist, movers,
+  research/hedge-funds/{symbol}, research/insiders/{symbol},
+  research/related-tickers/{symbol},
+  research/holder-demographics/{symbol}, assets, asset-profile, news,
+  watchlist, movers,
   most-active, indices, market-news, crypto/tickers, ai/chat, ai/ask (last two gated by
   `AI_CHAT_ENABLED`; require `ANTHROPIC_API_KEY`). `/api/indices` and
   `/api/market-news` hit Yahoo Finance directly via `requests` (no yfinance,
