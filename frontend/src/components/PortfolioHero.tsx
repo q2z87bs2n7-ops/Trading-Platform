@@ -238,22 +238,41 @@ export default function PortfolioHero({ assetClass }: { assetClass: AssetClass }
                     bottom: 0,
                     left: `${(curve.marker.x / curve.W) * 100}%`,
                     width: 0,
-                    borderLeft: "1px dashed var(--mute)",
-                    opacity: 0.6,
+                    borderLeft: "1px dashed var(--text-2)",
+                    opacity: 0.8,
                     pointerEvents: "none",
                   }}
                 />
                 <div
                   aria-hidden
+                  className="font-mono uppercase"
                   style={{
                     position: "absolute",
-                    left: `calc(${(curve.marker.x / curve.W) * 100}% - 3px)`,
-                    top: `calc(${(curve.marker.y / curve.H) * 100}% - 3px)`,
-                    width: 6,
-                    height: 6,
+                    top: -2,
+                    left: `${(curve.marker.x / curve.W) * 100}%`,
+                    transform: "translateX(-50%)",
+                    fontSize: 9.5,
+                    letterSpacing: "0.06em",
+                    color: "var(--text-2)",
+                    background: "var(--panel)",
+                    padding: "0 4px",
+                    borderRadius: 3,
+                    pointerEvents: "none",
+                  }}
+                >
+                  open
+                </div>
+                <div
+                  aria-hidden
+                  style={{
+                    position: "absolute",
+                    left: `calc(${(curve.marker.x / curve.W) * 100}% - 4px)`,
+                    top: `calc(${(curve.marker.y / curve.H) * 100}% - 4px)`,
+                    width: 8,
+                    height: 8,
                     borderRadius: "50%",
-                    background: "var(--mute)",
-                    opacity: 0.85,
+                    background: curve.stroke,
+                    boxShadow: "0 0 0 2px var(--panel)",
                     pointerEvents: "none",
                   }}
                 />

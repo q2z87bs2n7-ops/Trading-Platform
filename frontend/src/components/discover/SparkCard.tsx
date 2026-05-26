@@ -24,22 +24,28 @@ function readSparkColors(up: boolean) {
   };
 }
 
-// Approximate an oklch token by sampling the resolved color into a transparent
-// rgba — lightweight-charts wants explicit alpha-baked colors for area fills,
-// and the token may be in any color space, so let the browser do the conversion.
+// Resolve any CSS colour (oklch, color(), rgb, named, …) to an rgba string
+// with the given alpha. Calm v2 uses oklch() tokens, which getComputedStyle
+// may return as `color(srgb …)` or `oklch(…)` depending on browser — the
+// previous regex-on-rgb() probe missed both formats and silently returned
+// the input at implicit alpha=1, painting the area series at full opacity.
+// Canvas fillStyle parses every modern CSS colour and we read it back as
+// 8-bit RGB, so the alpha hand-off is exact and format-agnostic.
 function withAlpha(color: string, alpha: number): string {
-  // Trust the consumer that the token resolves to *something* paintable; if it
-  // doesn't, lightweight-charts just won't render the fill (no crash).
-  const probe = document.createElement("div");
-  probe.style.color = color;
-  probe.style.display = "none";
-  document.body.appendChild(probe);
-  const rgb = getComputedStyle(probe).color; // "rgb(r, g, b)" or "rgba(...)"
-  document.body.removeChild(probe);
-  const m = rgb.match(/rgba?\(([^)]+)\)/);
-  if (!m) return color;
-  const parts = m[1].split(",").map((s) => s.trim());
-  return `rgba(${parts[0]}, ${parts[1]}, ${parts[2]}, ${alpha})`;
+  if (typeof document === "undefined") return color;
+  const canvas = document.createElement("canvas");
+  canvas.width = 1;
+  canvas.height = 1;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return color;
+  // Set a known sentinel first; if the browser can't parse `color`, fillStyle
+  // stays at the sentinel and we paint that — still a valid rgba string, no
+  // accidental opacity=1 fall-through.
+  ctx.fillStyle = "#000";
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, 1, 1);
+  const d = ctx.getImageData(0, 0, 1, 1).data;
+  return `rgba(${d[0]}, ${d[1]}, ${d[2]}, ${alpha})`;
 }
 
 // Tiny lightweight-charts area sparkline. Matches the Workspace Mini-chart's
