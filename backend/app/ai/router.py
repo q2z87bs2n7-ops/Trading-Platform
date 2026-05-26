@@ -545,8 +545,9 @@ def ai_chat(req: ChatRequest) -> ChatResponse:
 # --- Ask anything general-purpose ask endpoint ------------------------------
 # Smaller surface area than /api/ai/chat: no frontend tools, no per-request
 # chart context, no streaming. One-shot Q&A with backend reads grounding the
-# answer. The modal clears its transcript on close, so history is bounded
-# in practice — we still trim defensively.
+# answer. The modal now persists its transcript across reopens/reloads
+# (ask_session_v1, 256 KB cap with oldest-turn eviction) so history can be
+# longer — we trim defensively here regardless.
 
 
 class AskRequest(BaseModel):

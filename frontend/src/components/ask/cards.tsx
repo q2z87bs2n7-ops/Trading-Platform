@@ -15,18 +15,18 @@ export function AskResult({
   intent,
   assetClass,
   history = [],
+  cachedResp,
   onClose,
   onOpenInWorkspace,
-  onAiResponse,
-  onExchange,
+  onResolved,
 }: {
   intent: Intent;
   assetClass: AssetClass;
   history?: AiAskMessage[];
+  cachedResp?: AiAskResponse;
   onClose: () => void;
   onOpenInWorkspace: (symbol: string) => void;
-  onAiResponse?: (resp: AiAskResponse) => void;
-  onExchange?: (userText: string, assistantText: string) => void;
+  onResolved?: (resp: AiAskResponse) => void;
 }) {
   switch (intent.type) {
     case "order":
@@ -67,8 +67,8 @@ export function AskResult({
           text={intent.text}
           assetClass={assetClass}
           history={history}
-          onAiResponse={onAiResponse}
-          onExchange={onExchange}
+          cachedResp={cachedResp}
+          onResolved={onResolved}
         />
       );
   }

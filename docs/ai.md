@@ -79,9 +79,15 @@ are split across `ai/tools_read.py` (backend), `ai/tools_draw.py` (frontend),
 re-exports the public API (`TOOLS`/`read_only_tools`/`ask_tools`/…). Edit schemas
 in the split files; never reorder `TOOLS`.**
 
-**Multi-turn within a session:** `AskBar` keeps a running `apiHistory` and sends
-prior fallback Q&A as `history` so follow-ups have context; it's session-only
-(reset on close).
+**Multi-turn, persisted:** `AskBar` keeps a running `apiHistory` and sends prior
+fallback Q&A as `history` so follow-ups have context. Cache + history live in
+`localStorage` under `ask_session_v1` (256 KB budget, oldest-turn eviction), so
+reopens and reloads keep the transcript. Each fallback turn also stores its
+resolved `AiAskResponse` (`cachedResp` on the turn) so a remount replays the
+answer without re-firing the Anthropic call; workspace_actions and watchlist
+invalidations only run on the original fresh resolution, never on cache replay.
+A header **Clear** button (visible when the transcript is non-empty) wipes the
+key.
 
 ## AI market summary (violet — real Claude call)
 
