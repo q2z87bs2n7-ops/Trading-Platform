@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 
 import { useAccount, useOrders, usePnlHistory, usePositions } from "../data/hooks";
+import { useMobile } from "../hooks/useMobile";
 import { isCryptoOrder, isCryptoPosition } from "../lib/asset-class";
 import type { Order, Position } from "../types";
 
@@ -32,6 +33,7 @@ export default function PortfolioHero({ assetClass }: { assetClass: AssetClass }
   const positions = usePositions();
   const orders = useOrders("open", 50);
   const history = usePnlHistory(assetClass);
+  const isMobile = useMobile();
 
   const title = assetClass === "crypto" ? "Crypto" : "Stocks";
   const siloPositions = (positions.data?.positions || []).filter((p: Position) =>
@@ -138,11 +140,16 @@ export default function PortfolioHero({ assetClass }: { assetClass: AssetClass }
         background: "var(--panel)",
         border: "1px solid var(--border)",
         boxShadow: "var(--shadow-sm)",
-        gridTemplateColumns: "1.4fr 1fr",
+        // Mobile collapses to a single column — the 60/40 grid bleeds the
+        // hero number off the right edge at iPhone widths.
+        gridTemplateColumns: isMobile ? "1fr" : "1.4fr 1fr",
       }}
     >
-      {/* LEFT — equity + day chip + sparkline */}
-      <div className="flex flex-col gap-3 p-[22px]">
+      {/* LEFT (mobile: top) — equity + day chip + sparkline */}
+      <div
+        className="flex flex-col gap-3"
+        style={{ padding: isMobile ? "16px 16px 14px" : "22px" }}
+      >
         <span
           className="text-[12px]"
           style={{ color: "var(--mute)", letterSpacing: "0.02em" }}
@@ -152,9 +159,15 @@ export default function PortfolioHero({ assetClass }: { assetClass: AssetClass }
         <div
           className="font-mono font-semibold tabular-nums"
           style={{
-            fontSize: "var(--mob-hero-value, clamp(30px, 4vw, 38px))",
+            fontSize: isMobile
+              ? "clamp(24px, 7.5vw, 30px)"
+              : "clamp(30px, 4vw, 38px)",
             letterSpacing: "-0.025em",
             lineHeight: 1,
+            // Belt-and-suspenders: even with the single-col grid, the long
+            // mono number can still bleed if the parent ever stops being
+            // min-width: 0 (Dockview / mobile container quirks).
+            overflowWrap: "anywhere",
           }}
         >
           {money(holdings)}
@@ -215,27 +228,39 @@ export default function PortfolioHero({ assetClass }: { assetClass: AssetClass }
         )}
       </div>
 
-      {/* RIGHT — 2x2 stats grid, separated by a hairline */}
+      {/* RIGHT (mobile: bottom) — stat grid. Desktop sits beside the hero
+         column behind a left hairline; mobile drops below with a top
+         hairline and shifts to 3-col mini-stats per the spec. */}
       <div
-        className="grid p-[22px]"
+        className="grid"
         style={{
-          borderLeft: "1px solid var(--hairline)",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 14,
+          padding: isMobile ? "12px 16px 16px" : "22px",
+          borderLeft: isMobile ? "0" : "1px solid var(--hairline)",
+          borderTop: isMobile ? "1px solid var(--hairline)" : "0",
+          gridTemplateColumns: isMobile ? "repeat(3, minmax(0, 1fr))" : "1fr 1fr",
+          gap: isMobile ? "12px 14px" : 14,
           alignContent: "start",
         }}
       >
         {stats.map((s) => (
-          <div key={s.label} className="flex flex-col gap-1">
+          <div key={s.label} className="flex flex-col gap-1 min-w-0">
             <span
-              className="text-[10.5px] uppercase"
-              style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
+              className="uppercase"
+              style={{
+                color: "var(--mute)",
+                letterSpacing: "0.04em",
+                fontSize: isMobile ? 9.5 : 10.5,
+              }}
             >
               {s.label}
             </span>
             <span
-              className="font-mono text-[18px] font-semibold tabular-nums"
-              style={{ color: s.color ?? "var(--text)" }}
+              className="font-mono font-semibold tabular-nums"
+              style={{
+                fontSize: isMobile ? 14 : 18,
+                color: s.color ?? "var(--text)",
+                overflowWrap: "anywhere",
+              }}
             >
               {s.value}
             </span>

@@ -460,10 +460,11 @@ export default function App() {
         <TradeBar symbol={selected} />
       )}
 
-      {/* Mobile-only floating ✦ Ask launcher. Suppressed in Chart mode where
-         ChartBot already owns a violet launcher in the same corner — two
-         floating circles on a 390px screen reads as noise. The header chrome
-         on mobile no longer carries an Ask affordance; this is it. */}
+      {/* Mobile-only floating ✦ Ask launcher. Bottom-left so it sits in the
+         same screen real-estate as ChartBot's violet launcher (chart mode):
+         the user reaches for one corner regardless of mode. Suppressed in
+         Chart itself — ChartBot already owns this corner there, two circles
+         would read as noise. The right corner stays free for TradeBar. */}
       {isMobile && mode !== "chart" && (
         <button
           type="button"
@@ -473,16 +474,16 @@ export default function App() {
           className="cursor-pointer border-0"
           style={{
             position: "fixed",
-            right: 14,
-            bottom: "calc(var(--safe-bottom) + 70px)",
+            left: 16,
+            bottom: "calc(var(--safe-bottom) + 16px)",
             zIndex: 34,
-            width: 44,
-            height: 44,
+            width: 48,
+            height: 48,
             borderRadius: 999,
             background: "var(--accent)",
             color: "white",
-            fontSize: 18,
-            boxShadow: "var(--shadow)",
+            fontSize: 20,
+            boxShadow: "var(--shadow-lg)",
           }}
         >
           ✦
