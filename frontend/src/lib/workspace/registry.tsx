@@ -272,9 +272,9 @@ export function TabWithChannel(props: IDockviewPanelHeaderProps) {
       <span
         aria-hidden
         style={{
-          width: 6,
-          height: 6,
-          marginRight: 6,
+          width: 7,
+          height: 7,
+          marginRight: 7,
           borderRadius: "50%",
           background: isNone ? "transparent" : meta.color,
           border: isMain
