@@ -195,6 +195,24 @@ export const useSmartScore = (symbol: string, enabled = true) =>
     enabled: enabled && symbol.length > 0,
   });
 
+export const useSentiment = (symbol: string, enabled = true) =>
+  useQuery({
+    queryKey: qk.sentiment(symbol),
+    queryFn: () => api.getSentiment(symbol),
+    refetchInterval: 1_800_000, // 30min, matches backend cache TTL
+    staleTime: 900_000,
+    enabled: enabled && symbol.length > 0,
+  });
+
+export const useAnalystRatings = (symbol: string, enabled = true) =>
+  useQuery({
+    queryKey: qk.analystRatings(symbol),
+    queryFn: () => api.getAnalystRatings(symbol),
+    refetchInterval: 3_600_000, // 1h, matches backend cache TTL
+    staleTime: 1_800_000,
+    enabled: enabled && symbol.length > 0,
+  });
+
 // --- Asset symbol universe (Ask-anything router ticker validation) -------
 // The full catalogue is fetched once a day and served instantly from a
 // localStorage snapshot (stale-while-revalidate). Staleness is harmless: a

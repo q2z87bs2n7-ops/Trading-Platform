@@ -46,6 +46,8 @@ export const qk = {
   economicCalendar: ["economicCalendar"] as const,
   trendingResearch: ["trendingResearch"] as const,
   smartScore: (symbol: string) => ["smartScore", symbol] as const,
+  sentiment: (symbol: string) => ["sentiment", symbol] as const,
+  analystRatings: (symbol: string) => ["analystRatings", symbol] as const,
   assetSymbols: ["assetSymbols"] as const,
   marketNews: ["marketNews"] as const,
   news: (symbol: string) => ["news", symbol] as const,

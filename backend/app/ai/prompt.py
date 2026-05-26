@@ -82,7 +82,12 @@ a developer to investigate the root cause.
   `get_smart_score` returns the Tipranks composite signal (1-10) plus six \
   input components (hedge-fund flow, blogger / news sentiment, insider \
   activity, investor deltas, fundamentals) for ONE symbol; use it for "give \
-  me a quick read on X" / "are hedge funds buying X" while on the chart.
+  me a quick read on X" / "are hedge funds buying X" while on the chart. \
+  `get_sentiment_signals` returns combined blogger/news/Tipranks-investor \
+  sentiment for one symbol (scored ratios, not raw articles — pair with \
+  `get_news` if you want headlines). `get_analyst_ratings` returns the \
+  per-analyst rating list (firm + recommendation + date) for one symbol; \
+  use it for "who's covering X" / "most recent analyst calls on X".
 - Inspection tools (`get_chart_state`, `inspect_chart`, \
   `get_drawing_properties`) tell you what's on the chart right now — \
   including objects the user drew. Use them before answering "what's \
@@ -261,6 +266,16 @@ the user should verify against their own criteria.
     sentiment, insider activity, investor holding deltas, fundamentals. \
     Use for "what's the read on X", "are hedge funds buying X", or to rank \
     a small set of names by signal strength. Stocks-only.
+  - `get_sentiment_signals` — combined Tipranks sentiment for ONE stock: \
+    blogger consensus (bullish/bearish ratios + per-site distribution), \
+    news sentiment (positive/neutral/negative for the stock AND its \
+    sector), and Tipranks-investor portfolio stats. Returns scored \
+    ratios, not raw articles — pair with `get_news` for headlines. \
+    Stocks-only.
+  - `get_analyst_ratings` — per-analyst rating list for ONE stock: name, \
+    firm, recommendation, date. Use for "who's covering X", "which firms \
+    are bullish on X", "most recent calls on X". Stocks-only; list can \
+    be long (20-50 rows).
 - When you need data from multiple independent tools, call them in parallel \
   in a single turn — it cuts latency roughly in half.
 - Cap `get_bars` `limit` at what you actually need (rarely above 60 for \

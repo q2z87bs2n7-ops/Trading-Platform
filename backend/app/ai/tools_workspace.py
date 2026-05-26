@@ -27,6 +27,8 @@ WORKSPACE_WIDGET_KINDS = (
     "fundamentals",
     "trending",
     "smartscore",
+    "sentiment",
+    "analysts",
 )
 
 _SILO_PROP = {
@@ -105,7 +107,12 @@ WORKSPACE_TOOLS: list[dict[str, Any]] = [
             "'smartscore' shows the Tipranks composite signal (1-10) plus the "
             "six input components (hedge-fund flow, blogger sentiment, news "
             "sentiment, insider activity, investor holding deltas) for one "
-            "STOCK — symbol-linked, so give it a channel."
+            "STOCK — symbol-linked, so give it a channel. "
+            "'sentiment' shows combined blogger / news / Tipranks-investor "
+            "sentiment for one STOCK — symbol-linked. "
+            "'analysts' shows the per-analyst ratings list (firm, "
+            "recommendation, date) for one STOCK — symbol-linked, drills "
+            "down from the aggregate consensus in Trending."
         ),
         "input_schema": {
             "type": "object",

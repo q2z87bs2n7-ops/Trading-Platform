@@ -310,6 +310,27 @@ def research_smart_score(symbol: str) -> dict:
     }
 
 
+@app.get("/api/research/sentiment/{symbol}")
+def research_sentiment(symbol: str) -> dict:
+    """Combined blogger + news + investor sentiment (Tipranks). Three upstream
+    calls fanned in. Stocks only."""
+    return {
+        "symbol": symbol.upper(),
+        "sentiment": tipranks.get_sentiment_signals(symbol),
+        "as_of": int(time.time()),
+    }
+
+
+@app.get("/api/research/analysts/{symbol}")
+def research_analysts(symbol: str) -> dict:
+    """Per-analyst ratings list for one symbol (Tipranks). Stocks only."""
+    return {
+        "symbol": symbol.upper(),
+        "analysts": tipranks.get_analyst_ratings(symbol),
+        "as_of": int(time.time()),
+    }
+
+
 @app.get("/api/movers", dependencies=[Depends(require_configured)])
 def movers(top: int = Query(10, ge=1, le=50)) -> dict:
     return alpaca.get_movers(top)

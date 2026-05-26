@@ -32,6 +32,8 @@ _HEADERS = {
 _TRENDING_TTL = 900       # 15min — list moves with new analyst coverage, not intraday
 _OVERVIEW_TTL = 3600      # 1h — consensus + PT shifts when analysts update (irregular)
 _SMART_SCORE_TTL = 3600   # 1h — composite recomputed daily upstream; 1h keeps it responsive
+_SENTIMENT_TTL = 1800     # 30min — news sentiment shifts with breaking stories
+_ANALYSTS_TTL = 3600      # 1h — rating events tick irregularly
 
 _trending: list[dict] = []
 _trending_ts: float = 0.0
@@ -39,6 +41,10 @@ _overview: dict[str, dict] = {}              # symbol -> normalized overview
 _overview_ts: dict[str, float] = {}
 _smart_score: dict[str, dict] = {}           # symbol -> normalized smart-score
 _smart_score_ts: dict[str, float] = {}
+_sentiment: dict[str, dict] = {}             # symbol -> combined sentiment
+_sentiment_ts: dict[str, float] = {}
+_analysts: dict[str, list[dict]] = {}        # symbol -> per-analyst rows
+_analysts_ts: dict[str, float] = {}
 
 
 def configured() -> bool:
@@ -206,3 +212,131 @@ def get_smart_score(symbol: str) -> dict | None:
     except Exception as exc:
         _log.warning("tipranks smart-score fetch failed for %s: %s", sym, exc)
         return cached
+
+
+# ── sentiment (combined blogger + news + investor) ──────────────────────────
+
+def _norm_blogger(r: dict | None) -> dict:
+    r = r or {}
+    return {
+        "bullish_ratio": _f(r.get("bullishRatio")),
+        "bearish_ratio": _f(r.get("bearishRatio")),
+        "sector_bull_ratio": _f(r.get("sectorBullRatio")),
+        "blogs_distribution": [
+            {"site": b.get("site"), "percentage": _f(b.get("percentage"))}
+            for b in (r.get("blogsDistribution") or [])
+            if b.get("site")
+        ],
+    }
+
+
+def _norm_news_sentiment(r: dict | None) -> dict:
+    """Upstream wraps under ``newsSentiment.stockSentiment`` /
+    ``newsSentiment.sectorSentiment``; flatten."""
+    inner = (r or {}).get("newsSentiment") or {}
+    stock = inner.get("stockSentiment") or {}
+    sector = inner.get("sectorSentiment") or {}
+    return {
+        "stock": {
+            "positive": _f(stock.get("positive")),
+            "neutral": _f(stock.get("neutral")),
+            "negative": _f(stock.get("negative")),
+        },
+        "sector": {
+            "positive": _f(sector.get("positive")),
+            "neutral": _f(sector.get("neutral")),
+            "negative": _f(sector.get("negative")),
+        },
+    }
+
+
+def _norm_investor_sentiment(r: dict | None) -> dict:
+    """Upstream wraps under ``investorStatsOverview``; flatten."""
+    s = (r or {}).get("investorStatsOverview") or {}
+    return {
+        "number_of_portfolios": s.get("numberOfPortfolios"),
+        "portfolios_holding_stock": s.get("portfoliosHoldingStock"),
+        "average_allocation": _f(s.get("averageAllocation")),
+        "percent_over_last_7_days": _f(s.get("percentOverLast7Days")),
+        "percent_over_last_30_days": _f(s.get("percentOverLast30Days")),
+    }
+
+
+def get_sentiment_signals(symbol: str) -> dict | None:
+    """Combined blogger + news + investor sentiment for one symbol — three
+    upstream calls fanned in. None when unconfigured or all three fail."""
+    if not configured():
+        return None
+    sym = symbol.upper()
+    now = time.time()
+    cached = _sentiment.get(sym)
+    if cached is not None and (now - _sentiment_ts.get(sym, 0.0)) < _SENTIMENT_TTL:
+        return cached
+
+    blogger_raw: dict | None = None
+    news_raw: dict | None = None
+    investor_raw: dict | None = None
+    any_ok = False
+    for path, store in (
+        (f"/api/stocks/bloggerConsensus/{sym}", "blogger"),
+        (f"/api/stocks/newsSentiment/{sym}", "news"),
+        # NOTE: upstream's only capital-S path. Don't lowercase.
+        (f"/api/Stocks/InvestorSentiment/{sym}", "investor"),
+    ):
+        try:
+            res = _get(path)
+            any_ok = True
+            if store == "blogger":
+                blogger_raw = res if isinstance(res, dict) else None
+            elif store == "news":
+                news_raw = res if isinstance(res, dict) else None
+            else:
+                investor_raw = res if isinstance(res, dict) else None
+        except Exception as exc:
+            _log.warning("tipranks sentiment %s fetch failed for %s: %s", store, sym, exc)
+
+    if not any_ok:
+        return cached
+
+    row = {
+        "ticker": sym,
+        "blogger": _norm_blogger(blogger_raw),
+        "news": _norm_news_sentiment(news_raw),
+        "investor": _norm_investor_sentiment(investor_raw),
+    }
+    _sentiment[sym] = row
+    _sentiment_ts[sym] = now
+    return row
+
+
+# ── analyst ratings (per-analyst rows) ──────────────────────────────────────
+
+def _norm_analyst(r: dict) -> dict:
+    return {
+        "analyst_name": r.get("analystName"),
+        "firm_name": r.get("firmName"),
+        "recommendation": r.get("recommendation"),
+        "recommendation_date": r.get("recommendationDate"),
+        "expert_uid": r.get("expertUID"),
+    }
+
+
+def get_analyst_ratings(symbol: str) -> list[dict]:
+    """Per-analyst ratings list for one symbol — empty list on miss/failure."""
+    if not configured():
+        return []
+    sym = symbol.upper()
+    now = time.time()
+    cached = _analysts.get(sym)
+    if cached is not None and (now - _analysts_ts.get(sym, 0.0)) < _ANALYSTS_TTL:
+        return cached
+    try:
+        raw = _get(f"/api/analysts/{sym}")
+        rows = raw if isinstance(raw, list) else []
+        rows = [_norm_analyst(r) for r in rows if r.get("analystName")]
+        _analysts[sym] = rows
+        _analysts_ts[sym] = now
+        return rows
+    except Exception as exc:
+        _log.warning("tipranks analysts fetch failed for %s: %s", sym, exc)
+        return cached or []

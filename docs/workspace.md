@@ -123,6 +123,17 @@ Widgets reuse existing surfaces:
   answer fundamentals questions when FMP is unavailable. Price target shown is
   Tipranks' own (NOT unified with Trending's avg PT — each widget keeps its own
   source).
+- **Sentiment** — `research/SentimentCard.tsx`, combined blogger + news +
+  Tipranks-investor sentiment for one stock. Three upstream Tipranks calls are
+  fanned into the route; the card surfaces each block independently so a
+  partial outage thins rather than blanks the widget. News uses a 3-segment
+  pos/neu/neg bar (stock vs sector); blogger shows bullish/bearish ratios + top
+  sources; investor shows portfolio holding stats + 7d/30d deltas. Symbol-linked
+  (default Main, no None), stocks-only.
+- **Analyst Ratings** — `research/AnalystRatingsCard.tsx`, per-analyst list
+  for one stock (name, firm, recommendation, date). Paginated 8/page. Drills
+  down from Trending's aggregate consensus. Symbol-linked (default Main, no
+  None), stocks-only. Dense breakpoint 380 collapses the firm column.
 
 ## Link channels
 

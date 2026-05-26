@@ -18,7 +18,9 @@ import type {
   PortfolioHistory,
   Position,
   Quote,
+  AnalystRatingsResponse,
   ReplaceOrderInput,
+  SentimentResponse,
   SmartScoreResponse,
   Snapshot,
   SubmitOrderInput,
@@ -183,6 +185,12 @@ export const getTrendingResearch = () =>
 
 export const getSmartScore = (symbol: string) =>
   getJSON<SmartScoreResponse>(`/api/research/smart-score/${symbol}`);
+
+export const getSentiment = (symbol: string) =>
+  getJSON<SentimentResponse>(`/api/research/sentiment/${symbol}`);
+
+export const getAnalystRatings = (symbol: string) =>
+  getJSON<AnalystRatingsResponse>(`/api/research/analysts/${symbol}`);
 
 // Full catalogue symbol universe per asset class (DB-backed; tradable +
 // enriched). Fetched once and cached stale-while-revalidate to validate

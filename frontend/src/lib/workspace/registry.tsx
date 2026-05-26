@@ -25,6 +25,14 @@ import {
   SmartScoreCard,
   SmartScoreCardSkeleton,
 } from "../../components/research/SmartScoreCard";
+import {
+  SentimentCard,
+  SentimentCardSkeleton,
+} from "../../components/research/SentimentCard";
+import {
+  AnalystRatingsCard,
+  AnalystRatingsCardSkeleton,
+} from "../../components/research/AnalystRatingsCard";
 import ErrorBanner from "../../components/ErrorBanner";
 import { isCryptoSymbol } from "../asset-class";
 import {
@@ -32,6 +40,8 @@ import {
   useMarketNews,
   useNews,
   useSymbolEarnings,
+  useAnalystRatings,
+  useSentiment,
   useSmartScore,
   useTrendingResearch,
 } from "../../data/hooks";
@@ -452,6 +462,7 @@ const FUNDAMENTALS_WIDE_W = 560;
 const EARNINGS_DENSE_W = 420;
 const EARNINGS_TIGHT_W = 320;
 const TRENDING_DENSE_W = 360;
+const ANALYSTS_DENSE_W = 380;
 const NEWS_COMPACT_W = 320;
 
 function PositionsWidget(props: IDockviewPanelProps) {
@@ -931,6 +942,98 @@ function SmartScoreWidget(props: IDockviewPanelProps) {
   );
 }
 
+// Sentiment widget: combined blogger + news + Tipranks-investor signals
+// for one stock. Stocks-only, default Main channel.
+function SentimentWidget(props: IDockviewPanelProps) {
+  const { getSymbol, setSymbol, assetClass } = useWorkspace();
+  const [channel, setChannel] = useChannel(props, "main");
+  const symbol = getSymbol(channel).toUpperCase();
+  const isCrypto = assetClass === "crypto" || isCryptoSymbol(symbol);
+  const sent = useSentiment(symbol, !isCrypto && symbol.length > 0);
+
+  return (
+    <WidgetShell
+      header={
+        <LinkHeader
+          label={symbol || "—"}
+          channel={channel}
+          setChannel={setChannel}
+          includeNone={false}
+          assetClass={assetClass}
+          onPickSymbol={(s) => setSymbol(channel, s)}
+          kind="Sentiment"
+        />
+      }
+    >
+      <Pane pad>
+        {isCrypto ? (
+          <p className="text-[13px]" style={{ color: "var(--mute)" }}>
+            Sentiment is stocks-only. Link this widget to a stock symbol.
+          </p>
+        ) : (
+          <>
+            {sent.error && <ErrorBanner message={sent.error.message} />}
+            {!sent.data && !sent.error && <SentimentCardSkeleton bare />}
+            {sent.data && <SentimentCard row={sent.data.sentiment} bare />}
+          </>
+        )}
+      </Pane>
+    </WidgetShell>
+  );
+}
+
+// Analyst Ratings widget: per-analyst list for one stock. Stocks-only,
+// default Main channel; dense breakpoint collapses the firm column.
+function AnalystRatingsWidget(props: IDockviewPanelProps) {
+  const { getSymbol, setSymbol, assetClass } = useWorkspace();
+  const [channel, setChannel] = useChannel(props, "main");
+  const symbol = getSymbol(channel).toUpperCase();
+  const isCrypto = assetClass === "crypto" || isCryptoSymbol(symbol);
+  const ref = useRef<HTMLDivElement>(null);
+  const dense = useContainerNarrow(ref, ANALYSTS_DENSE_W);
+  const ratings = useAnalystRatings(symbol, !isCrypto && symbol.length > 0);
+
+  return (
+    <WidgetShell
+      header={
+        <LinkHeader
+          label={symbol || "—"}
+          channel={channel}
+          setChannel={setChannel}
+          includeNone={false}
+          assetClass={assetClass}
+          onPickSymbol={(s) => setSymbol(channel, s)}
+          kind="Ratings"
+        />
+      }
+    >
+      <div ref={ref} style={{ height: "100%" }}>
+        <Pane pad>
+          {isCrypto ? (
+            <p className="text-[13px]" style={{ color: "var(--mute)" }}>
+              Analyst ratings are stocks-only. Link this widget to a stock.
+            </p>
+          ) : (
+            <>
+              {ratings.error && <ErrorBanner message={ratings.error.message} />}
+              {!ratings.data && !ratings.error && (
+                <AnalystRatingsCardSkeleton bare />
+              )}
+              {ratings.data && (
+                <AnalystRatingsCard
+                  rows={ratings.data.analysts}
+                  bare
+                  dense={dense}
+                />
+              )}
+            </>
+          )}
+        </Pane>
+      </div>
+    </WidgetShell>
+  );
+}
+
 // id → React component, consumed by DockviewReact's `components` map.
 export const WIDGET_COMPONENTS: Record<
   string,
@@ -950,6 +1053,8 @@ export const WIDGET_COMPONENTS: Record<
   earnings: EarningsWidget,
   trending: TrendingResearchWidget,
   smartscore: SmartScoreWidget,
+  sentiment: SentimentWidget,
+  analysts: AnalystRatingsWidget,
 };
 
 // Drives the "add widget" menu and panel titles. Grouped + described to power
@@ -1041,6 +1146,20 @@ export const WIDGET_CATALOG: WidgetMeta[] = [
     title: "SmartScore",
     desc: "Tipranks composite signal (1-10) + 6 components for one stock",
     iconPath: "M2 14 L8 2 L14 14 Z M5 11 H11",
+  },
+  {
+    id: "sentiment",
+    group: "Market data",
+    title: "Sentiment",
+    desc: "Combined blogger / news / Tipranks-investor sentiment for one stock",
+    iconPath: "M3 9 H6 L8 4 L10 12 L12 9 H13",
+  },
+  {
+    id: "analysts",
+    group: "Market data",
+    title: "Analyst Ratings",
+    desc: "Per-analyst rating list (firm, recommendation, date) for one stock",
+    iconPath: "M3 4 H13 M3 8 H13 M3 12 H10",
   },
   {
     id: "positions",

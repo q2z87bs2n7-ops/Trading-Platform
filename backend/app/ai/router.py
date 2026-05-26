@@ -270,6 +270,20 @@ def _execute_read_tool(
             default=str,
         )
 
+    if name == "get_sentiment_signals":
+        symbol = str(args["symbol"]).upper()
+        return json.dumps(
+            {"symbol": symbol, "sentiment": tipranks.get_sentiment_signals(symbol)},
+            default=str,
+        )
+
+    if name == "get_analyst_ratings":
+        symbol = str(args["symbol"]).upper()
+        return json.dumps(
+            {"symbol": symbol, "analysts": tipranks.get_analyst_ratings(symbol)},
+            default=str,
+        )
+
     if name == "add_to_watchlist":
         req_ac = args.get("asset_class") or asset_class
         default_class = "crypto" if req_ac == "crypto" else ""

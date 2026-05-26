@@ -28,6 +28,8 @@ READ_TOOL_NAMES = {
     "get_corporate_actions",
     "get_trending_stocks",
     "get_smart_score",
+    "get_sentiment_signals",
+    "get_analyst_ratings",
 }
 
 
@@ -516,6 +518,54 @@ READ_TOOLS: list[dict[str, Any]] = [
             "'what do hedge funds / insiders / bloggers think about X', or to "
             "rank a small set of symbols by signal strength. Stocks only; "
             "crypto returns null."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symbol": {
+                    "type": "string",
+                    "description": "Exact ticker, e.g. AAPL.",
+                },
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "get_sentiment_signals",
+        "description": (
+            "Combined Tipranks sentiment for ONE stock symbol — three sources "
+            "fanned in: blogger consensus (bullish/bearish ratios + per-site "
+            "distribution + sector blogger average), news sentiment "
+            "(positive/neutral/negative ratios for the stock AND its sector), "
+            "and Tipranks-investor portfolio stats (portfolios holding the "
+            "stock, average allocation, 7-day & 30-day holding-percent change). "
+            "Use when the user asks about sentiment, news mood, blogger "
+            "opinion, or how Tipranks's investor population is positioned in "
+            "a name. Distinct from get_news (raw headlines) — this returns "
+            "scored ratios, not articles. Stocks only."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symbol": {
+                    "type": "string",
+                    "description": "Exact ticker, e.g. AAPL.",
+                },
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "get_analyst_ratings",
+        "description": (
+            "Per-analyst ratings list for ONE stock symbol (Tipranks). Returns "
+            "rows with analyst name, firm name, recommendation "
+            "(Buy/Hold/Sell/etc.), and recommendation date. Use when the user "
+            "asks 'who's covering X', 'which firms rate X a buy', 'most "
+            "recent analyst opinions on X', or wants to drill into the "
+            "consensus shown in Trending. Distinct from get_smart_score "
+            "(composite signal) and get_asset_profile (catalogue facts). "
+            "Stocks only; list can be long (20-50 rows)."
         ),
         "input_schema": {
             "type": "object",

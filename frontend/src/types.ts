@@ -372,6 +372,56 @@ export interface SmartScoreResponse {
   as_of?: number;
 }
 
+// Tipranks combined sentiment (/api/research/sentiment/{symbol}). Three
+// upstream calls fanned in: bloggerConsensus + newsSentiment + InvestorSentiment.
+export interface SentimentBlogger {
+  bullish_ratio: number | null;
+  bearish_ratio: number | null;
+  sector_bull_ratio: number | null;
+  blogs_distribution: { site: string; percentage: number | null }[];
+}
+export interface SentimentNewsBlock {
+  positive: number | null;
+  neutral: number | null;
+  negative: number | null;
+}
+export interface SentimentNews {
+  stock: SentimentNewsBlock;
+  sector: SentimentNewsBlock;
+}
+export interface SentimentInvestor {
+  number_of_portfolios: number | null;
+  portfolios_holding_stock: number | null;
+  average_allocation: number | null;
+  percent_over_last_7_days: number | null;
+  percent_over_last_30_days: number | null;
+}
+export interface SentimentRow {
+  ticker: string;
+  blogger: SentimentBlogger;
+  news: SentimentNews;
+  investor: SentimentInvestor;
+}
+export interface SentimentResponse {
+  symbol: string;
+  sentiment: SentimentRow | null;
+  as_of?: number;
+}
+
+// Tipranks per-analyst rating list (/api/research/analysts/{symbol}).
+export interface AnalystRatingRow {
+  analyst_name: string | null;
+  firm_name: string | null;
+  recommendation: string | null;
+  recommendation_date: string | null;
+  expert_uid: string | null;
+}
+export interface AnalystRatingsResponse {
+  symbol: string;
+  analysts: AnalystRatingRow[];
+  as_of?: number;
+}
+
 // Benzinga ticker news via Alpaca /api/news
 export interface NewsItem {
   id: number;
