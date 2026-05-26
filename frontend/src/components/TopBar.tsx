@@ -1,10 +1,7 @@
-import { useState } from "react";
-
 import { useAccount, useClock } from "../data/hooks";
 import { useStreamStatus } from "../hooks/useStreamStatus";
-import { useMobile } from "../hooks/useMobile";
 import type { AssetClass } from "../lib/ask-intent";
-import type { Account, MarketClock } from "../types";
+import type { Account } from "../types";
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD" });
@@ -15,29 +12,13 @@ const timeHM = (ts: number) =>
     minute: "2-digit",
   });
 
-// Desktop status strip is gone — its content folds into the new one-row header
-// (see App.tsx). TopBar now only renders the mobile single-row status strip;
-// on desktop the App composes <HeaderStatusInline /> and <HeaderEquityReadout />
-// directly into the header grid. BP no longer surfaces in the header at all —
-// it lands in PortfolioHero (priority #8). Until that ships, BP is reachable
-// from the Account Hub (brand-mark click).
-export default function TopBar({ assetClass = "stocks" }: { assetClass?: AssetClass }) {
-  const { data: clk } = useClock();
-  const { data: acct } = useAccount();
-  const streamStatus = useStreamStatus();
-  const isCrypto = assetClass === "crypto";
-  const isMobile = useMobile();
-
-  if (!isMobile) return null;
-
-  return (
-    <MobileStatusStrip
-      clk={clk}
-      acct={acct}
-      isCrypto={isCrypto}
-      polling={streamStatus === "polling"}
-    />
-  );
+// TopBar renders no chrome itself any more: desktop folds status + equity
+// into the new one-row header grid (HeaderStatusInline / HeaderEquityReadout
+// below) and mobile folds them into MobileHeader (priority #9). The default
+// export is kept so the existing App.tsx mount point stays — returning null
+// is cheaper than rewiring three call sites.
+export default function TopBar(_props: { assetClass?: AssetClass } = {}) {
+  return null;
 }
 
 // Inline OPEN/CLOSED status indicator used in the desktop header LEFT zone.
@@ -117,110 +98,8 @@ export function HeaderEquityReadout({ assetClass: _assetClass }: { assetClass: A
   );
 }
 
-const money0 = (n: number) =>
-  n.toLocaleString("en-US", { maximumFractionDigits: 0 });
-
-// Single-row status strip for mobile. Polling dot + (stocks-only) OPEN/CLOSED
-// chip + equity/day-% button that opens the balance sheet.
-function MobileStatusStrip({
-  clk,
-  acct,
-  isCrypto,
-  polling,
-}: {
-  clk: MarketClock | undefined;
-  acct: Account | undefined;
-  isCrypto: boolean;
-  polling: boolean;
-}) {
-  const [sheetOpen, setSheetOpen] = useState(false);
-  if (!acct) return null;
-  const pl = acct.equity - acct.equity_at_market_open;
-  const plpc = acct.equity_at_market_open > 0 ? pl / acct.equity_at_market_open : 0;
-  const up = pl >= 0;
-  return (
-    <>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          padding: "2px var(--mob-container-pad) 4px",
-          fontSize: 12,
-        }}
-      >
-        {polling && (
-          <span
-            aria-label="Stream polling fallback"
-            style={{ width: 8, height: 8, borderRadius: 99, background: "var(--warn)" }}
-          />
-        )}
-        {isCrypto ? (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-            <span
-              style={{ width: 6, height: 6, borderRadius: 99, background: "var(--pos)" }}
-            />
-            <b style={{ color: "var(--pos)", fontSize: 11.5 }}>OPEN</b>
-            <span style={{ color: "var(--mute)", fontSize: 11 }}>24/7</span>
-          </span>
-        ) : (
-          clk && (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-              <span
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: 99,
-                  background: clk.is_open ? "var(--pos)" : "var(--neg)",
-                }}
-              />
-              <b style={{ color: clk.is_open ? "var(--pos)" : "var(--neg)", fontSize: 11.5 }}>
-                {clk.is_open ? "OPEN" : "CLOSED"}
-              </b>
-            </span>
-          )
-        )}
-        <button
-          type="button"
-          onClick={() => setSheetOpen(true)}
-          style={{
-            marginLeft: "auto",
-            display: "inline-flex",
-            gap: 8,
-            alignItems: "center",
-            background: "transparent",
-            border: 0,
-            padding: "3px 2px",
-            cursor: "pointer",
-          }}
-        >
-          <span className="tabular-nums" style={{ fontWeight: 600, fontSize: 13 }}>
-            ${money0(acct.equity)}
-          </span>
-          <span
-            style={{
-              fontSize: 10.5,
-              padding: "2px 6px",
-              borderRadius: 6,
-              background: up ? "var(--pos-bg)" : "var(--neg-bg)",
-              color: up ? "var(--pos)" : "var(--neg)",
-            }}
-          >
-            {up ? "+" : ""}
-            {(plpc * 100).toFixed(2)}%
-          </span>
-          <span style={{ color: "var(--mute)" }}>▾</span>
-        </button>
-      </div>
-      {sheetOpen && (
-        <EquitySheet acct={acct} isCrypto={isCrypto} onClose={() => setSheetOpen(false)} />
-      )}
-    </>
-  );
-}
-
 // Bottom sheet: Cash / Portfolio Value / Buying Power. Tap backdrop to close.
-function EquitySheet({
+export function EquitySheet({
   acct,
   isCrypto,
   onClose,

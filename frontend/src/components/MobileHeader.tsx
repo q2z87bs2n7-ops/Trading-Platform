@@ -1,4 +1,9 @@
+import { useState } from "react";
+
+import { useAccount, useClock } from "../data/hooks";
+import { useStreamStatus } from "../hooks/useStreamStatus";
 import IconButton from "./IconButton";
+import { EquitySheet } from "./TopBar";
 
 // "workspace" is desktop-only — it's accepted here for type parity with the
 // app's PlatformMode but is intentionally never offered in the mobile pills.
@@ -12,23 +17,55 @@ const TITLES: Record<Mode, string> = {
   workspace: "Workspace",
 };
 
+const money0 = (n: number) =>
+  n.toLocaleString("en-US", { maximumFractionDigits: 0 });
+
+const timeHM = (ts: number) =>
+  new Date(ts * 1000).toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
 interface Props {
   mode: Mode;
   activeClass: AssetClass;
   onOpenDrawer: () => void;
-  onOpenAsk: () => void;
   onSwitchMode: (m: Mode) => void;
   onSwitchAssetClass: (m: AssetClass) => void;
 }
 
+// Single merged mobile header. Row 1 carries the chrome: hamburger · page
+// name + inline market-status caption · equity pill (opens balance sheet).
+// Row 2 keeps mode pills + the silo toggle. ✦ Ask moves to a floating
+// launcher in App.tsx so the chrome row doesn't have to fit it.
 export default function MobileHeader({
   mode,
   activeClass,
   onOpenDrawer,
-  onOpenAsk,
   onSwitchMode,
   onSwitchAssetClass,
 }: Props) {
+  const { data: clk } = useClock();
+  const { data: acct } = useAccount();
+  const streamStatus = useStreamStatus();
+  const polling = streamStatus === "polling";
+  const isCrypto = activeClass === "crypto";
+  const open = isCrypto ? true : !!clk?.is_open;
+  const [sheetOpen, setSheetOpen] = useState(false);
+
+  const statusCaption = isCrypto
+    ? "● Open · 24/7"
+    : clk
+      ? open
+        ? `● Open · until ${timeHM(clk.next_close)}`
+        : `● Closed · opens ${timeHM(clk.next_open)}`
+      : "";
+
+  const pl = acct ? acct.equity - acct.equity_at_market_open : 0;
+  const plpc =
+    acct && acct.equity_at_market_open > 0 ? pl / acct.equity_at_market_open : 0;
+  const up = pl >= 0;
+
   return (
     <div
       style={{
@@ -38,12 +75,13 @@ export default function MobileHeader({
         background: "var(--bg)",
       }}
     >
-      {/* Row 1 — chrome */}
+      {/* Row 1 — merged chrome + status + equity pill */}
       <div
         style={{
           height: "var(--mob-chrome-top)",
           padding: "0 var(--mob-container-pad)",
-          display: "flex",
+          display: "grid",
+          gridTemplateColumns: "auto 1fr auto",
           alignItems: "center",
           gap: 10,
           borderBottom: "1px solid var(--hairline)",
@@ -57,29 +95,86 @@ export default function MobileHeader({
           ☰
         </IconButton>
 
-        <div style={{ flex: 1, minWidth: 0, lineHeight: 1.1 }}>
-          <div style={{ fontSize: 15.5, fontWeight: 600, letterSpacing: "-0.005em" }}>
-            {TITLES[mode]}
-          </div>
+        <div style={{ minWidth: 0, lineHeight: 1.1 }}>
           <div
-            style={{ fontSize: 11, color: "var(--mute)", fontFamily: "var(--font-mono)" }}
+            style={{
+              fontSize: 14,
+              fontWeight: 600,
+              letterSpacing: "-0.005em",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
           >
-            {activeClass === "crypto" ? "Crypto" : "Stocks"} · v{__APP_VERSION__}
+            <span>{TITLES[mode]}</span>
+            {polling && (
+              <span
+                aria-label="Stream polling fallback"
+                title="Stream offline — polling /api/quotes"
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: 99,
+                  background: "var(--warn)",
+                  display: "inline-block",
+                }}
+              />
+            )}
           </div>
+          {statusCaption && (
+            <div
+              className="tabular-nums"
+              style={{
+                fontSize: 10.5,
+                color: open ? "var(--text-2)" : "var(--neg)",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              <span style={{ color: open ? "var(--pos)" : "var(--neg)" }}>●</span>
+              {statusCaption.slice(1)}
+            </div>
+          )}
         </div>
 
-        <IconButton
-          onClick={onOpenAsk}
-          aria-label="Ask anything"
-          className="w-9 h-9 justify-center text-[16px]"
-          style={{
-            background: "var(--accent-bg)",
-            color: "var(--accent)",
-            borderColor: "var(--accent)",
-          }}
-        >
-          ✦
-        </IconButton>
+        {acct && (
+          <button
+            type="button"
+            onClick={() => setSheetOpen(true)}
+            className="cursor-pointer border-0"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              padding: "5px 8px",
+              background: "transparent",
+              minHeight: 36,
+            }}
+            aria-label="Open balance sheet"
+          >
+            <span
+              className="font-mono tabular-nums"
+              style={{ fontWeight: 600, fontSize: 13 }}
+            >
+              ${money0(acct.equity)}
+            </span>
+            <span
+              className="tabular-nums"
+              style={{
+                fontSize: 10.5,
+                padding: "2px 6px",
+                borderRadius: 6,
+                background: up ? "var(--pos-bg)" : "var(--neg-bg)",
+                color: up ? "var(--pos)" : "var(--neg)",
+                fontWeight: 600,
+              }}
+            >
+              {up ? "+" : ""}
+              {(plpc * 100).toFixed(2)}%
+            </span>
+          </button>
+        )}
       </div>
 
       {/* Row 2 — mode pills + asset toggle */}
@@ -120,6 +215,14 @@ export default function MobileHeader({
           <AssetClassToggleInline value={activeClass} onChange={onSwitchAssetClass} />
         </div>
       </div>
+
+      {sheetOpen && acct && (
+        <EquitySheet
+          acct={acct}
+          isCrypto={isCrypto}
+          onClose={() => setSheetOpen(false)}
+        />
+      )}
     </div>
   );
 }

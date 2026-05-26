@@ -5,7 +5,7 @@ import MaintenancePage from "./components/MaintenancePage";
 import Positions from "./components/Positions";
 import Orders from "./components/Orders";
 import Activities from "./components/Activities";
-import TopBar, { HeaderEquityReadout, HeaderStatusInline } from "./components/TopBar";
+import { HeaderEquityReadout, HeaderStatusInline } from "./components/TopBar";
 import DiscoverPage from "./components/DiscoverPage";
 import AssetClassSplash from "./components/AssetClassSplash";
 import PortfolioHero from "./components/PortfolioHero";
@@ -296,7 +296,6 @@ export default function App() {
             mode={mode}
             activeClass={activeClass}
             onOpenDrawer={() => setDrawerOpen(true)}
-            onOpenAsk={openAskBar}
             onSwitchMode={switchMode}
             onSwitchAssetClass={switchAssetClass}
           />
@@ -374,9 +373,6 @@ export default function App() {
           </div>
         </div>
         )}
-        {/* Mobile-only status strip. Desktop's status/equity content folded
-           into the header grid above; <TopBar /> returns null on desktop. */}
-        {mode !== "workspace" && <TopBar assetClass={activeClass} />}
       </header>
       )}
 
@@ -452,6 +448,35 @@ export default function App() {
          its own TradeBar inside TVPlatform so it ships with TV's chrome. */}
       {(mode === "discover" || mode === "portfolio") && (
         <TradeBar symbol={selected} />
+      )}
+
+      {/* Mobile-only floating ✦ Ask launcher. Suppressed in Chart mode where
+         ChartBot already owns a violet launcher in the same corner — two
+         floating circles on a 390px screen reads as noise. The header chrome
+         on mobile no longer carries an Ask affordance; this is it. */}
+      {isMobile && mode !== "chart" && (
+        <button
+          type="button"
+          aria-label="Ask anything"
+          title="Ask anything"
+          onClick={openAskBar}
+          className="cursor-pointer border-0"
+          style={{
+            position: "fixed",
+            right: 14,
+            bottom: "calc(var(--safe-bottom) + 70px)",
+            zIndex: 34,
+            width: 44,
+            height: 44,
+            borderRadius: 999,
+            background: "var(--accent)",
+            color: "white",
+            fontSize: 18,
+            boxShadow: "var(--shadow)",
+          }}
+        >
+          ✦
+        </button>
       )}
 
       {/* Ask anything — mounted in the app shell so it's available from
