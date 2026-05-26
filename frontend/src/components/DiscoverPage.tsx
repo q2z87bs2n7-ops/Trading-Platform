@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import * as api from "../api";
 import {
@@ -26,6 +26,7 @@ import { useLiveQuotes } from "../data/useLiveQuotes";
 import { useMarketSummary } from "../hooks/useMarketSummary";
 import { useMobile } from "../hooks/useMobile";
 import { isCryptoPosition } from "../lib/asset-class";
+import { fmtCryptoPrice, pct } from "../lib/format";
 import { showToast } from "../lib/toast";
 import type { Snapshot } from "../types";
 import { AssetSearch } from "./AssetSearch";
@@ -47,7 +48,7 @@ import {
   TrendingResearchCard,
   TrendingResearchCardSkeleton,
 } from "./discover/TrendingResearchCard";
-import { coinLabel, DONUT_COLORS_GREEN } from "./discover/util";
+import { coinLabel, DONUT_COLORS_GREEN, fmtPrice } from "./discover/util";
 import ErrorBanner from "./ErrorBanner";
 import MarketSummaryCard from "./MarketSummaryCard";
 import SectionHeading from "./SectionHeading";
@@ -147,6 +148,32 @@ export default function DiscoverPage({
   const [adding, setAdding] = useState(false);
   const isMobile = useMobile();
   const [addSheetOpen, setAddSheetOpen] = useState(false);
+
+  // Sticky chart-mini visibility — true once the inline ChartCard has scrolled
+  // past the top of the viewport. Desktop-only (mobile is short enough that
+  // the chart's never far from view, and the slim bar would fight the mobile
+  // header chrome).
+  const chartCardRef = useRef<HTMLDivElement | null>(null);
+  const [chartOffscreen, setChartOffscreen] = useState(false);
+  useEffect(() => {
+    if (isMobile) {
+      setChartOffscreen(false);
+      return;
+    }
+    const el = chartCardRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        // Only show when the chart has scrolled OFF the top — not when it
+        // hasn't entered yet from below.
+        const passedTop = entry.boundingClientRect.bottom < 0;
+        setChartOffscreen(!entry.isIntersecting && passedTop);
+      },
+      { threshold: 0 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [isMobile, selected]);
   // Watchlist sidebar collapse state — desktop only, persisted so the
   // preference survives reloads.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
@@ -366,10 +393,20 @@ export default function DiscoverPage({
   // on the desktop main column. Defined inline so it captures the enclosing
   // scope (movers / earnings / economic / news queries + onSelect) without a
   // props explosion.
+  // Live price + day-change for the selected symbol — same values the
+  // SparkCards render so the mini bar tracks them.
+  const selQuote = quotes[selected];
+  const selPrice = live[selected]?.mid ?? selQuote?.last_price ?? 0;
+  const selPrev = selQuote?.prev_close ?? 0;
+  const selDayChange = selPrev ? (selPrice - selPrev) / selPrev : 0;
+  const selUp = selDayChange >= 0;
+
   const mainContent = (
     <>
       {/* Inline chart */}
-      <ChartCard symbol={selected} />
+      <div ref={chartCardRef}>
+        <ChartCard symbol={selected} />
+      </div>
 
       {/* Movers + Most Active — stocks only */}
       {!isCrypto && (
@@ -596,6 +633,65 @@ export default function DiscoverPage({
             )}
           </aside>
           <main className="min-w-0">
+            {chartOffscreen && selected && (
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() =>
+                  chartCardRef.current?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start",
+                  })
+                }
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    chartCardRef.current?.scrollIntoView({
+                      behavior: "smooth",
+                      block: "start",
+                    });
+                  }
+                }}
+                title={`Scroll back to ${selected} chart`}
+                className="cursor-pointer flex items-center gap-3"
+                style={{
+                  position: "sticky",
+                  top: 8,
+                  zIndex: 20,
+                  marginBottom: 12,
+                  padding: "8px 14px",
+                  background: "var(--panel)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--r)",
+                  boxShadow: "var(--shadow-md)",
+                }}
+              >
+                <span className="font-semibold" style={{ fontSize: 13 }}>
+                  {isCrypto ? coinLabel(selected) : selected}
+                </span>
+                <span
+                  className="font-mono tabular-nums"
+                  style={{ fontSize: 13 }}
+                >
+                  {isCrypto ? fmtCryptoPrice(selPrice) : fmtPrice(selPrice)}
+                </span>
+                <span
+                  className="font-mono tabular-nums"
+                  style={{
+                    fontSize: 12,
+                    color: selUp ? "var(--pos)" : "var(--neg)",
+                  }}
+                >
+                  {pct(selDayChange)}
+                </span>
+                <span
+                  className="ml-auto"
+                  style={{ color: "var(--mute)", fontSize: 11 }}
+                >
+                  Scroll to chart ↑
+                </span>
+              </div>
+            )}
             {heroBlock}
             {aiSummary}
             {mainContent}
