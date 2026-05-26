@@ -40,42 +40,42 @@ jobs:
       - name: Slugify branch name
         id: slug
         run: echo "dir=${GITHUB_REF_NAME//\//-}" >> "$GITHUB_OUTPUT"
-      - name: Publish to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: frontend/dist
-          destination_dir: ${{ steps.slug.outputs.dir }}
-          keep_files: true
-      # Wait briefly for the gh-pages push to fully commit before reading it
-      - name: Wait for publication
-        run: sleep 3
-      # Regenerate the root landing page from the live gh-pages contents
-      # so every branch preview is listed. The just-published slug is
-      # folded in explicitly in case the fetch lags behind that push.
-      - name: Build preview index
+      # Assemble the entire gh-pages payload locally and push ONCE. GitHub's
+      # built-in pages-build-deployment fires on every push to gh-pages, and
+      # two pushes seconds apart race — Pages allows only one active
+      # deployment, so the earlier one gets cancelled. We read the existing
+      # branch folders straight from the gh-pages ref (no push needed), union
+      # in this build's slug, and hand peaceiris a single directory.
+      - name: Assemble gh-pages site
         run: |
-          git fetch --no-tags origin gh-pages || true
-          mkdir -p _preview_index
+          set -euo pipefail
+          slug='${{ steps.slug.outputs.dir }}'
+          existing=""
+          if git fetch --no-tags origin gh-pages 2>/dev/null; then
+            existing="$(git ls-tree -d --name-only FETCH_HEAD 2>/dev/null || true)"
+          fi
+          mkdir -p "_site/$slug"
+          cp -a frontend/dist/. "_site/$slug/"
           {
             echo '<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate"><meta http-equiv="expires" content="0">'
             echo '<title>Trading Platform — branch previews</title>'
             echo '<style>body{font-family:system-ui,sans-serif;max-width:640px;margin:48px auto;padding:0 16px;color:#e6edf3;background:#0e1117}h1{font-size:20px}a{display:block;padding:12px 14px;border:1px solid #30363d;border-radius:8px;margin:10px 0;text-decoration:none;color:#58a6ff}a:hover{background:#161b22}</style>'
             echo '</head><body><h1>Branch previews</h1>'
-            ( git ls-tree -d --name-only FETCH_HEAD 2>/dev/null; echo "${{ steps.slug.outputs.dir }}" ) \
+            ( printf '%s\n' "$existing"; echo "$slug" ) \
               | sort -u | while read -r d; do
                 [ -n "$d" ] && printf '<a href="./%s/">%s</a>\n' "$d" "$d"
               done
             echo '</body></html>'
-          } > _preview_index/index.html
+          } > _site/index.html
           # Prevent Vercel from attempting a preview deploy of gh-pages: the
           # branch carries no vercel.json so without this Vercel ignores
           # deploymentEnabled=false and errors on every gh-pages push.
-          echo '{"git":{"deploymentEnabled":false}}' > _preview_index/vercel.json
-      - name: Publish preview index
+          echo '{"git":{"deploymentEnabled":false}}' > _site/vercel.json
+      # keep_files preserves the OTHER branch folders (only this slug + the
+      # root index/vercel.json are in _site).
+      - name: Publish to gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: _preview_index
-          destination_dir: .
+          publish_dir: _site
           keep_files: true
