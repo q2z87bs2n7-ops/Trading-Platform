@@ -185,6 +185,26 @@ body {
   flex-direction: column;
 }
 
+/* Discover sidebar grid. Default desktop width is 260px; iPad portrait
+   (641–1024px) trims to ~85% so the watchlist column doesn't squash the
+   chart / movers row. Mobile uses a different layout path entirely. */
+.discover-grid {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: 260px 1fr;
+  transition: grid-template-columns 0.18s ease;
+}
+.discover-grid.is-collapsed {
+  gap: 12px;
+  grid-template-columns: 32px 1fr;
+}
+@media (min-width: 641px) and (max-width: 1024px) {
+  .discover-grid:not(.is-collapsed) {
+    gap: 16px;
+    grid-template-columns: 216px 1fr;
+  }
+}
+
 @media (max-width: 640px) {
   :root {
     /* Hero numerals — read with a desktop fallback in PortfolioHero / HeroCardMobile. */

@@ -509,12 +509,7 @@ export default function DiscoverPage({
         </>
       ) : (
         <div
-          className="grid items-start mt-4"
-          style={{
-            gridTemplateColumns: sidebarCollapsed ? "32px 1fr" : "260px 1fr",
-            gap: sidebarCollapsed ? 12 : 20,
-            transition: "grid-template-columns 0.18s ease",
-          }}
+          className={`discover-grid items-start mt-4${sidebarCollapsed ? " is-collapsed" : ""}`}
         >
           <aside
             className={sidebarCollapsed ? undefined : "themed-scroll"}

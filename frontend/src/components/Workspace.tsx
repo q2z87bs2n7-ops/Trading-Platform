@@ -1010,25 +1010,60 @@ function LayoutsMenu({
               overflowY: "auto",
             }}
           >
-            <div style={{ marginBottom: 12 }}>
-              <div
+            <div
+              style={{
+                marginBottom: 12,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: "var(--text)",
+                  }}
+                >
+                  Choose a layout
+                </div>
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: "var(--mute)",
+                    marginTop: 2,
+                  }}
+                >
+                  Applying replaces the current arrangement.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  window.dispatchEvent(
+                    new KeyboardEvent("keydown", {
+                      key: "k",
+                      metaKey: true,
+                      ctrlKey: true,
+                    }),
+                  );
+                }}
+                title="Ask AI to build a custom layout"
+                className="text-[12px] cursor-pointer rounded-card whitespace-nowrap"
                 style={{
-                  fontSize: 13,
+                  background: "transparent",
+                  color: "var(--cb-accent)",
+                  border: "1px solid var(--cb-accent)",
                   fontWeight: 600,
-                  color: "var(--text)",
+                  padding: "5px 10px",
+                  flexShrink: 0,
                 }}
               >
-                Choose a layout
-              </div>
-              <div
-                style={{
-                  fontSize: 11,
-                  color: "var(--mute)",
-                  marginTop: 2,
-                }}
-              >
-                Applying replaces the current arrangement.
-              </div>
+                ✦ Ask AI to build one
+              </button>
             </div>
 
             <div
