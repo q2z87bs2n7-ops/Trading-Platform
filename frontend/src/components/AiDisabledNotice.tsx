@@ -4,6 +4,9 @@
 
 export type AiSurface = "market" | "ask" | "chartbot";
 
+// Honest cost language: real per-turn cost depends on the model and token
+// usage (multi-tool ChartBot turns can cost 50× a one-shot market summary).
+// We don't know the model at render time, so we don't pretend to.
 const COPY: Record<
   AiSurface,
   { title: string; body: string; cost: string }
@@ -11,17 +14,17 @@ const COPY: Record<
   market: {
     title: "Market summary",
     body: "Auto-generated briefings of what moved during the session.",
-    cost: "~$0.001 per generation",
+    cost: "One Anthropic call per window — small, single-shot.",
   },
   ask: {
     title: "Ask anything",
     body: "Free-form questions — answers, suggestions, layout builds.",
-    cost: "free for local intents · ~$0.005 for AI answers",
+    cost: "Free for the local parser · API credits when the AI fallback runs.",
   },
   chartbot: {
     title: "ChartBot",
     body: "Chart-aware assistant: chat, draw lines, place orders inline.",
-    cost: "~$0.002 per turn",
+    cost: "Each turn spends API credits — multi-tool turns can stack.",
   },
 };
 

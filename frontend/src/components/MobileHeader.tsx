@@ -268,7 +268,7 @@ function AssetClassToggleInline({
               textTransform: "capitalize",
             }}
           >
-            {m === "stocks" ? "Stx" : "Crypto"}
+            {m === "stocks" ? "Stocks" : "Crypto"}
           </button>
         );
       })}
