@@ -21,6 +21,10 @@ import {
   TrendingResearchCard,
   TrendingResearchCardSkeleton,
 } from "../../components/discover/TrendingResearchCard";
+import {
+  SmartScoreCard,
+  SmartScoreCardSkeleton,
+} from "../../components/research/SmartScoreCard";
 import ErrorBanner from "../../components/ErrorBanner";
 import { isCryptoSymbol } from "../asset-class";
 import {
@@ -28,6 +32,7 @@ import {
   useMarketNews,
   useNews,
   useSymbolEarnings,
+  useSmartScore,
   useTrendingResearch,
 } from "../../data/hooks";
 
@@ -883,6 +888,49 @@ function TrendingResearchWidget(props: IDockviewPanelProps) {
   );
 }
 
+// SmartScore widget: per-symbol Tipranks composite (1-10) + 6 components.
+// Stocks-only (Tipranks doesn't cover crypto); default Main channel, no None
+// (always shows ONE symbol — mirrors Profile/Fundamentals).
+function SmartScoreWidget(props: IDockviewPanelProps) {
+  const { getSymbol, setSymbol, assetClass } = useWorkspace();
+  const [channel, setChannel] = useChannel(props, "main");
+  const symbol = getSymbol(channel).toUpperCase();
+  const isCrypto = assetClass === "crypto" || isCryptoSymbol(symbol);
+  const score = useSmartScore(symbol, !isCrypto && symbol.length > 0);
+
+  return (
+    <WidgetShell
+      header={
+        <LinkHeader
+          label={symbol || "—"}
+          channel={channel}
+          setChannel={setChannel}
+          includeNone={false}
+          assetClass={assetClass}
+          onPickSymbol={(s) => setSymbol(channel, s)}
+          kind="SmartScore"
+        />
+      }
+    >
+      <Pane pad>
+        {isCrypto ? (
+          <p className="text-[13px]" style={{ color: "var(--mute)" }}>
+            SmartScore is stocks-only. Link this widget to a stock symbol.
+          </p>
+        ) : (
+          <>
+            {score.error && <ErrorBanner message={score.error.message} />}
+            {!score.data && !score.error && <SmartScoreCardSkeleton bare />}
+            {score.data && (
+              <SmartScoreCard row={score.data.smart_score} bare />
+            )}
+          </>
+        )}
+      </Pane>
+    </WidgetShell>
+  );
+}
+
 // id → React component, consumed by DockviewReact's `components` map.
 export const WIDGET_COMPONENTS: Record<
   string,
@@ -901,6 +949,7 @@ export const WIDGET_COMPONENTS: Record<
   fundamentals: FundamentalsWidget,
   earnings: EarningsWidget,
   trending: TrendingResearchWidget,
+  smartscore: SmartScoreWidget,
 };
 
 // Drives the "add widget" menu and panel titles. Grouped + described to power
@@ -985,6 +1034,13 @@ export const WIDGET_CATALOG: WidgetMeta[] = [
     title: "Trending",
     desc: "Top trending stocks by analyst coverage (Tipranks; stocks-only)",
     iconPath: "M2 12 L6 7 L9 10 L13 4 M10 4 H13 V7",
+  },
+  {
+    id: "smartscore",
+    group: "Market data",
+    title: "SmartScore",
+    desc: "Tipranks composite signal (1-10) + 6 components for one stock",
+    iconPath: "M2 14 L8 2 L14 14 Z M5 11 H11",
   },
   {
     id: "positions",

@@ -318,7 +318,8 @@ export interface EconomicResponse {
 }
 
 // Tipranks trending stocks (/api/research/trending). Whole-market list of
-// equities by analyst coverage; no symbol input.
+// equities by analyst coverage; no symbol input. Per-row enriched with PT
+// range + analyst count from the stocks/overview endpoint (batched).
 export interface TrendingResearchRow {
   ticker: string;
   company_name: string | null;
@@ -333,10 +334,41 @@ export interface TrendingResearchRow {
   market_cap: number | null;
   market_name: string | null;
   last_rating_date: string | null;
+  // From stocks/overview (additive context — does NOT replace
+  // average_price_target as the displayed price).
+  low_price_target: number | null;
+  high_price_target: number | null;
+  total_analysts: number | null;
 }
 
 export interface TrendingResearchResponse {
   trending: TrendingResearchRow[];
+  as_of?: number;
+}
+
+// Tipranks SmartScore (/api/research/smart-score/{symbol}). Composite 1–10
+// + six component signals + a Tipranks-sourced price target. fundamentals_*
+// fields are kept in the payload for AI tool answers but hidden in the
+// SmartScore widget UI (Fundamentals widget owns those metrics).
+export interface SmartScoreRow {
+  ticker: string;
+  smart_score: number | null;
+  price_target: number | null;
+  hedge_fund_trend_value: number | null;
+  blogger_bullish_sentiment: number | null;
+  blogger_sector_avg: number | null;
+  insiders_last_3_months_sum: number | null;
+  news_sentiments_bullish_percent: number | null;
+  news_sentiments_bearish_percent: number | null;
+  investor_holding_change_last_7_days: number | null;
+  investor_holding_change_last_30_days: number | null;
+  fundamentals_return_on_equity: number | null;
+  fundamentals_asset_growth: number | null;
+}
+
+export interface SmartScoreResponse {
+  symbol: string;
+  smart_score: SmartScoreRow | null;
   as_of?: number;
 }
 

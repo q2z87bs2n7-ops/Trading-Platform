@@ -19,7 +19,8 @@ export type WidgetId =
   | "profile"
   | "fundamentals"
   | "earnings"
-  | "trending";
+  | "trending"
+  | "smartscore";
 
 export type Arrangement = "grid" | "focus" | "columns" | "rows";
 export type Silo = AssetClass;
@@ -69,6 +70,7 @@ export const WIDGET_IDS: readonly WidgetId[] = [
   "fundamentals",
   "earnings",
   "trending",
+  "smartscore",
 ];
 
 // Chart widgets are the only ones that read a per-panel `params.symbol` (the

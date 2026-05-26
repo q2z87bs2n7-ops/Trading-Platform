@@ -19,6 +19,7 @@ import type {
   Position,
   Quote,
   ReplaceOrderInput,
+  SmartScoreResponse,
   Snapshot,
   SubmitOrderInput,
   TrendingResearchResponse,
@@ -179,6 +180,9 @@ export const getEconomicCalendar = () =>
 
 export const getTrendingResearch = () =>
   getJSON<TrendingResearchResponse>("/api/research/trending");
+
+export const getSmartScore = (symbol: string) =>
+  getJSON<SmartScoreResponse>(`/api/research/smart-score/${symbol}`);
 
 // Full catalogue symbol universe per asset class (DB-backed; tradable +
 // enriched). Fetched once and cached stale-while-revalidate to validate

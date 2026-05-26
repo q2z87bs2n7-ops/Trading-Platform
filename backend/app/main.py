@@ -300,6 +300,16 @@ def research_trending() -> dict:
     return {"trending": tipranks.get_trending_stocks(), "as_of": int(time.time())}
 
 
+@app.get("/api/research/smart-score/{symbol}")
+def research_smart_score(symbol: str) -> dict:
+    """Tipranks SmartScore composite (1–10) + component breakdown for one symbol."""
+    return {
+        "symbol": symbol.upper(),
+        "smart_score": tipranks.get_smart_score(symbol),
+        "as_of": int(time.time()),
+    }
+
+
 @app.get("/api/movers", dependencies=[Depends(require_configured)])
 def movers(top: int = Query(10, ge=1, le=50)) -> dict:
     return alpaca.get_movers(top)

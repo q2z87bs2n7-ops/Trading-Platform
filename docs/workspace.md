@@ -113,6 +113,16 @@ Widgets reuse existing surfaces:
   — crypto silo shows a notice. The widget still carries a channel selector
   (defaults to Main) so a row click writes the picked ticker into that channel
   and linked widgets follow — same pattern as Watchlist. See `docs/tipranks.md`.
+- **SmartScore** — `research/SmartScoreCard.tsx`, per-symbol Tipranks composite
+  signal (1-10) plus six input components (hedge-fund flow, blogger / news
+  sentiment, insider activity, investor holding deltas). Symbol-linked like
+  Profile/Fundamentals (default Main, no None). **Stocks-only**. The
+  `fundamentals_*` fields from upstream are deliberately hidden in the UI to
+  avoid duplicating Fundamentals (FMP is the higher-fidelity source for those
+  metrics); the AI bots still receive them via `get_smart_score` so they can
+  answer fundamentals questions when FMP is unavailable. Price target shown is
+  Tipranks' own (NOT unified with Trending's avg PT — each widget keeps its own
+  source).
 
 ## Link channels
 

@@ -78,7 +78,11 @@ a developer to investigate the root cause.
   SET of assets ranked by market cap. `get_trending_stocks` returns the \
   top equities by analyst coverage right now (Tipranks; coverage-driven, \
   distinct from `get_movers` price/volume); use it for "is X still \
-  trending" or "what are analysts watching" while on a chart.
+  trending" or "what are analysts watching" while on a chart. \
+  `get_smart_score` returns the Tipranks composite signal (1-10) plus six \
+  input components (hedge-fund flow, blogger / news sentiment, insider \
+  activity, investor deltas, fundamentals) for ONE symbol; use it for "give \
+  me a quick read on X" / "are hedge funds buying X" while on the chart.
 - Inspection tools (`get_chart_state`, `inspect_chart`, \
   `get_drawing_properties`) tell you what's on the chart right now — \
   including objects the user drew. Use them before answering "what's \
@@ -252,6 +256,11 @@ the user should verify against their own criteria.
     "hot stocks today", or to resolve symbols when building a workspace \
     "around trending names". Coverage-driven, distinct from `get_movers` \
     (price/volume) and `screen_assets` (structured filters).
+  - `get_smart_score` — Tipranks composite signal (1-10) + six input \
+    components for ONE stock symbol: hedge-fund flow, blogger / news \
+    sentiment, insider activity, investor holding deltas, fundamentals. \
+    Use for "what's the read on X", "are hedge funds buying X", or to rank \
+    a small set of names by signal strength. Stocks-only.
 - When you need data from multiple independent tools, call them in parallel \
   in a single turn — it cuts latency roughly in half.
 - Cap `get_bars` `limit` at what you actually need (rarely above 60 for \

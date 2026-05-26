@@ -27,6 +27,7 @@ READ_TOOL_NAMES = {
     "get_watchlist",
     "get_corporate_actions",
     "get_trending_stocks",
+    "get_smart_score",
 }
 
 
@@ -497,6 +498,34 @@ READ_TOOLS: list[dict[str, Any]] = [
         "input_schema": {
             "type": "object",
             "properties": {},
+        },
+    },
+    {
+        "name": "get_smart_score",
+        "description": (
+            "Tipranks SmartScore composite (1-10, higher = more bullish) plus "
+            "its six input components for ONE stock symbol: hedge-fund flow "
+            "(net shares traded last quarter), blogger bullish sentiment vs "
+            "sector average, news sentiment (bullish/bearish ratios), insider "
+            "transactions (net last 3 months), investor holding deltas (7d / "
+            "30d), plus a Tipranks-sourced price target. Also returns "
+            "fundamentals_return_on_equity + fundamentals_asset_growth — use "
+            "these only if FMP/get_asset_profile is unavailable, otherwise "
+            "prefer get_asset_profile (higher fidelity). Use SmartScore when "
+            "the user asks for a 'quick read' on a name, 'is X bullish', "
+            "'what do hedge funds / insiders / bloggers think about X', or to "
+            "rank a small set of symbols by signal strength. Stocks only; "
+            "crypto returns null."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symbol": {
+                    "type": "string",
+                    "description": "Exact ticker, e.g. AAPL.",
+                },
+            },
+            "required": ["symbol"],
         },
     },
 ]

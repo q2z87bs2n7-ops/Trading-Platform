@@ -26,6 +26,7 @@ WORKSPACE_WIDGET_KINDS = (
     "earnings",
     "fundamentals",
     "trending",
+    "smartscore",
 )
 
 _SILO_PROP = {
@@ -100,7 +101,11 @@ WORKSPACE_TOOLS: list[dict[str, Any]] = [
             "— stocks-only and symbol-linked, so give it a channel. "
             "'trending' shows top trending stocks by analyst coverage "
             "(stocks-only, no symbol input); a row click writes the picked "
-            "ticker into the widget's channel."
+            "ticker into the widget's channel. "
+            "'smartscore' shows the Tipranks composite signal (1-10) plus the "
+            "six input components (hedge-fund flow, blogger sentiment, news "
+            "sentiment, insider activity, investor holding deltas) for one "
+            "STOCK — symbol-linked, so give it a channel."
         ),
         "input_schema": {
             "type": "object",

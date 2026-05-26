@@ -199,7 +199,8 @@ separate silos behind a shared account.
   config, status, account, bars, quotes, snapshots, stream, orders, positions,
   portfolio/history, pnl-history, activities, clock, calendar,
   calendar/earnings, calendar/earnings/{symbol}, calendar/economic,
-  research/trending, assets, asset-profile, news, watchlist, movers,
+  research/trending, research/smart-score/{symbol}, assets, asset-profile,
+  news, watchlist, movers,
   most-active, indices, market-news, crypto/tickers, ai/chat, ai/ask (last two gated by
   `AI_CHAT_ENABLED`; require `ANTHROPIC_API_KEY`). `/api/indices` and
   `/api/market-news` hit Yahoo Finance directly via `requests` (no yfinance,

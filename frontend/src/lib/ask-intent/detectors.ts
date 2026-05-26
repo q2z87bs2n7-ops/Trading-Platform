@@ -262,6 +262,8 @@ const WORKSPACE_WIDGETS: Record<string, WidgetId> = {
   earningscalendar: "earnings",
   trending: "trending",
   trendingstocks: "trending",
+  smartscore: "smartscore",
+  smart: "smartscore",
 };
 
 function watchSilo(syms: string[], ctx: RouteContext): AssetClass {
@@ -338,7 +340,7 @@ const workspace: Detector = (text, ctx) => {
 
   // Add a single widget: "add a chart", "add a news widget", "add chart of AAPL".
   const add = lower.match(
-    /\badd\s+(?:a\s+|an\s+)?(chart|mini\s?chart|news|watchlist|positions|orders|activity|account|trade(?:\s*ticket)?|profile|fundamentals|financials|earnings(?:\s*calendar)?|trending(?:\s*stocks)?)\b(?:.*?\b(?:of|for)\s+([a-z]{1,5}(?:\.[a-z])?(?:\/[a-z]{3,4})?)\b)?/,
+    /\badd\s+(?:a\s+|an\s+)?(chart|mini\s?chart|news|watchlist|positions|orders|activity|account|trade(?:\s*ticket)?|profile|fundamentals|financials|earnings(?:\s*calendar)?|trending(?:\s*stocks)?|smart\s?score|smart)\b(?:.*?\b(?:of|for)\s+([a-z]{1,5}(?:\.[a-z])?(?:\/[a-z]{3,4})?)\b)?/,
   );
   if (add) {
     const widget = WORKSPACE_WIDGETS[add[1].replace(/\s+/g, "")];

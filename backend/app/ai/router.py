@@ -263,6 +263,13 @@ def _execute_read_tool(
             {"trending": tipranks.get_trending_stocks()}, default=str
         )
 
+    if name == "get_smart_score":
+        symbol = str(args["symbol"]).upper()
+        return json.dumps(
+            {"symbol": symbol, "smart_score": tipranks.get_smart_score(symbol)},
+            default=str,
+        )
+
     if name == "add_to_watchlist":
         req_ac = args.get("asset_class") or asset_class
         default_class = "crypto" if req_ac == "crypto" else ""

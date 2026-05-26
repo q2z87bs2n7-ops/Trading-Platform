@@ -55,13 +55,30 @@ function TrendingRowItem({
       >
         {consensusLabel(r.consensus)}
       </span>
-      <span
-        className="font-mono text-[13px] tabular-nums text-right"
-        style={{ color: "var(--text)" }}
-        title="Average price target"
-      >
-        {r.average_price_target != null ? money(r.average_price_target) : "—"}
-      </span>
+      <div className="flex flex-col items-end leading-tight">
+        <span
+          className="font-mono text-[13px] tabular-nums"
+          style={{ color: "var(--text)" }}
+          title={
+            r.total_analysts != null
+              ? `Average of ${r.total_analysts} analyst targets`
+              : "Average price target"
+          }
+        >
+          {r.average_price_target != null ? money(r.average_price_target) : "—"}
+        </span>
+        {!dense &&
+          r.low_price_target != null &&
+          r.high_price_target != null && (
+            <span
+              className="font-mono text-[10.5px] tabular-nums"
+              style={{ color: "var(--mute)" }}
+              title="Analyst price-target range (Tipranks overview)"
+            >
+              {money(r.low_price_target)}–{money(r.high_price_target)}
+            </span>
+          )}
+      </div>
       {!dense && (
         <span
           className="font-mono text-[12px] tabular-nums text-right"

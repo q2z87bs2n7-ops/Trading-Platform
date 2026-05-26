@@ -186,6 +186,15 @@ export const useTrendingResearch = (enabled = true) =>
     enabled,
   });
 
+export const useSmartScore = (symbol: string, enabled = true) =>
+  useQuery({
+    queryKey: qk.smartScore(symbol),
+    queryFn: () => api.getSmartScore(symbol),
+    refetchInterval: 3_600_000, // 1h, matches backend cache TTL
+    staleTime: 1_800_000,
+    enabled: enabled && symbol.length > 0,
+  });
+
 // --- Asset symbol universe (Ask-anything router ticker validation) -------
 // The full catalogue is fetched once a day and served instantly from a
 // localStorage snapshot (stale-while-revalidate). Staleness is harmless: a
