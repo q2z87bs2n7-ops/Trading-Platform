@@ -68,10 +68,83 @@ burn rate limit. The other 8 endpoints are single-ticker only.
 
 ## Tier limits / cost
 
-Unknown — provider hasn't shared rate limits or per-call cost. **Probe
-behaviour before designing the cache TTL** (the FMP precedent —
-single-symbol-only, 300/min, 250/day on free — is the kind of thing
-that's better discovered up front than mid-feature).
+Provider hasn't shared the rate limit officially, but observed behaviour
+is documented below.
+
+## Provider limits (observed)
+
+One-off probe run 2026-05-26 against the live `TR_FXCM` partner key.
+200 calls total — Phase A sequential baseline (40), Phase B parallel
+burst with 10 concurrent workers (160). **Zero 429s, zero errors** across
+both phases. Rate ceiling is therefore strictly **above 16.6 calls/sec
+sustained** — the actual cap is unknown because we didn't hit it.
+
+### Phase A — sequential baseline (40 calls)
+
+5 symbols × 8 endpoints (NVDA / TSLA / AAPL / MSFT / GOOGL), one call at
+a time. Reflects the latency a single user sees on a cold cache.
+
+| Endpoint | p50 (ms) | p95 (ms) | Avg payload |
+|---|---:|---:|---:|
+| `smartScore` | 194 | 606 | 0.7 KB |
+| `stocks/overview` | 269 | 290 | 0.3 KB |
+| `analysts` | 179 | 213 | 3.3 KB |
+| `bloggerConsensus` | 191 | 254 | 0.3 KB |
+| `newsSentiment` | 177 | 199 | 2.5 KB |
+| `InvestorSentiment` | 189 | 383 | 5.5 KB |
+| `hedgefunds` | 270 | 282 | **50.5 KB** |
+| `insiders` | 192 | 212 | 26.3 KB |
+
+Wall time 13.0 s for 40 calls → **3.1 calls/sec** ceiling when serial
+(i.e. bounded by per-call latency, not provider throttling).
+
+### Phase B — parallel burst (160 calls, 10 workers)
+
+20 symbols × 8 endpoints fanned across 10 concurrent workers. Reflects
+the load a busy multi-user moment would produce.
+
+| Endpoint | p50 (ms) | p95 (ms) | Avg payload |
+|---|---:|---:|---:|
+| `smartScore` | 468 | 1,141 | 0.7 KB |
+| `stocks/overview` | 481 | 947 | 0.3 KB |
+| `analysts` | 477 | **1,766** | 3.3 KB |
+| `bloggerConsensus` | 482 | **1,872** | 0.3 KB |
+| `newsSentiment` | 439 | 900 | 2.5 KB |
+| `InvestorSentiment` | 600 | 888 | 5.5 KB |
+| `hedgefunds` | 441 | 856 | 33.2 KB |
+| `insiders` | 444 | 742 | 36.6 KB |
+
+Wall time 9.7 s for 160 calls → **16.6 calls/sec** sustained, no
+throttling, no errors.
+
+### What this means operationally
+
+- **Rate ceiling is comfortable.** We sustained 16.6 calls/sec for ten
+  seconds with no 429s. Even a busy moment (5 users each loading 6
+  research widgets simultaneously = 30 calls/burst) sits well under the
+  observed throughput.
+- **Concurrency penalty is real.** p95 ~1–2 s under 10-way load vs ~200–
+  600 ms serial. Snappy UX after cache warm-up matters; the in-process
+  TTL design handles this fine for repeat views.
+- **Bandwidth, not rate, is the watch-item.** `hedgefunds` (33–50 KB)
+  and `insiders` (26–37 KB) dominate. A whole-symbol research view fans
+  out ~80 KB across the bundle — fine on desktop, worth caching
+  aggressively per the DB-cache plan.
+- **No tail surprises.** Worst p99 was `bloggerConsensus` at 1,872 ms.
+  No timeouts (15 s client timeout), no 5xx, no 401 outside the known
+  `consensusOverTime` tier wall.
+- **Daily ceiling unknown but unlikely to bite.** At 16.6 calls/sec
+  sustained that's 1.4M calls/day in theory; we'll be three orders of
+  magnitude below that in normal use. Daily cap is a non-issue until we
+  invent a reason to poll constantly.
+
+### Re-probing
+
+`/tmp/tr_probe.py` (one-off, not committed) is the canonical script.
+Re-run when the token changes, the partner tier changes, or we suspect
+the provider has tightened limits. Update the table above with new
+numbers + the date of the run; keep the old numbers in a changelog at
+the bottom of this section if multiple runs disagree.
 
 ## Open questions
 
