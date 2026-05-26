@@ -71,7 +71,7 @@ function Row({
   return (
     <div
       className="flex items-center justify-between gap-2 py-1.5"
-      style={{ borderTop: "1px solid var(--border)" }}
+      style={{ borderTop: "1px solid var(--hairline)" }}
     >
       <span
         className="text-[12px] flex-shrink-0"
@@ -120,7 +120,7 @@ export function SmartScoreCard({
       </p>
     ) : (
       <div className="flex flex-col gap-2">
-        {/* Headline: composite score + label + Tipranks PT inline */}
+        {/* Headline: composite score + label + Tipranks PT as corner chip */}
         <div className="flex items-baseline gap-3 flex-wrap">
           <span
             className="font-mono tabular-nums leading-none"
@@ -143,14 +143,57 @@ export function SmartScoreCard({
           </span>
           {row.price_target != null && (
             <span
-              className="font-mono text-[12px] tabular-nums ml-auto"
-              style={{ color: "var(--text)" }}
+              className="font-mono tabular-nums ml-auto"
+              style={{
+                fontSize: 11.5,
+                color: "var(--text-2)",
+                background: "var(--panel-2)",
+                border: "1px solid var(--hairline)",
+                padding: "3px 8px",
+                borderRadius: 6,
+              }}
               title="Tipranks composite price target"
             >
               PT {money(row.price_target)}
             </span>
           )}
         </div>
+
+        {/* Gauge rail — 0-10 position indicator. Tick at the actual score. */}
+        {row.smart_score != null && (
+          <div
+            style={{
+              position: "relative",
+              width: "100%",
+              height: 4,
+              background: "color-mix(in oklch, var(--panel-2) 70%, var(--bg))",
+              borderRadius: 2,
+              margin: "4px 0 2px",
+              overflow: "hidden",
+            }}
+            aria-hidden
+          >
+            <div
+              style={{
+                height: "100%",
+                width: "100%",
+                background: "linear-gradient(90deg, var(--neg), var(--mute) 50%, var(--pos))",
+                borderRadius: 2,
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                top: -3,
+                left: `calc(${(row.smart_score / 10) * 100}% - 1px)`,
+                width: 2,
+                height: 10,
+                background: "var(--text)",
+                borderRadius: 1,
+              }}
+            />
+          </div>
+        )}
 
         {/* Technicals — no other widget owns this, keep numeric + SMA label */}
         <Row
@@ -204,12 +247,13 @@ export function SmartScoreCard({
 
   return (
     <div
-      className="p-[18px]"
+      className=""
       style={{
+        padding: "16px 18px",
         background: "var(--panel)",
         border: "1px solid var(--border)",
         borderRadius: "var(--r-lg)",
-        boxShadow: "var(--shadow-sm)",
+        boxShadow: "0 0 0 1px var(--hairline), 0 1px 1px rgba(0,0,0,0.25)",
       }}
     >
       {body}
@@ -236,11 +280,12 @@ export function SmartScoreCardSkeleton({ bare = false }: { bare?: boolean } = {}
   if (bare) return body;
   return (
     <div
-      className="p-[18px]"
       style={{
+        padding: "16px 18px",
         background: "var(--panel)",
         border: "1px solid var(--border)",
         borderRadius: "var(--r-lg)",
+        boxShadow: "0 0 0 1px var(--hairline), 0 1px 1px rgba(0,0,0,0.25)",
       }}
     >
       {body}
