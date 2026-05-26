@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 
+import { lookupFredUrl } from "../../lib/economic-fred-map";
 import { compact } from "../../lib/format";
 import type { EconomicRow } from "../../types";
 import { CardPager } from "./CardPager";
@@ -68,14 +69,12 @@ function ImpactChip({ impact }: { impact: string | null }) {
   );
 }
 
-// FMP doesn't ship a per-event URL. Trading Economics' /search returns a
-// generic page that doesn't surface their data slugs — FMP event names don't
-// map to TE's indicator paths cleanly. Google is the lowest-friction fallback:
-// it always resolves and lets the user pick whichever source they prefer
-// (BLS, BEA, FRED, Trading Economics itself, Investing.com, …).
+// Only the ~95 mapped recurring releases are clickable (deep-link to a FRED
+// series page). Unmapped rows — Fed speeches, CFTC COT, ISM, OPEC, … —
+// render as plain text rather than a generic Google search, which was rarely
+// useful.
 function eventLink(event: string | null): string | null {
-  if (!event) return null;
-  return `https://www.google.com/search?q=${encodeURIComponent(event)}`;
+  return lookupFredUrl(event);
 }
 
 function EconomicRowItem({ r, rank }: { r: EconomicRow; rank: number }) {

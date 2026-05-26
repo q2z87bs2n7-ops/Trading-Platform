@@ -100,7 +100,14 @@ separate silos behind a shared account.
     hero / AI summary / inline chart / movers / calendars / news. Clicking
     a sidebar card writes `selected` which drives the inline chart on the
     right. Mobile keeps the linear stacked flow (watchlist as a horizontal
-    `CardsRow`, no sidebar).
+    `CardsRow`, no sidebar). When the inline chart scrolls off the top
+    (desktop only — `IntersectionObserver` watches the chart card), a slim
+    sticky bar appears at the top of the main column showing
+    symbol · live price · day-% · "Scroll to chart ↑"; click smooth-scrolls
+    back. Uses the inverted-bg pair (`--text` / `--bg`, à la `TradeBar`) so it
+    pops over panels of the same colour. `selected` is unioned into the
+    snapshot + live-quote symbol list so the bar has data even for picks
+    outside the watchlist (e.g. an Earnings calendar row).
     - *Stocks*: `DiscoverHero` (single-column silo holdings + ~80px
       area-filled net P/L sparkline from `usePnlHistory` — the allocation
       donut moved to Portfolio as a sibling card), indices marquee ticker,
