@@ -85,7 +85,10 @@ Widgets reuse existing surfaces:
   of 48, drops the name slot, auto-fill min drops 150→110px); under ~280px the
   layout forces a 2-col grid of dense `SparkCard`s (no sparkline at all,
   smaller fonts) instead of the auto-fill grid that would otherwise collapse to
-  1-col and waste the dock height.
+  1-col and waste the dock height. Sparkline curves are **real recent daily
+  closes** via `/api/bars/batch` (`useBarsBatch`, one round-trip per silo, 5-min
+  refetch); the symbol-seeded synthetic curve in `discover/util.ts` is kept as
+  the first-paint / missing-data fallback.
 - **Positions / Orders / Activity / News** — the existing surfaces.
 - **Profile** — `components/AssetProfile.tsx`, symbol-linked catalogue enrichment
   off `/api/asset-profile`: fundamentals for stocks (sector, market cap, beta,

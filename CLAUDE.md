@@ -77,7 +77,10 @@ separate silos behind a shared account.
     the **live stream price** (`useLiveQuotes` quote mid) over the snapshot's
     `prev_close` (the daily-change baseline) — matching the chart and the
     Workspace Watchlist widget; the REST snapshot/ticker calls now seed only
-    `prev_close`.
+    `prev_close`. The sparkline curve itself is **real recent daily closes**
+    fetched once for the whole watchlist via `/api/bars/batch` (`useBarsBatch`,
+    5-min refetch); first paint / missing-data falls back to the
+    symbol-seeded synthetic curve so loading isn't blank.
     - *Stocks*: unified `DiscoverHero` (silo holdings on the left with a
       ~80px area-filled net P/L sparkline from `usePnlHistory`, allocation
       donut + legend on the right behind a hairline divider — replaces the
@@ -196,7 +199,7 @@ separate silos behind a shared account.
   rather than via a modal `ConfirmCard`.
 - **Backend:** FastAPI + `alpaca-py`. Real code in `backend/app/`;
   `api/index.py` is the Vercel shim. Endpoints under `/api/`: health,
-  config, status, account, bars, quotes, snapshots, stream, orders, positions,
+  config, status, account, bars, bars/batch, quotes, snapshots, stream, orders, positions,
   portfolio/history, pnl-history, activities, clock, calendar,
   calendar/earnings, calendar/earnings/{symbol}, calendar/economic,
   research/trending, research/smart-score/{symbol},
