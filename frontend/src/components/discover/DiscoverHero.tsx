@@ -43,7 +43,12 @@ export function DiscoverHero({
   const dayUp = dayPl >= 0;
   const allUp = unrealized >= 0;
 
-  // Curve geometry — 80 px area-filled sparkline beneath the day chip.
+  // Curve geometry — 80 px area-filled sparkline beneath the day chip. The
+  // backend always appends a "today" tip at index N-1 (live market value),
+  // with N-2 being yesterday's close — i.e. the baseline against which the
+  // day chip is computed. Marker that index so the all-time curve makes
+  // sense alongside the day chip ("everything to the right of the line is
+  // today").
   const curve = useMemo(() => {
     if (pnl.length < 2) return null;
     const W = 600;
@@ -62,7 +67,15 @@ export function DiscoverHero({
       .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
       .join(" ");
     const area = `${line} L ${W} ${H} L 0 ${H} Z`;
-    return { W, H, line, area, stroke };
+    // Marker at yesterday's close (today's baseline). Skip when there are
+    // fewer than three points (single-day account) or when it'd visually
+    // collide with the tip.
+    const todayIdx = pnl.length - 2;
+    const marker =
+      pnl.length >= 3 && todayIdx > 0
+        ? { x: todayIdx * stepX, y: pts[todayIdx].y }
+        : null;
+    return { W, H, line, area, stroke, marker };
   }, [pnl]);
 
   return (
@@ -136,6 +149,27 @@ export function DiscoverHero({
               stroke={curve.stroke}
               strokeWidth={1.5}
             />
+            {curve.marker && (
+              <>
+                <line
+                  x1={curve.marker.x}
+                  y1={0}
+                  x2={curve.marker.x}
+                  y2={curve.H}
+                  stroke="var(--mute)"
+                  strokeWidth={1}
+                  strokeDasharray="3 3"
+                  opacity={0.5}
+                />
+                <circle
+                  cx={curve.marker.x}
+                  cy={curve.marker.y}
+                  r={2.5}
+                  fill="var(--mute)"
+                  opacity={0.7}
+                />
+              </>
+            )}
           </svg>
         ) : (
           <div

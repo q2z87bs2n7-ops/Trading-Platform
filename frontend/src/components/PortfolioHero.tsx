@@ -82,7 +82,15 @@ export default function PortfolioHero({ assetClass }: { assetClass: AssetClass }
       .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
       .join(" ");
     const area = `${line} L ${W} ${H} L 0 ${H} Z`;
-    return { W, H, line, area, stroke };
+    // Subtle "start of today" marker — the day chip is computed against the
+    // value at index N-2 (yesterday's close), so a hairline + dot there
+    // visually grounds the chip against the curve.
+    const todayIdx = pnl.length - 2;
+    const marker =
+      pnl.length >= 3 && todayIdx > 0
+        ? { x: todayIdx * stepX, y: pts[todayIdx].y }
+        : null;
+    return { W, H, line, area, stroke, marker };
   }, [pnl]);
 
   if (!acct && account.isPending) {
@@ -217,6 +225,27 @@ export default function PortfolioHero({ assetClass }: { assetClass: AssetClass }
               stroke={curve.stroke}
               strokeWidth={1.5}
             />
+            {curve.marker && (
+              <>
+                <line
+                  x1={curve.marker.x}
+                  y1={0}
+                  x2={curve.marker.x}
+                  y2={curve.H}
+                  stroke="var(--mute)"
+                  strokeWidth={1}
+                  strokeDasharray="3 3"
+                  opacity={0.5}
+                />
+                <circle
+                  cx={curve.marker.x}
+                  cy={curve.marker.y}
+                  r={2.5}
+                  fill="var(--mute)"
+                  opacity={0.7}
+                />
+              </>
+            )}
           </svg>
         ) : (
           <div

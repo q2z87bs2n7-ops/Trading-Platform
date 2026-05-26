@@ -54,6 +54,17 @@ import SectionHeading from "./SectionHeading";
 
 type AssetClass = "stocks" | "crypto";
 
+// Inline SVG chevron — used by the sidebar collapse toggle. No icon library
+// in the repo so a tiny path is the lightest option.
+function ChevronGlyph({ dir }: { dir: "left" | "right" }) {
+  const d = dir === "left" ? "M9 4 5 8l4 4" : "M5 4l4 4-4 4";
+  return (
+    <svg width={12} height={12} viewBox="0 0 14 16" aria-hidden focusable="false">
+      <path d={d} fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 // Single Discover surface for both silos. The two silos share the whole
 // scaffold (hero, AI summary, watchlist, inline chart, news) and differ only
 // in: the price strip (equity indices vs crypto ticker), buying-power field,
@@ -136,6 +147,24 @@ export default function DiscoverPage({
   const [adding, setAdding] = useState(false);
   const isMobile = useMobile();
   const [addSheetOpen, setAddSheetOpen] = useState(false);
+  // Watchlist sidebar collapse state — desktop only, persisted so the
+  // preference survives reloads.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      localStorage.getItem("discover_sidebar_collapsed_v1") === "1",
+  );
+  function toggleSidebar() {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("discover_sidebar_collapsed_v1", next ? "1" : "0");
+      } catch {
+        /* private-mode quotas etc. — non-fatal */
+      }
+      return next;
+    });
+  }
 
   async function addSymbol(raw: string) {
     const v = raw.trim().toUpperCase();
@@ -485,7 +514,11 @@ export default function DiscoverPage({
       ) : (
         <div
           className="grid items-start mt-4"
-          style={{ gridTemplateColumns: "260px 1fr", gap: 20 }}
+          style={{
+            gridTemplateColumns: sidebarCollapsed ? "32px 1fr" : "260px 1fr",
+            gap: sidebarCollapsed ? 12 : 20,
+            transition: "grid-template-columns 0.18s ease",
+          }}
         >
           <aside
             style={{
@@ -493,10 +526,55 @@ export default function DiscoverPage({
               top: 16,
               alignSelf: "start",
               maxHeight: "calc(100vh - 32px)",
-              overflowY: "auto",
+              overflowY: sidebarCollapsed ? "hidden" : "auto",
             }}
           >
-            {renderWatchlistSection(true)}
+            {sidebarCollapsed ? (
+              <button
+                type="button"
+                onClick={toggleSidebar}
+                aria-label="Show watchlist"
+                title="Show watchlist"
+                className="cursor-pointer flex items-center justify-center"
+                style={{
+                  width: 32,
+                  height: 56,
+                  background: "var(--panel)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--r)",
+                  color: "var(--mute)",
+                }}
+              >
+                <ChevronGlyph dir="right" />
+              </button>
+            ) : (
+              <div style={{ position: "relative" }}>
+                {/* Collapse handle: floats over SectionHeading's right edge so
+                   we don't need to duplicate the heading row. */}
+                <button
+                  type="button"
+                  onClick={toggleSidebar}
+                  aria-label="Hide watchlist"
+                  title="Hide watchlist"
+                  className="cursor-pointer flex items-center justify-center"
+                  style={{
+                    position: "absolute",
+                    top: 4,
+                    right: 0,
+                    width: 22,
+                    height: 22,
+                    background: "transparent",
+                    border: "1px solid var(--border)",
+                    borderRadius: 4,
+                    color: "var(--mute)",
+                    zIndex: 1,
+                  }}
+                >
+                  <ChevronGlyph dir="left" />
+                </button>
+                {renderWatchlistSection(true)}
+              </div>
+            )}
           </aside>
           <main className="min-w-0">
             {heroBlock}

@@ -83,11 +83,17 @@ separate silos behind a shared account.
     series (`SparkChart` inside `discover/SparkCard.tsx`) for visual parity
     with the Workspace Mini chart's spark tier; first paint / missing-data
     falls back to the symbol-seeded synthetic SVG so loading isn't blank.
-    **Desktop layout is a 2-col grid** (`260px 1fr`): a sticky left **watchlist
-    sidebar** + main column with hero / AI summary / inline chart / movers /
-    calendars / news. Clicking a sidebar card writes `selected` which drives
-    the inline chart on the right. Mobile keeps the linear stacked flow
-    (watchlist as a horizontal `CardsRow`, no sidebar).
+    **Desktop layout is a 2-col grid**: a sticky left **watchlist sidebar**
+    (`260px` expanded, collapses to a `32px` chevron strip — state persisted
+    in `localStorage('discover_sidebar_collapsed_v1')`) + main column with
+    hero / AI summary / inline chart / movers / calendars / news. Clicking
+    a sidebar card writes `selected` which drives the inline chart on the
+    right. Mobile keeps the linear stacked flow (watchlist as a horizontal
+    `CardsRow`, no sidebar).
+    The net-P/L sparkline in `DiscoverHero` and `PortfolioHero` draws a
+    subtle dashed hairline + dot at index `N-2` (yesterday's close, the
+    baseline for the day chip) so the all-time curve visually grounds
+    against today's intraday segment.
     - *Stocks*: `DiscoverHero` (single-column silo holdings + ~80px
       area-filled net P/L sparkline from `usePnlHistory` — the allocation
       donut moved to Portfolio as a sibling card), indices marquee ticker,
