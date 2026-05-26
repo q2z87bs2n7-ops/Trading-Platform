@@ -1,3 +1,5 @@
+import { useRef } from "react";
+
 import {
   useAddToCryptoWatchlist,
   useAddToWatchlist,
@@ -8,12 +10,18 @@ import {
   useWatchlist,
 } from "../data/hooks";
 import { useLiveQuotes } from "../data/useLiveQuotes";
+import { useContainerNarrow } from "../hooks/useContainerNarrow";
 import type { Snapshot } from "../types";
 import { AssetSearch } from "./AssetSearch";
 import { SparkCard, SparkCardSkeleton } from "./discover/SparkCard";
 import { coinLabel } from "./discover/util";
 
+// Width threshold below which we collapse to a tight 2-col grid of dense
+// SparkCards. Without this, the auto-fill grid falls to 1-col at ~280px and
+// the widget reads as a single tall card per scroll.
+const NARROW_W = 280;
 const GRID = "repeat(auto-fill, minmax(150px, 1fr))";
+const GRID_NARROW = "repeat(2, minmax(0, 1fr))";
 
 /**
  * Silo watchlist — live spark cards over `/api/watchlist`, with add (AssetSearch)
@@ -48,8 +56,12 @@ export default function Watchlist({
   const snapMap: Record<string, Snapshot> = {};
   for (const s of snaps.data?.snapshots ?? []) snapMap[s.symbol] = s;
 
+  const ref = useRef<HTMLDivElement>(null);
+  const narrow = useContainerNarrow(ref, NARROW_W);
+  const gridCols = narrow ? GRID_NARROW : GRID;
+
   return (
-    <div className="flex flex-col gap-2">
+    <div ref={ref} className="flex flex-col gap-2">
       <AssetSearch
         assetClass={isCrypto ? "crypto" : "us_equity"}
         align="left"
@@ -59,7 +71,7 @@ export default function Watchlist({
       />
 
       {wl.isPending ? (
-        <div className="grid gap-2" style={{ gridTemplateColumns: GRID }}>
+        <div className="grid gap-2" style={{ gridTemplateColumns: gridCols }}>
           {Array.from({ length: 6 }).map((_, i) => (
             <SparkCardSkeleton key={i} />
           ))}
@@ -71,7 +83,7 @@ export default function Watchlist({
             : "No symbols. Add one above."}
         </div>
       ) : (
-        <div className="grid gap-2" style={{ gridTemplateColumns: GRID }}>
+        <div className="grid gap-2" style={{ gridTemplateColumns: gridCols }}>
           {symbols.map((sym) => {
             const snap = snapMap[sym];
             const price = live[sym]?.mid ?? snap?.last_price ?? 0;
@@ -88,6 +100,7 @@ export default function Watchlist({
                 onSelect={() => onSelect(sym)}
                 onRemove={() => remove.mutate(sym)}
                 isCrypto={isCrypto}
+                dense={narrow}
               />
             );
           })}

@@ -214,6 +214,21 @@ export default function App() {
     localStorage.setItem("asset_class_mode", m);
   }
 
+  // Bridge for child surfaces that don't have a direct callback path — the
+  // Settings menu's silo switcher dispatches this so it can flip silos
+  // without prop-drilling switchAssetClass through three levels.
+  useEffect(() => {
+    function onSwitch(e: Event) {
+      const detail = (e as CustomEvent<{ silo?: AssetClassMode }>).detail;
+      if (detail?.silo === "stocks" || detail?.silo === "crypto") {
+        switchAssetClass(detail.silo);
+      }
+    }
+    window.addEventListener("trading-platform:switch-silo", onSwitch);
+    return () =>
+      window.removeEventListener("trading-platform:switch-silo", onSwitch);
+  }, []);
+
   // Picking a market from the landing/hub enters the platform. The first time
   // through, mark the splash as seen so subsequent loads skip straight to
   // Discover; the brand button still re-opens the hub on demand.
@@ -324,7 +339,7 @@ export default function App() {
                   className="text-[10.5px] tabular-nums font-mono"
                   style={{ color: "var(--mute)" }}
                 >
-                  paper · v{__APP_VERSION__}
+                  v{__APP_VERSION__}
                 </span>
               </div>
             </button>

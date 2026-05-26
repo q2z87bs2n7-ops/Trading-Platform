@@ -99,7 +99,7 @@ export function DiscoverHero({
           className="text-[12px]"
           style={{ color: "var(--mute)", letterSpacing: "0.02em" }}
         >
-          Equity · {title.toLowerCase()} · paper
+          {title} holdings
         </span>
         <div
           className="font-mono font-semibold tabular-nums"

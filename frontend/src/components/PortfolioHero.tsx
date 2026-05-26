@@ -101,16 +101,35 @@ export default function PortfolioHero({ assetClass }: { assetClass: AssetClass }
     );
   }
 
-  const stats: Array<{ label: string; value: string; color?: string }> = [
-    { label: "Cash", value: money(cash) },
-    { label: "Buying power", value: money(bp) },
-    {
-      label: "Total P/L",
-      value: `${unrealUp ? "+" : ""}${money(unrealized)}`,
-      color: unrealUp ? "var(--pos)" : "var(--neg)",
-    },
-    { label: "Open orders", value: String(openOrderCount) },
-  ];
+  // Per-silo stats:
+  // - Crypto: BP (non-marginable, = cash effectively, so we don't show cash too) ·
+  //   Total P/L · Open orders.
+  // - Stocks: Cash · Buying power · Net equity (holdings - margin used) ·
+  //   Total P/L · Open orders.
+  const marginUsed = acct?.initial_margin ?? 0;
+  const netEquity = holdings - marginUsed;
+  const stats: Array<{ label: string; value: string; color?: string }> =
+    assetClass === "crypto"
+      ? [
+          { label: "Buying power", value: money(bp) },
+          {
+            label: "Total P/L",
+            value: `${unrealUp ? "+" : ""}${money(unrealized)}`,
+            color: unrealUp ? "var(--pos)" : "var(--neg)",
+          },
+          { label: "Open orders", value: String(openOrderCount) },
+        ]
+      : [
+          { label: "Cash", value: money(cash) },
+          { label: "Buying power", value: money(bp) },
+          { label: "Net equity", value: money(netEquity) },
+          {
+            label: "Total P/L",
+            value: `${unrealUp ? "+" : ""}${money(unrealized)}`,
+            color: unrealUp ? "var(--pos)" : "var(--neg)",
+          },
+          { label: "Open orders", value: String(openOrderCount) },
+        ];
 
   return (
     <div
@@ -128,7 +147,7 @@ export default function PortfolioHero({ assetClass }: { assetClass: AssetClass }
           className="text-[12px]"
           style={{ color: "var(--mute)", letterSpacing: "0.02em" }}
         >
-          Equity · {title.toLowerCase()} · paper
+          {title} holdings
         </span>
         <div
           className="font-mono font-semibold tabular-nums"

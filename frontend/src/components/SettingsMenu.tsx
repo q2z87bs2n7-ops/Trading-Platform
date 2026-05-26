@@ -64,6 +64,65 @@ function Toggle({
   );
 }
 
+type AssetClassMode = "stocks" | "crypto";
+
+function readSilo(): AssetClassMode {
+  const raw = localStorage.getItem("asset_class_mode");
+  return raw === "crypto" ? "crypto" : "stocks";
+}
+
+// Top of the menu — silo switcher. Dispatches a window event that App.tsx
+// owns the listener for, so the menu doesn't have to thread a callback
+// through the header chrome.
+function SiloRow({ onClose }: { onClose: () => void }) {
+  const current = readSilo();
+  function switchTo(silo: AssetClassMode) {
+    window.dispatchEvent(
+      new CustomEvent("trading-platform:switch-silo", { detail: { silo } }),
+    );
+    onClose();
+  }
+  return (
+    <div className="px-3 pt-2 pb-3 flex items-center gap-2">
+      <span className="text-[12px] flex-1" style={{ color: "var(--mute)" }}>
+        Market
+      </span>
+      <div
+        className="inline-flex"
+        style={{
+          padding: 2,
+          borderRadius: 8,
+          background: "var(--panel-2)",
+          border: "1px solid var(--border)",
+        }}
+      >
+        {(["stocks", "crypto"] as AssetClassMode[]).map((s) => {
+          const active = s === current;
+          return (
+            <button
+              key={s}
+              type="button"
+              onClick={() => switchTo(s)}
+              className="text-[11px] font-semibold px-2.5 py-1 cursor-pointer border-0 capitalize"
+              style={{
+                background: active
+                  ? s === "stocks"
+                    ? "var(--pos)"
+                    : "var(--accent)"
+                  : "transparent",
+                color: active ? "white" : "var(--text-2)",
+                borderRadius: 6,
+              }}
+            >
+              {s}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // Group label between sections of the settings menu (AI / System / …).
 // Thin separator only — the first ToggleRow under each label still draws
 // its own top border, so the eye reads section breaks consistently.
@@ -133,6 +192,18 @@ export default function SettingsMenu() {
     };
   }, [open]);
 
+  // Listen for the "open Settings" event that AiDisabledNotice's CTA fires —
+  // explicit-consent UX: the notice doesn't flip toggles itself, it deposits
+  // the user here to do it.
+  useEffect(() => {
+    function onOpen() {
+      setOpen(true);
+    }
+    window.addEventListener("trading-platform:open-settings", onOpen);
+    return () =>
+      window.removeEventListener("trading-platform:open-settings", onOpen);
+  }, []);
+
   return (
     <div ref={ref} className="relative">
       <IconButton
@@ -159,6 +230,8 @@ export default function SettingsMenu() {
           }}
           role="menu"
         >
+          <SiloRow onClose={() => setOpen(false)} />
+
           <SectionLabel>AI</SectionLabel>
 
           <ToggleRow

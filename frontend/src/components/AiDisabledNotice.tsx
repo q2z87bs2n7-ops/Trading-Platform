@@ -2,32 +2,26 @@
 // Settings. Container-agnostic (renders its own host-tinted left rail and
 // "Turn on" CTA) so each consumer just drops it into the surface's chrome.
 
-import { updateSettings } from "../lib/settings";
-import type { AppSettings } from "../lib/settings";
-
 export type AiSurface = "market" | "ask" | "chartbot";
 
 const COPY: Record<
   AiSurface,
-  { title: string; body: string; cost: string; key: keyof AppSettings }
+  { title: string; body: string; cost: string }
 > = {
   market: {
     title: "Market summary",
     body: "Auto-generated briefings of what moved during the session.",
     cost: "~$0.001 per generation",
-    key: "marketSummaryAiEnabled",
   },
   ask: {
     title: "Ask anything",
     body: "Free-form questions — answers, suggestions, layout builds.",
     cost: "free for local intents · ~$0.005 for AI answers",
-    key: "askAiEnabled",
   },
   chartbot: {
     title: "ChartBot",
     body: "Chart-aware assistant: chat, draw lines, place orders inline.",
     cost: "~$0.002 per turn",
-    key: "chartbotEnabled",
   },
 };
 
@@ -94,9 +88,14 @@ export default function AiDisabledNotice({
         >
           {c.cost}
         </div>
+        {/* Opens the Settings menu rather than flipping the toggle directly —
+           we want the user's explicit consent before spending API credits,
+           even when they tap a notice that already explains the cost. */}
         <button
           type="button"
-          onClick={() => updateSettings({ [c.key]: true } as Partial<AppSettings>)}
+          onClick={() =>
+            window.dispatchEvent(new CustomEvent("trading-platform:open-settings"))
+          }
           className="mt-1.5 self-start cursor-pointer text-[12px] font-semibold"
           style={{
             background: "transparent",
@@ -106,7 +105,7 @@ export default function AiDisabledNotice({
             padding: "4px 10px",
           }}
         >
-          Turn on
+          Turn on in Settings
         </button>
       </div>
     </div>

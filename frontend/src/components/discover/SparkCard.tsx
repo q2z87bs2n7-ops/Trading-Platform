@@ -10,6 +10,7 @@ export function SparkCard({
   onSelect,
   onRemove,
   isCrypto,
+  dense = false,
 }: {
   symbol: string;
   name: string;
@@ -19,6 +20,9 @@ export function SparkCard({
   onSelect: () => void;
   onRemove?: () => void;
   isCrypto?: boolean;
+  /** Compact 2-col layout for narrow Workspace docks — drops the sparkline,
+   *  name slot, and shrinks fonts so two cards fit in ~180px width. */
+  dense?: boolean;
 }) {
   const up = changePct >= 0;
   const stroke = up ? "var(--pos)" : "var(--neg)";
@@ -30,8 +34,9 @@ export function SparkCard({
     <div
       role="button"
       onClick={onSelect}
-      className="group text-left p-[13px_14px_10px] cursor-pointer transition-all relative overflow-hidden bg-panel"
+      className="group text-left cursor-pointer transition-all relative overflow-hidden bg-panel"
       style={{
+        padding: dense ? "8px 10px 8px 10px" : "13px 14px 10px 14px",
         border: `1px solid ${selected ? "var(--accent)" : "var(--border)"}`,
         borderRadius: "var(--r)",
         boxShadow: selected ? "0 0 0 2px var(--accent-bg)" : "none",
@@ -58,37 +63,53 @@ export function SparkCard({
           ✕
         </button>
       )}
-      <div className="font-semibold text-[15px]">{symbol}</div>
       <div
-        className="text-[11px] mt-px truncate h-[14px]"
-        style={{ color: "var(--mute)" }}
+        className="font-semibold"
+        style={{ fontSize: dense ? 12 : 15, paddingRight: dense ? 16 : 0 }}
       >
-        {name}
+        {symbol}
       </div>
-      <div className="font-mono text-[16px] font-medium mt-2 tabular-nums">
+      {!dense && (
+        <div
+          className="text-[11px] mt-px truncate h-[14px]"
+          style={{ color: "var(--mute)" }}
+        >
+          {name}
+        </div>
+      )}
+      <div
+        className="font-mono font-medium tabular-nums"
+        style={{ fontSize: dense ? 13 : 16, marginTop: dense ? 2 : 8 }}
+      >
         {isCrypto ? fmtCryptoPrice(price) : fmtPrice(price)}
       </div>
       <div
-        className="font-mono text-[12px] mt-px tabular-nums"
-        style={{ color: stroke }}
+        className="font-mono tabular-nums"
+        style={{
+          fontSize: dense ? 10.5 : 12,
+          marginTop: dense ? 0 : 1,
+          color: stroke,
+        }}
       >
         {pct(changePct)}
       </div>
-      <svg
-        height={H}
-        viewBox={`0 0 ${W} ${H}`}
-        preserveAspectRatio="none"
-        className="block w-full mt-1.5"
-      >
-        <defs>
-          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={stroke} stopOpacity={0.12} />
-            <stop offset="100%" stopColor={stroke} stopOpacity={0} />
-          </linearGradient>
-        </defs>
-        <path d={area} fill={`url(#${gradId})`} />
-        <path d={line} fill="none" stroke={stroke} strokeWidth={1.5} />
-      </svg>
+      {!dense && (
+        <svg
+          height={H}
+          viewBox={`0 0 ${W} ${H}`}
+          preserveAspectRatio="none"
+          className="block w-full mt-1.5"
+        >
+          <defs>
+            <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={stroke} stopOpacity={0.12} />
+              <stop offset="100%" stopColor={stroke} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <path d={area} fill={`url(#${gradId})`} />
+          <path d={line} fill="none" stroke={stroke} strokeWidth={1.5} />
+        </svg>
+      )}
     </div>
   );
 }
