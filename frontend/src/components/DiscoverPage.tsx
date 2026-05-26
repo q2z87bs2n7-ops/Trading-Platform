@@ -394,11 +394,16 @@ export default function DiscoverPage({
   // scope (movers / earnings / economic / news queries + onSelect) without a
   // props explosion.
   // Live price + day-change for the selected symbol — same values the
-  // SparkCards render so the mini bar tracks them.
+  // SparkCards render so the mini bar tracks them. The selected symbol may
+  // not be in the watchlist (e.g. picked from the Earnings card), in which
+  // case we have no snapshot — suppress the price/chip rather than showing
+  // stale zeros.
   const selQuote = quotes[selected];
-  const selPrice = live[selected]?.mid ?? selQuote?.last_price ?? 0;
+  const selLive = live[selected];
+  const selRawPrice = selLive?.mid ?? selQuote?.last_price ?? 0;
   const selPrev = selQuote?.prev_close ?? 0;
-  const selDayChange = selPrev ? (selPrice - selPrev) / selPrev : 0;
+  const hasSelData = selRawPrice > 0;
+  const selDayChange = selPrev > 0 ? (selRawPrice - selPrev) / selPrev : 0;
   const selUp = selDayChange >= 0;
 
   const mainContent = (
@@ -659,31 +664,40 @@ export default function DiscoverPage({
                   top: 8,
                   zIndex: 20,
                   marginBottom: 12,
-                  padding: "8px 14px",
-                  background: "var(--panel)",
+                  padding: "8px 14px 8px 12px",
+                  background: "var(--panel-3)",
                   border: "1px solid var(--border)",
+                  borderLeft: "3px solid var(--accent)",
                   borderRadius: "var(--r)",
-                  boxShadow: "var(--shadow-md)",
+                  boxShadow: "var(--shadow-lg)",
+                  backdropFilter: "blur(8px)",
+                  WebkitBackdropFilter: "blur(8px)",
                 }}
               >
                 <span className="font-semibold" style={{ fontSize: 13 }}>
                   {isCrypto ? coinLabel(selected) : selected}
                 </span>
-                <span
-                  className="font-mono tabular-nums"
-                  style={{ fontSize: 13 }}
-                >
-                  {isCrypto ? fmtCryptoPrice(selPrice) : fmtPrice(selPrice)}
-                </span>
-                <span
-                  className="font-mono tabular-nums"
-                  style={{
-                    fontSize: 12,
-                    color: selUp ? "var(--pos)" : "var(--neg)",
-                  }}
-                >
-                  {pct(selDayChange)}
-                </span>
+                {hasSelData && (
+                  <>
+                    <span
+                      className="font-mono tabular-nums"
+                      style={{ fontSize: 13 }}
+                    >
+                      {isCrypto ? fmtCryptoPrice(selRawPrice) : fmtPrice(selRawPrice)}
+                    </span>
+                    {selPrev > 0 && (
+                      <span
+                        className="font-mono tabular-nums"
+                        style={{
+                          fontSize: 12,
+                          color: selUp ? "var(--pos)" : "var(--neg)",
+                        }}
+                      >
+                        {pct(selDayChange)}
+                      </span>
+                    )}
+                  </>
+                )}
                 <span
                   className="ml-auto"
                   style={{ color: "var(--mute)", fontSize: 11 }}
