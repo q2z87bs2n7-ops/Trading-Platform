@@ -1,0 +1,92 @@
+# Tipranks
+
+Per-request research data (analyst consensus, hedge-fund flow, insider
+transactions, sentiment) from the Tipranks external partner API. **Not**
+an asset-catalogue enrichment source — these are live-fetched per ticker
+view, not bulk-seeded into Postgres. No code wired yet; this doc captures
+what was learned probing the provider so the client + DB schema can be
+designed without re-discovering everything.
+
+## Base & auth
+
+- **Base URL:** `https://api.tipranks.com` (backed by
+  `tr-external-api-wa.azurewebsites.net` — surfaces in error bodies)
+- **Auth is via query string, not headers**, despite the `X-` prefix on
+  the param names. Both required on every call:
+  - `X-APIKey=TR_FXCM` — partner identifier (not secret; same value for all
+    callers on this partner)
+  - `X-APIToken=<token>` — the actual secret
+- Missing/invalid token → `401 {"message":"Authorization has been denied
+  for this request."}`. No `WWW-Authenticate` hint, no separate error
+  shape for tier-restricted endpoints (see consensusOverTime gotcha below).
+- **Env vars (proposed):** `TIPRANKS_API_KEY` (the `TR_FXCM` partner ID)
+  and `TIPRANKS_API_TOKEN` (the secret). Both server-side only — same
+  rule as Alpaca/FMP/Anthropic, never reach the browser.
+
+## Endpoint inventory
+
+Probed 2026-05-26 with TSLA. All paths return JSON. `bytes` is the TSLA
+response size as a rough complexity tell.
+
+| Endpoint | Verb | Status | Bytes | Notes |
+|---|---|---|---|---|
+| `/api/smartScore/{tickers}` | GET | ✅ 200 | 660 | Composite score + component breakdowns. `{tickers}` is **plural** — comma-separate for batch (`smartScore/tsla,aapl,nvda` → array of 3). |
+| `/api/stocks/overview` | GET | ✅ 200 | 273 | Price targets + buy/sell/hold counts. Needs ticker as **either** `?tickers=tsla` (query, comma-batchable) **or** path-suffixed `/tsla`. Both shapes return identical data. |
+| `/api/stocks/consensusOverTime/{ticker}` | GET | ❌ **401** | — | **Tier-restricted on the `TR_FXCM` key.** Endpoint exists (drop the ticker → 404), but same credentials that authenticate the other 9 endpoints get `Authorization has been denied` here. Tried uppercase, alt-casing, `?numOfMonths=6` — all 401. Ask the provider whether this needs an upgrade or a different signature. |
+| `/api/analysts/{ticker}` | GET | ✅ 200 | 3.3 KB | Per-analyst recs: name, firm, recommendation, date, expert UID. |
+| `/api/stocks/bloggerConsensus/{ticker}` | GET | ✅ 200 | 360 | Bull/bear ratios + per-site distribution (SeekingAlpha, Motley Fool, …). |
+| `/api/Stocks/InvestorSentiment/{ticker}` | GET | ✅ 200 | 1.2 KB | **Capital-S `Stocks`** — case-sensitive on this one path. Portfolio counts + 7/30-day holding change. |
+| `/api/hedgefunds/{ticker}` | GET | ✅ 200 | 27 KB | Richest payload. Signal data + per-fund position history. |
+| `/api/insiders/{ticker}` | GET | ✅ 200 | 16 KB | Yearly insider transactions, monthly buckets, named insiders. |
+| `/api/stocks/newsSentiment/{ticker}` | GET | ✅ 200 | 2.5 KB | Stock + sector sentiment (positive/neutral/negative ratios). |
+| `/api/stocks/trendingStocks` | GET | ✅ 200 | 3 KB | No ticker; returns top trending list with consensus + average PT. |
+
+## Conventions
+
+- **Symbols accepted in lowercase** (the sample URL used `tsla`).
+  Responses always normalise to uppercase (`"ticker":"TSLA"`). Pick one
+  at the client layer and stick with it — lowercase matches the sample.
+- **Casing of path segments is mixed.** Almost everything is
+  `lowerCamelCase` segments under `/api/stocks/...`, but `InvestorSentiment`
+  lives under capital-S `Stocks`. Don't normalise — keep the exact
+  per-endpoint casing in the client.
+- **Crypto:** untested. Tipranks's product is equities-focused; assume
+  no crypto coverage and gate the surfaces silo-side unless the provider
+  confirms otherwise.
+
+## Batch support
+
+Two endpoints take comma-separated tickers and return arrays:
+
+- `smartScore/tsla,aapl,nvda` → 2 KB (vs 660 B single)
+- `stocks/overview?tickers=tsla,aapl,nvda` → 816 B (vs 273 B single)
+
+Useful for portfolio / watchlist views where the N+1 alternative would
+burn rate limit. The other 8 endpoints are single-ticker only.
+
+## Tier limits / cost
+
+Unknown — provider hasn't shared rate limits or per-call cost. **Probe
+behaviour before designing the cache TTL** (the FMP precedent —
+single-symbol-only, 300/min, 250/day on free — is the kind of thing
+that's better discovered up front than mid-feature).
+
+## Open questions
+
+- **`consensusOverTime` 401.** Same key/token authenticates the other 9;
+  this one consistently denies. Tier wall, different auth signature, or
+  a deprecated path that didn't get cleaned out? Ask the provider.
+- **Rate limits.** Per-minute? Per-day? Per-key vs per-token? Concurrent
+  request cap? All unknown.
+- **Sandbox / staging.** Is `TR_FXCM` already a sandbox partner ID, or
+  is this prod data? The values returned (`smartScore`, hedge-fund flow)
+  look real, so probably prod.
+- **Crypto coverage.** Confirmed equities-only, or does it 404
+  gracefully on a crypto symbol vs return stale data?
+
+## Security note
+
+The credentials shared in chat (the `ghvp1348-…` token) sit in this
+session's transcript. Rotate before treating it as production-grade. The
+same warning that applies to the FMP key and DB password in
+`docs/database.md` applies here.

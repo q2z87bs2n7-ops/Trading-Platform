@@ -6,7 +6,9 @@ config, dependencies, or the streaming path. Companion docs:
 `docs/landmines.md` (Vercel-Python / TradingView / streaming details
 that took several iterations to land — don't undo them),
 `docs/workspace.md` (Workspace mode + module pattern), `docs/ai.md`
-(the two AI surfaces), `docs/database.md` (Postgres asset catalogue).
+(the two AI surfaces), `docs/database.md` (Postgres asset catalogue),
+`docs/tipranks.md` (Tipranks research API — endpoint inventory & auth
+quirks, not yet wired).
 
 ## What this is
 
