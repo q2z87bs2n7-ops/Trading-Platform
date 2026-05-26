@@ -299,21 +299,27 @@ places TV interface.
   resolve and the chart stays blank. Fix: poll
   `typeof TradingView.widget === "function"` at 100ms intervals before
   constructing the widget (see `TVPlatform.tsx`).
-- **TV's native top header + trading UI are hidden** via
-  `DISABLED_FEATURES` in `TVPlatform.tsx`: every `header_*` item,
-  `trading_account_manager`, `open_account_manager`, `order_panel`,
-  `show_order_panel_on_start`, `trading_notifications`,
-  `show_trading_notifications_history`, `buy_sell_buttons`,
-  `broker_button`, plus `show_right_widgets_panel_by_default` and
-  `create_volume_indicator_by_default`. The broker is still wired
-  (`broker_factory`) because that's how TV's price-line overlays work
-  — trade initiation is ours via `TradeBar` → `OrderSheet`. Don't
-  re-enable any of these features; you'll get doubled UI on top of our
-  cards.
+- **Chart mode uses TV's native chrome; only trade-initiation UI is
+  hidden.** `TVPlatform.tsx` keeps TV's native header **and** native
+  Account Manager (the custom `ChartTopBar` / `IndicatorPillsRow` /
+  `ChartBlotter` bars were removed). `DISABLED_FEATURES` now suppresses
+  only the trade-initiation pieces — `order_panel`,
+  `show_order_panel_on_start`, `buy_sell_buttons`, `broker_button`,
+  `trading_notifications`, `show_trading_notifications_history` — plus
+  `header_saveload` (no charts-storage backend),
+  `use_localstorage_for_settings`, `show_right_widgets_panel_by_default`,
+  `create_volume_indicator_by_default`, and `open_account_manager` (the
+  Account Manager stays enabled via `trading_account_manager` but starts
+  **collapsed**). The broker is still wired (`broker_factory`) so TV's
+  price-line overlays draw and the Account Manager can close positions;
+  trade entry stays ours via `TradeBar` → `OrderSheet` so the crypto
+  constraints + confirm flow hold. Don't re-enable `order_panel` /
+  `buy_sell_buttons` / `broker_button` — that re-introduces TV order
+  entry that bypasses those guards.
 - **In-TV symbol changes propagate back to App.** `TVPlatform`
   subscribes to `widget.activeChart().onSymbolChanged()`, normalises
-  (strips `EXCHANGE:` prefix), and calls `onSymbolChange(next)` so
-  `ChartTopBar`, `TradeBar`, and `ChatPanel` follow. The reverse-
+  (strips `EXCHANGE:` prefix), and calls `onSymbolChange(next)` so the
+  `TradeBar` and `ChatPanel` follow. The reverse-
   direction prop → `setSymbol` effect has an equality guard so an
   in-TV change round-tripping through App doesn't refire `setSymbol`
   and rebuild drawings pointlessly.
@@ -336,11 +342,15 @@ places TV interface.
   module store** (`useSyncExternalStore`): every consumer must observe
   the same value, or non-CSS consumers like the chart silently miss
   toggles. Don't revert it to per-instance `useState`.
-- **`IndicatorPillsRow` polls `getAllStudies()`** every 1.2s. This
-  build's `IChartWidgetApi` doesn't expose `onStudyAdded` /
-  `onStudyRemoved`; polling is the only reliable way to keep the
-  pills in sync (including studies added via right-click). Cheap;
-  bounded by Chart-mode mounts.
+- **TV charts must re-assert the theme in `onChartReady`.** Both
+  `TVPlatform` and the Workspace `TVChartWidget` call their `applyTheme`
+  (i.e. `changeTheme` + pane-background override) once the chart is
+  ready, not only on toggle. The `[theme]` effect bails while the widget
+  is still loading, and `TVChartWidget` keeps
+  `use_localstorage_for_settings` on (it wants to persist chart
+  settings), so TV can otherwise restore a *previous session's* palette
+  that doesn't match the app theme — the colours then stay wrong until a
+  manual toggle. Don't drop the `onChartReady` re-assert.
 
 ## Mobile / responsive layer (≤ 640px)
 

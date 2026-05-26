@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from "react";
+
 import { useAssetProfile } from "../data/hooks";
 import { pct } from "../lib/format";
 import type { AssetProfile, FinancialsYear } from "../types";
@@ -71,10 +73,63 @@ function Group({
   );
 }
 
+// Series headline: swatch + label + the latest-year value. Replaces the bare
+// legend so the chart leads with the numbers (matches Profile's density).
+function SeriesHead({
+  swatch,
+  label,
+  value,
+  tone,
+}: {
+  swatch: string;
+  label: string;
+  value: string;
+  tone?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-0.5 min-w-0">
+      <span
+        className="flex items-center gap-1.5 text-[10px] font-medium uppercase"
+        style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
+      >
+        <span
+          className="inline-block w-2 h-2 rounded-sm shrink-0"
+          style={{ background: swatch }}
+        />
+        {label}
+      </span>
+      <span
+        className="font-mono text-[13.5px] tabular-nums truncate"
+        style={{ color: tone ?? "var(--text)" }}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
 // Grouped revenue + net-income bars, oldest→newest. One shared scale (max abs)
 // so the two series are comparable; net income drops below the zero line when
-// negative.
+// negative. Revenue uses the neutral slate token (NOT --accent, which the
+// stocks silo remaps to green — that would collide with net income); net
+// income carries the signed pos/neg colour. The chart measures its container
+// and renders at full width so it fills the panel at any Workspace size.
 function TrendChart({ rows }: { rows: FinancialsYear[] }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [w, setW] = useState(320);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => {
+      const cw = el.clientWidth;
+      if (cw > 0) setW(cw);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const data = rows
     .filter((r) => r.revenue != null || r.net_income != null)
     .slice()
@@ -86,59 +141,67 @@ function TrendChart({ rows }: { rows: FinancialsYear[] }) {
   const min = Math.min(...vals, 0);
   const span = max - min || 1;
 
-  const W = 300;
-  const H = 72;
+  const W = Math.max(w, 120);
+  const H = 88;
   const padB = 16; // year labels
   const plotH = H - padB;
   const zeroY = (max / span) * plotH;
   const slot = W / data.length;
-  const barW = Math.min(14, slot * 0.32);
+  const barW = Math.min(16, slot * 0.3);
 
-  const y = (v: number) => (max - v) / span * plotH;
+  const y = (v: number) => ((max - v) / span) * plotH;
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} role="img" aria-label="Revenue and net income trend">
-      <line x1={0} y1={zeroY} x2={W} y2={zeroY} stroke="var(--hairline)" strokeWidth={1} />
-      {data.map((d, i) => {
-        const cx = i * slot + slot / 2;
-        const rev = d.revenue ?? 0;
-        const ni = d.net_income ?? 0;
-        const revTop = y(Math.max(rev, 0));
-        const niTop = y(Math.max(ni, 0));
-        const niBot = y(Math.min(ni, 0));
-        return (
-          <g key={d.year}>
-            <rect
-              x={cx - barW - 1}
-              y={revTop}
-              width={barW}
-              height={Math.max(1, zeroY - revTop)}
-              rx={1.5}
-              fill="var(--accent)"
-              opacity={0.85}
-            />
-            <rect
-              x={cx + 1}
-              y={ni >= 0 ? niTop : zeroY}
-              width={barW}
-              height={Math.max(1, ni >= 0 ? zeroY - niTop : niBot - zeroY)}
-              rx={1.5}
-              fill={ni >= 0 ? "var(--pos)" : "var(--neg)"}
-              opacity={0.85}
-            />
-            <text
-              x={cx}
-              y={H - 4}
-              textAnchor="middle"
-              className="font-mono"
-              style={{ fontSize: 9, fill: "var(--mute)" }}
-            >
-              {`'${String(d.year).slice(2)}`}
-            </text>
-          </g>
-        );
-      })}
-    </svg>
+    <div ref={ref} style={{ width: "100%" }}>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        width="100%"
+        height={H}
+        role="img"
+        aria-label="Revenue and net income trend"
+      >
+        <line x1={0} y1={zeroY} x2={W} y2={zeroY} stroke="var(--hairline)" strokeWidth={1} />
+        {data.map((d, i) => {
+          const cx = i * slot + slot / 2;
+          const rev = d.revenue ?? 0;
+          const ni = d.net_income ?? 0;
+          const revTop = y(Math.max(rev, 0));
+          const niTop = y(Math.max(ni, 0));
+          const niBot = y(Math.min(ni, 0));
+          return (
+            <g key={d.year}>
+              <rect
+                x={cx - barW - 1}
+                y={revTop}
+                width={barW}
+                height={Math.max(1, zeroY - revTop)}
+                rx={1.5}
+                fill="var(--text-2)"
+                opacity={0.65}
+              />
+              <rect
+                x={cx + 1}
+                y={ni >= 0 ? niTop : zeroY}
+                width={barW}
+                height={Math.max(1, ni >= 0 ? zeroY - niTop : niBot - zeroY)}
+                rx={1.5}
+                fill={ni >= 0 ? "var(--pos)" : "var(--neg)"}
+                opacity={0.9}
+              />
+              <text
+                x={cx}
+                y={H - 4}
+                textAnchor="middle"
+                className="font-mono"
+                style={{ fontSize: 9, fill: "var(--mute)" }}
+              >
+                {`'${String(d.year).slice(2)}`}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
   );
 }
 
@@ -176,8 +239,19 @@ export default function Fundamentals({
   const growthTone = (n?: number) =>
     n == null ? undefined : n >= 0 ? "var(--pos)" : "var(--neg)";
 
+  const annual = p.financials_annual ?? [];
+  const hasTrend = annual.length >= 2;
+  // Headline values come from the most recent fiscal year (defensive sort —
+  // don't assume the array order).
+  const latest = hasTrend
+    ? [...annual].sort((a, b) => b.year - a.year)[0]
+    : undefined;
+  const latestNi = latest?.net_income;
+  const niColor =
+    latestNi != null && latestNi < 0 ? "var(--neg)" : "var(--pos)";
+
   return (
-    <div className="flex flex-col gap-3.5">
+    <div className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between gap-2">
         <div className="text-[13px] font-semibold truncate" title={p.name}>
           {p.symbol}
@@ -190,22 +264,22 @@ export default function Fundamentals({
         )}
       </div>
 
-      {p.financials_annual && p.financials_annual.length >= 2 && (
-        <div className="flex flex-col gap-1">
-          <div
-            className="flex items-center gap-3 text-[10px] uppercase"
-            style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
-          >
-            <span className="flex items-center gap-1">
-              <span className="inline-block w-2 h-2 rounded-sm" style={{ background: "var(--accent)" }} />
-              Revenue
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block w-2 h-2 rounded-sm" style={{ background: "var(--pos)" }} />
-              Net income
-            </span>
+      {hasTrend && (
+        <div className="flex flex-col gap-2">
+          <div className="grid grid-cols-2 gap-x-4">
+            <SeriesHead
+              swatch="var(--text-2)"
+              label="Revenue"
+              value={latest?.revenue != null ? fmtUsd(latest.revenue) : "—"}
+            />
+            <SeriesHead
+              swatch={niColor}
+              label="Net income"
+              value={latestNi != null ? fmtUsd(latestNi) : "—"}
+              tone={latestNi == null ? undefined : niColor}
+            />
           </div>
-          <TrendChart rows={p.financials_annual} />
+          <TrendChart rows={annual} />
         </div>
       )}
 

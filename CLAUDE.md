@@ -97,13 +97,20 @@ separate silos behind a shared account.
     and BP shows `non_marginable_buying_power`.
   - **Chart** — `TVPlatform.tsx` wraps the full TradingView Charting
     Library (`frontend/public/charting_library/`, committed — private
-    repo only) in our own chrome: `ChartTopBar`, `IndicatorPillsRow`,
-    `ChartBlotter` (filtered by asset class), floating `TradeBar`. TV's
-    native top header and trading UI are suppressed via
-    `disabled_features`; the broker stays wired so price-line overlays
-    for open orders/positions draw. Datafeed: `lib/tv-datafeed.ts`.
-    Broker: `lib/tv-broker.ts`. ChartBot side panel mounts here when
-    `AI_CHAT_ENABLED=true`.
+    repo only) using **TV's native chrome**: the native header (symbol
+    search, resolutions, chart type, indicators, settings, …) and the
+    native **Account Manager** (positions / orders / account blotter —
+    enabled but **collapsed by default** via disabling
+    `open_account_manager`). Only TV's trade-*initiation* UI is
+    suppressed in `disabled_features` (`order_panel`, `buy_sell_buttons`,
+    `broker_button`, plus `header_saveload` — no charts-storage backend);
+    trade entry runs through the floating `TradeBar` + `OrderSheet`, so
+    the crypto constraints and confirm flow are enforced. The broker
+    stays wired so price-line overlays for open orders/positions draw.
+    On desktop the chart fills the viewport (`.app.app-chart` flex
+    column) at the same height as the `ChatPanel`. Datafeed:
+    `lib/tv-datafeed.ts`. Broker: `lib/tv-broker.ts`. ChartBot side panel
+    mounts here when `AI_CHAT_ENABLED=true`.
   - **Workspace** (desktop only — hidden on mobile) — a dockable widget
     canvas on Dockview (`components/Workspace.tsx` + `lib/workspace/`):
     per-silo layout persistence, link-channel widgets (None +
@@ -122,10 +129,9 @@ separate silos behind a shared account.
   pills + asset toggle) with a left slide-in `MobileNavDrawer` (theme +
   AI toggle + Account hub); `TopBar` collapses to a one-row status strip
   whose equity chip opens a balance bottom sheet. Tabular surfaces
-  (`Positions`/`Orders`/`Activities` and the chart blotter) render stacked
+  (`Positions`/`Orders`/`Activities`) render stacked
   **card lists** instead of tables. Chart mode goes full-bleed
-  (`100dvh`-based height) with a horizontally-scrolling `ChartTopBar`
-  (`⋯` overflow popover for type/indicators), and the ChartBot panel
+  (`100dvh`-based height) using TV's native header, and the ChartBot panel
   becomes a floating **violet launcher + slide-up sheet** (the header `✦`
   stays Ask-anything — teal — in every mode). `OrderSheet` and the
   Ask-anything `AskBar` go full-screen with safe-area-padded sticky
@@ -351,7 +357,6 @@ new surface. Full rules, precedents, and examples: `docs/workspace.md` →
 | `theme` | `hooks/useTheme.ts` + `index.html` bootstrap | both | `"light" \| "dark"`. Defaults to OS preference. |
 | `chartbot_session` | `useChatSession` | `useChatSession` | Serialised turns + apiHistory, capped at 256 KB. |
 | `ai_drawings_v1` | `tv-drawings.ts` | `tv-drawings.ts` | Per-symbol drawing UUIDs replayed on chart load. |
-| `chart_blotter_collapsed` | `ChartBlotter` | `ChartBlotter` | `"1"` collapsed. With no stored value, defaults collapsed on mobile (≤640px) and expanded on desktop. |
 | `market_summary_v1` / `crypto_market_summary_v1` | `useMarketSummary` | `useMarketSummary` + Ask-anything summary card | Per-silo cached AI market summary (window, date, content). |
 | `app_settings_v1` | `lib/settings.ts` | `useSettings` + `SettingsMenu` + `MobileNavDrawer` | JSON-encoded `AppSettings`. Three per-surface AI toggles, each default `false` (opt-in — no Anthropic credits until enabled): `marketSummaryAiEnabled` / `askAiEnabled` / `chartbotEnabled`. When a surface is off it renders a shared `AiDisabledNotice` ("…enable in Settings") instead of calling Claude. |
 | `workspace_layouts_stocks_v2` / `workspace_layouts_crypto_v2` | `components/Workspace.tsx` | `components/Workspace.tsx` | Per-silo Workspace layouts — `{ active: { name, layout }, saved: {} }`. `active.layout` is the live Dockview `api.toJSON()`; `active.name` records the last-applied preset (Trader / Researcher / Watcher / Focus). `saved` holds the user's named layouts (the "My layouts" section of the in-canvas Layouts menu — Save current as… / Apply / Rename / Delete); each entry is `{ layout, channels }`, snapshotting both the Dockview JSON and that silo's colour-channel symbols, so Apply restores the arrangement *and* the per-channel tickers. Migrates transparently from the old `workspace_layout_{silo}_v1` (raw layout) on first load after upgrade; the v1 key is then removed. Applying a preset/custom layout clears only `active` (the `saved` map survives). |

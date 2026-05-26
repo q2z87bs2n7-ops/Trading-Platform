@@ -86,7 +86,7 @@ here; use `git log` for that.
 - **`createAlert` integration** — TV has a native alert API but no notification
   path exists yet; defer until alerts have somewhere to go.
 - **Real `onStudyAdded` / `onStudyRemoved` events** — the bundled TV build
-  doesn't expose them, so `IndicatorPillsRow` / `ChatContextPills` poll
+  doesn't expose them, so `ChatContextPills` polls
   `getAllStudies()` every 1.2 s; replace with subscriptions if a future build
   ships them.
 - **Positions strip narrow-desktop band** — the 641–720px band (large-phone
