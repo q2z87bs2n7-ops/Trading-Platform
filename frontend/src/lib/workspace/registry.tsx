@@ -10,7 +10,7 @@ import OrderTicketInline from "../../components/trade/OrderTicketInline";
 import AccountPanel from "../../components/AccountPanel";
 import AssetProfile from "../../components/AssetProfile";
 import Fundamentals from "../../components/Fundamentals";
-import Watchlist from "../../components/Watchlist";
+import Watchlist, { type WatchlistMode } from "../../components/Watchlist";
 import { AssetSearch } from "../../components/AssetSearch";
 import { NewsCard, NewsCardSkeleton } from "../../components/discover/NewsCard";
 import {
@@ -675,6 +675,13 @@ function WatchlistWidget(props: IDockviewPanelProps) {
   const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "main");
   const target = channel === "none" ? "main" : channel;
+  const [mode, setLocalMode] = useState<WatchlistMode>(
+    () => (props.params?.watchlistMode as WatchlistMode) ?? "auto",
+  );
+  const setMode = (m: WatchlistMode) => {
+    setLocalMode(m);
+    props.api.updateParameters({ ...props.params, watchlistMode: m });
+  };
   return (
     <WidgetShell
       header={
@@ -691,6 +698,8 @@ function WatchlistWidget(props: IDockviewPanelProps) {
           assetClass={assetClass}
           selected={getSymbol(target)}
           onSelect={(s) => setSymbol(target, s)}
+          mode={mode}
+          onModeChange={setMode}
         />
       </Pane>
     </WidgetShell>
