@@ -25,6 +25,7 @@ WORKSPACE_WIDGET_KINDS = (
     "profile",
     "earnings",
     "fundamentals",
+    "trending",
 )
 
 _SILO_PROP = {
@@ -96,7 +97,10 @@ WORKSPACE_TOOLS: list[dict[str, Any]] = [
             "earnings calendar when left whole-account (no channel). "
             "'fundamentals' shows annual statement metrics for one STOCK "
             "(revenue & net-income trend, valuation, margins, growth, dividend) "
-            "— stocks-only and symbol-linked, so give it a channel."
+            "— stocks-only and symbol-linked, so give it a channel. "
+            "'trending' shows top trending stocks by analyst coverage "
+            "(stocks-only, no symbol input); a row click writes the picked "
+            "ticker into the widget's channel."
         ),
         "input_schema": {
             "type": "object",

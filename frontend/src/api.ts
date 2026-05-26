@@ -21,6 +21,7 @@ import type {
   ReplaceOrderInput,
   Snapshot,
   SubmitOrderInput,
+  TrendingResearchResponse,
 } from "./types";
 import type { SiloedAction } from "./lib/workspace/actions";
 
@@ -175,6 +176,9 @@ export const getSymbolEarnings = (symbol: string) =>
 
 export const getEconomicCalendar = () =>
   getJSON<EconomicResponse>("/api/calendar/economic");
+
+export const getTrendingResearch = () =>
+  getJSON<TrendingResearchResponse>("/api/research/trending");
 
 // Full catalogue symbol universe per asset class (DB-backed; tradable +
 // enriched). Fetched once and cached stale-while-revalidate to validate

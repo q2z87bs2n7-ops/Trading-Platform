@@ -107,6 +107,12 @@ Widgets reuse existing surfaces:
   A crypto-linked symbol short-circuits the fetch and shows a "crypto has no
   earnings" notice instead of the backend's bare 404. No economic
   widget — the economic calendar has no per-symbol form and stays Discover-only.
+- **Trending** — `discover/TrendingResearchCard.tsx`, reused from Discover via
+  its `bare`/`dense` props. Whole-market list of top trending stocks by analyst
+  coverage (Tipranks, `/api/research/trending`); no symbol input. **Stocks-only**
+  — crypto silo shows a notice. The widget still carries a channel selector
+  (defaults to Main) so a row click writes the picked ticker into that channel
+  and linked widgets follow — same pattern as Watchlist. See `docs/tipranks.md`.
 
 ## Link channels
 
@@ -158,6 +164,7 @@ so the transition isn't a single hard flip:
 - **Earnings** — dense 420 drops the revenue column; `tight` 320 also
   suppresses the year suffix on per-symbol dates (`May 30 '26` → `May 30`),
   shrinking the date column from 72 → 48px before revenue drops.
+- **Trending** — dense 360 drops the company name + market-cap columns.
 - **News** — `compact` 320 stacks the rel-time *above* source+title instead of
   using the 60px left column.
 - **Watchlist** — `compact` 420 + dense 280 (see widget bullet above).

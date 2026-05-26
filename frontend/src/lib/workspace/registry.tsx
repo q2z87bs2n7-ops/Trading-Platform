@@ -17,6 +17,10 @@ import {
   EarningsCard,
   EarningsCardSkeleton,
 } from "../../components/discover/EarningsCard";
+import {
+  TrendingResearchCard,
+  TrendingResearchCardSkeleton,
+} from "../../components/discover/TrendingResearchCard";
 import ErrorBanner from "../../components/ErrorBanner";
 import { isCryptoSymbol } from "../asset-class";
 import {
@@ -24,6 +28,7 @@ import {
   useMarketNews,
   useNews,
   useSymbolEarnings,
+  useTrendingResearch,
 } from "../../data/hooks";
 
 export type AssetClass = "stocks" | "crypto";
@@ -441,6 +446,7 @@ const FUNDAMENTALS_DENSE_W = 400;
 const FUNDAMENTALS_WIDE_W = 560;
 const EARNINGS_DENSE_W = 420;
 const EARNINGS_TIGHT_W = 320;
+const TRENDING_DENSE_W = 360;
 const NEWS_COMPACT_W = 320;
 
 function PositionsWidget(props: IDockviewPanelProps) {
@@ -825,6 +831,58 @@ function EarningsWidget(props: IDockviewPanelProps) {
   );
 }
 
+// Trending widget: whole-market Tipranks trending list (no symbol input).
+// Stocks-only — the upstream has no crypto coverage. The channel selector
+// exists so a row click can push the picked ticker into a shared channel
+// (mirrors WatchlistWidget); the data view itself is always the full list.
+function TrendingResearchWidget(props: IDockviewPanelProps) {
+  const { setSymbol, assetClass } = useWorkspace();
+  const [channel, setChannel] = useChannel(props, "main");
+  const target = channel === "none" ? "main" : channel;
+  const isCrypto = assetClass === "crypto";
+  const ref = useRef<HTMLDivElement>(null);
+  const dense = useContainerNarrow(ref, TRENDING_DENSE_W);
+  const trending = useTrendingResearch(!isCrypto);
+
+  return (
+    <WidgetShell
+      header={
+        <LinkHeader
+          label="Market"
+          channel={channel}
+          setChannel={setChannel}
+          includeNone
+        />
+      }
+    >
+      <div ref={ref} style={{ height: "100%" }}>
+        <Pane pad>
+          {isCrypto ? (
+            <p className="text-[13px]" style={{ color: "var(--mute)" }}>
+              Trending research is stocks-only.
+            </p>
+          ) : (
+            <>
+              {trending.error && <ErrorBanner message={trending.error.message} />}
+              {!trending.data && !trending.error && (
+                <TrendingResearchCardSkeleton bare />
+              )}
+              {trending.data && (
+                <TrendingResearchCard
+                  rows={trending.data.trending}
+                  bare
+                  dense={dense}
+                  onSelect={(s) => setSymbol(target, s)}
+                />
+              )}
+            </>
+          )}
+        </Pane>
+      </div>
+    </WidgetShell>
+  );
+}
+
 // id → React component, consumed by DockviewReact's `components` map.
 export const WIDGET_COMPONENTS: Record<
   string,
@@ -842,6 +900,7 @@ export const WIDGET_COMPONENTS: Record<
   profile: ProfileWidget,
   fundamentals: FundamentalsWidget,
   earnings: EarningsWidget,
+  trending: TrendingResearchWidget,
 };
 
 // Drives the "add widget" menu and panel titles. Grouped + described to power
@@ -919,6 +978,13 @@ export const WIDGET_CATALOG: WidgetMeta[] = [
     title: "Earnings",
     desc: "Upcoming & recent earnings — one symbol or the market calendar",
     iconPath: "M3 2 V4 M11 2 V4 M2 5 H13 V13 H2 Z M2 7 H13 M5 9.5 H6 M8 9.5 H9",
+  },
+  {
+    id: "trending",
+    group: "Market data",
+    title: "Trending",
+    desc: "Top trending stocks by analyst coverage (Tipranks; stocks-only)",
+    iconPath: "M2 12 L6 7 L9 10 L13 4 M10 4 H13 V7",
   },
   {
     id: "positions",

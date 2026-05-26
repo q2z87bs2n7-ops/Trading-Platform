@@ -317,6 +317,29 @@ export interface EconomicResponse {
   as_of?: number;
 }
 
+// Tipranks trending stocks (/api/research/trending). Whole-market list of
+// equities by analyst coverage; no symbol input.
+export interface TrendingResearchRow {
+  ticker: string;
+  company_name: string | null;
+  sector: string | null;
+  popularity: number | null;
+  sentiment: number | null;
+  buy: number | null;
+  hold: number | null;
+  sell: number | null;
+  consensus: string | null;
+  average_price_target: number | null;
+  market_cap: number | null;
+  market_name: string | null;
+  last_rating_date: string | null;
+}
+
+export interface TrendingResearchResponse {
+  trending: TrendingResearchRow[];
+  as_of?: number;
+}
+
 // Benzinga ticker news via Alpaca /api/news
 export interface NewsItem {
   id: number;

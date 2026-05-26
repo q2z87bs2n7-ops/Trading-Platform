@@ -14,6 +14,7 @@ from . import db
 from . import indices as market_indices
 from . import market_news
 from . import stream as quote_stream
+from . import tipranks
 from .ai import router as ai_router
 from .config import get_settings
 from .schemas import (
@@ -291,6 +292,12 @@ def symbol_earnings(symbol: str) -> dict:
 def economic_calendar() -> dict:
     """US high/medium-impact macro calendar (FMP). No Alpaca keys required."""
     return {"economic": calendar_fmp.get_economic_calendar(), "as_of": int(time.time())}
+
+
+@app.get("/api/research/trending")
+def research_trending() -> dict:
+    """Top trending stocks by analyst coverage (Tipranks). Equities only."""
+    return {"trending": tipranks.get_trending_stocks(), "as_of": int(time.time())}
 
 
 @app.get("/api/movers", dependencies=[Depends(require_configured)])

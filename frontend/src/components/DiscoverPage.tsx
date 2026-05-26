@@ -18,6 +18,7 @@ import {
   useRemoveFromCryptoWatchlist,
   useRemoveFromWatchlist,
   useSnapshots,
+  useTrendingResearch,
   useWatchlist,
 } from "../data/hooks";
 import { useLiveQuotes } from "../data/useLiveQuotes";
@@ -41,6 +42,10 @@ import { MoversCard, MoversCardSkeleton } from "./discover/MoversCard";
 import { MoversCombinedCard } from "./discover/MoversCombinedCard";
 import { NewsCard, NewsCardSkeleton } from "./discover/NewsCard";
 import { SparkCard, SparkCardSkeleton } from "./discover/SparkCard";
+import {
+  TrendingResearchCard,
+  TrendingResearchCardSkeleton,
+} from "./discover/TrendingResearchCard";
 import { coinLabel, DONUT_COLORS_GREEN } from "./discover/util";
 import ErrorBanner from "./ErrorBanner";
 import MarketSummaryCard from "./MarketSummaryCard";
@@ -110,6 +115,9 @@ export default function DiscoverPage({
   // shown in the equities silo).
   const earnings = useEarningsCalendar(!isCrypto);
   const economic = useEconomicCalendar(!isCrypto);
+
+  // Tipranks trending stocks — equities only (no crypto coverage).
+  const trending = useTrendingResearch(!isCrypto);
 
   // News source differs per silo: market-wide headlines vs Alpaca BTC feed.
   const stockNews = useMarketNews(8, !isCrypto);
@@ -347,6 +355,21 @@ export default function DiscoverPage({
                 />
               </div>
             ))}
+        </>
+      )}
+
+      {/* Tipranks trending — stocks only */}
+      {!isCrypto && (
+        <>
+          <SectionHeading label="Trending" ctx="by analyst coverage" />
+          {trending.error && <ErrorBanner message={trending.error.message} />}
+          {!trending.data && !trending.error && <TrendingResearchCardSkeleton />}
+          {trending.data && (
+            <TrendingResearchCard
+              rows={trending.data.trending}
+              onSelect={onSelect}
+            />
+          )}
         </>
       )}
 

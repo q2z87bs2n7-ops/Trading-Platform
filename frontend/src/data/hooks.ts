@@ -177,6 +177,15 @@ export const useEconomicCalendar = (enabled = true) =>
     enabled,
   });
 
+export const useTrendingResearch = (enabled = true) =>
+  useQuery({
+    queryKey: qk.trendingResearch,
+    queryFn: api.getTrendingResearch,
+    refetchInterval: 900_000, // matches backend cache TTL
+    staleTime: 600_000,
+    enabled,
+  });
+
 // --- Asset symbol universe (Ask-anything router ticker validation) -------
 // The full catalogue is fetched once a day and served instantly from a
 // localStorage snapshot (stale-while-revalidate). Staleness is harmless: a

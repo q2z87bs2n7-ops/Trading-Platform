@@ -3,9 +3,11 @@
 Per-request research data (analyst consensus, hedge-fund flow, insider
 transactions, sentiment) from the Tipranks external partner API. **Not**
 an asset-catalogue enrichment source — these are live-fetched per ticker
-view, not bulk-seeded into Postgres. No code wired yet; this doc captures
-what was learned probing the provider so the client + DB schema can be
-designed without re-discovering everything.
+view, not bulk-seeded into Postgres.
+
+**Status (POC):** `trendingStocks` is wired as one Discover module + one
+Workspace widget; the other 8 endpoints are inventoried below for future
+work and follow the same client/route shape when they're added.
 
 ## Base & auth
 
@@ -83,6 +85,24 @@ that's better discovered up front than mid-feature).
   look real, so probably prod.
 - **Crypto coverage.** Confirmed equities-only, or does it 404
   gracefully on a crypto symbol vs return stale data?
+
+## Surfaces (wired)
+
+| Surface | Endpoint | Where |
+|---|---|---|
+| Discover **Trending** card (stocks silo only) | `/api/research/trending` → `stocks/trendingStocks` | `components/discover/TrendingResearchCard.tsx`, slotted in `DiscoverPage.tsx` between Most Active and Earnings |
+| Workspace **Trending** widget (stocks-only; crypto shows a notice) | same | `lib/workspace/registry.tsx` (`TrendingResearchWidget`) — reuses the Discover card via the `bare` prop |
+
+Backend client: `backend/app/tipranks.py` — in-process TTL cache (15min on
+`trendingStocks`), graceful empty list when env vars unset (mirrors the FMP /
+CoinGecko shape).
+
+Add a new endpoint by following the same path: a `_norm_*` mapper + a cached
+`get_*` in `tipranks.py`, a route under `/api/research/*` in `main.py`, an
+`api.ts` getter + `types.ts` row shape + `data/hooks.ts` query + a layer-2
+component, then expose via Discover and/or a Workspace adapter (don't forget
+the 4 widget-id sync points — `registry.tsx`, `actions.ts`,
+`tools_workspace.py`, `detectors.ts`).
 
 ## Security note
 
