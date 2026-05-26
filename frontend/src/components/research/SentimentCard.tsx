@@ -17,8 +17,13 @@ function Section({
   return (
     <div className="flex flex-col gap-1">
       <span
-        className="text-[10px] font-medium uppercase"
-        style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
+        className="uppercase"
+        style={{
+          fontSize: 10.5,
+          color: "color-mix(in oklab, var(--mute) 70%, var(--text-2))",
+          letterSpacing: "0.06em",
+          fontWeight: 500,
+        }}
       >
         {label}
       </span>
@@ -47,8 +52,14 @@ function SentimentBar({
   if (pos == null && neu == null && neg == null) {
     return (
       <div
-        className="h-2 w-full rounded"
-        style={{ background: "var(--panel-2)" }}
+        style={{
+          height: 9,
+          width: "100%",
+          borderRadius: 5,
+          background: "var(--panel-2)",
+          boxShadow:
+            "inset 0 1px 0 rgba(0,0,0,0.25), inset 0 -1px 0 rgba(255,255,255,0.02)",
+        }}
       />
     );
   }
@@ -62,8 +73,14 @@ function SentimentBar({
   });
   return (
     <div
-      className="flex h-2 w-full overflow-hidden rounded"
-      style={{ background: "var(--panel-2)" }}
+      className="flex w-full overflow-hidden"
+      style={{
+        height: 9,
+        borderRadius: 5,
+        background: "var(--panel-2)",
+        boxShadow:
+          "inset 0 1px 0 rgba(0,0,0,0.25), inset 0 -1px 0 rgba(255,255,255,0.02)",
+      }}
     >
       <div style={sty(p, "var(--pos)")} />
       <div style={sty(e, "var(--mute)")} />
@@ -140,8 +157,15 @@ export function SentimentCard({
               )}
               {row.news.buzz.buzz != null && (
                 <span
-                  className="text-[10.5px] tabular-nums"
-                  style={{ color: "var(--mute)" }}
+                  className="font-mono tabular-nums"
+                  style={{
+                    fontSize: 11,
+                    color: "var(--text-2)",
+                    background: "var(--panel-2)",
+                    border: "1px solid var(--hairline)",
+                    padding: "2px 7px",
+                    borderRadius: 999,
+                  }}
                   title={
                     row.news.buzz.weekly_average != null
                       ? `${row.news.buzz.this_week ?? "?"} this week · ${row.news.buzz.weekly_average.toFixed(0)} avg`
@@ -203,10 +227,13 @@ export function SentimentCard({
               {row.news.word_cloud.slice(0, 6).map((w, i) => (
                 <span
                   key={i}
-                  className="text-[10.5px] px-1.5 py-0.5 rounded"
+                  className="text-[10.5px]"
                   style={{
-                    background: "var(--panel-2)",
-                    color: "var(--mute)",
+                    background: "transparent",
+                    border: "1px solid var(--hairline)",
+                    color: "var(--text-2)",
+                    padding: "2px 8px",
+                    borderRadius: 999,
                   }}
                   title="Phrase extracted from recent news"
                 >
@@ -352,7 +379,7 @@ export function SentimentCard({
               row.investor.best.portfolios_holding_stock > 0 && (
                 <div
                   className="flex flex-col gap-0.5 mt-1 pt-1"
-                  style={{ borderTop: "1px solid var(--border)" }}
+                  style={{ borderTop: "1px solid var(--hairline)" }}
                 >
                   <span
                     className="text-[10px] uppercase"
@@ -407,12 +434,12 @@ export function SentimentCard({
 
   return (
     <div
-      className="p-[18px]"
       style={{
+        padding: "16px 18px",
         background: "var(--panel)",
         border: "1px solid var(--border)",
         borderRadius: "var(--r-lg)",
-        boxShadow: "var(--shadow-sm)",
+        boxShadow: "0 0 0 1px var(--hairline), 0 1px 1px rgba(0,0,0,0.25)",
       }}
     >
       {body}
@@ -444,11 +471,12 @@ export function SentimentCardSkeleton({ bare = false }: { bare?: boolean } = {})
   if (bare) return body;
   return (
     <div
-      className="p-[18px]"
       style={{
+        padding: "16px 18px",
         background: "var(--panel)",
         border: "1px solid var(--border)",
         borderRadius: "var(--r-lg)",
+        boxShadow: "0 0 0 1px var(--hairline), 0 1px 1px rgba(0,0,0,0.25)",
       }}
     >
       {body}
