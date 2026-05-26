@@ -1,5 +1,130 @@
+import { useEffect, useRef } from "react";
+import {
+  createChart,
+  type IChartApi,
+  type ISeriesApi,
+  type UTCTimestamp,
+} from "lightweight-charts";
+
+import { useTheme } from "../../hooks/useTheme";
 import { fmtCryptoPrice, pct } from "../../lib/format";
-import { fmtPrice, realSparkPaths, sparkPaths } from "./util";
+import { fmtPrice, sparkPaths } from "./util";
+
+// Read --pos / --neg / --panel from the active Calm theme so the chart tracks
+// light/dark swaps. The lightweight-charts canvas can't consume CSS variables
+// directly, so we resolve them at apply-time.
+function readSparkColors(up: boolean) {
+  const cs = getComputedStyle(document.documentElement);
+  const v = (name: string, fallback: string) =>
+    cs.getPropertyValue(name).trim() || fallback;
+  const stroke = v(up ? "--pos" : "--neg", up ? "#16a34a" : "#dc2626");
+  return {
+    stroke,
+    background: v("--panel", "#ffffff"),
+  };
+}
+
+// Approximate an oklch token by sampling the resolved color into a transparent
+// rgba — lightweight-charts wants explicit alpha-baked colors for area fills,
+// and the token may be in any color space, so let the browser do the conversion.
+function withAlpha(color: string, alpha: number): string {
+  // Trust the consumer that the token resolves to *something* paintable; if it
+  // doesn't, lightweight-charts just won't render the fill (no crash).
+  const probe = document.createElement("div");
+  probe.style.color = color;
+  probe.style.display = "none";
+  document.body.appendChild(probe);
+  const rgb = getComputedStyle(probe).color; // "rgb(r, g, b)" or "rgba(...)"
+  document.body.removeChild(probe);
+  const m = rgb.match(/rgba?\(([^)]+)\)/);
+  if (!m) return color;
+  const parts = m[1].split(",").map((s) => s.trim());
+  return `rgba(${parts[0]}, ${parts[1]}, ${parts[2]}, ${alpha})`;
+}
+
+// Tiny lightweight-charts area sparkline. Matches the Workspace Mini-chart's
+// "spark" tier (PriceChart.tsx) for visual parity across the app.
+function SparkChart({
+  closes,
+  up,
+  height,
+}: {
+  closes: number[];
+  up: boolean;
+  height: number;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+  const seriesRef = useRef<ISeriesApi<"Area"> | null>(null);
+  const { theme } = useTheme();
+
+  useEffect(() => {
+    if (!ref.current || chartRef.current) return;
+    const c = readSparkColors(up);
+    const chart = createChart(ref.current, {
+      layout: { background: { color: c.background }, textColor: "transparent" },
+      grid: { vertLines: { visible: false }, horzLines: { visible: false } },
+      rightPriceScale: { visible: false },
+      leftPriceScale: { visible: false },
+      timeScale: { visible: false, borderVisible: false },
+      crosshair: {
+        vertLine: { visible: false, labelVisible: false },
+        horzLine: { visible: false, labelVisible: false },
+      },
+      handleScroll: false,
+      handleScale: false,
+      autoSize: true,
+    });
+    seriesRef.current = chart.addAreaSeries({
+      lineColor: c.stroke,
+      topColor: withAlpha(c.stroke, 0.18),
+      bottomColor: withAlpha(c.stroke, 0),
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      crosshairMarkerVisible: false,
+    });
+    chartRef.current = chart;
+    return () => {
+      chart.remove();
+      chartRef.current = null;
+      seriesRef.current = null;
+    };
+    // Re-create on `up` flip handled via applyOptions below — no remount needed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Re-skin in place when theme toggles or the up/down direction flips.
+  useEffect(() => {
+    if (!chartRef.current || !seriesRef.current) return;
+    const c = readSparkColors(up);
+    chartRef.current.applyOptions({
+      layout: { background: { color: c.background }, textColor: "transparent" },
+    });
+    seriesRef.current.applyOptions({
+      lineColor: c.stroke,
+      topColor: withAlpha(c.stroke, 0.18),
+      bottomColor: withAlpha(c.stroke, 0),
+    });
+  }, [up, theme]);
+
+  // Feed data. We don't have real bar timestamps at this layer (Watchlist /
+  // DiscoverPage only forward closes), so synthesise sequential daily times
+  // ending today — order is what matters, not absolute dates.
+  useEffect(() => {
+    if (!seriesRef.current) return;
+    const t0 = Math.floor(Date.now() / 1000);
+    seriesRef.current.setData(
+      closes.map((v, i) => ({
+        time: (t0 - (closes.length - 1 - i) * 86400) as UTCTimestamp,
+        value: v,
+      })),
+    );
+    chartRef.current?.timeScale().fitContent();
+  }, [closes]);
+
+  return <div ref={ref} style={{ height, width: "100%" }} />;
+}
 
 export function SparkCard({
   symbol,
@@ -28,19 +153,18 @@ export function SparkCard({
   /** Mid tier between full and dense — keeps the sparkline but shorter
    *  (H=32 instead of 48), drops the name slot. */
   compact?: boolean;
-  /** Real recent closes (newest last) for the sparkline. When omitted or
-   *  shorter than 2 points, falls back to the symbol-seeded synthetic
-   *  curve so first paint isn't blank while bars are loading. */
+  /** Real recent closes (newest last). When present we render a tiny
+   *  lightweight-charts area series for visual parity with the Workspace
+   *  Mini chart; otherwise fall back to the symbol-seeded synthetic SVG
+   *  so first paint isn't blank while /api/bars/batch is in flight. */
   closes?: number[];
 }) {
   const up = changePct >= 0;
   const stroke = up ? "var(--pos)" : "var(--neg)";
   const W = 100;
   const H = compact ? 32 : 48;
-  const { line, area } =
-    closes && closes.length >= 2
-      ? realSparkPaths(closes, W, H)
-      : sparkPaths(symbol, changePct, W, H);
+  const hasReal = !!closes && closes.length >= 2;
+  const { line, area } = sparkPaths(symbol, changePct, W, H);
   const gradId = `spark-${symbol.replace(/[^A-Z0-9]/gi, "")}`;
   return (
     <div
@@ -106,21 +230,27 @@ export function SparkCard({
         {pct(changePct)}
       </div>
       {!dense && (
-        <svg
-          height={H}
-          viewBox={`0 0 ${W} ${H}`}
-          preserveAspectRatio="none"
-          className="block w-full mt-1.5"
-        >
-          <defs>
-            <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={stroke} stopOpacity={0.12} />
-              <stop offset="100%" stopColor={stroke} stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <path d={area} fill={`url(#${gradId})`} />
-          <path d={line} fill="none" stroke={stroke} strokeWidth={1.5} />
-        </svg>
+        <div className="mt-1.5" style={{ height: H }}>
+          {hasReal ? (
+            <SparkChart closes={closes!} up={up} height={H} />
+          ) : (
+            <svg
+              height={H}
+              viewBox={`0 0 ${W} ${H}`}
+              preserveAspectRatio="none"
+              className="block w-full"
+            >
+              <defs>
+                <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={stroke} stopOpacity={0.12} />
+                  <stop offset="100%" stopColor={stroke} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <path d={area} fill={`url(#${gradId})`} />
+              <path d={line} fill="none" stroke={stroke} strokeWidth={1.5} />
+            </svg>
+          )}
+        </div>
       )}
     </div>
   );

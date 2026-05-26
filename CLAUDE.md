@@ -79,33 +79,47 @@ separate silos behind a shared account.
     Workspace Watchlist widget; the REST snapshot/ticker calls now seed only
     `prev_close`. The sparkline curve itself is **real recent daily closes**
     fetched once for the whole watchlist via `/api/bars/batch` (`useBarsBatch`,
-    5-min refetch); first paint / missing-data falls back to the
-    symbol-seeded synthetic curve so loading isn't blank.
-    - *Stocks*: unified `DiscoverHero` (silo holdings on the left with a
-      ~80px area-filled net P/L sparkline from `usePnlHistory`, allocation
-      donut + legend on the right behind a hairline divider — replaces the
-      old `BalanceCard` + `AllocationCard` pair), indices marquee ticker,
-      watchlist sparkline cards, inline chart, gainers/losers tabbed card
-      (with most-active volume), **earnings calendar**
+    5-min refetch) and rendered through a tiny **lightweight-charts** area
+    series (`SparkChart` inside `discover/SparkCard.tsx`) for visual parity
+    with the Workspace Mini chart's spark tier; first paint / missing-data
+    falls back to the symbol-seeded synthetic SVG so loading isn't blank.
+    **Desktop layout is a 2-col grid** (`260px 1fr`): a sticky left **watchlist
+    sidebar** + main column with hero / AI summary / inline chart / movers /
+    calendars / news. Clicking a sidebar card writes `selected` which drives
+    the inline chart on the right. Mobile keeps the linear stacked flow
+    (watchlist as a horizontal `CardsRow`, no sidebar).
+    - *Stocks*: `DiscoverHero` (single-column silo holdings + ~80px
+      area-filled net P/L sparkline from `usePnlHistory` — the allocation
+      donut moved to Portfolio as a sibling card), indices marquee ticker,
+      watchlist sidebar, inline chart, gainers/losers tabbed card (with
+      most-active volume), **earnings calendar**
       (`discover/EarningsCard.tsx`, paginated 10/page; Top / Upcoming
       toggle re-sorts the same rows by market cap desc vs date asc
       client-side, with `sortable` opt-in so the Workspace per-symbol
       view stays chronological), **economic calendar**
       (`discover/EconomicCard.tsx`, US high/medium-impact, day-paginated —
       defaults to today, falls back to the next day with events; rows
-      open a Trading Economics search for the event in a new tab), market news.
+      open a Google search for the event name in a new tab — FMP ships
+      no per-event URL and the obvious data-publisher search pages
+      don't map cleanly to FMP's event strings), market news.
       Both pagers share `discover/CardPager.tsx`.
     - *Crypto*: crypto price marquee ticker (`discover/CryptoTicker.tsx`),
-      same `DiscoverHero` (crypto holdings + curve + blue donut palette),
-      crypto watchlist sparkline cards, inline chart, BTC news feed. No
-      movers/most-active (Alpaca has no crypto screener).
+      same single-column `DiscoverHero` (crypto holdings + curve),
+      watchlist sidebar, inline chart, BTC news feed. No movers/most-active
+      (Alpaca has no crypto screener).
   - **Portfolio** — Unified `PortfolioHero` (siloed: silo holdings on the
     left with the **net P/L curve** from `/api/pnl-history` + day chip,
     plus a 2-col stat grid on the right — stocks show Cash · BP · Net
     equity · Total P/L · Open orders; crypto drops Cash since BP already
     *is* the cash for crypto and shows BP · Total P/L · Open orders) +
+    `AllocationDonut` sibling card (donut + legend, sorted biggest slice
+    first; rendered via the shared `components/AllocationDonut.tsx`
+    extracted from the old DiscoverHero — Portfolio is the spec'd home
+    for the donut, Discover is now market discovery only) +
     promoted `Positions` block (`SectionHeading size="lg"`) + a 2-col
-    `Orders` + `Activities` row beneath. On mobile the hero collapses
+    `Orders` + `Activities` row beneath. Clicking a Positions row
+    switches to Chart mode for that symbol (was: just repopulated the
+    bottom TradeBar). On mobile the hero collapses
     to a single column: holdings number + curve on top, hairline, 3-col
     mini-stats below. The desktop two-row header (chrome row + `TopBar`
     status strip) is gone — its content folded into a single

@@ -1,15 +1,14 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import { usePnlHistory } from "../../data/hooks";
 import { money, pct } from "../../lib/format";
 import type { Position } from "../../types";
-import { buildArc, DONUT_COLORS } from "./util";
 
 type AssetClass = "stocks" | "crypto";
 
-// Unified desktop Discover hero. Replaces the old BalanceCard + AllocationCard
-// pair: equity / day chip / PnL sparkline on the left, hairline divider, donut
-// + legend on the right. Mobile keeps using HeroCardMobile.
+// Discover hero: silo holdings + day chip + net-P/L sparkline. Single-column
+// since the allocation donut moved to Portfolio — Discover is for market
+// discovery, the donut belongs alongside the rest of the portfolio summary.
 //
 // TODO: spec calls for a 1D/1W/1M/YTD/ALL window switcher feeding the curve.
 // Backend currently supports only 1M/3M/1Y/ALL (backend/app/alpaca/pnl.py).
@@ -23,7 +22,6 @@ export function DiscoverHero({
   unrealized,
   unrealizedPct,
   positions,
-  colors = DONUT_COLORS,
 }: {
   assetClass: AssetClass;
   title: string;
@@ -32,40 +30,18 @@ export function DiscoverHero({
   dayPlPct: number;
   unrealized: number;
   unrealizedPct: number;
+  // Kept on the API for parity with the previous donut-bearing version; the
+  // hero itself no longer reads it, but call sites pass it through and other
+  // sibling surfaces (Discover's AI summary) still expect the shape.
   positions: Position[] | undefined;
-  colors?: string[];
 }) {
+  // Suppress unused warning; documented above why we still accept the prop.
+  void positions;
   const history = usePnlHistory(assetClass);
   const pnl = history.data?.pnl ?? [];
-  const [hovered, setHovered] = useState<string | null>(null);
 
   const dayUp = dayPl >= 0;
   const allUp = unrealized >= 0;
-
-  const open = useMemo(
-    () =>
-      (positions || [])
-        .filter((p) => p.market_value > 0)
-        .sort((a, b) => b.market_value - a.market_value),
-    [positions],
-  );
-  const total = open.reduce((s, p) => s + p.market_value, 0);
-  const slices = useMemo(() => {
-    if (total === 0) return [];
-    let a = -Math.PI / 2;
-    return open.map((p, i) => {
-      const sweep = (p.market_value / total) * 2 * Math.PI;
-      const a0 = a;
-      const a1 = a + sweep;
-      a = a1;
-      return {
-        symbol: p.symbol,
-        share: p.market_value / total,
-        color: colors[i % colors.length],
-        d: buildArc(60, 60, 50, 38, a0, a1),
-      };
-    });
-  }, [open, total, colors]);
 
   // Curve geometry — 80 px area-filled sparkline beneath the day chip.
   const curve = useMemo(() => {
@@ -91,15 +67,13 @@ export function DiscoverHero({
 
   return (
     <div
-      className="rounded-card-lg mb-6 grid"
+      className="rounded-card-lg mb-6"
       style={{
         background: "var(--panel)",
         border: "1px solid var(--border)",
         boxShadow: "var(--shadow-sm)",
-        gridTemplateColumns: "1.4fr 1fr",
       }}
     >
-      {/* LEFT — equity, day chip, sparkline */}
       <div className="flex flex-col gap-3 p-[22px]">
         <span
           className="text-[12px]"
@@ -169,75 +143,6 @@ export function DiscoverHero({
             style={{ color: "var(--mute)", minHeight: 80 }}
           >
             {history.isPending ? "Loading curve…" : "No trade history yet."}
-          </div>
-        )}
-      </div>
-
-      {/* RIGHT — allocation donut + legend, separated by a hairline */}
-      <div
-        className="flex flex-col gap-3 p-[22px]"
-        style={{ borderLeft: "1px solid var(--hairline)" }}
-      >
-        <div className="flex items-center justify-between">
-          <span
-            className="text-[12px]"
-            style={{ color: "var(--mute)", letterSpacing: "0.02em" }}
-          >
-            Allocation
-          </span>
-          <span className="text-[11.5px]" style={{ color: "var(--mute)" }}>
-            {open.length} symbol{open.length === 1 ? "" : "s"}
-          </span>
-        </div>
-        {open.length === 0 ? (
-          <div className="flex items-center justify-center py-8 text-[13px]" style={{ color: "var(--mute)" }}>
-            No open positions
-          </div>
-        ) : (
-          <div className="flex items-center gap-[18px] min-h-[120px]">
-            <div className="relative shrink-0">
-              <svg width={120} height={120} viewBox="0 0 120 120" className="block">
-                {slices.map((s) => (
-                  <path
-                    key={s.symbol}
-                    d={s.d}
-                    fill={s.color}
-                    opacity={hovered && hovered !== s.symbol ? 0.35 : 1}
-                    style={{ transition: "opacity 0.15s", cursor: "pointer" }}
-                    onMouseEnter={() => setHovered(s.symbol)}
-                    onMouseLeave={() => setHovered(null)}
-                  />
-                ))}
-              </svg>
-            </div>
-            <div
-              className="flex flex-col gap-1 text-[12.5px] flex-1 min-w-0"
-              style={{ maxHeight: 120, overflow: "auto" }}
-            >
-              {slices.map((s) => (
-                <div
-                  key={s.symbol}
-                  className="flex items-center justify-between gap-2.5"
-                  onMouseEnter={() => setHovered(s.symbol)}
-                  onMouseLeave={() => setHovered(null)}
-                  style={{ opacity: hovered && hovered !== s.symbol ? 0.45 : 1 }}
-                >
-                  <span className="flex items-center gap-1.5 min-w-0">
-                    <span
-                      className="w-2 h-2 rounded-full shrink-0"
-                      style={{ background: s.color }}
-                    />
-                    <strong className="font-semibold truncate">{s.symbol}</strong>
-                  </span>
-                  <span
-                    className="tabular-nums font-mono"
-                    style={{ color: "var(--mute)" }}
-                  >
-                    {(s.share * 100).toFixed(1)}%
-                  </span>
-                </div>
-              ))}
-            </div>
           </div>
         )}
       </div>

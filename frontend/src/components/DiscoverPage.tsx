@@ -199,124 +199,151 @@ export default function DiscoverPage({
     quotes[s.symbol] = s;
   });
 
-  return (
-    <div className="max-w-[1280px] mx-auto pt-2">
-      {/* Price strip — equity indices marquee (Yahoo, non-clickable) for
-         stocks, live crypto ticker for crypto. */}
-      {isCrypto ? (
-        <CryptoTicker tickers={liveTickers} />
-      ) : (
-        indices.data && <IndicesTicker indices={indices.data.indices} />
-      )}
+  // Cards container — sidebar mode (desktop) stacks cards vertically so the
+  // watchlist reads as a left-rail column; everywhere else keeps the original
+  // CardsRow (horizontal scroll on mobile / 2-3 col grid on tablet+).
+  function CardsContainer({
+    sidebar,
+    children,
+  }: {
+    sidebar: boolean;
+    children: React.ReactNode;
+  }) {
+    if (!sidebar) return <CardsRow>{children}</CardsRow>;
+    return (
+      <div
+        className="grid gap-2 pb-1"
+        style={{ gridTemplateColumns: "minmax(0, 1fr)" }}
+      >
+        {children}
+      </div>
+    );
+  }
 
-      {/* Hero — combined single card on mobile, unified 60/40 hero on desktop */}
-      {isMobile ? (
-        <div className="mb-6">
-          <HeroCardMobile
-            account={account.data}
-            title={isCrypto ? "Crypto" : "Stocks"}
-            value={invested}
-            dayPl={dayPl}
-            dayPlPct={dayPlPct}
-            unrealized={unrealized}
-            unrealizedPct={unrealizedPct}
-            buyingPower={
-              isCrypto
-                ? account.data?.non_marginable_buying_power ?? 0
-                : account.data?.buying_power ?? 0
-            }
-            positions={siloPositions}
-            colors={isCrypto ? undefined : DONUT_COLORS_GREEN}
-          />
-        </div>
-      ) : (
-        <DiscoverHero
-          assetClass={assetClass}
-          title={isCrypto ? "Crypto" : "Stocks"}
-          value={invested}
-          dayPl={dayPl}
-          dayPlPct={dayPlPct}
-          unrealized={unrealized}
-          unrealizedPct={unrealizedPct}
-          positions={siloPositions}
-          colors={isCrypto ? undefined : DONUT_COLORS_GREEN}
+  function renderWatchlistSection(sidebar: boolean) {
+    return (
+      <>
+        {/* The add affordance is the persistent "+ Add" tile inside the
+           cards container (last cell). Heading stays a simple count. */}
+        <SectionHeading
+          label="Watchlist"
+          size={sidebar ? "sm" : "md"}
+          ctx={
+            watchlist.isPending
+              ? "loading…"
+              : isCrypto
+                ? `${wlSymbols.length} pair${wlSymbols.length === 1 ? "" : "s"}`
+                : `${wlSymbols.length} symbol${wlSymbols.length === 1 ? "" : "s"}`
+          }
         />
-      )}
+        {watchlist.isPending ? (
+          <CardsContainer sidebar={sidebar}>
+            {Array.from({ length: sidebar ? 4 : isCrypto ? 4 : 6 }).map((_, i) => (
+              <SparkCardSkeleton key={i} />
+            ))}
+          </CardsContainer>
+        ) : wlSymbols.length === 0 ? (
+          <CardsContainer sidebar={sidebar}>
+            <AddSymbolTile
+              assetClass={isCrypto ? "crypto" : "us_equity"}
+              isCrypto={isCrypto}
+              isMobile={isMobile}
+              disabled={adding}
+              onChoose={addSymbol}
+              onMobileTap={() => setAddSheetOpen(true)}
+            />
+          </CardsContainer>
+        ) : (
+          <CardsContainer sidebar={sidebar}>
+            {wlSymbols.map((sym) => {
+              const q = quotes[sym];
+              const last = live[sym]?.mid ?? q?.last_price ?? 0;
+              const prev = q?.prev_close ?? 0;
+              const dayChange = prev ? (last - prev) / prev : 0;
+              const pos = siloPositions.find((p) => p.symbol === sym);
+              return (
+                <SparkCard
+                  key={sym}
+                  symbol={isCrypto ? coinLabel(sym) : sym}
+                  name={pos ? `${pos.qty} ${isCrypto ? "units" : "shares"}` : ""}
+                  price={last}
+                  changePct={dayChange}
+                  selected={sym === selected}
+                  onSelect={() => onSelect(sym)}
+                  onRemove={() => removeWatchlistSymbol(sym)}
+                  isCrypto={isCrypto}
+                  closes={barsMap[sym]?.map((b) => b.close)}
+                />
+              );
+            })}
+            <AddSymbolTile
+              assetClass={isCrypto ? "crypto" : "us_equity"}
+              isCrypto={isCrypto}
+              isMobile={isMobile}
+              disabled={adding}
+              onChoose={addSymbol}
+              onMobileTap={() => setAddSheetOpen(true)}
+            />
+          </CardsContainer>
+        )}
+      </>
+    );
+  }
 
-      {/* AI market summary — auto-generated per time window, dismissible */}
-      <MarketSummaryCard
-        cache={marketSummary.cache}
-        isGenerating={marketSummary.isGenerating}
-        windowLabel={marketSummary.windowLabel}
-        onDismiss={marketSummary.dismiss}
-        disabled={marketSummary.disabled}
-      />
+  const tickerStrip = isCrypto ? (
+    <CryptoTicker tickers={liveTickers} />
+  ) : (
+    indices.data && <IndicesTicker indices={indices.data.indices} />
+  );
 
-      {/* Watchlist */}
-      {/* The add affordance is now the persistent "+ Add" tile inside the
-         grid (last cell). Heading stays a simple count — no separate search
-         field "above" the cards. */}
-      <SectionHeading
-        label="Watchlist"
-        ctx={
-          watchlist.isPending
-            ? "loading…"
-            : isCrypto
-              ? `${wlSymbols.length} pair${wlSymbols.length === 1 ? "" : "s"}`
-              : `${wlSymbols.length} symbol${wlSymbols.length === 1 ? "" : "s"}`
+  const heroBlock = isMobile ? (
+    <div className="mb-6">
+      <HeroCardMobile
+        account={account.data}
+        title={isCrypto ? "Crypto" : "Stocks"}
+        value={invested}
+        dayPl={dayPl}
+        dayPlPct={dayPlPct}
+        unrealized={unrealized}
+        unrealizedPct={unrealizedPct}
+        buyingPower={
+          isCrypto
+            ? account.data?.non_marginable_buying_power ?? 0
+            : account.data?.buying_power ?? 0
         }
+        positions={siloPositions}
+        colors={isCrypto ? undefined : DONUT_COLORS_GREEN}
       />
-      {watchlist.isPending ? (
-        <CardsRow>
-          {Array.from({ length: isCrypto ? 4 : 6 }).map((_, i) => (
-            <SparkCardSkeleton key={i} />
-          ))}
-        </CardsRow>
-      ) : wlSymbols.length === 0 ? (
-        <CardsRow>
-          <AddSymbolTile
-            assetClass={isCrypto ? "crypto" : "us_equity"}
-            isCrypto={isCrypto}
-            isMobile={isMobile}
-            disabled={adding}
-            onChoose={addSymbol}
-            onMobileTap={() => setAddSheetOpen(true)}
-          />
-        </CardsRow>
-      ) : (
-        <CardsRow>
-          {wlSymbols.map((sym) => {
-            const q = quotes[sym];
-            const last = live[sym]?.mid ?? q?.last_price ?? 0;
-            const prev = q?.prev_close ?? 0;
-            const dayChange = prev ? (last - prev) / prev : 0;
-            const pos = siloPositions.find((p) => p.symbol === sym);
-            return (
-              <SparkCard
-                key={sym}
-                symbol={isCrypto ? coinLabel(sym) : sym}
-                name={pos ? `${pos.qty} ${isCrypto ? "units" : "shares"}` : ""}
-                price={last}
-                changePct={dayChange}
-                selected={sym === selected}
-                onSelect={() => onSelect(sym)}
-                onRemove={() => removeWatchlistSymbol(sym)}
-                isCrypto={isCrypto}
-                closes={barsMap[sym]?.map((b) => b.close)}
-              />
-            );
-          })}
-          <AddSymbolTile
-            assetClass={isCrypto ? "crypto" : "us_equity"}
-            isCrypto={isCrypto}
-            isMobile={isMobile}
-            disabled={adding}
-            onChoose={addSymbol}
-            onMobileTap={() => setAddSheetOpen(true)}
-          />
-        </CardsRow>
-      )}
+    </div>
+  ) : (
+    <DiscoverHero
+      assetClass={assetClass}
+      title={isCrypto ? "Crypto" : "Stocks"}
+      value={invested}
+      dayPl={dayPl}
+      dayPlPct={dayPlPct}
+      unrealized={unrealized}
+      unrealizedPct={unrealizedPct}
+      positions={siloPositions}
+    />
+  );
 
+  const aiSummary = (
+    <MarketSummaryCard
+      cache={marketSummary.cache}
+      isGenerating={marketSummary.isGenerating}
+      windowLabel={marketSummary.windowLabel}
+      onDismiss={marketSummary.dismiss}
+      disabled={marketSummary.disabled}
+    />
+  );
+
+  // Everything below the watchlist on mobile; everything except the watchlist
+  // on the desktop main column. Defined inline so it captures the enclosing
+  // scope (movers / earnings / economic / news queries + onSelect) without a
+  // props explosion.
+  const mainContent = (
+    <>
       {/* Inline chart */}
       <ChartCard symbol={selected} />
 
@@ -438,6 +465,45 @@ export default function DiscoverPage({
           {!stockNews.data && !stockNews.error && <NewsCardSkeleton />}
           {stockNews.data && <NewsCard articles={stockNews.data.articles} />}
         </>
+      )}
+    </>
+  );
+
+  return (
+    <div className="max-w-[1280px] mx-auto pt-2">
+      {/* Price strip — equity indices marquee (Yahoo, non-clickable) for
+         stocks, live crypto ticker for crypto. */}
+      {tickerStrip}
+
+      {isMobile ? (
+        <>
+          {heroBlock}
+          {aiSummary}
+          {renderWatchlistSection(false)}
+          {mainContent}
+        </>
+      ) : (
+        <div
+          className="grid items-start mt-4"
+          style={{ gridTemplateColumns: "260px 1fr", gap: 20 }}
+        >
+          <aside
+            style={{
+              position: "sticky",
+              top: 16,
+              alignSelf: "start",
+              maxHeight: "calc(100vh - 32px)",
+              overflowY: "auto",
+            }}
+          >
+            {renderWatchlistSection(true)}
+          </aside>
+          <main className="min-w-0">
+            {heroBlock}
+            {aiSummary}
+            {mainContent}
+          </main>
+        </div>
       )}
 
       {/* Mobile watchlist add sheet — replaces the heading input. */}

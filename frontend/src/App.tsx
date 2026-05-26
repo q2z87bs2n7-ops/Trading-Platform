@@ -1,5 +1,10 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { useAppStatus, useCryptoWatchlist, useWatchlist } from "./data/hooks";
+import {
+  useAppStatus,
+  useCryptoWatchlist,
+  usePositions,
+  useWatchlist,
+} from "./data/hooks";
 import { useTheme } from "./hooks/useTheme";
 import MaintenancePage from "./components/MaintenancePage";
 import Positions from "./components/Positions";
@@ -8,8 +13,11 @@ import Activities from "./components/Activities";
 import { HeaderEquityReadout, HeaderStatusInline } from "./components/TopBar";
 import DiscoverPage from "./components/DiscoverPage";
 import AssetClassSplash from "./components/AssetClassSplash";
+import AllocationDonut from "./components/AllocationDonut";
 import PortfolioHero from "./components/PortfolioHero";
 import SectionHeading from "./components/SectionHeading";
+import { isCryptoPosition } from "./lib/asset-class";
+import { DONUT_COLORS_GREEN } from "./components/discover/util";
 import TVPlatform from "./components/TVPlatform";
 import ChatPanel from "./components/chat/ChatPanel";
 import TradeBar from "./components/trade/TradeBar";
@@ -434,11 +442,14 @@ export default function App() {
         </Suspense>
       )}
 
-      {/* Portfolio: hero + positions strip + open orders + activity. Order
-         entry now comes from the floating TradeBar (mounted below). */}
+      {/* Portfolio: hero + allocation + positions strip + open orders +
+         activity. Order entry now comes from the floating TradeBar (mounted
+         below). */}
       {mode === "portfolio" && (
         <div className="max-w-[1280px] mx-auto pt-2">
           <PortfolioHero assetClass={activeClass} />
+
+          <PortfolioAllocation activeClass={activeClass} />
 
           {/* Positions is the primary block — promoted heading + full-width
              list. Orders + Activity drop to a 2-col secondary row beneath. */}
@@ -538,5 +549,35 @@ export default function App() {
         />
       )}
     </>
+  );
+}
+
+// Allocation card on Portfolio. Lives here (not inside PortfolioHero) so the
+// hero stays focused on the silo's headline numbers — the donut is a sibling
+// section beneath, gated on having any open positions in the active silo.
+function PortfolioAllocation({
+  activeClass,
+}: {
+  activeClass: AssetClassMode;
+}) {
+  const positions = usePositions();
+  const siloPositions = (positions.data?.positions || []).filter((p) =>
+    activeClass === "crypto" ? isCryptoPosition(p) : !isCryptoPosition(p),
+  );
+  if (siloPositions.length === 0) return null;
+  return (
+    <div
+      className="rounded-card-lg mb-6"
+      style={{
+        background: "var(--panel)",
+        border: "1px solid var(--border)",
+        boxShadow: "var(--shadow-sm)",
+      }}
+    >
+      <AllocationDonut
+        positions={siloPositions}
+        colors={activeClass === "crypto" ? undefined : DONUT_COLORS_GREEN}
+      />
+    </div>
   );
 }
