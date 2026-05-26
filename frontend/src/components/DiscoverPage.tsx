@@ -469,6 +469,7 @@ export default function DiscoverPage({
             <TrendingResearchCard
               rows={trending.data.trending}
               onSelect={onSelect}
+              dense={isMobile}
             />
           )}
         </>
