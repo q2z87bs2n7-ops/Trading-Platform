@@ -107,16 +107,18 @@ function ChannelPicker({
   value,
   onChange,
   includeNone,
+  tight,
 }: {
   value: Channel;
   onChange: (c: Channel) => void;
   includeNone: boolean;
+  tight?: boolean;
 }) {
   const opts: Channel[] = includeNone
     ? ["none", ...SYMBOL_CHANNELS]
     : SYMBOL_CHANNELS;
   return (
-    <div className="flex items-center gap-1">
+    <div className={tight ? "flex items-center gap-0.5" : "flex items-center gap-1"}>
       {opts.map((id) => {
         const meta = CHANNEL_META[id];
         const active = value === id;
@@ -130,8 +132,8 @@ function ChannelPicker({
             onClick={() => onChange(id)}
             className="cursor-pointer rounded-full p-0"
             style={{
-              width: 11,
-              height: 11,
+              width: tight ? 9 : 11,
+              height: tight ? 9 : 11,
               background: isNone ? "transparent" : meta.color,
               border: isNone
                 ? `2px solid ${active ? "var(--text)" : "var(--border)"}`
@@ -176,8 +178,13 @@ function LinkHeader({
   const [searching, setSearching] = useState(false);
   const canPick = (channel !== "none" || !!pickOnNone) && !!onPickSymbol;
   const accent = channel === "none" ? "transparent" : CHANNEL_META[channel].color;
+  // Self-measure so the header degrades gracefully on narrow panels: the
+  // `· Kind` suffix drops first, then the channel picker tightens its gap.
+  const headerRef = useRef<HTMLDivElement>(null);
+  const headerNarrow = useContainerNarrow(headerRef, 260);
   return (
     <div
+      ref={headerRef}
       className="flex items-center justify-between shrink-0 gap-2"
       style={{
         padding: "6px 10px 5px",
@@ -242,7 +249,7 @@ function LinkHeader({
               {label}
             </span>
           )}
-          {kind && (
+          {kind && !headerNarrow && (
             <span
               className="text-[11px] font-medium truncate"
               style={{ color: "var(--mute)" }}
@@ -253,7 +260,12 @@ function LinkHeader({
         </div>
       )}
       {!lockedChannel && (
-        <ChannelPicker value={channel} onChange={setChannel} includeNone={includeNone} />
+        <ChannelPicker
+          value={channel}
+          onChange={setChannel}
+          includeNone={includeNone}
+          tight={headerNarrow}
+        />
       )}
     </div>
   );
