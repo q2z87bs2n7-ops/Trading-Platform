@@ -424,6 +424,7 @@ const ORDERS_DENSE_W = 560;
 const ACTIVITY_DENSE_W = 360;
 const PROFILE_DENSE_W = 340;
 const EARNINGS_DENSE_W = 420;
+const NEWS_COMPACT_W = 320;
 
 function PositionsWidget(props: IDockviewPanelProps) {
   const { getSymbol, setSymbol, assetClass } = useWorkspace();
@@ -533,6 +534,8 @@ function NewsWidget(props: IDockviewPanelProps) {
   const symbol = channel === "none" ? "" : getSymbol(channel);
   const ticker = newsTicker(channel, symbol, isCrypto);
   const useMarket = channel === "none" && !isCrypto;
+  const ref = useRef<HTMLDivElement>(null);
+  const compact = useContainerNarrow(ref, NEWS_COMPACT_W);
 
   const market = useMarketNews(12, useMarket);
   const perSymbol = useNews(ticker, 12, ticker.length > 0);
@@ -553,32 +556,37 @@ function NewsWidget(props: IDockviewPanelProps) {
         />
       }
     >
-      <Pane pad>
-        {useMarket ? (
-          <>
-            {market.error && <ErrorBanner message={market.error.message} />}
-            {!market.data && !market.error && <NewsCardSkeleton bare />}
-            {market.data && <NewsCard articles={market.data.articles} bare />}
-          </>
-        ) : (
-          <>
-            {perSymbol.error && <ErrorBanner message={perSymbol.error.message} />}
-            {!perSymbol.data && !perSymbol.error && <NewsCardSkeleton bare />}
-            {perSymbol.data && (
-              <NewsCard
-                bare
-                articles={perSymbol.data.news.map((n) => ({
-                  title: n.headline,
-                  link: n.url,
-                  summary: n.summary,
-                  source: n.source,
-                  pub_time: n.time,
-                }))}
-              />
-            )}
-          </>
-        )}
-      </Pane>
+      <div ref={ref} style={{ height: "100%" }}>
+        <Pane pad>
+          {useMarket ? (
+            <>
+              {market.error && <ErrorBanner message={market.error.message} />}
+              {!market.data && !market.error && <NewsCardSkeleton bare />}
+              {market.data && (
+                <NewsCard articles={market.data.articles} bare compact={compact} />
+              )}
+            </>
+          ) : (
+            <>
+              {perSymbol.error && <ErrorBanner message={perSymbol.error.message} />}
+              {!perSymbol.data && !perSymbol.error && <NewsCardSkeleton bare />}
+              {perSymbol.data && (
+                <NewsCard
+                  bare
+                  compact={compact}
+                  articles={perSymbol.data.news.map((n) => ({
+                    title: n.headline,
+                    link: n.url,
+                    summary: n.summary,
+                    source: n.source,
+                    pub_time: n.time,
+                  }))}
+                />
+              )}
+            </>
+          )}
+        </Pane>
+      </div>
     </WidgetShell>
   );
 }
