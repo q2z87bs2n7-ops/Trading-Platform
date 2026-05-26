@@ -338,11 +338,6 @@ export default function AssetClassSplash({
           />
         </div>
 
-        <p className="text-[11.5px]" style={{ color: "var(--mute)" }}>
-          {isMobile
-            ? "Tap the brand mark to switch any time."
-            : "Switch any time from the brand mark · ⌘K to ask anything"}
-        </p>
       </div>
     </div>
   );

@@ -259,8 +259,9 @@ paid Alpaca data plan for the full consolidated tape.
 - Quotes stream in real time via `/api/stream` when a relay is reachable,
   otherwise the watchlist polls `/api/quotes` (~60s dev setting, `POLL_MS`
   in `frontend/src/data/quoteStream.ts`). Charts still load a bar snapshot
-  per symbol/timeframe change. A yellow "Polling · stream off" chip in
-  the `TopBar` status strip indicates when the stream is unavailable.
+  per symbol/timeframe change. A small amber dot next to the silo status
+  indicator (desktop) or the mobile header page-name (mobile) signals
+  when the stream is unavailable and quotes are polling instead.
 - Keys live only in `backend/.env`, which is gitignored. Never commit it.
 - Default watchlist symbols are configurable via `DEFAULT_SYMBOLS` in `.env`.
 - Browser state is in `localStorage`: `asset_class_mode` (stocks / crypto,

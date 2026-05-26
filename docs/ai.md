@@ -117,3 +117,10 @@ anything bot; requires the org to have web search enabled or the API 400s. The
 bot is internal-first and self-heals: if web search is on but unsupported it drops
 the tool and retries from its own tools/knowledge). 60s Anthropic client timeout;
 auth/config errors surface as 503.
+
+`/api/config` re-exports `anthropic_model` + `ai_max_tool_iterations` to the
+frontend so `lib/ai-cost.ts` can render real per-surface cost estimates in
+`AiDisabledNotice` (input + output token medians × published Anthropic
+per-million-token rates, model family detected by substring). The notice's
+"Turn on" CTA dispatches `trading-platform:open-settings` rather than
+toggling the setting directly — explicit consent before credit spend.

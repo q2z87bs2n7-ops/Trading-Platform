@@ -122,4 +122,40 @@ here; use `git log` for that.
 - **Calendar exceptions chip** — the "Cal · N exceptions" popover (holidays +
   half-days, next 21 days) was removed from `TopBar.tsx`; `useCalendar` +
   `/api/calendar` are still wired. Restore as a dedicated surface (a Discover
-  calendar widget or Markets item) rather than back in the status strip.
+  calendar widget or Markets item) rather than back in the (now-deleted)
+  status strip.
+
+## V1 UX-sweep follow-ups
+
+- **PnL window switcher (1D / 1W / YTD).** `DiscoverHero` + `PortfolioHero`
+  designs called for a 1D/1W/1M/YTD/ALL segmented control above the curve.
+  Backend `/api/pnl-history` (`backend/app/alpaca/pnl.py`) currently supports
+  only `1M`/`3M`/`1Y`/`ALL`. Adding 1D needs intraday-bar valuation; 1W needs
+  the same; YTD is trivial. Switcher waits on the backend periods.
+- **Realised-today stat in `PortfolioHero`.** Spec wanted a 2×2 grid with
+  Cash · BP · Total P/L · Realised today. No per-day realised field on
+  `/api/account`. Could derive from `pnl[len-1] - pnl[len-2]` of the
+  net-P/L curve, but the curve is anchored on open-position cost so the
+  derivation is fiddly. Currently substituted with "Open orders".
+- **Activities "View all" footer / pagination.** Spec wanted Activities
+  capped at 8 with a "View all →" link. No full-page Activity route exists;
+  the existing 25–50 fills list stays. Add a `/activity` route (or a modal)
+  and the footer link.
+- **Desktop inline "+ Add" watchlist tile.** Spec wanted a dashed-outline
+  ghost card as the last grid cell on every viewport. Today it's mobile-only;
+  desktop watchlists keep the heading-bar `AssetSearch`. Promoting the tile
+  to desktop needs a popover (vs the current bottom sheet on mobile).
+- **Real-token-median calibration for AI cost estimates.** `lib/ai-cost.ts`
+  uses eyeballed per-surface token medians (input + output) keyed off the
+  prompt sizes in `backend/app/ai/router.py`. Log actual `/api/ai/ask`
+  usage_metadata and update the `USAGE` table from real medians; multiply
+  ChartBot by the observed tool-loop iteration distribution rather than the
+  current static `iterMultiplier: 2`.
+- **Full Tailwind preflight enable** (a.k.a. priority #12 Option A from the
+  V1 sweep handoff). `app-reset.css` covers the most-visible defaults today.
+  Enabling preflight properly will regress hand-styled surfaces that never
+  finished the utility migration — audit + fix surface-by-surface before
+  flipping `corePlugins.preflight: true`.
+- **Real swipe-to-dismiss on `SheetHandle`.** The 36×4 pill grabber is
+  extracted and tap-to-dismiss; native swipe needs a small gesture
+  helper.

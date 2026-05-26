@@ -71,47 +71,65 @@ function readSilo(): AssetClassMode {
   return raw === "crypto" ? "crypto" : "stocks";
 }
 
-// Top of the menu — silo switcher. Dispatches a window event that App.tsx
-// owns the listener for, so the menu doesn't have to thread a callback
-// through the header chrome.
+// Silo switcher row — matches the ToggleRow rhythm (title + description on
+// the left, control on the right) so it reads as a peer of the AI toggles
+// rather than a chip floating above them. Dispatches a window event that
+// App.tsx listens for; no callback drilling through the header chrome.
 function SiloRow({ onClose }: { onClose: () => void }) {
   const current = readSilo();
   function switchTo(silo: AssetClassMode) {
+    if (silo === current) {
+      onClose();
+      return;
+    }
     window.dispatchEvent(
       new CustomEvent("trading-platform:switch-silo", { detail: { silo } }),
     );
     onClose();
   }
   return (
-    <div className="px-3 pt-2 pb-3 flex items-center gap-2">
-      <span className="text-[12px] flex-1" style={{ color: "var(--mute)" }}>
-        Market
-      </span>
+    <div
+      className="px-3 py-3 flex items-start justify-between gap-3"
+      style={{ borderTop: "1px solid var(--hairline)" }}
+    >
+      <div className="flex flex-col min-w-0">
+        <span className="text-[13px] font-medium">Market</span>
+        <span
+          className="text-[12px] mt-0.5 leading-snug"
+          style={{ color: "var(--mute)" }}
+        >
+          Switch between the stocks and crypto silos. Account view stays the
+          same; everything else (positions, watchlist, orders, news) follows
+          this pick.
+        </span>
+      </div>
       <div
-        className="inline-flex"
+        role="radiogroup"
+        aria-label="Active market"
+        className="inline-flex shrink-0"
         style={{
           padding: 2,
-          borderRadius: 8,
+          borderRadius: 999,
           background: "var(--panel-2)",
           border: "1px solid var(--border)",
         }}
       >
         {(["stocks", "crypto"] as AssetClassMode[]).map((s) => {
           const active = s === current;
+          const tint = s === "stocks" ? "var(--pos)" : "var(--accent)";
           return (
             <button
               key={s}
               type="button"
+              role="radio"
+              aria-checked={active}
               onClick={() => switchTo(s)}
-              className="text-[11px] font-semibold px-2.5 py-1 cursor-pointer border-0 capitalize"
+              className="text-[12px] font-semibold cursor-pointer border-0 capitalize transition-colors"
               style={{
-                background: active
-                  ? s === "stocks"
-                    ? "var(--pos)"
-                    : "var(--accent)"
-                  : "transparent",
+                background: active ? tint : "transparent",
                 color: active ? "white" : "var(--text-2)",
-                borderRadius: 6,
+                borderRadius: 999,
+                padding: "5px 14px",
               }}
             >
               {s}
@@ -230,6 +248,8 @@ export default function SettingsMenu() {
           }}
           role="menu"
         >
+          <SectionLabel>Market</SectionLabel>
+
           <SiloRow onClose={() => setOpen(false)} />
 
           <SectionLabel>AI</SectionLabel>

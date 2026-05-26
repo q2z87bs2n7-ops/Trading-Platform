@@ -76,9 +76,10 @@ separate silos behind a shared account.
     `prev_close` (the daily-change baseline) — matching the chart and the
     Workspace Watchlist widget; the REST snapshot/ticker calls now seed only
     `prev_close`.
-    - *Stocks*: holdings + allocation hero (stock positions
-      only; `BalanceCard` headline is silo holdings, with silo day P/L and
-      stock buying power — no shared cash), indices marquee ticker,
+    - *Stocks*: unified `DiscoverHero` (silo holdings on the left with a
+      ~80px area-filled net P/L sparkline from `usePnlHistory`, allocation
+      donut + legend on the right behind a hairline divider — replaces the
+      old `BalanceCard` + `AllocationCard` pair), indices marquee ticker,
       watchlist sparkline cards, inline chart, gainers/losers tabbed card
       (with most-active volume), **earnings calendar**
       (`discover/EarningsCard.tsx`, paginated 10/page), **economic calendar**
@@ -86,19 +87,27 @@ separate silos behind a shared account.
       defaults to today, falls back to the next day with events), market news.
       Both pagers share `discover/CardPager.tsx`.
     - *Crypto*: crypto price marquee ticker (`discover/CryptoTicker.tsx`),
-      holdings + allocation hero (crypto positions only;
-      `non_marginable_buying_power`), crypto watchlist sparkline cards,
-      inline chart, BTC news feed. No movers/most-active (Alpaca has no
-      crypto screener).
-  - **Portfolio** — `PortfolioHero` (siloed: silo holdings + day P/L +
-    unrealized + a reconstructed **net P/L curve** from `/api/pnl-history`)
-    + `Positions` (strip variant, filtered by asset class) + `Orders`
-    (filtered) + `Activities`. `TopBar` status strip mounts in every mode
-    (Discover, Portfolio, Chart). `TopBar` is silo-aware (`assetClass` prop
-    from `App.tsx`): in **stocks** mode it shows the Alpaca market clock
-    (OPEN/CLOSED + next-edge time) and `buying_power`; in **crypto** mode it
-    shows a static `OPEN · 24/7` indicator (the Alpaca clock is equities-only)
-    and BP shows `non_marginable_buying_power`.
+      same `DiscoverHero` (crypto holdings + curve + blue donut palette),
+      crypto watchlist sparkline cards, inline chart, BTC news feed. No
+      movers/most-active (Alpaca has no crypto screener).
+  - **Portfolio** — Unified `PortfolioHero` (siloed: silo holdings on the
+    left with the **net P/L curve** from `/api/pnl-history` + day chip,
+    plus a 2-col stat grid on the right — stocks show Cash · BP · Net
+    equity · Total P/L · Open orders; crypto drops Cash since BP already
+    *is* the cash for crypto and shows BP · Total P/L · Open orders) +
+    promoted `Positions` block (`SectionHeading size="lg"`) + a 2-col
+    `Orders` + `Activities` row beneath. On mobile the hero collapses
+    to a single column: holdings number + curve on top, hairline, 3-col
+    mini-stats below. The desktop two-row header (chrome row + `TopBar`
+    status strip) is gone — its content folded into a single
+    grid-`auto 1fr auto` header in `App.tsx` (Identity · Mode · Account
+    & actions). `HeaderStatusInline` + `HeaderEquityReadout` live in
+    `TopBar.tsx` as exports; `TopBar` itself returns null on every
+    viewport, with the mobile chrome + status merged into
+    `MobileHeader`. The market clock surfaces stocks-only (Alpaca clock
+    is equities-only); crypto shows a static `Open · 24/7`. BP no longer
+    surfaces in any header — it lives in the hero (`buying_power` for
+    stocks, `non_marginable_buying_power` for crypto).
   - **Chart** — `TVPlatform.tsx` wraps the full TradingView Charting
     Library (`frontend/public/charting_library/`, committed — private
     repo only) using **TV's native chrome**: the native header (symbol
@@ -128,16 +137,22 @@ separate silos behind a shared account.
   (`hooks/useMobile.ts`, `matchMedia("(max-width: 640px)")`) gates the
   phone layouts; it mirrors the CSS `@media (max-width: 640px)` breakpoint
   exactly. **Desktop / iPad (> 640px) render unchanged** — every mobile
-  branch is additive, never a replacement. The header swaps to a slim
-  sticky `MobileHeader` (☰ + mode title + `✦` Ask, second row of mode
-  pills + asset toggle) with a left slide-in `MobileNavDrawer` (theme +
-  AI toggle + Account hub); `TopBar` collapses to a one-row status strip
-  whose equity chip opens a balance bottom sheet. Tabular surfaces
-  (`Positions`/`Orders`/`Activities`) render stacked
-  **card lists** instead of tables. Chart mode goes full-bleed
-  (`100dvh`-based height) using TV's native header, and the ChartBot panel
-  becomes a floating **violet launcher + slide-up sheet** (the header `✦`
-  stays Ask-anything — teal — in every mode). `OrderSheet` and the
+  branch is additive, never a replacement. The header is a single merged
+  sticky `MobileHeader`: row 1 carries ☰ · page name + inline `● Open ·
+  until 16:00` micro-status (or `Open · 24/7` for crypto) · equity-pill
+  (opens the existing balance sheet); row 2 keeps mode pills + the silo
+  toggle. The previous mobile status strip (`MobileStatusStrip` under
+  `TopBar`) is gone — its content folded into row 1. ✦ Ask is a
+  floating 48 px launcher in the **bottom-left** corner (matches the
+  ChartBot violet launcher's position in Chart mode for a consistent
+  reach target); it's suppressed in Chart mode itself so the two
+  launchers don't pile up. `MobileNavDrawer` (left slide-in,
+  hamburger-driven) carries the theme toggle, AI toggles, Account hub
+  link, and a Disable-service-worker shortcut. Tabular surfaces
+  (`Positions`/`Orders`/`Activities`) render stacked **card lists**
+  instead of tables. Chart mode goes full-bleed (`100dvh`-based height)
+  using TV's native header, and the ChartBot panel becomes a
+  bottom-left **violet launcher + slide-up sheet**. `OrderSheet` and the
   Ask-anything `AskBar` go full-screen with safe-area-padded sticky
   footers; `TradeBar` and the watchlist add-sheet clear the home
   indicator. Mobile tokens (`--mob-*`, `--safe-*`) live in `index.css`;
@@ -163,11 +178,20 @@ separate silos behind a shared account.
   come back with `qty: null` (executed size lands in `filled_qty`); the
   Orders blotter falls back to `filled_qty`/`notional` for its Qty/Value
   columns.
-  UI surfaces in `components/trade/`: `OrderSheet` (bottom-sheet
-  form), `TradeBar` (floating Buy/Sell pill, mounted in every mode),
-  `ClosePositionCard`, `ModifyOrderCard`, `ConfirmCard`. The Ask
-  anything order intent uses `useOrderTicket` with `skipConfirm: true`.
-  **No `window.confirm` in the trade flow.**
+  UI surfaces in `components/trade/`: `OrderSheet.tsx` (shell +
+  desktop body), `OrderSheetMobile.tsx` (mobile body),
+  `orderSheetParts.tsx` (shared `Chip`/`Stepper`/`AmountToggle`/
+  `DollarInput`/`MobileHalfSheet`/`segStyle`/`TYPE_LABEL`/`TIF_LABEL`).
+  The default export of `OrderSheet.tsx` still picks mobile vs desktop
+  via `useMobile()`, and it re-exports the parts so legacy
+  `from "./OrderSheet"` imports keep working. The mobile and desktop
+  bodies share the same `useOrderTicket` instance so business logic is
+  not duplicated. Other trade surfaces: `TradeBar` (floating Buy/Sell
+  pill, mounted in every mode), `ClosePositionCard`, `ModifyOrderCard`,
+  `ConfirmCard`. The Ask anything order intent uses `useOrderTicket`
+  with `skipConfirm: true`. **No `window.confirm` in the trade flow.**
+  The Orders blotter's cancel-all also runs inline (toolbar row swap)
+  rather than via a modal `ConfirmCard`.
 - **Backend:** FastAPI + `alpaca-py`. Real code in `backend/app/`;
   `api/index.py` is the Vercel shim. Endpoints under `/api/`: health,
   config, status, account, bars, quotes, snapshots, stream, orders, positions,
@@ -328,9 +352,17 @@ separate silos behind a shared account.
   `html[data-theme="dark"]`, switched by `hooks/useTheme.ts` with a
   synchronous bootstrap in `index.html` — don't delete that script or
   every load flashes). Tokens exposed as utilities in
-  `tailwind.config.js`. Fonts: Inter + IBM Plex Mono. Mobile layout
-  tokens (`--mob-*`) and safe-area insets (`--safe-*`) are appended in the
-  same file; `index.html` sets `viewport-fit=cover` so the insets resolve.
+  `tailwind.config.js`. Tailwind preflight stays **off**
+  (`corePlugins.preflight: false`); `frontend/src/app-reset.css` (imported
+  after `index.css` in `main.tsx`) carries a minimal element reset —
+  zeroes `button`, `ul`/`ol`, `fieldset`, and `h1`-`h6` defaults — so a
+  stray bare element doesn't drag in browser chrome next to the
+  utility-styled surfaces. A full preflight enable is a deliberate
+  post-demo follow-up (would regress hand-styled surfaces that never
+  finished the utility migration). Fonts: Inter + IBM Plex Mono. Mobile
+  layout tokens (`--mob-*`) and safe-area insets (`--safe-*`) are
+  appended in the same file; `index.html` sets `viewport-fit=cover` so
+  the insets resolve.
 - **Number formatting** (`frontend/src/lib/format.ts`): `money(n)` is
   the stock/dollar formatter (2 decimal places, USD locale). Crypto
   prices must use `fmtCryptoPrice(n)` — a magnitude ladder (≥$1 → 2 dec,

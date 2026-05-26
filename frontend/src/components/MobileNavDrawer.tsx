@@ -142,16 +142,6 @@ export default function MobileNavDrawer({ open, onClose, onOpenHub, version }: P
           onClick={() => void disableServiceWorker()}
         />
 
-        <div
-          style={{
-            marginTop: "auto",
-            fontSize: 11,
-            color: "var(--mute)",
-            lineHeight: 1.5,
-          }}
-        >
-          Paper trading via Alpaca. Single user; keys server-side only.
-        </div>
       </aside>
       <style>{`@keyframes mob-drawer-in { from { transform: translateX(-100%) } to { transform: none } }`}</style>
     </div>

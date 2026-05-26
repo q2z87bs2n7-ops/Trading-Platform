@@ -18,28 +18,43 @@ both the arrangement and the per-channel symbols.
 
 ## Toolbar
 
-- **＋ Add widget** — primary menu (320px `<body>`-portaled popover with a search
-  input, grouped sections — Charts / Trade / Market data / Activity — and inline
-  single-stroke icons; ↑/↓/Enter/Esc).
-- **Channels strip** — one chip per symbol channel showing the channel symbol +
-  a count of widgets bound to it; click opens `AssetSearch` to retarget the
-  channel everywhere.
-- **Layouts ▾** — 480px popover with two parts: the built-in **presets** (Trader
-  / Researcher / Watcher / Focus — see `presets.tsx`; Trader = the old default,
-  applied on first run; select a card then Apply, which clobbers the canvas), and
-  a **"My layouts"** section for the user's named saved layouts — *Save current
-  as…* (inline name input), then per-row *Apply / Rename / Delete*. A saved
-  layout snapshots the Dockview JSON **and** the current colour-channel symbols
-  into `saved[name] = { layout, channels }` (localStorage); Apply restores both.
-  Applying a preset/custom layout resets only `active` — saved layouts persist.
-- **Tab bars** toggle — per-group header via Dockview.
-- **Focus** toggle — hides the app header for a near-full-screen canvas; `Esc`
-  exits unless a `[role=dialog]` is focused.
+Three-zone CSS grid (`auto 1fr auto`) — channels sit in the centre as the
+visual centrepiece, layouts anchor the left, quiet actions anchor the right.
 
-When the canvas has zero panels an empty-state overlay shows ＋ Add widget /
-Browse layouts CTAs that imperatively open the toolbar menus. The mode also goes
-**full-bleed** (`.app.bleed` in `index.css` — no max-width/gutters, a full-height
-flex column so the dock fills the viewport) and **drops the `TopBar` equity
+- **Layouts selector (LEFT)** — stateful button labelled `▦ {activeName} ▾`
+  (Trader / Researcher / Watcher / Focus for built-in presets, "Custom" for
+  drag-edited or AI-built layouts, otherwise the user-supplied saved name).
+  Opens a 480px popover with two parts: the built-in **presets** (Trader /
+  Researcher / Watcher / Focus — see `presets.tsx`; Trader = the old default,
+  applied on first run; select a card then Apply, which clobbers the canvas),
+  and a **"My layouts"** section for the user's named saved layouts —
+  *Save current as…* (inline name input), then per-row *Apply / Rename /
+  Delete*. A saved layout snapshots the Dockview JSON **and** the current
+  colour-channel symbols into `saved[name] = { layout, channels }`
+  (localStorage); Apply restores both. Applying a preset/custom layout
+  resets only `active` — saved layouts persist.
+- **Channels strip (CENTRE)** — boxed (`var(--bg)`-tinted panel, 1px border,
+  10px radius), eyebrow `CHANNELS` + 1px hairline divider + one chip per
+  symbol channel showing the channel symbol + a count of widgets bound to
+  it; click opens `AssetSearch` to retarget the channel everywhere. Each
+  Dockview panel header also carries a 7px channel-colour dot before the
+  title (`TabWithChannel` in `lib/workspace/registry.tsx`).
+- **Quiet actions (RIGHT)** — `＋ Widget` (ghost variant of AddWidgetMenu),
+  `Tab bars` toggle (per-group header via Dockview), and a `⛶` Focus icon
+  that hides the app header for a near-full-screen canvas (`Esc` exits
+  unless a `[role=dialog]` is focused).
+
+The AddWidgetMenu popover itself (also reachable from the empty-state CTA)
+is unchanged: 320px `<body>`-portaled popover with a search input, grouped
+sections (Charts / Trade / Market data / Activity), inline single-stroke
+icons, and ↑/↓/Enter/Esc keyboard handling.
+
+When the canvas has zero panels an empty-state overlay shows ＋ Add widget,
+▦ Browse layouts, and a violet **✦ Ask AI to build one** CTA (dispatches a
+synthetic ⌘K to open the existing Ask anything bar, which already builds
+custom layouts via `buildCustomLayout`). The mode also goes **full-bleed**
+(`.app.bleed` in `index.css` — no max-width/gutters, a full-height flex
+column so the dock fills the viewport) and **drops the `TopBar` equity
 strip** (account figures live in the Account widget).
 
 ## Widgets
@@ -62,7 +77,10 @@ Widgets reuse existing surfaces:
   equity, day P/L, buying power, cash, positions value, portfolio value, margin
   (initial/maintenance), and short value when non-zero.
 - **Watchlist** — `components/Watchlist.tsx`, silo watchlist spark cards; a click
-  writes to the widget's channel.
+  writes to the widget's channel. Container-width-aware: under ~280px the
+  layout forces a 2-col grid of dense `SparkCard`s (no sparkline, smaller
+  fonts, no name slot) instead of the auto-fill grid that would otherwise
+  collapse to 1-col and waste the dock height.
 - **Positions / Orders / Activity / News** — the existing surfaces.
 - **Profile** — `components/AssetProfile.tsx`, symbol-linked catalogue enrichment
   off `/api/asset-profile`: fundamentals for stocks (sector, market cap, beta,

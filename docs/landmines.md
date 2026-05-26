@@ -362,12 +362,12 @@ desktop / iPad (> 640px) render byte-identical. A few things bite:
   the `@media` rules in `index.css`. Change one, change both — otherwise
   JS-driven branches desync from the style rules.
 - **`--mob-hero-value` lives in the `@media (max-width: 640px)` block, NOT
-  `:root`.** `discover/BalanceCard.tsx` reads it as
-  `var(--mob-hero-value, clamp(34px, 5.4vw, 48px))` — the desktop clamp is
-  the *fallback*, which only fires when the var is undefined. Define the
-  token in `:root` and desktop silently inherits the smaller mobile hero
-  size. The other `--mob-*` / `--safe-*` tokens are fine in `:root` because
-  they're only ever read inside mobile-gated code.
+  `:root`.** `PortfolioHero.tsx` and `discover/HeroCardMobile.tsx` read it
+  as `var(--mob-hero-value, clamp(34px, 5.4vw, 48px))` — the desktop clamp
+  is the *fallback*, which only fires when the var is undefined. Define
+  the token in `:root` and desktop silently inherits the smaller mobile
+  hero size. The other `--mob-*` / `--safe-*` tokens are fine in `:root`
+  because they're only ever read inside mobile-gated code.
 - **Mobile overlays render `position: fixed`.** The nav drawer, the ChartBot
   slide-up + its launcher, the OrderSheet / EquitySheet / watchlist-add
   sheets, and the full-screen AskBar are all fixed. That's why `App.tsx`'s
