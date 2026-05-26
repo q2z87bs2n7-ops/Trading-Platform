@@ -51,6 +51,18 @@ function readSplashSeen(): boolean {
   return localStorage.getItem(SPLASH_SEEN_KEY) === "1";
 }
 
+// Last-used platform mode — persisted so a reload lands on the same tab the
+// user was on (Discover / Portfolio / Chart / Workspace) instead of always
+// snapping back to Discover.
+const PLATFORM_MODE_KEY = "platform_mode_v1";
+function readPlatformMode(): PlatformMode {
+  const raw = localStorage.getItem(PLATFORM_MODE_KEY);
+  if (raw === "discover" || raw === "portfolio" || raw === "chart" || raw === "workspace") {
+    return raw;
+  }
+  return "discover";
+}
+
 // "workspace" is desktop-only; the mobile header renders its own pill set and
 // deliberately omits it.
 const MODES: { value: PlatformMode; label: string }[] = [
@@ -158,7 +170,7 @@ export default function App() {
     if (status?.force_stop) setBooted(true);
   }, [status?.force_stop]);
   const [selected, setSelected] = useState<string>("");
-  const [mode, setMode] = useState<PlatformMode>("discover");
+  const [mode, setMode] = useState<PlatformMode>(readPlatformMode);
   const [assetClassMode, setAssetClassMode] = useState<AssetClassMode | null>(readAssetClassMode);
   const [askOpen, setAskOpen] = useState(false);
   const [hubOpen, setHubOpen] = useState(false);
@@ -178,6 +190,13 @@ export default function App() {
   useEffect(() => {
     if (!selected && symbols.length) setSelected(symbols[0]);
   }, [symbols.join(","), selected]);
+
+  // Workspace is desktop-only. If a mobile reload rehydrated mode=workspace
+  // (e.g. user resized down, or last session was desktop), fall back to
+  // discover so the user isn't stranded on a hidden mode.
+  useEffect(() => {
+    if (isMobile && mode === "workspace") switchMode("discover");
+  }, [isMobile, mode]);
 
   // Self-reload when the deployed build differs from this tab's bundle, so a
   // long-lived tab picks up new code (incl. the maintenance gate) on its own.
@@ -214,6 +233,11 @@ export default function App() {
 
   function switchMode(m: PlatformMode) {
     setMode(m);
+    try {
+      localStorage.setItem(PLATFORM_MODE_KEY, m);
+    } catch {
+      /* private mode / quota — non-fatal, just won't persist */
+    }
   }
 
   function switchAssetClass(m: AssetClassMode) {

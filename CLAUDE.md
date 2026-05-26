@@ -68,7 +68,9 @@ separate silos behind a shared account.
   recolours the `--accent` tokens to green (`--pos`), crypto keeps the
   default blue; `--pos`/`--neg` P/L colours are untouched. The header
   pill switches between four modes
-  (session-only — not persisted; **Workspace** is desktop-only):
+  (persisted across reloads via `localStorage('platform_mode_v1')`;
+  **Workspace** is desktop-only — a mobile reload that rehydrates
+  `workspace` falls back to Discover):
   - **Discover** (default) — one parameterized surface, `DiscoverPage.tsx`
     (`assetClass` prop), sharing the hero / AI summary / watchlist / inline
     chart / news scaffold across both silos and branching only where they
@@ -431,6 +433,7 @@ new surface. Full rules, precedents, and examples: `docs/workspace.md` →
 | Key | Writer | Read by | Notes |
 | --- | ------ | ------- | ----- |
 | `asset_class_mode` | `App.tsx` | `App.tsx` | `"stocks" \| "crypto"`. **Load-bearing** — the silo the app boots into on subsequent loads (post-splash). Also highlights the active card in the Account Hub. |
+| `platform_mode_v1` | `App.tsx` | `App.tsx` | `"discover" \| "portfolio" \| "chart" \| "workspace"`. The header-pill mode the app boots into. A mobile reload that rehydrates `workspace` falls back to `discover` (workspace is desktop-only). |
 | `splash_seen_v1` | `App.tsx` | `App.tsx` | `"1"` once the user has picked a silo from the splash. Subsequent loads skip the splash and land on the `asset_class_mode` silo. Clearing this key restores the first-time landing. |
 | `theme` | `hooks/useTheme.ts` + `index.html` bootstrap | both | `"light" \| "dark"`. Defaults to OS preference. |
 | `chartbot_session` | `useChatSession` | `useChatSession` | Serialised turns + apiHistory, capped at 256 KB. |
