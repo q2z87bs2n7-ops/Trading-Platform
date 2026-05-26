@@ -77,7 +77,7 @@ function SparkChart({
     });
     seriesRef.current = chart.addAreaSeries({
       lineColor: c.stroke,
-      topColor: withAlpha(c.stroke, 0.18),
+      topColor: withAlpha(c.stroke, 0.1),
       bottomColor: withAlpha(c.stroke, 0),
       lineWidth: 2,
       priceLineVisible: false,
@@ -103,7 +103,7 @@ function SparkChart({
     });
     seriesRef.current.applyOptions({
       lineColor: c.stroke,
-      topColor: withAlpha(c.stroke, 0.18),
+      topColor: withAlpha(c.stroke, 0.1),
       bottomColor: withAlpha(c.stroke, 0),
     });
   }, [up, theme]);

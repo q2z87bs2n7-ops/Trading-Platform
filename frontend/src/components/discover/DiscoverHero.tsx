@@ -128,49 +128,66 @@ export function DiscoverHero({
           {money(unrealized)} ({pct(unrealizedPct)})
         </div>
         {curve ? (
-          <svg
-            viewBox={`0 0 ${curve.W} ${curve.H}`}
-            width="100%"
-            height={curve.H}
-            preserveAspectRatio="none"
-            className="block mt-1"
-            aria-hidden
-          >
-            <defs>
-              <linearGradient id="disc-hero-pnl" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={curve.stroke} stopOpacity={0.18} />
-                <stop offset="100%" stopColor={curve.stroke} stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <path d={curve.area} fill="url(#disc-hero-pnl)" />
-            <path
-              d={curve.line}
-              fill="none"
-              stroke={curve.stroke}
-              strokeWidth={1.5}
-            />
+          <div className="relative mt-1" style={{ height: curve.H }}>
+            <svg
+              viewBox={`0 0 ${curve.W} ${curve.H}`}
+              width="100%"
+              height={curve.H}
+              preserveAspectRatio="none"
+              className="block"
+              aria-hidden
+            >
+              <defs>
+                <linearGradient id="disc-hero-pnl" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={curve.stroke} stopOpacity={0.12} />
+                  <stop offset="60%" stopColor={curve.stroke} stopOpacity={0.04} />
+                  <stop offset="100%" stopColor={curve.stroke} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <path d={curve.area} fill="url(#disc-hero-pnl)" />
+              <path
+                d={curve.line}
+                fill="none"
+                stroke={curve.stroke}
+                strokeWidth={1.5}
+                vectorEffect="non-scaling-stroke"
+              />
+            </svg>
+            {/* Start-of-today marker rendered in pixel space so dashes don't
+               stretch and the dot stays a circle (the SVG above uses
+               preserveAspectRatio="none" which would distort both). */}
             {curve.marker && (
               <>
-                <line
-                  x1={curve.marker.x}
-                  y1={0}
-                  x2={curve.marker.x}
-                  y2={curve.H}
-                  stroke="var(--mute)"
-                  strokeWidth={1}
-                  strokeDasharray="3 3"
-                  opacity={0.5}
+                <div
+                  aria-hidden
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    bottom: 0,
+                    left: `${(curve.marker.x / curve.W) * 100}%`,
+                    width: 0,
+                    borderLeft: "1px dashed var(--mute)",
+                    opacity: 0.6,
+                    pointerEvents: "none",
+                  }}
                 />
-                <circle
-                  cx={curve.marker.x}
-                  cy={curve.marker.y}
-                  r={2.5}
-                  fill="var(--mute)"
-                  opacity={0.7}
+                <div
+                  aria-hidden
+                  style={{
+                    position: "absolute",
+                    left: `calc(${(curve.marker.x / curve.W) * 100}% - 3px)`,
+                    top: `calc(${(curve.marker.y / curve.H) * 100}% - 3px)`,
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    background: "var(--mute)",
+                    opacity: 0.85,
+                    pointerEvents: "none",
+                  }}
                 />
               </>
             )}
-          </svg>
+          </div>
         ) : (
           <div
             className="text-[12px] mt-1"

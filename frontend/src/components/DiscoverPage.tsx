@@ -521,6 +521,7 @@ export default function DiscoverPage({
           }}
         >
           <aside
+            className={sidebarCollapsed ? undefined : "themed-scroll"}
             style={{
               position: "sticky",
               top: 16,
