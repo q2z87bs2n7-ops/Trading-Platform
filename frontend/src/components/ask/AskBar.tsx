@@ -18,6 +18,8 @@ import {
 import { useFirstOpenHint } from "../../hooks/useFirstOpenHint";
 import { useSettings } from "../../hooks/useSettings";
 import { useMobile } from "../../hooks/useMobile";
+import { useSpeechToText } from "../../hooks/useSpeechToText";
+import MicButton from "../MicButton";
 import { AskResult } from "./cards";
 
 interface Turn {
@@ -259,6 +261,11 @@ interface Props {
 
 export default function AskBar({ open, assetClass, onClose, onOpenInWorkspace }: Props) {
   const [text, setText] = useState("");
+  const [interim, setInterim] = useState("");
+  const speech = useSpeechToText({
+    onAppend: (delta) => setText((t) => t + delta),
+    onInterim: setInterim,
+  });
   // Combined cache: turns (rendered transcript) + apiHistory (model context).
   // Persisted to localStorage so reopens / reloads keep prior Q&A without
   // re-billing Anthropic for already-resolved turns.
@@ -324,6 +331,8 @@ export default function AskBar({ open, assetClass, onClose, onOpenInWorkspace }:
       return () => clearTimeout(id);
     }
     setText("");
+    setInterim("");
+    speech.stop();
   }, [open]);
 
   // ESC closes.
@@ -387,6 +396,7 @@ export default function AskBar({ open, assetClass, onClose, onOpenInWorkspace }:
   function submit(value: string) {
     const trimmed = value.trim();
     if (!trimmed) return;
+    if (speech.listening) speech.stop();
     counter.current += 1;
     const intent = routeQuery(trimmed, { assetClass, aiEnabled, symbolUniverse });
     // Drop the force-AI prefix from the displayed query bubble.
@@ -406,6 +416,7 @@ export default function AskBar({ open, assetClass, onClose, onOpenInWorkspace }:
       ],
     }));
     setText("");
+    setInterim("");
     // Refocus so the user can keep typing follow-ups without re-clicking.
     requestAnimationFrame(() => inputRef.current?.focus());
   }
@@ -649,7 +660,8 @@ export default function AskBar({ open, assetClass, onClose, onOpenInWorkspace }:
         >
           <textarea
             ref={inputRef}
-            value={text}
+            value={speech.listening && interim ? `${text}${text ? " " : ""}${interim}` : text}
+            readOnly={speech.listening}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
@@ -657,7 +669,7 @@ export default function AskBar({ open, assetClass, onClose, onOpenInWorkspace }:
                 submit(text);
               }
             }}
-            placeholder="Ask anything — orders, portfolio, news, charts…"
+            placeholder={speech.listening ? "Listening…" : "Ask anything — orders, portfolio, news, charts…"}
             rows={1}
             className="flex-1 resize-none bg-transparent outline-none text-[15px]"
             style={{
@@ -671,6 +683,14 @@ export default function AskBar({ open, assetClass, onClose, onOpenInWorkspace }:
               padding: "8px 10px",
             }}
           />
+          {speech.supported && (
+            <MicButton
+              listening={speech.listening}
+              onClick={speech.toggle}
+              size={isMobile ? 44 : 36}
+              variant="accent"
+            />
+          )}
           <button
             type="button"
             onClick={() => submit(`ai: ${text}`)}
