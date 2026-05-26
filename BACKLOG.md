@@ -141,10 +141,6 @@ here; use `git log` for that.
   capped at 8 with a "View all →" link. No full-page Activity route exists;
   the existing 25–50 fills list stays. Add a `/activity` route (or a modal)
   and the footer link.
-- **Desktop inline "+ Add" watchlist tile.** Spec wanted a dashed-outline
-  ghost card as the last grid cell on every viewport. Today it's mobile-only;
-  desktop watchlists keep the heading-bar `AssetSearch`. Promoting the tile
-  to desktop needs a popover (vs the current bottom sheet on mobile).
 - **Real-token-median calibration for AI cost estimates.** `lib/ai-cost.ts`
   uses eyeballed per-surface token medians (input + output) keyed off the
   prompt sizes in `backend/app/ai/router.py`. Log actual `/api/ai/ask`
@@ -156,6 +152,3 @@ here; use `git log` for that.
   Enabling preflight properly will regress hand-styled surfaces that never
   finished the utility migration — audit + fix surface-by-surface before
   flipping `corePlugins.preflight: true`.
-- **Real swipe-to-dismiss on `SheetHandle`.** The 36×4 pill grabber is
-  extracted and tap-to-dismiss; native swipe needs a small gesture
-  helper.

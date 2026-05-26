@@ -1,3 +1,5 @@
+import { useRef } from "react";
+
 import { useAccount, useClock } from "../data/hooks";
 import { useStreamStatus } from "../hooks/useStreamStatus";
 import type { AssetClass } from "../lib/ask-intent";
@@ -117,6 +119,7 @@ export function EquitySheet({
       isCrypto ? acct.non_marginable_buying_power : acct.buying_power,
     ],
   ];
+  const sheetRef = useRef<HTMLDivElement>(null);
   return (
     <div
       role="dialog"
@@ -126,6 +129,7 @@ export function EquitySheet({
       onClick={onClose}
     >
       <div
+        ref={sheetRef}
         onClick={(e) => e.stopPropagation()}
         style={{
           position: "absolute",
@@ -141,7 +145,11 @@ export function EquitySheet({
           animation: "mob-sheet-in 200ms ease",
         }}
       >
-        <SheetHandle />
+        <SheetHandle
+          ariaLabel="Dismiss balance sheet"
+          onClick={onClose}
+          sheetRef={sheetRef}
+        />
         {rows.map(([k, v]) => (
           <div
             key={k}

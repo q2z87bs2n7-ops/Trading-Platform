@@ -5,7 +5,7 @@
  * pills strip below the header, pill composer with circular send.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useChatSession } from "../../hooks/useChatSession";
 import { useFirstOpenHint } from "../../hooks/useFirstOpenHint";
 import { useMobile } from "../../hooks/useMobile";
@@ -59,6 +59,7 @@ export default function ChatPanel({ symbol, resolution = "D" }: Props) {
   // Mobile-only: the panel is a slide-up sheet, closed by default and
   // opened from the floating violet launcher.
   const [open, setOpen] = useState(false);
+  const sheetRef = useRef<HTMLDivElement>(null);
   const session = useChatSession({ symbol, resolution });
 
   useEffect(() => {
@@ -97,6 +98,7 @@ export default function ChatPanel({ symbol, resolution = "D" }: Props) {
     }
     return (
       <div
+        ref={sheetRef}
         style={{
           position: "fixed",
           left: 0,
@@ -115,7 +117,11 @@ export default function ChatPanel({ symbol, resolution = "D" }: Props) {
           animation: "mob-sheet-in 200ms ease",
         }}
       >
-        <SheetHandle ariaLabel="Close ChartBot" onClick={() => setOpen(false)} />
+        <SheetHandle
+          ariaLabel="Close ChartBot"
+          onClick={() => setOpen(false)}
+          sheetRef={sheetRef}
+        />
         <ChatHeader
           canClear={enabled && !session.busy && session.turns.length > 0}
           onCollapse={() => setOpen(false)}
