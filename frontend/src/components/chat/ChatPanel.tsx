@@ -111,6 +111,8 @@ export default function ChatPanel({ symbol, resolution = "D" }: Props) {
           canClear={enabled && !session.busy && session.turns.length > 0}
           onCollapse={() => setOpen(false)}
           onClear={session.clear}
+          symbol={symbol}
+          resolution={resolution}
         />
         {enabled ? (
           <>
@@ -139,26 +141,51 @@ export default function ChatPanel({ symbol, resolution = "D" }: Props) {
   }
 
   if (collapsed) {
+    // Full-height 36 px vertical rail. Reads as a permanent feature of the UI
+    // (not a floating widget). Anywhere on the rail expands.
     return (
-      <div
-        className="flex h-full w-11 items-start justify-center pt-3"
+      <button
+        type="button"
+        aria-label="Open ChartBot"
+        title="Open ChartBot"
+        onClick={() => setCollapsed(false)}
+        className="flex h-full flex-col items-center justify-between cursor-pointer"
         style={{
-          background:
-            "linear-gradient(180deg, var(--cb-accent-soft) 0%, var(--bg) 100%)",
-          borderLeft: "1px solid var(--border)",
+          width: 36,
+          padding: "12px 0",
+          background: "oklch(60% 0.17 290 / 0.18)",
+          borderLeft: "1px solid oklch(60% 0.17 290 / 0.4)",
+          border: 0,
         }}
       >
-        <button
-          type="button"
-          aria-label="Open ChartBot"
-          onClick={() => setCollapsed(false)}
-          className="cursor-pointer border-0 bg-transparent text-[18px]"
-          style={{ color: "var(--cb-accent)" }}
-          title="Open ChartBot"
+        <span
+          aria-hidden
+          style={{ color: "var(--cb-accent)", fontSize: 17, lineHeight: 1 }}
         >
           ✦
-        </button>
-      </div>
+        </span>
+        <span
+          aria-hidden
+          className="font-mono"
+          style={{
+            fontSize: 10,
+            color: "var(--cb-accent)",
+            letterSpacing: "0.18em",
+            opacity: 0.8,
+            whiteSpace: "nowrap",
+            writingMode: "vertical-rl",
+            transform: "rotate(180deg)",
+          }}
+        >
+          CHARTBOT
+        </span>
+        <span
+          aria-hidden
+          style={{ color: "var(--cb-accent)", fontSize: 14, opacity: 0.5 }}
+        >
+          ‹
+        </span>
+      </button>
     );
   }
 
@@ -177,6 +204,8 @@ export default function ChatPanel({ symbol, resolution = "D" }: Props) {
         canClear={enabled && !session.busy && session.turns.length > 0}
         onCollapse={() => setCollapsed(true)}
         onClear={session.clear}
+        symbol={symbol}
+        resolution={resolution}
       />
       {enabled ? (
         <>
