@@ -137,10 +137,17 @@ export default function DiscoverPage({
   const cryptoNews = useNews("BTC", 8, isCrypto);
 
   const wlSymbols = watchlist.data?.symbols ?? [];
-  const snaps = useSnapshots(wlSymbols);
+  // Snapshot + live-quote universe includes the currently-selected symbol so
+  // the sticky chart-mini bar has data even when the user picked from outside
+  // the watchlist (e.g. clicked an Earnings calendar row).
+  const quoteSymbols = useMemo(
+    () => (selected && !wlSymbols.includes(selected) ? [...wlSymbols, selected] : wlSymbols),
+    [wlSymbols.join(","), selected],
+  );
+  const snaps = useSnapshots(quoteSymbols);
   // Live stream price for the watchlist cards (matches the chart); snapshot
   // prev_close still drives the % change.
-  const { quotes: live } = useLiveQuotes(wlSymbols);
+  const { quotes: live } = useLiveQuotes(quoteSymbols);
   const barsBatch = useBarsBatch(wlSymbols);
   const barsMap = barsBatch.data?.bars ?? {};
   const marketSummary = useMarketSummary(wlSymbols, assetClass);
@@ -394,16 +401,13 @@ export default function DiscoverPage({
   // scope (movers / earnings / economic / news queries + onSelect) without a
   // props explosion.
   // Live price + day-change for the selected symbol — same values the
-  // SparkCards render so the mini bar tracks them. The selected symbol may
-  // not be in the watchlist (e.g. picked from the Earnings card), in which
-  // case we have no snapshot — suppress the price/chip rather than showing
-  // stale zeros.
+  // SparkCards render so the mini bar tracks them. `selected` is always
+  // included in quoteSymbols so the snapshot + live-quote fetches cover it
+  // even when it's not on the watchlist.
   const selQuote = quotes[selected];
-  const selLive = live[selected];
-  const selRawPrice = selLive?.mid ?? selQuote?.last_price ?? 0;
+  const selPrice = live[selected]?.mid ?? selQuote?.last_price ?? 0;
   const selPrev = selQuote?.prev_close ?? 0;
-  const hasSelData = selRawPrice > 0;
-  const selDayChange = selPrev > 0 ? (selRawPrice - selPrev) / selPrev : 0;
+  const selDayChange = selPrev > 0 ? (selPrice - selPrev) / selPrev : 0;
   const selUp = selDayChange >= 0;
 
   const mainContent = (
@@ -677,27 +681,21 @@ export default function DiscoverPage({
                 <span className="font-semibold" style={{ fontSize: 13 }}>
                   {isCrypto ? coinLabel(selected) : selected}
                 </span>
-                {hasSelData && (
-                  <>
-                    <span
-                      className="font-mono tabular-nums"
-                      style={{ fontSize: 13 }}
-                    >
-                      {isCrypto ? fmtCryptoPrice(selRawPrice) : fmtPrice(selRawPrice)}
-                    </span>
-                    {selPrev > 0 && (
-                      <span
-                        className="font-mono tabular-nums"
-                        style={{
-                          fontSize: 12,
-                          color: selUp ? "var(--pos)" : "var(--neg)",
-                        }}
-                      >
-                        {pct(selDayChange)}
-                      </span>
-                    )}
-                  </>
-                )}
+                <span
+                  className="font-mono tabular-nums"
+                  style={{ fontSize: 13 }}
+                >
+                  {isCrypto ? fmtCryptoPrice(selPrice) : fmtPrice(selPrice)}
+                </span>
+                <span
+                  className="font-mono tabular-nums"
+                  style={{
+                    fontSize: 12,
+                    color: selUp ? "var(--pos)" : "var(--neg)",
+                  }}
+                >
+                  {pct(selDayChange)}
+                </span>
                 <span
                   className="ml-auto"
                   style={{ color: "var(--mute)", fontSize: 11 }}
