@@ -46,7 +46,7 @@ export function DiscoverHero({
     () =>
       (positions || [])
         .filter((p) => p.market_value > 0)
-        .sort((a, b) => a.market_value - b.market_value),
+        .sort((a, b) => b.market_value - a.market_value),
     [positions],
   );
   const total = open.reduce((s, p) => s + p.market_value, 0);

@@ -87,9 +87,13 @@ separate silos behind a shared account.
       old `BalanceCard` + `AllocationCard` pair), indices marquee ticker,
       watchlist sparkline cards, inline chart, gainers/losers tabbed card
       (with most-active volume), **earnings calendar**
-      (`discover/EarningsCard.tsx`, paginated 10/page), **economic calendar**
+      (`discover/EarningsCard.tsx`, paginated 10/page; Top / Upcoming
+      toggle re-sorts the same rows by market cap desc vs date asc
+      client-side, with `sortable` opt-in so the Workspace per-symbol
+      view stays chronological), **economic calendar**
       (`discover/EconomicCard.tsx`, US high/medium-impact, day-paginated —
-      defaults to today, falls back to the next day with events), market news.
+      defaults to today, falls back to the next day with events; rows
+      open a Trading Economics search for the event in a new tab), market news.
       Both pagers share `discover/CardPager.tsx`.
     - *Crypto*: crypto price marquee ticker (`discover/CryptoTicker.tsx`),
       same `DiscoverHero` (crypto holdings + curve + blue donut palette),
@@ -215,8 +219,10 @@ separate silos behind a shared account.
   no Alpaca keys and return `[]` when `FMP_API_KEY` is unset. The earnings
   calendar curates the noisy whole-market feed by **market cap**
   (`db.market_cap_map()`) but always unions the user's positions / open orders /
-  watchlist symbols (passed as `?include=`); when the DB is unreachable it
-  degrades to those `include` symbols only. FMP economic times are **UTC**. `/api/news` and `/api/most-active` are
+  watchlist symbols (passed as `?include=`); rows arrive sorted by market cap
+  desc (the frontend's "Top" mode — "Upcoming" re-sorts by date asc client-side
+  off the same array). When the DB is unreachable it degrades to those `include`
+  symbols only. FMP economic times are **UTC**. `/api/news` and `/api/most-active` are
   served but only consumed by the AI tool loop — don't delete them. `/api/assets`
   (search) and `/api/assets/{symbol}` are **DB-backed** off the catalogue (clean
   enum values, sector/logo/market_cap; Alpaca fallback) and power the watchlist

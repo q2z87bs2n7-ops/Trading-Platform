@@ -384,7 +384,11 @@ export default function DiscoverPage({
           {earnings.error && <ErrorBanner message={earnings.error.message} />}
           {!earnings.data && !earnings.error && <EarningsCardSkeleton />}
           {earnings.data && (
-            <EarningsCard rows={earnings.data.earnings} onSelect={onSelect} />
+            <EarningsCard
+              rows={earnings.data.earnings}
+              onSelect={onSelect}
+              sortable
+            />
           )}
 
           <SectionHeading label="Economic calendar" ctx="US · high & medium impact" />
