@@ -11,6 +11,7 @@ import { useFirstOpenHint } from "../../hooks/useFirstOpenHint";
 import { useMobile } from "../../hooks/useMobile";
 import { useSettings } from "../../hooks/useSettings";
 import AiDisabledNotice from "../AiDisabledNotice";
+import SheetHandle from "../SheetHandle";
 import ChatHeader from "./ChatHeader";
 import ChatTranscript from "./ChatTranscript";
 import ChatComposer from "./ChatComposer";
@@ -114,23 +115,7 @@ export default function ChatPanel({ symbol, resolution = "D" }: Props) {
           animation: "mob-sheet-in 200ms ease",
         }}
       >
-        <button
-          type="button"
-          aria-label="Close ChartBot"
-          onClick={() => setOpen(false)}
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            padding: "8px 0 4px",
-            background: "transparent",
-            border: 0,
-            cursor: "pointer",
-          }}
-        >
-          <span
-            style={{ width: 36, height: 4, borderRadius: 99, background: "var(--border-2)" }}
-          />
-        </button>
+        <SheetHandle ariaLabel="Close ChartBot" onClick={() => setOpen(false)} />
         <ChatHeader
           canClear={enabled && !session.busy && session.turns.length > 0}
           onCollapse={() => setOpen(false)}

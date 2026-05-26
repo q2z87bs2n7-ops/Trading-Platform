@@ -64,6 +64,20 @@ function Toggle({
   );
 }
 
+// Group label between sections of the settings menu (AI / System / …).
+// Thin separator only — the first ToggleRow under each label still draws
+// its own top border, so the eye reads section breaks consistently.
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      className="px-3 pt-3 pb-1 text-[10.5px] uppercase font-semibold"
+      style={{ color: "var(--mute)", letterSpacing: "0.06em" }}
+    >
+      {children}
+    </div>
+  );
+}
+
 function ToggleRow({
   title,
   desc,
@@ -145,12 +159,7 @@ export default function SettingsMenu() {
           }}
           role="menu"
         >
-          <div
-            className="px-3 py-2 text-[11px] uppercase font-semibold"
-            style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
-          >
-            Settings
-          </div>
+          <SectionLabel>AI</SectionLabel>
 
           <ToggleRow
             title="Market summary AI"
@@ -175,6 +184,8 @@ export default function SettingsMenu() {
             onChange={(v) => updateSettings({ chartbotEnabled: v })}
             label="Enable ChartBot"
           />
+
+          <SectionLabel>System</SectionLabel>
 
           <div
             className="px-3 py-3 flex items-center justify-between gap-3"

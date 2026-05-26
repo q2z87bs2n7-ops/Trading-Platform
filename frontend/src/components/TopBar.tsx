@@ -2,6 +2,7 @@ import { useAccount, useClock } from "../data/hooks";
 import { useStreamStatus } from "../hooks/useStreamStatus";
 import type { AssetClass } from "../lib/ask-intent";
 import type { Account } from "../types";
+import SheetHandle from "./SheetHandle";
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD" });
@@ -140,11 +141,7 @@ export function EquitySheet({
           animation: "mob-sheet-in 200ms ease",
         }}
       >
-        <div style={{ display: "flex", justifyContent: "center", paddingBottom: 10 }}>
-          <span
-            style={{ width: 36, height: 4, borderRadius: 99, background: "var(--border-2)" }}
-          />
-        </div>
+        <SheetHandle />
         {rows.map(([k, v]) => (
           <div
             key={k}
