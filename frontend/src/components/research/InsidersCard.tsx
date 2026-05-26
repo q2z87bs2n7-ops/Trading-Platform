@@ -130,10 +130,12 @@ export function InsidersCard({
   row,
   bare = false,
   dense = false,
+  narrow = false,
 }: {
   row: InsidersRow | null;
   bare?: boolean;
   dense?: boolean;
+  narrow?: boolean;
 }) {
   const [page, setPage] = useState(0);
   const txns = row?.transactions ?? [];
@@ -142,8 +144,10 @@ export function InsidersCard({
   const start = safePage * PAGE_SIZE;
   const visible = txns.slice(start, start + PAGE_SIZE);
 
-  // Last 6 months of bucketed activity (chronological).
-  const monthly = (row?.monthly ?? []).slice(-6);
+  // Last 6 months of bucketed activity (chronological); narrow panels show
+  // last 3 so the per-bar labels stay readable.
+  const monthCount = narrow ? 3 : 6;
+  const monthly = (row?.monthly ?? []).slice(-monthCount);
 
   const body =
     row == null ? (
@@ -222,9 +226,11 @@ export function InsidersCard({
               className="text-[10px] uppercase"
               style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
             >
-              Last 6 months (buys vs sells)
+              Last {monthCount} months (buys vs sells)
             </span>
-            <div className="grid grid-cols-6 gap-2">
+            <div
+              className={`grid gap-2 ${narrow ? "grid-cols-3" : "grid-cols-6"}`}
+            >
               {monthly.map((m) => (
                 <div
                   key={`${m.year}-${m.month}`}

@@ -95,10 +95,12 @@ export function HedgeFundsCard({
   row,
   bare = false,
   dense = false,
+  narrow = false,
 }: {
   row: HedgeFundsRow | null;
   bare?: boolean;
   dense?: boolean;
+  narrow?: boolean;
 }) {
   const [page, setPage] = useState(0);
 
@@ -139,8 +141,11 @@ export function HedgeFundsCard({
           )}
         </div>
 
-        {/* Top stats grid */}
-        <div className="grid grid-cols-3 gap-3">
+        {/* Top stats grid — 3-col by default, single column at narrow widths
+            (cells get cramped below ~340px panel width). */}
+        <div
+          className={`grid gap-3 ${narrow ? "grid-cols-1" : "grid-cols-3"}`}
+        >
           <div className="flex flex-col gap-0.5">
             <span
               className="text-[10px] uppercase"
@@ -179,7 +184,8 @@ export function HedgeFundsCard({
           </div>
         </div>
 
-        {/* Quarterly holdings history (last 4 quarters) */}
+        {/* Quarterly holdings history — last 4 quarters at full width, last 2
+            at narrow widths so the per-cell numeric label stays readable. */}
         {row.holdings_history.length > 0 && (
           <div className="flex flex-col gap-1">
             <span
@@ -190,7 +196,7 @@ export function HedgeFundsCard({
             </span>
             <div className="flex gap-2">
               {row.holdings_history
-                .slice(-4)
+                .slice(narrow ? -2 : -4)
                 .map((h) => (
                   <div
                     key={h.date}

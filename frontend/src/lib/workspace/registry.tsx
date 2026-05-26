@@ -474,7 +474,9 @@ const EARNINGS_TIGHT_W = 320;
 const TRENDING_DENSE_W = 360;
 const ANALYSTS_DENSE_W = 380;
 const HEDGEFUNDS_DENSE_W = 420;
+const HEDGEFUNDS_NARROW_W = 340;
 const INSIDERS_DENSE_W = 420;
+const INSIDERS_NARROW_W = 340;
 const NEWS_COMPACT_W = 320;
 
 function PositionsWidget(props: IDockviewPanelProps) {
@@ -1056,6 +1058,7 @@ function HedgeFundsWidget(props: IDockviewPanelProps) {
   const isCrypto = assetClass === "crypto" || isCryptoSymbol(symbol);
   const ref = useRef<HTMLDivElement>(null);
   const dense = useContainerNarrow(ref, HEDGEFUNDS_DENSE_W);
+  const narrow = useContainerNarrow(ref, HEDGEFUNDS_NARROW_W);
   const data = useHedgeFunds(symbol, !isCrypto && symbol.length > 0);
 
   return (
@@ -1083,7 +1086,12 @@ function HedgeFundsWidget(props: IDockviewPanelProps) {
               {data.error && <ErrorBanner message={data.error.message} />}
               {!data.data && !data.error && <HedgeFundsCardSkeleton bare />}
               {data.data && (
-                <HedgeFundsCard row={data.data.hedge_funds} bare dense={dense} />
+                <HedgeFundsCard
+                  row={data.data.hedge_funds}
+                  bare
+                  dense={dense}
+                  narrow={narrow}
+                />
               )}
             </>
           )}
@@ -1101,6 +1109,7 @@ function InsidersWidget(props: IDockviewPanelProps) {
   const isCrypto = assetClass === "crypto" || isCryptoSymbol(symbol);
   const ref = useRef<HTMLDivElement>(null);
   const dense = useContainerNarrow(ref, INSIDERS_DENSE_W);
+  const narrow = useContainerNarrow(ref, INSIDERS_NARROW_W);
   const data = useInsiders(symbol, !isCrypto && symbol.length > 0);
 
   return (
@@ -1128,7 +1137,12 @@ function InsidersWidget(props: IDockviewPanelProps) {
               {data.error && <ErrorBanner message={data.error.message} />}
               {!data.data && !data.error && <InsidersCardSkeleton bare />}
               {data.data && (
-                <InsidersCard row={data.data.insiders} bare dense={dense} />
+                <InsidersCard
+                  row={data.data.insiders}
+                  bare
+                  dense={dense}
+                  narrow={narrow}
+                />
               )}
             </>
           )}
@@ -1204,33 +1218,13 @@ export const WIDGET_CATALOG: WidgetMeta[] = [
     desc: "Equity, day P/L, buying power & cash",
     iconPath: "M3 14 V8 L8 4 L13 8 V14 Z M7 14 V11 H9 V14",
   },
+  // Market data — alphabetized by title for predictable menu scanning.
   {
-    id: "watchlist",
+    id: "analysts",
     group: "Market data",
-    title: "Watchlist",
-    desc: "Silo watchlist — click a card to set the linked symbol",
-    iconPath: "M2 4 L14 4 M2 8 L14 8 M2 12 L10 12",
-  },
-  {
-    id: "news",
-    group: "Market data",
-    title: "News",
-    desc: "Symbol or market feed (per linked channel)",
-    iconPath: "M3 3 H13 V13 H3 Z M5 6 H11 M5 9 H11 M5 12 H9",
-  },
-  {
-    id: "profile",
-    group: "Market data",
-    title: "Profile",
-    desc: "Company & token identity — sector, supply, ATH, links",
-    iconPath: "M2 8 A6 6 0 1 1 14 8 A6 6 0 1 1 2 8 M8 7.2 V11.2 M8 4.7 L8.01 4.7",
-  },
-  {
-    id: "fundamentals",
-    group: "Market data",
-    title: "Fundamentals",
-    desc: "Revenue & net-income trend, valuation, margins, growth (stocks)",
-    iconPath: "M2 14 V9 H5 V14 Z M6.5 14 V5 H9.5 V14 Z M11 14 V7 H14 V14 Z M2 14 H14",
+    title: "Analyst Ratings",
+    desc: "Per-analyst rating list (firm, recommendation, date) for one stock",
+    iconPath: "M3 4 H13 M3 8 H13 M3 12 H10",
   },
   {
     id: "earnings",
@@ -1240,32 +1234,11 @@ export const WIDGET_CATALOG: WidgetMeta[] = [
     iconPath: "M3 2 V4 M11 2 V4 M2 5 H13 V13 H2 Z M2 7 H13 M5 9.5 H6 M8 9.5 H9",
   },
   {
-    id: "trending",
+    id: "fundamentals",
     group: "Market data",
-    title: "Trending",
-    desc: "Top trending stocks by analyst coverage (Tipranks; stocks-only)",
-    iconPath: "M2 12 L6 7 L9 10 L13 4 M10 4 H13 V7",
-  },
-  {
-    id: "smartscore",
-    group: "Market data",
-    title: "SmartScore",
-    desc: "Tipranks composite signal (1-10) + 6 components for one stock",
-    iconPath: "M2 14 L8 2 L14 14 Z M5 11 H11",
-  },
-  {
-    id: "sentiment",
-    group: "Market data",
-    title: "Sentiment",
-    desc: "Combined blogger / news / Tipranks-investor sentiment for one stock",
-    iconPath: "M3 9 H6 L8 4 L10 12 L12 9 H13",
-  },
-  {
-    id: "analysts",
-    group: "Market data",
-    title: "Analyst Ratings",
-    desc: "Per-analyst rating list (firm, recommendation, date) for one stock",
-    iconPath: "M3 4 H13 M3 8 H13 M3 12 H10",
+    title: "Fundamentals",
+    desc: "Revenue & net-income trend, valuation, margins, growth (stocks)",
+    iconPath: "M2 14 V9 H5 V14 Z M6.5 14 V5 H9.5 V14 Z M11 14 V7 H14 V14 Z M2 14 H14",
   },
   {
     id: "hedgefunds",
@@ -1282,11 +1255,54 @@ export const WIDGET_CATALOG: WidgetMeta[] = [
     iconPath: "M8 8 A2.5 2.5 0 1 1 8 3 A2.5 2.5 0 1 1 8 8 M3 14 V12 A3 3 0 0 1 6 9 H10 A3 3 0 0 1 13 12 V14",
   },
   {
-    id: "positions",
+    id: "news",
+    group: "Market data",
+    title: "News",
+    desc: "Symbol or market feed (per linked channel)",
+    iconPath: "M3 3 H13 V13 H3 Z M5 6 H11 M5 9 H11 M5 12 H9",
+  },
+  {
+    id: "profile",
+    group: "Market data",
+    title: "Profile",
+    desc: "Company & token identity — sector, supply, ATH, links",
+    iconPath: "M2 8 A6 6 0 1 1 14 8 A6 6 0 1 1 2 8 M8 7.2 V11.2 M8 4.7 L8.01 4.7",
+  },
+  {
+    id: "sentiment",
+    group: "Market data",
+    title: "Sentiment",
+    desc: "Combined blogger / news / Tipranks-investor sentiment for one stock",
+    iconPath: "M3 9 H6 L8 4 L10 12 L12 9 H13",
+  },
+  {
+    id: "smartscore",
+    group: "Market data",
+    title: "SmartScore",
+    desc: "Tipranks composite signal (1-10) + 6 components for one stock",
+    iconPath: "M2 14 L8 2 L14 14 Z M5 11 H11",
+  },
+  {
+    id: "trending",
+    group: "Market data",
+    title: "Trending",
+    desc: "Top trending stocks by analyst coverage (Tipranks; stocks-only)",
+    iconPath: "M2 12 L6 7 L9 10 L13 4 M10 4 H13 V7",
+  },
+  {
+    id: "watchlist",
+    group: "Market data",
+    title: "Watchlist",
+    desc: "Silo watchlist — click a card to set the linked symbol",
+    iconPath: "M2 4 L14 4 M2 8 L14 8 M2 12 L10 12",
+  },
+  // Activity — alphabetized by title.
+  {
+    id: "activity",
     group: "Activity",
-    title: "Positions",
-    desc: "Open positions, filtered by linked symbol or whole account",
-    iconPath: "M2 3 H14 V13 H2 Z M2 7 H14 M6 7 V13 M10 7 V13",
+    title: "Activity",
+    desc: "Fills, transfers, dividends — all account activity",
+    iconPath: "M2 8 L5 8 L7 4 L9 12 L11 8 L14 8",
   },
   {
     id: "orders",
@@ -1296,11 +1312,11 @@ export const WIDGET_CATALOG: WidgetMeta[] = [
     iconPath: "M2 3 H14 V13 H2 Z M2 7 H14 M2 11 H14",
   },
   {
-    id: "activity",
+    id: "positions",
     group: "Activity",
-    title: "Activity",
-    desc: "Fills, transfers, dividends — all account activity",
-    iconPath: "M2 8 L5 8 L7 4 L9 12 L11 8 L14 8",
+    title: "Positions",
+    desc: "Open positions, filtered by linked symbol or whole account",
+    iconPath: "M2 3 H14 V13 H2 Z M2 7 H14 M6 7 V13 M10 7 V13",
   },
 ];
 

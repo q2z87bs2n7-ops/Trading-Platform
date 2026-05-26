@@ -47,7 +47,10 @@ visual centrepiece, layouts anchor the left, quiet actions anchor the right.
 The AddWidgetMenu popover itself (also reachable from the empty-state CTA)
 is unchanged: 320px `<body>`-portaled popover with a search input, grouped
 sections (Charts / Trade / Market data / Activity), inline single-stroke
-icons, and ↑/↓/Enter/Esc keyboard handling.
+icons, and ↑/↓/Enter/Esc keyboard handling. Within **Market data** and
+**Activity** the entries are alphabetized by title for predictable scanning;
+Charts and Trade preserve a flow order (`chart` → `minichart`,
+`trade` → `account`).
 
 When the canvas has zero panels an empty-state overlay shows ＋ Add widget,
 ▦ Browse layouts, and a violet **✦ Ask AI to build one** CTA (dispatches a
@@ -199,8 +202,13 @@ so the transition isn't a single hard flip:
   shrinking the date column from 72 → 48px before revenue drops.
 - **Trending** — dense 360 drops the company name + market-cap columns.
 - **Analyst Ratings** — dense 380 drops the firm column.
-- **Hedge Funds** — dense 420 drops the institution column on the top-movers list.
-- **Insiders** — dense 420 drops the position column on the transactions list.
+- **Hedge Funds** — dense 420 drops the institution column on the top-movers
+  list; `narrow` 340 also collapses the 3-col top stats grid (Last-Q net /
+  Funds covered / Total holders) to a 1-col vertical stack and trims the
+  quarterly trend row from last-4 to last-2 quarters so the per-cell numeric
+  label stays readable.
+- **Insiders** — dense 420 drops the position column on the transactions list;
+  `narrow` 340 reduces the monthly buy/sell bars from last-6 to last-3 months.
 - **SmartScore** / **Sentiment** — no dense flip; vertical-stack layout fits
   280px and up.
 - **News** — `compact` 320 stacks the rel-time *above* source+title instead of
