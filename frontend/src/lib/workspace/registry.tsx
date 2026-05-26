@@ -427,6 +427,7 @@ const PROFILE_DENSE_W = 340;
 const FUNDAMENTALS_DENSE_W = 400;
 const FUNDAMENTALS_WIDE_W = 560;
 const EARNINGS_DENSE_W = 420;
+const EARNINGS_TIGHT_W = 320;
 const NEWS_COMPACT_W = 320;
 
 function PositionsWidget(props: IDockviewPanelProps) {
@@ -757,6 +758,9 @@ function EarningsWidget(props: IDockviewPanelProps) {
   const isCrypto = !isMarket && isCryptoSymbol(symbol);
   const ref = useRef<HTMLDivElement>(null);
   const dense = useContainerNarrow(ref, EARNINGS_DENSE_W);
+  // Very narrow → also suppress the year suffix in the date column so the
+  // per-symbol view drops from 72px to 48px before the dense flip kicks in.
+  const tight = useContainerNarrow(ref, EARNINGS_TIGHT_W);
 
   const market = useEarningsCalendar(isMarket);
   const perSymbol = useSymbolEarnings(symbol, !isMarket && !isCrypto);
@@ -792,7 +796,7 @@ function EarningsWidget(props: IDockviewPanelProps) {
                   rows={active.data.earnings}
                   bare
                   dense={dense}
-                  showYear={!isMarket}
+                  showYear={!isMarket && !tight}
                   onSelect={(s) => setSymbol(channel, s)}
                 />
               )}
