@@ -35,7 +35,6 @@ function SiloCard({
   onClick: () => void;
 }) {
   const dayUp = dayPl >= 0;
-  const sign = dayUp ? "+" : "";
   return (
     <button
       type="button"
@@ -79,8 +78,7 @@ function SiloCard({
       </div>
       <div className="text-[11.5px] tabular-nums" style={{ color: "var(--mute)" }}>
         <span style={{ color: dayUp ? "var(--pos)" : "var(--neg)", fontWeight: 600 }}>
-          Day {sign}
-          {pct(dayPlPct)}
+          Day {pct(dayPlPct)}
         </span>
         {" · "}
         {subStatus}
