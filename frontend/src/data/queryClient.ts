@@ -26,6 +26,8 @@ export const qk = {
   activities: (limit: number) => ["activities", limit] as const,
   bars: (symbol: string, timeframe: string) =>
     ["bars", symbol, timeframe] as const,
+  barsBatch: (symbols: string[], timeframe: string) =>
+    ["barsBatch", symbols.join(","), timeframe] as const,
   movers: (top: number) => ["movers", top] as const,
   mostActive: (top: number, by: string) => ["mostActive", top, by] as const,
   portfolioHistory: (period: string, timeframe: string) =>

@@ -253,6 +253,20 @@ def bars(
     return {"symbol": symbol.upper(), "bars": alpaca.get_bars(symbol, timeframe, limit)}
 
 
+@app.get("/api/bars/batch", dependencies=[Depends(require_configured)])
+def bars_batch(
+    symbols: str = Query("", description="Comma-separated symbol list."),
+    timeframe: str = Query("1Day"),
+    limit: int = Query(30, ge=1, le=200),
+) -> dict:
+    """Last-N bars across N symbols in one round-trip.
+
+    Powers the watchlist sparkline cards — previously a synthetic curve,
+    now real daily closes batched into a single request."""
+    syms = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+    return {"bars": alpaca.get_bars_batch(syms, timeframe, limit)}
+
+
 @app.get("/api/news", dependencies=[Depends(require_configured)])
 def news(
     symbol: str = Query(..., min_length=1),

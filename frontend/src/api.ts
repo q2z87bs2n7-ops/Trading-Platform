@@ -108,6 +108,11 @@ export const getBars = (symbol: string, timeframe = "1Day", limit = 120) =>
     `/api/bars?symbol=${encodeURIComponent(symbol)}&timeframe=${timeframe}&limit=${limit}`,
   );
 
+export const getBarsBatch = (symbols: string[], timeframe = "1Day", limit = 30) =>
+  getJSON<{ bars: Record<string, Bar[]> }>(
+    `/api/bars/batch?symbols=${encodeURIComponent(symbols.join(","))}&timeframe=${timeframe}&limit=${limit}`,
+  );
+
 export const getMovers = (top = 10) =>
   getJSON<MoversResponse>(`/api/movers?top=${top}`);
 

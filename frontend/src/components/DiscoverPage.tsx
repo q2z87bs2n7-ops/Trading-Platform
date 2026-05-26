@@ -5,6 +5,7 @@ import {
   useAccount,
   useAddToCryptoWatchlist,
   useAddToWatchlist,
+  useBarsBatch,
   useCryptoTickers,
   useCryptoWatchlist,
   useEarningsCalendar,
@@ -128,6 +129,8 @@ export default function DiscoverPage({
   // Live stream price for the watchlist cards (matches the chart); snapshot
   // prev_close still drives the % change.
   const { quotes: live } = useLiveQuotes(wlSymbols);
+  const barsBatch = useBarsBatch(wlSymbols);
+  const barsMap = barsBatch.data?.bars ?? {};
   const marketSummary = useMarketSummary(wlSymbols, assetClass);
 
   const [adding, setAdding] = useState(false);
@@ -299,6 +302,7 @@ export default function DiscoverPage({
                 onSelect={() => onSelect(sym)}
                 onRemove={() => removeWatchlistSymbol(sym)}
                 isCrypto={isCrypto}
+                closes={barsMap[sym]?.map((b) => b.close)}
               />
             );
           })}

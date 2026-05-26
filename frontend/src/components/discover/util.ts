@@ -11,8 +11,30 @@ export function fmtPrice(n: number): string {
   });
 }
 
-// Synthetic sparkline curve seeded by symbol + day-change. Matches the
-// design mock; replace once a real bars-per-symbol batch endpoint exists.
+// Real-data variant of sparkPaths — closes come from /api/bars/batch.
+// Falls back to the synthetic curve in the caller when fewer than 2 points.
+export function realSparkPaths(
+  closes: number[],
+  width = 100,
+  height = 32,
+): { line: string; area: string } {
+  const min = Math.min(...closes);
+  const max = Math.max(...closes);
+  const range = max - min || 1;
+  const stepX = closes.length > 1 ? width / (closes.length - 1) : 0;
+  const pts = closes.map((v, i) => ({
+    x: i * stepX,
+    y: height - ((v - min) / range) * (height - 4) - 2,
+  }));
+  const line = pts
+    .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`)
+    .join(" ");
+  const area = `${line} L ${width.toFixed(2)} ${height.toFixed(2)} L 0 ${height.toFixed(2)} Z`;
+  return { line, area };
+}
+
+// Synthetic sparkline curve seeded by symbol + day-change. Fallback for when
+// the bars batch hasn't loaded yet (or returned no data for the symbol).
 export function sparkPath(
   symbol: string,
   dayChange: number,

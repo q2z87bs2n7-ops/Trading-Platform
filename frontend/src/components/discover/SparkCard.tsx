@@ -1,5 +1,5 @@
 import { fmtCryptoPrice, pct } from "../../lib/format";
-import { fmtPrice, sparkPaths } from "./util";
+import { fmtPrice, realSparkPaths, sparkPaths } from "./util";
 
 export function SparkCard({
   symbol,
@@ -12,6 +12,7 @@ export function SparkCard({
   isCrypto,
   dense = false,
   compact = false,
+  closes,
 }: {
   symbol: string;
   name: string;
@@ -27,12 +28,19 @@ export function SparkCard({
   /** Mid tier between full and dense — keeps the sparkline but shorter
    *  (H=32 instead of 48), drops the name slot. */
   compact?: boolean;
+  /** Real recent closes (newest last) for the sparkline. When omitted or
+   *  shorter than 2 points, falls back to the symbol-seeded synthetic
+   *  curve so first paint isn't blank while bars are loading. */
+  closes?: number[];
 }) {
   const up = changePct >= 0;
   const stroke = up ? "var(--pos)" : "var(--neg)";
   const W = 100;
   const H = compact ? 32 : 48;
-  const { line, area } = sparkPaths(symbol, changePct, W, H);
+  const { line, area } =
+    closes && closes.length >= 2
+      ? realSparkPaths(closes, W, H)
+      : sparkPaths(symbol, changePct, W, H);
   const gradId = `spark-${symbol.replace(/[^A-Z0-9]/gi, "")}`;
   return (
     <div

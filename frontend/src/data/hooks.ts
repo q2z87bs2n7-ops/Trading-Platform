@@ -75,6 +75,21 @@ export const useBars = (symbol: string, timeframe: string, limit = 200) =>
     enabled: symbol.length > 0,
   });
 
+// Single-call batch for the watchlist sparklines. Daily closes are
+// slow-moving so a 5-min refetch is plenty.
+export const useBarsBatch = (
+  symbols: string[],
+  timeframe: string = "1Day",
+  limit = 30,
+) =>
+  useQuery({
+    queryKey: qk.barsBatch(symbols, timeframe),
+    queryFn: () => api.getBarsBatch(symbols, timeframe, limit),
+    enabled: symbols.length > 0,
+    refetchInterval: 300_000,
+    staleTime: 120_000,
+  });
+
 // Single-call replacement for the watchlist's N parallel useBars(sym,
 // "1Day") mount burst. Snapshots are slower-moving than quotes (daily
 // bar + prev close stay stable), so 60s refetch is plenty.

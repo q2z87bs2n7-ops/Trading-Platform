@@ -3,6 +3,7 @@ import { useRef } from "react";
 import {
   useAddToCryptoWatchlist,
   useAddToWatchlist,
+  useBarsBatch,
   useCryptoWatchlist,
   useRemoveFromCryptoWatchlist,
   useRemoveFromWatchlist,
@@ -56,8 +57,10 @@ export default function Watchlist({
 
   const snaps = useSnapshots(symbols);
   const { quotes: live } = useLiveQuotes(symbols);
+  const barsBatch = useBarsBatch(symbols);
   const snapMap: Record<string, Snapshot> = {};
   for (const s of snaps.data?.snapshots ?? []) snapMap[s.symbol] = s;
+  const barsMap = barsBatch.data?.bars ?? {};
 
   const ref = useRef<HTMLDivElement>(null);
   const narrow = useContainerNarrow(ref, NARROW_W);
@@ -106,6 +109,7 @@ export default function Watchlist({
                 isCrypto={isCrypto}
                 dense={narrow}
                 compact={compact}
+                closes={barsMap[sym]?.map((b) => b.close)}
               />
             );
           })}

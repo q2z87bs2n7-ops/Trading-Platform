@@ -23,7 +23,13 @@ from .client import (
     timeframe_from_str,
     trading_client,
 )
-from .market_data import get_bars, get_daily_closes, get_latest_quotes, get_snapshots
+from .market_data import (
+    get_bars,
+    get_bars_batch,
+    get_daily_closes,
+    get_latest_quotes,
+    get_snapshots,
+)
 from .news import get_news
 from .pnl import get_pnl_history
 from .screener import get_most_actives, get_movers
@@ -59,6 +65,7 @@ __all__ = [
     "get_activities",
     "get_asset",
     "get_bars",
+    "get_bars_batch",
     "get_calendar",
     "get_clock",
     "get_corporate_actions",
