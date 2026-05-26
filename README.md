@@ -160,6 +160,23 @@ needs outbound TCP to Postgres :5432, which many local/corporate networks
 block — so seeding only runs from prod/Render. See `docs/database.md` and
 `docs/landmines.md` for the full story.
 
+### 1d. Tipranks research (optional)
+
+Per-symbol analyst / hedge-fund / insider / sentiment data powering the
+Discover **Trending** card and the Workspace research widgets (SmartScore,
+Sentiment, Analyst Ratings, Hedge Funds, Insiders) plus six AI bot read
+tools. Live-proxied via the Tipranks external partner API; not persisted.
+Disabled when keys are absent (routes return empty payloads).
+
+```
+TIPRANKS_API_KEY=TR_FXCM    # partner identifier
+TIPRANKS_API_TOKEN=...      # secret token
+```
+
+Auth is via query-string params despite the `X-` prefixed names. See
+`docs/tipranks.md` for the endpoint inventory, cache TTLs (15min → 6h
+depending on update cadence), and the per-widget surfaces.
+
 ### 2. Backend
 
 ```bash

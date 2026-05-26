@@ -198,6 +198,11 @@ so the transition isn't a single hard flip:
   suppresses the year suffix on per-symbol dates (`May 30 '26` → `May 30`),
   shrinking the date column from 72 → 48px before revenue drops.
 - **Trending** — dense 360 drops the company name + market-cap columns.
+- **Analyst Ratings** — dense 380 drops the firm column.
+- **Hedge Funds** — dense 420 drops the institution column on the top-movers list.
+- **Insiders** — dense 420 drops the position column on the transactions list.
+- **SmartScore** / **Sentiment** — no dense flip; vertical-stack layout fits
+  280px and up.
 - **News** — `compact` 320 stacks the rel-time *above* source+title instead of
   using the 60px left column.
 - **Watchlist** — `compact` 420 + dense 280 (see widget bullet above).
