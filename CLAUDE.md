@@ -50,18 +50,22 @@ separate silos behind a shared account.
 ## Architecture (high level)
 
 - **Frontend:** React 18 + TypeScript + Vite, single-page (no router).
-  On **every load** `AssetClassSplash.tsx` is shown as the landing screen,
-  prompting the user to pick **Stocks** or **Crypto** (the app never
-  restores a last page/silo — `App.tsx` always lands here). The chosen
-  silo persists to `localStorage('asset_class_mode')` only to highlight the
-  last-used card and seed the header toggle; it is switchable at any time.
-  That same component doubles as the **Account Hub** (re-opened by clicking
-  the header brand mark): a whole-account overview (total equity, day P/L,
+  On the **first session only** `AssetClassSplash.tsx` is shown as the
+  landing screen, prompting the user to pick **Stocks** or **Crypto**.
+  Once a silo is picked, `localStorage('splash_seen_v1')='1'` is set and
+  every subsequent load lands straight on the last-used silo's Discover.
+  `localStorage('asset_class_mode')` is now **load-bearing** — it
+  selects the silo the app boots into (was previously just a last-used
+  hint). The header brand button re-opens the splash on demand as the
+  **Account Hub**: a whole-account overview (total equity, day P/L,
   buying power, stocks-vs-crypto-vs-cash split) that is intentionally the
   *only* cross-silo balance surface — every other balance view is filtered
-  to the active silo. Per-silo accent: stocks recolours the `--accent`
-  tokens to green (`--pos`), crypto keeps the default blue; `--pos`/`--neg`
-  P/L colours are untouched. The header pill switches between four modes
+  to the active silo. Switching silo also runs through the brand button
+  → hub on desktop (the standalone stocks/crypto pill is gone); mobile
+  keeps the inline toggle for fast access. Per-silo accent: stocks
+  recolours the `--accent` tokens to green (`--pos`), crypto keeps the
+  default blue; `--pos`/`--neg` P/L colours are untouched. The header
+  pill switches between four modes
   (session-only — not persisted; **Workspace** is desktop-only):
   - **Discover** (default) — one parameterized surface, `DiscoverPage.tsx`
     (`assetClass` prop), sharing the hero / AI summary / watchlist / inline
@@ -353,7 +357,8 @@ new surface. Full rules, precedents, and examples: `docs/workspace.md` →
 
 | Key | Writer | Read by | Notes |
 | --- | ------ | ------- | ----- |
-| `asset_class_mode` | `App.tsx` | `App.tsx` | `"stocks" \| "crypto"`. Last-used silo, used only to highlight the landing card / seed the toggle. The landing picker shows on every load regardless. |
+| `asset_class_mode` | `App.tsx` | `App.tsx` | `"stocks" \| "crypto"`. **Load-bearing** — the silo the app boots into on subsequent loads (post-splash). Also highlights the active card in the Account Hub. |
+| `splash_seen_v1` | `App.tsx` | `App.tsx` | `"1"` once the user has picked a silo from the splash. Subsequent loads skip the splash and land on the `asset_class_mode` silo. Clearing this key restores the first-time landing. |
 | `theme` | `hooks/useTheme.ts` + `index.html` bootstrap | both | `"light" \| "dark"`. Defaults to OS preference. |
 | `chartbot_session` | `useChatSession` | `useChatSession` | Serialised turns + apiHistory, capped at 256 KB. |
 | `ai_drawings_v1` | `tv-drawings.ts` | `tv-drawings.ts` | Per-symbol drawing UUIDs replayed on chart load. |

@@ -35,6 +35,14 @@ function readAssetClassMode(): AssetClassMode | null {
   return null;
 }
 
+// First-session-only splash. After the user has picked a silo once, subsequent
+// loads land straight on the last-used silo's Discover; the brand button
+// re-opens the hub on demand.
+const SPLASH_SEEN_KEY = "splash_seen_v1";
+function readSplashSeen(): boolean {
+  return localStorage.getItem(SPLASH_SEEN_KEY) === "1";
+}
+
 // "workspace" is desktop-only; the mobile header renders its own pill set and
 // deliberately omits it.
 const MODES: { value: PlatformMode; label: string }[] = [
@@ -55,36 +63,6 @@ function BrandMark() {
       aria-hidden
     >
       ◆
-    </div>
-  );
-}
-
-function AssetClassToggle({
-  mode,
-  onChange,
-}: {
-  mode: AssetClassMode;
-  onChange: (m: AssetClassMode) => void;
-}) {
-  return (
-    <div
-      className="inline-flex items-center gap-0.5 p-0.5 rounded-card"
-      style={{ background: "var(--panel-2)", border: "1px solid var(--border)" }}
-    >
-      {(["stocks", "crypto"] as AssetClassMode[]).map((m) => (
-        <button
-          key={m}
-          type="button"
-          onClick={() => onChange(m)}
-          className="text-[11px] font-semibold px-2.5 py-1 rounded-card transition-colors border-0 cursor-pointer capitalize"
-          style={{
-            background: mode === m ? "var(--accent)" : "transparent",
-            color: mode === m ? "white" : "var(--text-2)",
-          }}
-        >
-          {m}
-        </button>
-      ))}
     </div>
   );
 }
@@ -176,9 +154,9 @@ export default function App() {
   const [assetClassMode, setAssetClassMode] = useState<AssetClassMode | null>(readAssetClassMode);
   const [askOpen, setAskOpen] = useState(false);
   const [hubOpen, setHubOpen] = useState(false);
-  // The platform always lands on the market-picker / account overview, so
-  // this starts open on every load (no last-page restore).
-  const [landingOpen, setLandingOpen] = useState(true);
+  // First-session-only splash: opens on the very first load, then dismissed.
+  // The brand button (▾) re-opens it as the account hub.
+  const [landingOpen, setLandingOpen] = useState(() => !readSplashSeen());
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Workspace-only immersive mode: hides the app header for a near-full-screen
   // canvas (paired with the full-bleed `.app.bleed` layout).
@@ -236,9 +214,16 @@ export default function App() {
     localStorage.setItem("asset_class_mode", m);
   }
 
-  // Picking a market from the landing/hub enters the platform.
+  // Picking a market from the landing/hub enters the platform. The first time
+  // through, mark the splash as seen so subsequent loads skip straight to
+  // Discover; the brand button still re-opens the hub on demand.
   function enterMarket(m: AssetClassMode) {
     switchAssetClass(m);
+    try {
+      localStorage.setItem(SPLASH_SEEN_KEY, "1");
+    } catch {
+      /* private mode / quota — non-fatal */
+    }
     setLandingOpen(false);
     setHubOpen(false);
   }
@@ -309,20 +294,31 @@ export default function App() {
           style={{ gridTemplateColumns: "auto 1fr auto" }}
         >
           <div className="flex items-center gap-3 min-w-0">
+            {/* Brand button now stands in for the asset-class toggle: it
+               surfaces the active silo with a ▾ chevron and re-opens the
+               account hub (where the user picks again). The standalone
+               stocks/crypto pill is gone — the hub is what silo switching
+               is for. */}
             <button
               type="button"
               onClick={() => setHubOpen(true)}
-              aria-label="Open account overview"
-              title="Account overview"
+              aria-label="Account hub · switch market"
+              title="Account hub · switch market"
               className="flex items-center gap-3 border-0 bg-transparent p-0 cursor-pointer min-w-0"
             >
               <BrandMark />
               <div className="flex flex-col min-w-0 items-start leading-tight">
                 <span
-                  className="text-[14px] font-semibold truncate"
+                  className="text-[14px] font-semibold truncate inline-flex items-center gap-1"
                   style={{ letterSpacing: "-0.005em" }}
                 >
-                  Trading Platform
+                  {activeClass === "crypto" ? "Crypto" : "Stocks"}
+                  <span
+                    aria-hidden
+                    style={{ color: "var(--mute)", fontSize: 10 }}
+                  >
+                    ▾
+                  </span>
                 </span>
                 <span
                   className="text-[10.5px] tabular-nums font-mono"
@@ -340,7 +336,6 @@ export default function App() {
             <span className="hidden lg:inline-flex">
               <HeaderStatusInline assetClass={activeClass} />
             </span>
-            <AssetClassToggle mode={activeClass} onChange={switchAssetClass} />
           </div>
 
           {/* CENTRE — Mode pills, centred via justify-self */}
