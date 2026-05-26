@@ -82,15 +82,7 @@ export default function PortfolioHero({ assetClass }: { assetClass: AssetClass }
       .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
       .join(" ");
     const area = `${line} L ${W} ${H} L 0 ${H} Z`;
-    // Subtle "start of today" marker — the day chip is computed against the
-    // value at index N-2 (yesterday's close), so a hairline + dot there
-    // visually grounds the chip against the curve.
-    const todayIdx = pnl.length - 2;
-    const marker =
-      pnl.length >= 3 && todayIdx > 0
-        ? { x: todayIdx * stepX, y: pts[todayIdx].y }
-        : null;
-    return { W, H, line, area, stroke, marker };
+    return { W, H, line, area, stroke };
   }, [pnl]);
 
   if (!acct && account.isPending) {
@@ -204,81 +196,29 @@ export default function PortfolioHero({ assetClass }: { assetClass: AssetClass }
           {money(unrealized)} ({pct(unrealizedPct)})
         </div>
         {curve ? (
-          <div className="relative mt-1" style={{ height: curve.H }}>
-            <svg
-              viewBox={`0 0 ${curve.W} ${curve.H}`}
-              width="100%"
-              height={curve.H}
-              preserveAspectRatio="none"
-              className="block"
-              aria-hidden
-            >
-              <defs>
-                <linearGradient id="port-hero-pnl" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={curve.stroke} stopOpacity={0.18} />
-                  <stop offset="100%" stopColor={curve.stroke} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <path d={curve.area} fill="url(#port-hero-pnl)" />
-              <path
-                d={curve.line}
-                fill="none"
-                stroke={curve.stroke}
-                strokeWidth={1.5}
-                vectorEffect="non-scaling-stroke"
-              />
-            </svg>
-            {curve.marker && (
-              <>
-                <div
-                  aria-hidden
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    bottom: 0,
-                    left: `${(curve.marker.x / curve.W) * 100}%`,
-                    width: 0,
-                    borderLeft: "1px dashed var(--text-2)",
-                    opacity: 0.8,
-                    pointerEvents: "none",
-                  }}
-                />
-                <div
-                  aria-hidden
-                  className="font-mono uppercase"
-                  style={{
-                    position: "absolute",
-                    top: -2,
-                    left: `${(curve.marker.x / curve.W) * 100}%`,
-                    transform: "translateX(-50%)",
-                    fontSize: 9.5,
-                    letterSpacing: "0.06em",
-                    color: "var(--text-2)",
-                    background: "var(--panel)",
-                    padding: "0 4px",
-                    borderRadius: 3,
-                    pointerEvents: "none",
-                  }}
-                >
-                  open
-                </div>
-                <div
-                  aria-hidden
-                  style={{
-                    position: "absolute",
-                    left: `calc(${(curve.marker.x / curve.W) * 100}% - 4px)`,
-                    top: `calc(${(curve.marker.y / curve.H) * 100}% - 4px)`,
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    background: curve.stroke,
-                    boxShadow: "0 0 0 2px var(--panel)",
-                    pointerEvents: "none",
-                  }}
-                />
-              </>
-            )}
-          </div>
+          <svg
+            viewBox={`0 0 ${curve.W} ${curve.H}`}
+            width="100%"
+            height={curve.H}
+            preserveAspectRatio="none"
+            className="block mt-1"
+            aria-hidden
+          >
+            <defs>
+              <linearGradient id="port-hero-pnl" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={curve.stroke} stopOpacity={0.18} />
+                <stop offset="100%" stopColor={curve.stroke} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <path d={curve.area} fill="url(#port-hero-pnl)" />
+            <path
+              d={curve.line}
+              fill="none"
+              stroke={curve.stroke}
+              strokeWidth={1.5}
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
         ) : (
           <div
             className="text-[12px] mt-1"

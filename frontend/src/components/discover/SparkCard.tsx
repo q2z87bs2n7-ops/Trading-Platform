@@ -129,7 +129,35 @@ function SparkChart({
     chartRef.current?.timeScale().fitContent();
   }, [closes]);
 
-  return <div ref={ref} style={{ height, width: "100%" }} />;
+  // Marker at index N-2 (yesterday's close — the prev_close the day chip
+  // is computed against). X position scales evenly across the bars since
+  // closes are equispaced. Skip when too few points (single-day account)
+  // or when it'd visually collide with the right edge.
+  const markerLeftPct =
+    closes.length >= 3
+      ? ((closes.length - 2) / (closes.length - 1)) * 100
+      : null;
+
+  return (
+    <div style={{ position: "relative", height, width: "100%" }}>
+      <div ref={ref} style={{ height, width: "100%" }} />
+      {markerLeftPct != null && (
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            top: 0,
+            bottom: 0,
+            left: `${markerLeftPct}%`,
+            width: 0,
+            borderLeft: "1px dashed var(--text-2)",
+            opacity: 0.5,
+            pointerEvents: "none",
+          }}
+        />
+      )}
+    </div>
+  );
 }
 
 export function SparkCard({

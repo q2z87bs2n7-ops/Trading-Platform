@@ -43,12 +43,7 @@ export function DiscoverHero({
   const dayUp = dayPl >= 0;
   const allUp = unrealized >= 0;
 
-  // Curve geometry — 80 px area-filled sparkline beneath the day chip. The
-  // backend always appends a "today" tip at index N-1 (live market value),
-  // with N-2 being yesterday's close — i.e. the baseline against which the
-  // day chip is computed. Marker that index so the all-time curve makes
-  // sense alongside the day chip ("everything to the right of the line is
-  // today").
+  // Curve geometry — 80 px area-filled sparkline beneath the day chip.
   const curve = useMemo(() => {
     if (pnl.length < 2) return null;
     const W = 600;
@@ -67,15 +62,7 @@ export function DiscoverHero({
       .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
       .join(" ");
     const area = `${line} L ${W} ${H} L 0 ${H} Z`;
-    // Marker at yesterday's close (today's baseline). Skip when there are
-    // fewer than three points (single-day account) or when it'd visually
-    // collide with the tip.
-    const todayIdx = pnl.length - 2;
-    const marker =
-      pnl.length >= 3 && todayIdx > 0
-        ? { x: todayIdx * stepX, y: pts[todayIdx].y }
-        : null;
-    return { W, H, line, area, stroke, marker };
+    return { W, H, line, area, stroke };
   }, [pnl]);
 
   return (
@@ -128,90 +115,29 @@ export function DiscoverHero({
           {money(unrealized)} ({pct(unrealizedPct)})
         </div>
         {curve ? (
-          <div className="relative mt-1" style={{ height: curve.H }}>
-            <svg
-              viewBox={`0 0 ${curve.W} ${curve.H}`}
-              width="100%"
-              height={curve.H}
-              preserveAspectRatio="none"
-              className="block"
-              aria-hidden
-            >
-              <defs>
-                <linearGradient id="disc-hero-pnl" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={curve.stroke} stopOpacity={0.18} />
-                  <stop offset="100%" stopColor={curve.stroke} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <path d={curve.area} fill="url(#disc-hero-pnl)" />
-              <path
-                d={curve.line}
-                fill="none"
-                stroke={curve.stroke}
-                strokeWidth={1.5}
-                vectorEffect="non-scaling-stroke"
-              />
-            </svg>
-            {/* Start-of-today marker rendered in pixel space so dashes don't
-               stretch and the dot stays a circle (the SVG above uses
-               preserveAspectRatio="none" which would distort both). */}
-            {curve.marker && (
-              <>
-                <div
-                  aria-hidden
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    bottom: 0,
-                    left: `${(curve.marker.x / curve.W) * 100}%`,
-                    width: 0,
-                    borderLeft: "1px dashed var(--text-2)",
-                    opacity: 0.8,
-                    pointerEvents: "none",
-                  }}
-                />
-                {/* "Open" label sits at the top of the curve area, anchored to
-                   the marker x so users can read the marker's purpose without
-                   hovering. Centred via translateX -50%. */}
-                <div
-                  aria-hidden
-                  className="font-mono uppercase"
-                  style={{
-                    position: "absolute",
-                    top: -2,
-                    left: `${(curve.marker.x / curve.W) * 100}%`,
-                    transform: "translateX(-50%)",
-                    fontSize: 9.5,
-                    letterSpacing: "0.06em",
-                    color: "var(--text-2)",
-                    background: "var(--panel)",
-                    padding: "0 4px",
-                    borderRadius: 3,
-                    pointerEvents: "none",
-                  }}
-                >
-                  open
-                </div>
-                {/* Stroke-coloured dot with a panel-coloured ring so it pops
-                   off the curve regardless of whether the marker lands on a
-                   flat or sloped section. */}
-                <div
-                  aria-hidden
-                  style={{
-                    position: "absolute",
-                    left: `calc(${(curve.marker.x / curve.W) * 100}% - 4px)`,
-                    top: `calc(${(curve.marker.y / curve.H) * 100}% - 4px)`,
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    background: curve.stroke,
-                    boxShadow: "0 0 0 2px var(--panel)",
-                    pointerEvents: "none",
-                  }}
-                />
-              </>
-            )}
-          </div>
+          <svg
+            viewBox={`0 0 ${curve.W} ${curve.H}`}
+            width="100%"
+            height={curve.H}
+            preserveAspectRatio="none"
+            className="block mt-1"
+            aria-hidden
+          >
+            <defs>
+              <linearGradient id="disc-hero-pnl" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={curve.stroke} stopOpacity={0.18} />
+                <stop offset="100%" stopColor={curve.stroke} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <path d={curve.area} fill="url(#disc-hero-pnl)" />
+            <path
+              d={curve.line}
+              fill="none"
+              stroke={curve.stroke}
+              strokeWidth={1.5}
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
         ) : (
           <div
             className="text-[12px] mt-1"

@@ -90,10 +90,10 @@ separate silos behind a shared account.
     a sidebar card writes `selected` which drives the inline chart on the
     right. Mobile keeps the linear stacked flow (watchlist as a horizontal
     `CardsRow`, no sidebar).
-    The net-P/L sparkline in `DiscoverHero` and `PortfolioHero` draws a
-    subtle dashed hairline + dot at index `N-2` (yesterday's close, the
-    baseline for the day chip) so the all-time curve visually grounds
-    against today's intraday segment.
+    Each watchlist SparkCard draws a thin dashed hairline at the
+    position of `closes[N-2]` (yesterday's daily close — the `prev_close`
+    that the card's day-% chip is measured against) so a sparkline
+    trending up against a red day chip (or vice versa) is readable.
     - *Stocks*: `DiscoverHero` (single-column silo holdings + ~80px
       area-filled net P/L sparkline from `usePnlHistory` — the allocation
       donut moved to Portfolio as a sibling card), indices marquee ticker,
