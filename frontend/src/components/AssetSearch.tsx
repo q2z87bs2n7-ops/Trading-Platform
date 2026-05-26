@@ -110,7 +110,11 @@ export function AssetSearch({
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter") {
       e.preventDefault();
-      choose(results[0]?.symbol ?? q);
+      // Only commit when there's a real catalogue match — typing a bogus
+      // ticker and hitting Enter used to fire the add and then surface an
+      // error toast, which read as "search is broken". Now we just keep the
+      // dropdown open showing "No matches".
+      if (results[0]) choose(results[0].symbol);
     } else if (e.key === "Escape") {
       setOpen(false);
     }
@@ -120,6 +124,10 @@ export function AssetSearch({
     loading && results.length === 0 ? (
       <div style={{ padding: "8px 10px", color: "var(--text-2)", fontSize: 12 }}>
         Searching…
+      </div>
+    ) : results.length === 0 ? (
+      <div style={{ padding: "8px 10px", color: "var(--text-2)", fontSize: 12 }}>
+        No matches
       </div>
     ) : (
       results.map((a) => (
@@ -174,7 +182,9 @@ export function AssetSearch({
       ))
     );
 
-  const showDropdown = open && (results.length > 0 || loading);
+  // Open the dropdown whenever the user is searching — even on a no-match —
+  // so they get an explicit "No matches" affordance instead of silence.
+  const showDropdown = open && q.trim().length > 0;
 
   return (
     <div
@@ -186,7 +196,7 @@ export function AssetSearch({
         value={q}
         onChange={(e) => setQ(e.target.value.toUpperCase())}
         onKeyDown={onKeyDown}
-        onFocus={() => results.length > 0 && setOpen(true)}
+        onFocus={() => q.trim().length > 0 && setOpen(true)}
         disabled={disabled}
         placeholder={
           isCrypto

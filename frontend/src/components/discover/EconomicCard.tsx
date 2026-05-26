@@ -68,16 +68,19 @@ function ImpactChip({ impact }: { impact: string | null }) {
   );
 }
 
+// FMP doesn't ship a per-event URL, so route the event name through Trading
+// Economics' search so users can read context in a new tab (mirrors the
+// new-tab pattern in NewsCard).
+function eventLink(event: string | null): string | null {
+  if (!event) return null;
+  return `https://tradingeconomics.com/search?q=${encodeURIComponent(event)}`;
+}
+
 function EconomicRowItem({ r, rank }: { r: EconomicRow; rank: number }) {
   const { day, time } = fmtWhen(r.date);
-  return (
-    <div
-      className="grid items-start gap-3 py-2.5"
-      style={{
-        gridTemplateColumns: "64px 1fr auto",
-        borderTop: rank === 0 ? "none" : "1px solid var(--border)",
-      }}
-    >
+  const href = eventLink(r.event);
+  const inner = (
+    <>
       <div className="font-mono text-[11px] leading-tight" style={{ color: "var(--mute)" }}>
         <div>{day}</div>
         <div>{time}</div>
@@ -92,6 +95,28 @@ function EconomicRowItem({ r, rank }: { r: EconomicRow; rank: number }) {
         </div>
       </div>
       <ImpactChip impact={r.impact} />
+    </>
+  );
+  const style = {
+    gridTemplateColumns: "64px 1fr auto",
+    borderTop: rank === 0 ? "none" : "1px solid var(--border)",
+  };
+  if (href) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className="grid items-start gap-3 py-2.5 hover:bg-panel-2"
+        style={{ ...style, color: "var(--text)", textDecoration: "none" }}
+      >
+        {inner}
+      </a>
+    );
+  }
+  return (
+    <div className="grid items-start gap-3 py-2.5" style={style}>
+      {inner}
     </div>
   );
 }

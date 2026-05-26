@@ -108,7 +108,10 @@ def get_earnings_calendar(include: set[str]) -> list[dict]:
         row = _norm_earnings(raw)
         row["market_cap"] = caps.get(sym)
         rows.append(row)
-    rows.sort(key=lambda r: (r["date"] or "", -(r["market_cap"] or 0)))
+    # Biggest names first — the date column already shows the schedule per row,
+    # so users see the highest-cap reports up top regardless of when they fall
+    # within the window.
+    rows.sort(key=lambda r: -(r["market_cap"] or 0))
     return rows[:60]
 
 

@@ -29,6 +29,9 @@ declare const TradingView: {
 interface Props {
   symbol: string;
   onSymbolChange?: (s: string) => void;
+  // Drives TV's symbol-search results to the active silo only — without it,
+  // searching "BTC" in stocks mode surfaces crypto pairs and vice versa.
+  assetClass?: "stocks" | "crypto";
 }
 
 // We lean on TV's native header (symbol search, resolutions, chart type,
@@ -70,7 +73,7 @@ function normalizeSymbol(raw: string): string {
   return tail.toUpperCase();
 }
 
-export default function TVPlatform({ symbol, onSymbolChange }: Props) {
+export default function TVPlatform({ symbol, onSymbolChange, assetClass }: Props) {
   const isMobile = useMobile();
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetRef = useRef<TVWidgetInstance | null>(null);
@@ -109,6 +112,13 @@ export default function TVPlatform({ symbol, onSymbolChange }: Props) {
     onSymbolChangeRef.current = onSymbolChange;
   }, [onSymbolChange]);
 
+  // Ref so the datafeed's symbol-search closure always sees the live silo,
+  // without recreating the widget when the user toggles stocks/crypto.
+  const assetClassRef = useRef(assetClass);
+  useEffect(() => {
+    assetClassRef.current = assetClass;
+  }, [assetClass]);
+
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -143,7 +153,14 @@ export default function TVPlatform({ symbol, onSymbolChange }: Props) {
           "paneProperties.backgroundType": "solid",
         },
 
-        datafeed: createDatafeed(),
+        datafeed: createDatafeed({
+          getSearchAssetClass: () =>
+            assetClassRef.current === "crypto"
+              ? "crypto"
+              : assetClassRef.current === "stocks"
+                ? "us_equity"
+                : "",
+        }),
 
         broker_factory: (host: Parameters<typeof createBroker>[0]) => {
           brokerRef = createBroker(host, () => {});

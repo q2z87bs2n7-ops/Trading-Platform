@@ -399,7 +399,11 @@ export default function App() {
       {mode === "chart" && (
         <div style={{ display: "flex", flex: isMobile ? undefined : 1, minHeight: 0 }}>
           <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-            <TVPlatform symbol={selected} onSymbolChange={setSelected} />
+            <TVPlatform
+              symbol={selected}
+              onSymbolChange={setSelected}
+              assetClass={activeClass}
+            />
           </div>
           <ChatPanel symbol={selected || (activeClass === "crypto" ? "BTC/USD" : "AAPL")} />
         </div>
@@ -439,7 +443,14 @@ export default function App() {
           {/* Positions is the primary block — promoted heading + full-width
              list. Orders + Activity drop to a 2-col secondary row beneath. */}
           <SectionHeading label="Positions" size="lg" />
-          <Positions variant="strip" onSelect={setSelected} assetClass={activeClass} />
+          <Positions
+            variant="strip"
+            onSelect={(s) => {
+              setSelected(s);
+              switchMode("chart");
+            }}
+            assetClass={activeClass}
+          />
 
           <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
             <section>

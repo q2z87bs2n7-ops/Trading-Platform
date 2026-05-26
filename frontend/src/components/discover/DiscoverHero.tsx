@@ -42,7 +42,13 @@ export function DiscoverHero({
   const dayUp = dayPl >= 0;
   const allUp = unrealized >= 0;
 
-  const open = (positions || []).filter((p) => p.market_value > 0);
+  const open = useMemo(
+    () =>
+      (positions || [])
+        .filter((p) => p.market_value > 0)
+        .sort((a, b) => a.market_value - b.market_value),
+    [positions],
+  );
   const total = open.reduce((s, p) => s + p.market_value, 0);
   const slices = useMemo(() => {
     if (total === 0) return [];

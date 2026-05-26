@@ -35,7 +35,17 @@ function toBackendTf(resolution: string): string {
   return RESOLUTION_MAP[resolution] ?? "1Day";
 }
 
-export function createDatafeed() {
+interface DatafeedOpts {
+  // /api/assets `asset_class` value. "" = all silos, "us_equity", or "crypto".
+  // Threaded from TVPlatform so TV's symbol search only surfaces results from
+  // the active silo (stocks mode shouldn't return BTC/USD, and vice versa).
+  // A function so the live silo can flow through without re-creating the
+  // datafeed and tearing down the TV widget on every toggle.
+  getSearchAssetClass?: () => string;
+}
+
+export function createDatafeed(opts: DatafeedOpts = {}) {
+  const getSearchAssetClass = opts.getSearchAssetClass ?? (() => "");
   return {
     onReady(callback: (config: object) => void) {
       setTimeout(() =>
@@ -56,7 +66,11 @@ export function createDatafeed() {
       _symbolType: string,
       onResult: (results: object[]) => void,
     ) {
-      fetch(`${API_BASE}/api/assets?search=${encodeURIComponent(userInput)}`)
+      const ac = getSearchAssetClass();
+      const cls = ac ? `&asset_class=${encodeURIComponent(ac)}` : "";
+      fetch(
+        `${API_BASE}/api/assets?search=${encodeURIComponent(userInput)}&limit=50${cls}`,
+      )
         .then((r) => r.json())
         .then((data) => {
           // /api/assets returns a plain array, not { assets: [...] }
