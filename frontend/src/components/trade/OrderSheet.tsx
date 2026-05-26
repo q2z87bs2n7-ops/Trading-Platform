@@ -358,34 +358,38 @@ export default function OrderSheet({
       >
         <style>{`@keyframes sheet-up{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
 
-        {/* Header */}
+        {/* Header — symbol chip mirrors the TradeBar dock chip's shape so
+            the sheet reads as a continuation, not a new modal. */}
         <div className="flex items-center justify-between mb-5">
-          <div>
-            <div
-              className="text-[11px] font-medium uppercase mb-0.5"
-              style={{ color: "var(--mute)", letterSpacing: "0.05em" }}
+          <div className="flex items-baseline gap-3 flex-wrap">
+            <span
+              className="inline-flex items-center gap-1.5 font-semibold tabular-nums"
+              style={{
+                background: "var(--panel-2)",
+                borderRadius: 6,
+                padding: "4px 9px",
+                fontSize: 15,
+                letterSpacing: "-0.005em",
+              }}
             >
-              New order
-            </div>
-            <div className="text-[20px] font-semibold tabular-nums flex items-baseline gap-3">
-              <span>{t.symbol || "—"}</span>
-              {t.quote && (
-                <span
-                  className="font-mono text-[15px]"
-                  style={{ color: "var(--text-2)" }}
-                >
-                  {money(t.quote.mid)}
-                </span>
-              )}
-              {t.asset && (
-                <span
-                  className="text-[12px] font-normal"
-                  style={{ color: "var(--mute)" }}
-                >
-                  {t.asset.name}
-                </span>
-              )}
-            </div>
+              {t.symbol || "—"}
+            </span>
+            {t.quote && (
+              <span
+                className="font-mono text-[15px] tabular-nums"
+                style={{ color: "var(--text-2)" }}
+              >
+                {money(t.quote.mid)}
+              </span>
+            )}
+            {t.asset && (
+              <span
+                className="text-[12px] font-normal truncate max-w-[280px]"
+                style={{ color: "var(--mute)" }}
+              >
+                {t.asset.name}
+              </span>
+            )}
           </div>
           <button
             type="button"
@@ -412,36 +416,27 @@ export default function OrderSheet({
               className="grid gap-2"
               style={{ gridTemplateColumns: "1fr 1fr" }}
             >
-              <button
-                type="button"
-                onClick={() => t.setSide("buy")}
-                className="text-[14px] font-semibold cursor-pointer transition-colors"
-                style={{
-                  padding: "12px 16px",
-                  borderRadius: "var(--r)",
-                  border: `1.5px solid ${t.side === "buy" ? "var(--pos)" : "var(--border)"}`,
-                  background:
-                    t.side === "buy" ? "var(--pos-bg)" : "transparent",
-                  color: t.side === "buy" ? "var(--pos)" : "var(--text-2)",
-                }}
-              >
-                Buy
-              </button>
-              <button
-                type="button"
-                onClick={() => t.setSide("sell")}
-                className="text-[14px] font-semibold cursor-pointer transition-colors"
-                style={{
-                  padding: "12px 16px",
-                  borderRadius: "var(--r)",
-                  border: `1.5px solid ${t.side === "sell" ? "var(--neg)" : "var(--border)"}`,
-                  background:
-                    t.side === "sell" ? "var(--neg-bg)" : "transparent",
-                  color: t.side === "sell" ? "var(--neg)" : "var(--text-2)",
-                }}
-              >
-                Sell
-              </button>
+              {(["buy", "sell"] as const).map((s) => {
+                const active = t.side === s;
+                const color = s === "buy" ? "var(--pos)" : "var(--neg)";
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => t.setSide(s)}
+                    className="text-[14px] font-semibold cursor-pointer transition-colors"
+                    style={{
+                      padding: "12px 16px",
+                      borderRadius: "var(--r)",
+                      border: `1px solid ${active ? color : "var(--border)"}`,
+                      background: active ? color : "transparent",
+                      color: active ? "white" : "var(--text-2)",
+                    }}
+                  >
+                    {s === "buy" ? "Buy" : "Sell"}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Order type chips */}
@@ -662,26 +657,40 @@ export default function OrderSheet({
 
           {/* ── Right column ── */}
           <div className="flex flex-col gap-4">
+            {/* Est. cost pill — caption + value on one row. Side-coloured
+                background mirrors the side picker + primary CTA so the whole
+                trade decision reads as one tinted column. */}
             <div
-              className="p-5"
+              className="flex items-center justify-between"
               style={{
                 background:
                   t.side === "buy" ? "var(--pos-bg)" : "var(--neg-bg)",
-                borderRadius: "var(--r-lg)",
+                borderRadius: "var(--r)",
+                padding: "10px 14px",
               }}
             >
-              <div
-                className="text-[11px] font-medium uppercase"
-                style={{
-                  color: t.side === "buy" ? "var(--pos)" : "var(--neg)",
-                  letterSpacing: "0.04em",
-                }}
+              <span
+                className="text-[11px]"
+                style={{ color: "var(--text-2)", letterSpacing: "0.02em" }}
               >
-                Estimated {t.side === "buy" ? "cost" : "proceeds"}
-              </div>
-              <div className="font-mono text-[28px] font-semibold tabular-nums mt-1">
+                Est. {t.side === "buy" ? "cost" : "proceeds"}
+                <span style={{ color: "var(--mute)" }}>
+                  {" · @ "}
+                  {t.type === "market"
+                    ? "market"
+                    : t.type === "trailing_stop"
+                      ? "trail"
+                      : t.type === "stop"
+                        ? "stop"
+                        : "limit"}
+                </span>
+              </span>
+              <span
+                className="font-mono text-[15px] font-semibold tabular-nums"
+                style={{ color: t.side === "buy" ? "var(--pos)" : "var(--neg)" }}
+              >
                 {t.estNotional != null ? money(t.estNotional) : "—"}
-              </div>
+              </span>
             </div>
 
             <div className="flex flex-col">
@@ -919,16 +928,27 @@ function OrderSheetMobile({
           paddingTop: "max(var(--safe-top), 12px)",
         }}
       >
-        {/* (a) Header */}
+        {/* (a) Header — symbol chip mirrors the TradeBar dock chip's shape. */}
         <div
           className="flex items-center justify-between mb-3"
           style={{ padding: "0 16px" }}
         >
-          <div className="text-[20px] font-semibold tabular-nums flex items-baseline gap-3 min-w-0">
-            <span>{t.symbol || "—"}</span>
+          <div className="flex items-baseline gap-3 min-w-0">
+            <span
+              className="inline-flex items-center font-semibold tabular-nums shrink-0"
+              style={{
+                background: "var(--panel-2)",
+                borderRadius: 6,
+                padding: "5px 10px",
+                fontSize: 16,
+                letterSpacing: "-0.005em",
+              }}
+            >
+              {t.symbol || "—"}
+            </span>
             {t.quote && (
               <span
-                className="font-mono text-[15px]"
+                className="font-mono text-[15px] tabular-nums"
                 style={{ color: "var(--text-2)" }}
               >
                 {money(t.quote.mid)}
@@ -1221,6 +1241,16 @@ function OrderSheetMobile({
           <div className="flex justify-between text-[12.5px] mb-1.5">
             <span style={{ color: "var(--mute)" }}>
               Est. {t.side === "buy" ? "cost" : "proceeds"}
+              <span>
+                {" · @ "}
+                {t.type === "market"
+                  ? "market"
+                  : t.type === "trailing_stop"
+                    ? "trail"
+                    : t.type === "stop"
+                      ? "stop"
+                      : "limit"}
+              </span>
             </span>
             <span className="font-mono tabular-nums">
               {t.estNotional != null ? money(t.estNotional) : "—"}
