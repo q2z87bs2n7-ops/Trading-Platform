@@ -124,9 +124,13 @@ function buildStockPrompt(w: SummaryWindow, watchlistSymbols: string[]): string 
     `Write a 150–200 word ${ctx[w]} market briefing in the voice of a trading desk note — one continuous paragraph, no section labels or lists.` +
     ` Use these tools to gather the data: get_positions for current holdings and day % change;` +
     ` get_orders with status=closed and limit=50 for anything sold today that is no longer held;` +
-    ` get_news without a symbol for a real headline (do NOT use get_movers).` +
+    ` get_news without a symbol for a real headline;` +
+    ` get_movers for the day's biggest gainers and losers;` +
+    ` get_trending_stocks once for what has the most analyst attention right now;` +
+    ` and get_asset_profile on up to 3 of the largest holdings to ground the narrative in sector / P-E / margin context (skip if no holdings).` +
     wl +
-    ` Blend holdings, recent trades, watchlist moves, and the headline into a single flowing narrative — do not narrate the tool calls.` +
+    ` Do NOT call get_smart_score, get_sentiment_signals, get_analyst_ratings, get_hedge_funds, or get_insiders — too granular for this briefing.` +
+    ` Blend holdings, recent trades, watchlist moves, market movers, trending names, and the headline into a single flowing narrative — do not narrate the tool calls.` +
     ` If the portfolio is empty and there are no recent trades, skip the holdings section and focus on the market overview.` +
     windowAngle[w]
   );
@@ -147,7 +151,8 @@ function buildCryptoPrompt(w: SummaryWindow, watchlistSymbols: string[]): string
     `Write a 150–200 word ${ctx[w]} market briefing in the voice of a trading desk note — one continuous paragraph, no section labels or lists.` +
     ` Use these tools to gather the data: get_positions for current crypto holdings and 24h % change;` +
     ` get_orders with status=closed and limit=50 for any pairs sold recently that are no longer held;` +
-    ` get_news with symbol BTC for a real crypto headline (do NOT call get_movers — Alpaca has no crypto screener).` +
+    ` get_news with symbol BTC for a real crypto headline (do NOT call get_movers — Alpaca has no crypto screener);` +
+    ` and get_asset_profile on up to 3 of the largest holdings for category / market-cap-rank / ATH-distance context (skip if no holdings).` +
     wl +
     ` Blend holdings, recent trades, watchlist moves, and the headline into a single flowing narrative — do not narrate the tool calls.` +
     ` If the portfolio is empty and there are no recent trades, skip the holdings section and focus on the market overview.`
