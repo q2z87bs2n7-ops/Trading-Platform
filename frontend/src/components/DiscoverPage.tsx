@@ -249,73 +249,68 @@ export default function DiscoverPage({
     );
   }
 
-  function renderWatchlistSection(sidebar: boolean) {
+  const watchlistCountCtx = watchlist.isPending
+    ? "loading…"
+    : isCrypto
+      ? `${wlSymbols.length} pair${wlSymbols.length === 1 ? "" : "s"}`
+      : `${wlSymbols.length} symbol${wlSymbols.length === 1 ? "" : "s"}`;
+
+  function renderWatchlistCards(sidebar: boolean) {
+    if (watchlist.isPending) {
+      return (
+        <CardsContainer sidebar={sidebar}>
+          {Array.from({ length: sidebar ? 4 : isCrypto ? 4 : 6 }).map((_, i) => (
+            <SparkCardSkeleton key={i} />
+          ))}
+        </CardsContainer>
+      );
+    }
+    if (wlSymbols.length === 0) {
+      return (
+        <CardsContainer sidebar={sidebar}>
+          <AddSymbolTile
+            assetClass={isCrypto ? "crypto" : "us_equity"}
+            isCrypto={isCrypto}
+            isMobile={isMobile}
+            disabled={adding}
+            onChoose={addSymbol}
+            onMobileTap={() => setAddSheetOpen(true)}
+          />
+        </CardsContainer>
+      );
+    }
     return (
-      <>
-        {/* The add affordance is the persistent "+ Add" tile inside the
-           cards container (last cell). Heading stays a simple count. */}
-        <SectionHeading
-          label="Watchlist"
-          size={sidebar ? "sm" : "md"}
-          ctx={
-            watchlist.isPending
-              ? "loading…"
-              : isCrypto
-                ? `${wlSymbols.length} pair${wlSymbols.length === 1 ? "" : "s"}`
-                : `${wlSymbols.length} symbol${wlSymbols.length === 1 ? "" : "s"}`
-          }
+      <CardsContainer sidebar={sidebar}>
+        {wlSymbols.map((sym) => {
+          const q = quotes[sym];
+          const last = live[sym]?.mid ?? q?.last_price ?? 0;
+          const prev = q?.prev_close ?? 0;
+          const dayChange = prev ? (last - prev) / prev : 0;
+          const pos = siloPositions.find((p) => p.symbol === sym);
+          return (
+            <SparkCard
+              key={sym}
+              symbol={isCrypto ? coinLabel(sym) : sym}
+              name={pos ? `${pos.qty} ${isCrypto ? "units" : "shares"}` : ""}
+              price={last}
+              changePct={dayChange}
+              selected={sym === selected}
+              onSelect={() => onSelect(sym)}
+              onRemove={() => removeWatchlistSymbol(sym)}
+              isCrypto={isCrypto}
+              closes={barsMap[sym]?.map((b) => b.close)}
+            />
+          );
+        })}
+        <AddSymbolTile
+          assetClass={isCrypto ? "crypto" : "us_equity"}
+          isCrypto={isCrypto}
+          isMobile={isMobile}
+          disabled={adding}
+          onChoose={addSymbol}
+          onMobileTap={() => setAddSheetOpen(true)}
         />
-        {watchlist.isPending ? (
-          <CardsContainer sidebar={sidebar}>
-            {Array.from({ length: sidebar ? 4 : isCrypto ? 4 : 6 }).map((_, i) => (
-              <SparkCardSkeleton key={i} />
-            ))}
-          </CardsContainer>
-        ) : wlSymbols.length === 0 ? (
-          <CardsContainer sidebar={sidebar}>
-            <AddSymbolTile
-              assetClass={isCrypto ? "crypto" : "us_equity"}
-              isCrypto={isCrypto}
-              isMobile={isMobile}
-              disabled={adding}
-              onChoose={addSymbol}
-              onMobileTap={() => setAddSheetOpen(true)}
-            />
-          </CardsContainer>
-        ) : (
-          <CardsContainer sidebar={sidebar}>
-            {wlSymbols.map((sym) => {
-              const q = quotes[sym];
-              const last = live[sym]?.mid ?? q?.last_price ?? 0;
-              const prev = q?.prev_close ?? 0;
-              const dayChange = prev ? (last - prev) / prev : 0;
-              const pos = siloPositions.find((p) => p.symbol === sym);
-              return (
-                <SparkCard
-                  key={sym}
-                  symbol={isCrypto ? coinLabel(sym) : sym}
-                  name={pos ? `${pos.qty} ${isCrypto ? "units" : "shares"}` : ""}
-                  price={last}
-                  changePct={dayChange}
-                  selected={sym === selected}
-                  onSelect={() => onSelect(sym)}
-                  onRemove={() => removeWatchlistSymbol(sym)}
-                  isCrypto={isCrypto}
-                  closes={barsMap[sym]?.map((b) => b.close)}
-                />
-              );
-            })}
-            <AddSymbolTile
-              assetClass={isCrypto ? "crypto" : "us_equity"}
-              isCrypto={isCrypto}
-              isMobile={isMobile}
-              disabled={adding}
-              onChoose={addSymbol}
-              onMobileTap={() => setAddSheetOpen(true)}
-            />
-          </CardsContainer>
-        )}
-      </>
+      </CardsContainer>
     );
   }
 
@@ -508,7 +503,8 @@ export default function DiscoverPage({
         <>
           {heroBlock}
           {aiSummary}
-          {renderWatchlistSection(false)}
+          <SectionHeading label="Watchlist" ctx={watchlistCountCtx} />
+          {renderWatchlistCards(false)}
           {mainContent}
         </>
       ) : (
@@ -549,32 +545,59 @@ export default function DiscoverPage({
                 <ChevronGlyph dir="right" />
               </button>
             ) : (
-              <div style={{ position: "relative" }}>
-                {/* Collapse handle: floats over SectionHeading's right edge so
-                   we don't need to duplicate the heading row. */}
-                <button
-                  type="button"
-                  onClick={toggleSidebar}
-                  aria-label="Hide watchlist"
-                  title="Hide watchlist"
-                  className="cursor-pointer flex items-center justify-center"
-                  style={{
-                    position: "absolute",
-                    top: 4,
-                    right: 0,
-                    width: 22,
-                    height: 22,
-                    background: "transparent",
-                    border: "1px solid var(--border)",
-                    borderRadius: 4,
-                    color: "var(--mute)",
-                    zIndex: 1,
-                  }}
+              <>
+                {/* Inline heading row keeps the section title flush with the
+                   top of the sidebar (the standalone SectionHeading's mt:24
+                   was the source of the dead-space gap below the markets bar).
+                   Collapse chevron sits beside the label, not absolutely
+                   layered, so it gets a real flex slot. */}
+                <div
+                  className="flex items-center justify-between gap-2"
+                  style={{ marginBottom: 8 }}
                 >
-                  <ChevronGlyph dir="left" />
-                </button>
-                {renderWatchlistSection(true)}
-              </div>
+                  <span
+                    className="flex items-center gap-2 font-semibold"
+                    style={{
+                      fontSize: 11.5,
+                      color: "var(--text-2)",
+                      letterSpacing: "0.04em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    <span>Watchlist</span>
+                    <span
+                      className="font-medium normal-case"
+                      style={{
+                        fontSize: 12,
+                        color: "var(--mute)",
+                        letterSpacing: 0,
+                        textTransform: "none",
+                      }}
+                    >
+                      {watchlistCountCtx}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={toggleSidebar}
+                    aria-label="Hide watchlist"
+                    title="Hide watchlist"
+                    className="cursor-pointer flex items-center justify-center"
+                    style={{
+                      width: 22,
+                      height: 22,
+                      background: "var(--panel)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 4,
+                      color: "var(--text-2)",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <ChevronGlyph dir="left" />
+                  </button>
+                </div>
+                {renderWatchlistCards(true)}
+              </>
             )}
           </aside>
           <main className="min-w-0">
