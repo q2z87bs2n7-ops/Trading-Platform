@@ -11,6 +11,7 @@ export function SparkCard({
   onRemove,
   isCrypto,
   dense = false,
+  compact = false,
 }: {
   symbol: string;
   name: string;
@@ -23,11 +24,14 @@ export function SparkCard({
   /** Compact 2-col layout for narrow Workspace docks — drops the sparkline,
    *  name slot, and shrinks fonts so two cards fit in ~180px width. */
   dense?: boolean;
+  /** Mid tier between full and dense — keeps the sparkline but shorter
+   *  (H=32 instead of 48), drops the name slot. */
+  compact?: boolean;
 }) {
   const up = changePct >= 0;
   const stroke = up ? "var(--pos)" : "var(--neg)";
   const W = 100;
-  const H = 48;
+  const H = compact ? 32 : 48;
   const { line, area } = sparkPaths(symbol, changePct, W, H);
   const gradId = `spark-${symbol.replace(/[^A-Z0-9]/gi, "")}`;
   return (
@@ -69,7 +73,7 @@ export function SparkCard({
       >
         {symbol}
       </div>
-      {!dense && (
+      {!dense && !compact && (
         <div
           className="text-[11px] mt-px truncate h-[14px]"
           style={{ color: "var(--mute)" }}

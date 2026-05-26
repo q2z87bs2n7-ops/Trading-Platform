@@ -20,7 +20,10 @@ import { coinLabel } from "./discover/util";
 // SparkCards. Without this, the auto-fill grid falls to 1-col at ~280px and
 // the widget reads as a single tall card per scroll.
 const NARROW_W = 280;
+// Between narrow and full: keep the sparkline but use a shorter card height.
+const COMPACT_W = 420;
 const GRID = "repeat(auto-fill, minmax(150px, 1fr))";
+const GRID_COMPACT = "repeat(auto-fill, minmax(110px, 1fr))";
 const GRID_NARROW = "repeat(2, minmax(0, 1fr))";
 
 /**
@@ -58,7 +61,8 @@ export default function Watchlist({
 
   const ref = useRef<HTMLDivElement>(null);
   const narrow = useContainerNarrow(ref, NARROW_W);
-  const gridCols = narrow ? GRID_NARROW : GRID;
+  const compact = useContainerNarrow(ref, COMPACT_W) && !narrow;
+  const gridCols = narrow ? GRID_NARROW : compact ? GRID_COMPACT : GRID;
 
   return (
     <div ref={ref} className="flex flex-col gap-2">
@@ -101,6 +105,7 @@ export default function Watchlist({
                 onRemove={() => remove.mutate(sym)}
                 isCrypto={isCrypto}
                 dense={narrow}
+                compact={compact}
               />
             );
           })}
