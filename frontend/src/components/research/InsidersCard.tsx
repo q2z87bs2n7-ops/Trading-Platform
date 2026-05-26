@@ -8,12 +8,11 @@ function StarBar({ stars }: { stars: number | null }) {
   const filled = Math.round(Math.max(0, Math.min(5, stars)));
   return (
     <span
-      className="text-[10px] tabular-nums"
-      style={{ color: "var(--mute)" }}
+      style={{ fontSize: 10.5, fontVariantNumeric: "tabular-nums" }}
       title={`Insider rating ${stars.toFixed(1)} / 5`}
     >
-      {"★".repeat(filled)}
-      {"☆".repeat(5 - filled)}
+      <span style={{ color: "var(--amber)" }}>{"★".repeat(filled)}</span>
+      <span style={{ color: "var(--border-2)" }}>{"☆".repeat(5 - filled)}</span>
     </span>
   );
 }
@@ -75,8 +74,14 @@ function MonthlyBar({
   const total = b + s || 1;
   return (
     <div
-      className="flex h-1.5 w-full overflow-hidden rounded"
-      style={{ background: "var(--panel-2)" }}
+      className="flex w-full overflow-hidden"
+      style={{
+        height: 7,
+        borderRadius: 3,
+        background: "var(--panel-2)",
+        boxShadow:
+          "inset 0 1px 0 rgba(0,0,0,0.25), inset 0 -1px 0 rgba(255,255,255,0.02)",
+      }}
     >
       <div
         style={{ width: `${(b / total) * 100}%`, background: "var(--pos)" }}
@@ -118,7 +123,7 @@ function TxnRow({
         gridTemplateColumns: dense
           ? "3px 1fr auto 72px auto"
           : "3px 1fr 100px auto auto 72px auto",
-        borderTop: rank === 0 ? "none" : "1px solid var(--border)",
+        borderTop: rank === 0 ? "none" : "1px solid var(--hairline)",
       }}
     >
       {/* Left-rail accent — color = side, saturation = informative vs routine */}
@@ -228,14 +233,25 @@ export function InsidersCard({
         <div className="flex items-baseline gap-3 flex-wrap">
           <div className="flex flex-col gap-0.5">
             <span
-              className="text-[10px] uppercase"
-              style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
+              className="uppercase"
+              style={{
+                fontSize: 10.5,
+                color: "color-mix(in oklab, var(--mute) 70%, var(--text-2))",
+                letterSpacing: "0.06em",
+                fontWeight: 500,
+              }}
             >
               Net 12-mo flow
             </span>
             <span
-              className="font-mono text-[15px] tabular-nums"
-              style={{ color: signedColor(row.trend) }}
+              className="font-mono tabular-nums"
+              style={{
+                fontSize: 22,
+                fontWeight: 600,
+                lineHeight: 1,
+                letterSpacing: "-0.01em",
+                color: signedColor(row.trend),
+              }}
               title="Net insider $ flow over the trailing year"
             >
               {row.trend != null
@@ -245,11 +261,17 @@ export function InsidersCard({
           </div>
           {row.confidence_signal.score && (
             <span
-              className="text-[11px] px-1.5 py-0.5 rounded ml-2"
+              className="ml-2 uppercase"
               style={{
+                fontSize: 10,
+                fontWeight: 600,
+                letterSpacing: "0.05em",
+                padding: "2px 7px",
+                borderRadius: 999,
                 color: scoreChipColor(row.confidence_signal.score),
-                background:
-                  "color-mix(in oklab, currentColor 12%, transparent)",
+                background: "color-mix(in oklch, currentColor 14%, transparent)",
+                border: "1px solid color-mix(in oklch, currentColor 35%, transparent)",
+                whiteSpace: "nowrap",
               }}
               title="Tipranks confidence signal"
             >
@@ -278,8 +300,13 @@ export function InsidersCard({
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-0.5">
             <span
-              className="text-[10px] uppercase"
-              style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
+              className="uppercase"
+              style={{
+                fontSize: 10.5,
+                color: "color-mix(in oklab, var(--mute) 70%, var(--text-2))",
+                letterSpacing: "0.06em",
+                fontWeight: 500,
+              }}
             >
               Discretionary
             </span>
@@ -289,8 +316,13 @@ export function InsidersCard({
           </div>
           <div className="flex flex-col gap-0.5">
             <span
-              className="text-[10px] uppercase"
-              style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
+              className="uppercase"
+              style={{
+                fontSize: 10.5,
+                color: "color-mix(in oklab, var(--mute) 70%, var(--text-2))",
+                letterSpacing: "0.06em",
+                fontWeight: 500,
+              }}
             >
               Uninformative
             </span>
@@ -307,8 +339,13 @@ export function InsidersCard({
         {monthly.length > 0 && (
           <div className="flex flex-col gap-1">
             <span
-              className="text-[10px] uppercase"
-              style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
+              className="uppercase"
+              style={{
+                fontSize: 10.5,
+                color: "color-mix(in oklab, var(--mute) 70%, var(--text-2))",
+                letterSpacing: "0.06em",
+                fontWeight: 500,
+              }}
             >
               Last {monthCount} months (buys vs sells)
             </span>
@@ -338,8 +375,13 @@ export function InsidersCard({
         {txns.length > 0 && (
           <div className="flex flex-col gap-0.5">
             <span
-              className="text-[10px] uppercase"
-              style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
+              className="uppercase"
+              style={{
+                fontSize: 10.5,
+                color: "color-mix(in oklab, var(--mute) 70%, var(--text-2))",
+                letterSpacing: "0.06em",
+                fontWeight: 500,
+              }}
             >
               Recent transactions
             </span>
@@ -369,12 +411,12 @@ export function InsidersCard({
 
   return (
     <div
-      className="p-[18px]"
       style={{
+        padding: "16px 18px",
         background: "var(--panel)",
         border: "1px solid var(--border)",
         borderRadius: "var(--r-lg)",
-        boxShadow: "var(--shadow-sm)",
+        boxShadow: "0 0 0 1px var(--hairline), 0 1px 1px rgba(0,0,0,0.25)",
       }}
     >
       {body}
@@ -410,11 +452,12 @@ export function InsidersCardSkeleton({ bare = false }: { bare?: boolean } = {}) 
   if (bare) return body;
   return (
     <div
-      className="p-[18px]"
       style={{
+        padding: "16px 18px",
         background: "var(--panel)",
         border: "1px solid var(--border)",
         borderRadius: "var(--r-lg)",
+        boxShadow: "0 0 0 1px var(--hairline), 0 1px 1px rgba(0,0,0,0.25)",
       }}
     >
       {body}
