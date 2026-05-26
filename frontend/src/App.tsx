@@ -75,10 +75,14 @@ const MODES: { value: PlatformMode; label: string }[] = [
 function BrandMark() {
   return (
     <div
-      className="flex items-center justify-center w-8 h-8 rounded-card text-panel font-bold text-sm"
+      className="flex items-center justify-center w-8 h-8 text-panel font-bold text-sm"
       style={{
         background:
           "linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%)",
+        borderRadius: 9,
+        boxShadow:
+          "0 0 0 1px color-mix(in oklch, var(--accent) 30%, transparent), " +
+          "0 4px 12px color-mix(in oklch, var(--accent) 18%, transparent)",
       }}
       aria-hidden
     >
@@ -96,18 +100,36 @@ function ModePill({
   onClick: () => void;
   children: React.ReactNode;
 }) {
+  const [hover, setHover] = useState(false);
   return (
     <button
       type="button"
       onClick={onClick}
-      className="text-[13px] font-medium px-3 py-1.5 rounded-card transition-colors bg-transparent border-0 cursor-pointer"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      className="relative text-[13.5px] px-3.5 py-2 rounded-card bg-transparent border-0 cursor-pointer transition-colors"
       style={{
         color: active ? "var(--text)" : "var(--text-2)",
-        background: active ? "var(--panel)" : "transparent",
-        boxShadow: active ? "var(--shadow-sm)" : "none",
+        fontWeight: active ? 600 : 500,
+        letterSpacing: "-0.008em",
+        ...(hover && !active && { color: "var(--text)" }),
       }}
     >
       {children}
+      {active && (
+        <span
+          aria-hidden
+          style={{
+            position: "absolute",
+            left: 14,
+            right: 14,
+            bottom: -8,
+            height: 2,
+            borderRadius: 2,
+            background: "var(--accent)",
+          }}
+        />
+      )}
     </button>
   );
 }
@@ -115,27 +137,65 @@ function ModePill({
 function AskPill({ onClick }: { onClick: () => void }) {
   const isMac =
     typeof navigator !== "undefined" && /mac/i.test(navigator.platform);
+  const [hover, setHover] = useState(false);
   return (
-    <IconButton
+    <button
+      type="button"
       onClick={onClick}
       aria-label="Ask anything"
       title={`Ask anything (${isMac ? "⌘K" : "Ctrl+K"})`}
-      className="text-[13px] px-3 py-1.5"
+      className="cursor-pointer border-0 transition-colors"
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 10,
+        width: 260,
+        height: 34,
+        padding: "0 6px 0 12px",
+        background: "var(--panel-2)",
+        border: `1px solid ${hover ? "var(--border-2)" : "var(--border)"}`,
+        borderRadius: 10,
+        color: "var(--mute)",
+        fontWeight: 500,
+        fontSize: 13,
+      }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
     >
-      <span style={{ color: "var(--accent)" }} aria-hidden>
-        ✦
-      </span>
-      <span className="hidden lg:inline">Ask anything</span>
       <span
-        className="hidden lg:inline font-mono text-[11px] px-1.5 py-0.5 rounded"
+        aria-hidden
         style={{
-          border: "1px solid var(--border)",
-          color: "var(--mute)",
+          color: "var(--accent)",
+          fontSize: 14,
+          filter:
+            "drop-shadow(0 0 6px color-mix(in oklch, var(--accent) 45%, transparent))",
         }}
       >
-        {isMac ? "⌘K" : "Ctrl K"}
+        ✦
       </span>
-    </IconButton>
+      <span className="hidden lg:inline" style={{ flex: 1, textAlign: "left" }}>
+        Ask anything…
+      </span>
+      <span
+        className="hidden lg:inline font-mono"
+        style={{
+          background: "var(--panel-3)",
+          border: "1px solid var(--border)",
+          boxShadow:
+            "inset 0 -1px 0 var(--border-2), inset 0 1px 0 rgba(255,255,255,0.03)",
+          color: "var(--text-2)",
+          padding: "3px 7px",
+          fontSize: 10.5,
+          fontWeight: 600,
+          letterSpacing: "0.02em",
+          borderRadius: 4,
+          marginLeft: "auto",
+          lineHeight: 1,
+        }}
+      >
+        {isMac ? "⌘ K" : "Ctrl K"}
+      </span>
+    </button>
   );
 }
 
@@ -338,7 +398,11 @@ export default function App() {
         // intentionally not surfaced here; it moves to PortfolioHero in #8.
         <div
           className="grid items-center gap-4"
-          style={{ gridTemplateColumns: "auto 1fr auto" }}
+          style={{
+            gridTemplateColumns: "auto 1fr auto",
+            paddingBottom: 14,
+            borderBottom: "1px solid var(--hairline)",
+          }}
         >
           <div className="flex items-center gap-3 min-w-0">
             {/* Brand button now stands in for the asset-class toggle: it
@@ -387,8 +451,7 @@ export default function App() {
 
           {/* CENTRE — Mode pills, centred via justify-self */}
           <div
-            className="inline-flex items-center gap-1 p-1 rounded-card justify-self-center"
-            style={{ background: "var(--panel-2)" }}
+            className="inline-flex items-center gap-1 justify-self-center"
           >
             {MODES.map((m) => (
               <ModePill

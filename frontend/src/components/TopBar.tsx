@@ -86,16 +86,27 @@ export function HeaderEquityReadout({ assetClass: _assetClass }: { assetClass: A
   const up = pl >= 0;
   return (
     <div className="flex flex-col items-end leading-tight">
-      <span className="tabular-nums font-mono text-[14px] font-semibold">
+      <span
+        className="tabular-nums font-mono"
+        style={{ fontSize: 15.5, fontWeight: 550, letterSpacing: "-0.01em" }}
+      >
         {money(acct.equity)}
       </span>
       <span
-        className="tabular-nums font-mono text-[11.5px] font-semibold"
-        style={{ color: up ? "var(--pos)" : "var(--neg)" }}
+        className="tabular-nums font-mono"
+        style={{
+          fontSize: 12,
+          fontWeight: 500,
+          color: up
+            ? "color-mix(in oklch, var(--pos) 90%, var(--text))"
+            : "color-mix(in oklch, var(--neg) 88%, var(--text))",
+        }}
       >
-        {up ? "+" : ""}
-        {money(pl)} · {up ? "+" : ""}
-        {(plpc * 100).toFixed(2)}% today
+        {up ? "+" : "−"}
+        {money(Math.abs(pl))}
+        <span style={{ color: "var(--mute)", margin: "0 6px", fontWeight: 400 }}>·</span>
+        {up ? "+" : "−"}
+        {Math.abs(plpc * 100).toFixed(2)}% today
       </span>
     </div>
   );
