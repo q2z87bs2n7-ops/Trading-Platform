@@ -125,6 +125,11 @@ ANTHROPIC_API_KEY=sk-ant-...
 The panel lets you ask questions about your positions, request price data,
 and draw annotations directly on the chart via natural language.
 
+Both the Ask anything bar and the ChartBot composer expose a mic button
+for **voice input** via the browser's Web Speech API — free, no extra
+infra. Works on Chrome / Edge / Safari (incl. iOS 14.5+); the button is
+hidden on Firefox which doesn't support the API.
+
 The **Ask anything** bar (teal accent, all modes) is a separate, purely
 local intent parser — orders, portfolio queries, movers, news, charts.
 It works without any Anthropic key and costs nothing to run.

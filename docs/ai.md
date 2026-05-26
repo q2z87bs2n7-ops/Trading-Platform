@@ -89,6 +89,16 @@ invalidations only run on the original fresh resolution, never on cache replay.
 A header **Clear** button (visible when the transcript is non-empty) wipes the
 key.
 
+### Voice input
+
+Both Ask anything and the ChartBot composer expose a mic toggle
+(`components/MicButton.tsx` + `hooks/useSpeechToText.ts`) that wraps the
+browser's `SpeechRecognition` API. **Free, no infra** — Chrome / Edge / Safari
+(incl. iOS 14.5+); Firefox lacks support, so the button is hidden there with
+no fallback. While listening the textarea goes read-only (interim transcript
+is previewed in the field, finalized chunks are appended to state — readOnly
+avoids controlled-value desync); submit or modal-close stops the mic.
+
 ## AI market summary (violet — real Claude call)
 
 `hooks/useMarketSummary.ts` + `MarketSummaryCard`, Discover hero. Auto-generates
