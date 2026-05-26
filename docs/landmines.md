@@ -351,6 +351,20 @@ places TV interface.
   settings), so TV can otherwise restore a *previous session's* palette
   that doesn't match the app theme — the colours then stay wrong until a
   manual toggle. Don't drop the `onChartReady` re-assert.
+- **TV's `autosize` gets stuck across Dockview `display:none` → visible.**
+  Dockview hides inactive panels with `display: none`, which halts iframe
+  layout. When the panel is shown again at the *same* dimensions, TV's
+  internal ResizeObserver never fires (no `clientWidth`/`clientHeight`
+  delta) and the iframe stays on its pre-hide measurements — often a
+  collapsed 0×0 if it was hidden at startup, or yesterday's panel size
+  if it was resized while hidden. `TVChartWidget` takes the Dockview
+  panel API as a prop and subscribes to `onDidVisibilityChange` +
+  `onDidDimensionsChange`; on either signal it briefly flips the
+  container `height` to `calc(100% - 1px)` then back, forcing a
+  measurable size delta so TV's autosize re-measures. Don't remove the
+  `panelApi` prop or the nudge effect; the underlying iframe doesn't
+  expose a public `resize()` and remounting the widget would lose
+  drawings/zoom/active symbol.
 
 ## Mobile / responsive layer (≤ 640px)
 

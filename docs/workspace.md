@@ -77,10 +77,12 @@ Widgets reuse existing surfaces:
   equity, day P/L, buying power, cash, positions value, portfolio value, margin
   (initial/maintenance), and short value when non-zero.
 - **Watchlist** — `components/Watchlist.tsx`, silo watchlist spark cards; a click
-  writes to the widget's channel. Container-width-aware: under ~280px the
-  layout forces a 2-col grid of dense `SparkCard`s (no sparkline, smaller
-  fonts, no name slot) instead of the auto-fill grid that would otherwise
-  collapse to 1-col and waste the dock height.
+  writes to the widget's channel. Container-width-aware in two steps: between
+  280–420px a `compact` tier keeps the sparkline but shortens it (H=32 instead
+  of 48, drops the name slot, auto-fill min drops 150→110px); under ~280px the
+  layout forces a 2-col grid of dense `SparkCard`s (no sparkline at all,
+  smaller fonts) instead of the auto-fill grid that would otherwise collapse to
+  1-col and waste the dock height.
 - **Positions / Orders / Activity / News** — the existing surfaces.
 - **Profile** — `components/AssetProfile.tsx`, symbol-linked catalogue enrichment
   off `/api/asset-profile`: fundamentals for stocks (sector, market cap, beta,
@@ -138,12 +140,39 @@ Charts shed chrome/axes as their panel shrinks (see the chart widgets above);
 Positions/Orders/Activities flip to their stacked card layout (and Profile drops
 its stat grid 2→1 column) in narrow panels via `hooks/useContainerNarrow` + an
 additive `dense` prop (panel-width, since `useMobile` is viewport-only and never
-trips in this desktop-only mode; the flip width is tuned per widget by column
-count — Orders 560, Positions 480, Activities 360, Profile 340, Fundamentals 340, Earnings 420
-(drops the revenue column)); the header `AssetSearch` portals its dropdown to
-`<body>` so it isn't clipped by the panel. Data widgets render **bare** (the
-`bare` prop on `Orders`/`Activities`/`NewsCard` + the `Positions` strip rows) —
-no per-component card border/shadow, since the panel is already a closed-off
+trips in this desktop-only mode). `useContainerTall` is a sibling hook that
+keys off panel *height* — currently used by Positions so a tall+narrow dock
+tightens row padding/gap to fit more rows. Flip widths are tuned per widget; a
+few widgets carry a second tier between full and dense (or above full, "wide")
+so the transition isn't a single hard flip:
+
+- **Orders** — dense 560 (table → cards). Intermediate `mid` 760 keeps the
+  table but hides TIF + Submitted columns so it fits common 600–760px docks.
+- **Positions** — dense 480 (strip → mobile card). Height `tall` 600 with
+  `dense` engages `compact` row padding (8/12 instead of 14/16) for tall+narrow
+  docks where many rows compete for vertical space.
+- **Activities** — dense 360.
+- **Profile** — dense 340 (stat grid 2 → 1).
+- **Fundamentals** — own dense 400 (denser numeric data than Profile) + `wide`
+  560 promoting the stat grids from 2 → 3 columns on roomy panels.
+- **Earnings** — dense 420 drops the revenue column; `tight` 320 also
+  suppresses the year suffix on per-symbol dates (`May 30 '26` → `May 30`),
+  shrinking the date column from 72 → 48px before revenue drops.
+- **News** — `compact` 320 stacks the rel-time *above* source+title instead of
+  using the 60px left column.
+- **Watchlist** — `compact` 420 + dense 280 (see widget bullet above).
+- **Account** — equity headline scales: 32px at >=360px, 24px default, 20px
+  under 240px.
+- **Trade** — tightens at <300px: row gap and Buy/Sell + Submit button
+  paddings shrink (no layout flip; `flex-wrap` already handled narrow chips).
+- **LinkHeader** (shared) — self-measures via its own `useContainerNarrow`;
+  under 260px drops the `· Kind` suffix and tightens `ChannelPicker`
+  (gap 1 → 0.5, dot 11 → 9).
+
+The header `AssetSearch` portals its dropdown to `<body>` so it isn't clipped
+by the panel. Data widgets render **bare** (the `bare` prop on
+`Orders`/`Activities`/`NewsCard` + the `Positions` strip rows) — no
+per-component card border/shadow, since the panel is already a closed-off
 module; rows separate with a hairline in both the table and the narrow
 stacked-card layouts. Account stays clean by construction.
 
