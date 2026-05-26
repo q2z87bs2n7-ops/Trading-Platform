@@ -266,11 +266,16 @@ export default function Orders({
   assetClass,
   symbol,
   dense = false,
+  mid = false,
   bare = false,
 }: {
   assetClass?: "stocks" | "crypto";
   symbol?: string;
   dense?: boolean;
+  // Intermediate width tier: keeps the table but hides TIF + Submitted
+  // columns so it fits common 600–760px workspace docks instead of
+  // dropping all the way to stacked cards.
+  mid?: boolean;
   bare?: boolean;
 } = {}) {
   const [status, setStatus] = useState<StatusFilter>("all");
@@ -447,17 +452,20 @@ export default function Orders({
                 >
                   Symbol
                 </th>
-                {[
-                  "Side",
-                  "Type",
-                  "Qty",
-                  "Limit",
-                  "Stop",
-                  "TIF",
-                  "Value",
-                  "Status",
-                  "Submitted",
-                ].map((h) => (
+                {(mid
+                  ? ["Side", "Type", "Qty", "Limit", "Stop", "Value", "Status"]
+                  : [
+                      "Side",
+                      "Type",
+                      "Qty",
+                      "Limit",
+                      "Stop",
+                      "TIF",
+                      "Value",
+                      "Status",
+                      "Submitted",
+                    ]
+                ).map((h) => (
                   <th
                     key={h}
                     className={TH}
@@ -479,13 +487,16 @@ export default function Orders({
               </tr>
             </thead>
             <tbody>
-              {isPending && (
-                <>
-                  <SkeletonRow cols={11} />
-                  <SkeletonRow cols={11} />
-                  <SkeletonRow cols={11} />
-                </>
-              )}
+              {isPending && (() => {
+                const c = mid ? 9 : 11;
+                return (
+                  <>
+                    <SkeletonRow cols={c} />
+                    <SkeletonRow cols={c} />
+                    <SkeletonRow cols={c} />
+                  </>
+                );
+              })()}
               {!isPending &&
                 rows &&
                 rows.map((o) => {
@@ -548,16 +559,18 @@ export default function Orders({
                       >
                         {dash(o.stop_price)}
                       </td>
-                      <td
-                        className={TD}
-                        style={{ borderColor: "var(--hairline)" }}
-                      >
-                        {o.time_in_force ? (
-                          enumTail(o.time_in_force).toUpperCase()
-                        ) : (
-                          <span style={{ color: "var(--mute)" }}>—</span>
-                        )}
-                      </td>
+                      {!mid && (
+                        <td
+                          className={TD}
+                          style={{ borderColor: "var(--hairline)" }}
+                        >
+                          {o.time_in_force ? (
+                            enumTail(o.time_in_force).toUpperCase()
+                          ) : (
+                            <span style={{ color: "var(--mute)" }}>—</span>
+                          )}
+                        </td>
+                      )}
                       <td
                         className={TD}
                         style={{ borderColor: "var(--hairline)" }}
@@ -584,17 +597,19 @@ export default function Orders({
                           )}
                         </div>
                       </td>
-                      <td
-                        className={TD}
-                        style={{
-                          borderColor: "var(--hairline)",
-                          color: "var(--mute)",
-                        }}
-                      >
-                        {o.submitted_at
-                          ? new Date(o.submitted_at * 1000).toLocaleString()
-                          : "—"}
-                      </td>
+                      {!mid && (
+                        <td
+                          className={TD}
+                          style={{
+                            borderColor: "var(--hairline)",
+                            color: "var(--mute)",
+                          }}
+                        >
+                          {o.submitted_at
+                            ? new Date(o.submitted_at * 1000).toLocaleString()
+                            : "—"}
+                        </td>
+                      )}
                       <td
                         className={`${TD} text-center font-sans`}
                         style={{ borderColor: "var(--hairline)" }}

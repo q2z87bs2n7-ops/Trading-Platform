@@ -421,6 +421,7 @@ function MiniChartWidget(props: IDockviewPanelProps) {
 // the widest table (11 cols) so it flips earliest; Activities is the narrowest.
 const POSITIONS_DENSE_W = 480;
 const ORDERS_DENSE_W = 560;
+const ORDERS_MID_W = 760;
 const ACTIVITY_DENSE_W = 360;
 const PROFILE_DENSE_W = 340;
 const EARNINGS_DENSE_W = 420;
@@ -468,6 +469,9 @@ function OrdersWidget(props: IDockviewPanelProps) {
   const symbol = channel === "none" ? undefined : getSymbol(channel);
   const ref = useRef<HTMLDivElement>(null);
   const dense = useContainerNarrow(ref, ORDERS_DENSE_W);
+  // mid is "narrower than full but wider than dense" — hides TIF + Submitted
+  // columns. Only meaningful when dense is false.
+  const mid = useContainerNarrow(ref, ORDERS_MID_W) && !dense;
   return (
     <WidgetShell
       header={
@@ -484,7 +488,7 @@ function OrdersWidget(props: IDockviewPanelProps) {
     >
       <div ref={ref} style={{ height: "100%" }}>
         <Pane pad>
-          <Orders assetClass={assetClass} symbol={symbol} dense={dense} bare />
+          <Orders assetClass={assetClass} symbol={symbol} dense={dense} mid={mid} bare />
         </Pane>
       </div>
     </WidgetShell>
