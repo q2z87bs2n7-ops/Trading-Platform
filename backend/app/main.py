@@ -314,7 +314,7 @@ def research_trending() -> dict:
     return {"trending": tipranks.get_trending_stocks(), "as_of": int(time.time())}
 
 
-@app.get("/api/research/smart-score/{symbol}")
+@app.get("/api/research/smart-score/{symbol:path}")
 def research_smart_score(symbol: str) -> dict:
     """Tipranks SmartScore composite (1–10) + component breakdown for one symbol."""
     return {
@@ -324,7 +324,7 @@ def research_smart_score(symbol: str) -> dict:
     }
 
 
-@app.get("/api/research/sentiment/{symbol}")
+@app.get("/api/research/sentiment/{symbol:path}")
 def research_sentiment(symbol: str) -> dict:
     """Combined blogger + news + investor sentiment (Tipranks). Three upstream
     calls fanned in. Stocks only."""
@@ -335,7 +335,7 @@ def research_sentiment(symbol: str) -> dict:
     }
 
 
-@app.get("/api/research/analysts/{symbol}")
+@app.get("/api/research/analysts/{symbol:path}")
 def research_analysts(symbol: str) -> dict:
     """Per-analyst ratings list for one symbol (Tipranks). Stocks only."""
     return {
@@ -345,7 +345,7 @@ def research_analysts(symbol: str) -> dict:
     }
 
 
-@app.get("/api/research/hedge-funds/{symbol}")
+@app.get("/api/research/hedge-funds/{symbol:path}")
 def research_hedge_funds(symbol: str) -> dict:
     """Hedge-fund signal + 13F quarterly trend + per-fund holdings (Tipranks)."""
     return {
@@ -355,7 +355,7 @@ def research_hedge_funds(symbol: str) -> dict:
     }
 
 
-@app.get("/api/research/insiders/{symbol}")
+@app.get("/api/research/insiders/{symbol:path}")
 def research_insiders(symbol: str) -> dict:
     """Insider Form-4 transactions + monthly history + confidence (Tipranks)."""
     return {
@@ -365,7 +365,7 @@ def research_insiders(symbol: str) -> dict:
     }
 
 
-@app.get("/api/research/related-tickers/{symbol}")
+@app.get("/api/research/related-tickers/{symbol:path}")
 def research_related_tickers(symbol: str) -> dict:
     """Tickers also held by investors who hold ``symbol`` (Tipranks). Four
     lists — overall + per-age-cohort (youngest / midRange / eldest)."""
@@ -376,7 +376,7 @@ def research_related_tickers(symbol: str) -> dict:
     }
 
 
-@app.get("/api/research/holder-demographics/{symbol}")
+@app.get("/api/research/holder-demographics/{symbol:path}")
 def research_holder_demographics(symbol: str) -> dict:
     """Per-cohort behavioural profile of the stock's holder base
     (eldest / midRange / youngest) + sector & best-investor benchmark footer."""

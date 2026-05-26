@@ -118,10 +118,12 @@ separate silos behind a shared account.
       client-side, with `sortable` opt-in so the Workspace per-symbol
       view stays chronological), **economic calendar**
       (`discover/EconomicCard.tsx`, US high/medium-impact, day-paginated —
-      defaults to today, falls back to the next day with events; rows
-      open a Google search for the event name in a new tab — FMP ships
-      no per-event URL and the obvious data-publisher search pages
-      don't map cleanly to FMP's event strings), market news.
+      defaults to today, falls back to the next day with events; rows for
+      the ~95 mapped recurring releases deep-link to the corresponding
+      **FRED series page** in a new tab via `lib/economic-fred-map.ts`
+      (rule-based name → series id), unmapped events render as plain text
+      — a Google-search fallback was tried and dropped because the result
+      pages rarely landed on the right release), market news.
       Both pagers share `discover/CardPager.tsx`.
     - *Crypto*: crypto price marquee ticker (`discover/CryptoTicker.tsx`),
       same single-column `DiscoverHero` (crypto holdings + curve),
@@ -443,6 +445,7 @@ new surface. Full rules, precedents, and examples: `docs/workspace.md` →
 | `platform_mode_v1` | `App.tsx` | `App.tsx` | `"discover" \| "portfolio" \| "chart" \| "workspace"`. The header-pill mode the app boots into. A mobile reload that rehydrates `workspace` falls back to `discover` (workspace is desktop-only). |
 | `splash_seen_v1` | `App.tsx` | `App.tsx` | `"1"` once the user has picked a silo from the splash. Subsequent loads skip the splash and land on the `asset_class_mode` silo. Clearing this key restores the first-time landing. |
 | `theme` | `hooks/useTheme.ts` + `index.html` bootstrap | both | `"light" \| "dark"`. Defaults to OS preference. |
+| `discover_sidebar_collapsed_v1` | `components/DiscoverPage.tsx` | `components/DiscoverPage.tsx` | `"1"` when the desktop Discover watchlist sidebar is collapsed to its 32 px chevron strip. Absent / any other value = expanded. Desktop-only (mobile renders the watchlist as a horizontal CardsRow). |
 | `chartbot_session` | `useChatSession` | `useChatSession` | Serialised turns + apiHistory, capped at 256 KB. |
 | `ask_session_v1` | `components/ask/AskBar.tsx` | `components/ask/AskBar.tsx` | Ask-anything transcript + apiHistory, capped at 256 KB. Each fallback turn stores its `cachedResp` so a reopen / reload replays the answer without re-billing Anthropic; workspace_actions and watchlist invalidations are **not** re-replayed from cache. Header **Clear** button (visible only when there are turns) wipes the key. Eviction drops the oldest turn (and matching user+assistant pair) when over budget. |
 | `ai_drawings_v1` | `tv-drawings.ts` | `tv-drawings.ts` | Per-symbol drawing UUIDs replayed on chart load. |

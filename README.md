@@ -9,14 +9,13 @@ cancel, close positions) with a positions/orders/activities blotter.
 Supports **US equities** and **crypto** in separate silos. Paper account
 only — there is no live-trading path.
 
-On **every load** an **asset class splash** is shown as the landing screen —
-pick Stocks or Crypto to enter (the app never restores a last page/silo). It
-doubles as an **Account Hub** (re-opened from the header brand mark) showing a
-whole-account overview: total equity, day P/L, buying power, and a
-stocks-vs-crypto-vs-cash split. The last-used silo is remembered only to
-highlight its card. The active silo also tints the accent (green for Stocks,
-blue for Crypto). Both sides share the same mode toggle (Workspace is
-desktop-only):
+On the **first session only**, an **asset class splash** is shown as the
+landing screen — pick Stocks or Crypto to enter. Subsequent loads land
+straight on the last-used silo's Discover. The splash doubles as an **Account
+Hub** (re-opened from the header brand mark) showing a whole-account
+overview: total equity, day P/L, buying power, and a stocks-vs-crypto-vs-cash
+split. The active silo tints the accent (green for Stocks, blue for Crypto).
+Both sides share the same mode toggle (Workspace is desktop-only):
 
 - **Discover** (default)
   - *Stocks* — silo holdings + allocation donut (green), indices marquee
@@ -286,9 +285,11 @@ paid Alpaca data plan for the full consolidated tape.
   when the stream is unavailable and quotes are polling instead.
 - Keys live only in `backend/.env`, which is gitignored. Never commit it.
 - Default watchlist symbols are configurable via `DEFAULT_SYMBOLS` in `.env`.
-- Browser state is in `localStorage`: `asset_class_mode` (stocks / crypto,
-  the last-used silo used only to highlight the landing card — the splash
-  shows on every load), `theme` (light / dark), `chartbot_session` (256 KB
+- Browser state is in `localStorage`: `asset_class_mode` (stocks / crypto —
+  the silo the app boots into post-splash; also highlights the active card
+  in the Account Hub), `splash_seen_v1` (set once the user has picked a
+  silo; clearing it restores the first-time landing), `platform_mode_v1`
+  (last-used mode pill), `theme` (light / dark), `chartbot_session` (256 KB
   byte budget —
   oldest user+assistant pairs drop once the budget is exceeded),
   `ai_drawings_v1` (per-symbol drawing UUIDs replayed on chart load),
