@@ -108,7 +108,16 @@ def health() -> dict:
 @app.get("/api/config")
 def config() -> dict:
     s = get_settings()
-    return {"symbols": s.symbols, "feed": s.alpaca_data_feed, "paper": s.alpaca_paper}
+    return {
+        "symbols": s.symbols,
+        "feed": s.alpaca_data_feed,
+        "paper": s.alpaca_paper,
+        # Surface the active Anthropic model + tool-loop cap so the AI
+        # disabled-state notices can render real per-turn cost estimates
+        # against published Anthropic pricing.
+        "anthropic_model": s.anthropic_model,
+        "ai_max_tool_iterations": s.ai_max_tool_iterations,
+    }
 
 
 @app.get("/api/status")

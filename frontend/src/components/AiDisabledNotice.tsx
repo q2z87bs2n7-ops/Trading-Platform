@@ -2,29 +2,33 @@
 // Settings. Container-agnostic (renders its own host-tinted left rail and
 // "Turn on" CTA) so each consumer just drops it into the surface's chrome.
 
+import { useConfig } from "../data/hooks";
+import { estimateCost } from "../lib/ai-cost";
+
 export type AiSurface = "market" | "ask" | "chartbot";
 
-// Honest cost language: real per-turn cost depends on the model and token
-// usage (multi-tool ChartBot turns can cost 50× a one-shot market summary).
-// We don't know the model at render time, so we don't pretend to.
+// Real cost text comes from estimateCost(surface, model) at render time —
+// reads ANTHROPIC_MODEL via /api/config so flipping Sonnet ↔ Opus ↔ Haiku
+// reflects immediately. The fallback line is the qualitative version used
+// before /api/config has resolved.
 const COPY: Record<
   AiSurface,
-  { title: string; body: string; cost: string }
+  { title: string; body: string; fallbackCost: string }
 > = {
   market: {
     title: "Market summary",
     body: "Auto-generated briefings of what moved during the session.",
-    cost: "One Anthropic call per window — small, single-shot.",
+    fallbackCost: "One Anthropic call per window.",
   },
   ask: {
     title: "Ask anything",
     body: "Free-form questions — answers, suggestions, layout builds.",
-    cost: "Free for the local parser · API credits when the AI fallback runs.",
+    fallbackCost: "Free for the local parser · API credits when the AI fallback runs.",
   },
   chartbot: {
     title: "ChartBot",
     body: "Chart-aware assistant: chat, draw lines, place orders inline.",
-    cost: "Each turn spends API credits — multi-tool turns can stack.",
+    fallbackCost: "Each turn spends API credits — multi-tool turns can stack.",
   },
 };
 
@@ -38,6 +42,12 @@ export default function AiDisabledNotice({
   compact?: boolean;
 }) {
   const c = COPY[surface];
+  const { data: config } = useConfig();
+  // Estimate uses the live ANTHROPIC_MODEL via /api/config; while config is
+  // resolving (first load) we drop the qualitative fallback line.
+  const costLine = config
+    ? estimateCost(surface, config.anthropic_model).perCall
+    : c.fallbackCost;
   return (
     <div
       className="flex items-start gap-3 w-full"
@@ -89,7 +99,7 @@ export default function AiDisabledNotice({
           className="text-[11px] tabular-nums"
           style={{ color: "var(--mute)" }}
         >
-          {c.cost}
+          {costLine}
         </div>
         {/* Opens the Settings menu rather than flipping the toggle directly —
            we want the user's explicit consent before spending API credits,

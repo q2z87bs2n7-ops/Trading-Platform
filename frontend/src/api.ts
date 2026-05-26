@@ -78,7 +78,13 @@ async function sendJSON<T>(
 }
 
 export const getConfig = () =>
-  getJSON<{ symbols: string[]; feed: string; paper: boolean }>("/api/config");
+  getJSON<{
+    symbols: string[];
+    feed: string;
+    paper: boolean;
+    anthropic_model: string;
+    ai_max_tool_iterations: number;
+  }>("/api/config");
 
 export interface AppStatus {
   version: string;
