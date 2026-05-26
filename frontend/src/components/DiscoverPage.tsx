@@ -668,14 +668,12 @@ export default function DiscoverPage({
                   top: 8,
                   zIndex: 20,
                   marginBottom: 12,
-                  padding: "8px 14px 8px 12px",
-                  background: "var(--panel-3)",
-                  border: "1px solid var(--border)",
-                  borderLeft: "3px solid var(--accent)",
+                  padding: "8px 14px",
+                  background: "var(--text)",
+                  color: "var(--bg)",
+                  border: "none",
                   borderRadius: "var(--r)",
                   boxShadow: "var(--shadow-lg)",
-                  backdropFilter: "blur(8px)",
-                  WebkitBackdropFilter: "blur(8px)",
                 }}
               >
                 <span className="font-semibold" style={{ fontSize: 13 }}>
@@ -698,7 +696,7 @@ export default function DiscoverPage({
                 </span>
                 <span
                   className="ml-auto"
-                  style={{ color: "var(--mute)", fontSize: 11 }}
+                  style={{ opacity: 0.6, fontSize: 11 }}
                 >
                   Scroll to chart ↑
                 </span>
