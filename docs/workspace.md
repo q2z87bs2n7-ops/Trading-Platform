@@ -79,16 +79,26 @@ Widgets reuse existing surfaces:
 - **Account** — `components/AccountPanel.tsx`, curated whole-account overview:
   equity, day P/L, buying power, cash, positions value, portfolio value, margin
   (initial/maintenance), and short value when non-zero.
-- **Watchlist** — `components/Watchlist.tsx`, silo watchlist spark cards; a click
-  writes to the widget's channel. Container-width-aware in two steps: between
-  280–420px a `compact` tier keeps the sparkline but shortens it (H=32 instead
-  of 48, drops the name slot, auto-fill min drops 150→110px); under ~280px the
-  layout forces a 2-col grid of dense `SparkCard`s (no sparkline at all,
-  smaller fonts) instead of the auto-fill grid that would otherwise collapse to
-  1-col and waste the dock height. Sparkline curves are **real recent daily
-  closes** via `/api/bars/batch` (`useBarsBatch`, one round-trip per silo, 5-min
-  refetch); the symbol-seeded synthetic curve in `discover/util.ts` is kept as
-  the first-paint / missing-data fallback.
+- **Watchlist** — `components/Watchlist.tsx`, silo watchlist; a click writes to
+  the widget's channel. Has a 3-way view toggle next to the AssetSearch:
+  **Auto** / **Cards** / **List**, persisted per panel in
+  `props.params.watchlistMode` (so each Watchlist instance in a layout — and
+  in a saved layout's Dockview JSON — remembers its own choice).
+  - **Cards** is the SparkCard grid. Container-width-aware in two steps:
+    between 280–420px a `compact` tier keeps the sparkline but shortens it
+    (H=32 instead of 48, drops the name slot, auto-fill min drops 150→110px);
+    under ~280px the layout forces a 2-col grid of dense `SparkCard`s (no
+    sparkline at all, smaller fonts) instead of the auto-fill grid that would
+    otherwise collapse to 1-col and waste the dock height. Sparkline curves
+    are **real recent daily closes** via `/api/bars/batch` (`useBarsBatch`,
+    one round-trip per silo, 5-min refetch); the symbol-seeded synthetic curve
+    in `discover/util.ts` is kept as the first-paint / missing-data fallback.
+  - **List** is a stack of dense single-line rows (`symbol · price · day %`,
+    hover-✕ remove). Designed for short or narrow docks where even one row
+    of cards eats the visible area — the row mode surfaces many more tickers
+    in the same shape.
+  - **Auto** (default) resolves to **List** when the panel height is
+    `< 320px` *or* width is `< 280px`, and **Cards** otherwise.
 - **Positions / Orders / Activity / News** — the existing surfaces.
 - **Profile** — `components/AssetProfile.tsx`, symbol-linked catalogue enrichment
   off `/api/asset-profile`: fundamentals for stocks (sector, market cap, beta,
@@ -244,7 +254,9 @@ so the transition isn't a single hard flip:
   280px and up.
 - **News** — `compact` 320 stacks the rel-time *above* source+title instead of
   using the 60px left column.
-- **Watchlist** — `compact` 420 + dense 280 (see widget bullet above).
+- **Watchlist** — Cards mode: `compact` 420 + dense 280 (see widget bullet
+  above). Auto mode also flips to the **List** view at `height < 320` or
+  `width < 280`.
 - **Account** — equity headline scales: 32px at >=360px, 24px default, 20px
   under 240px.
 - **Trade** — tightens at <300px: row gap and Buy/Sell + Submit button
