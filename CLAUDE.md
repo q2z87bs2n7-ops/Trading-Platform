@@ -81,8 +81,15 @@ separate silos behind a shared account.
     fetched once for the whole watchlist via `/api/bars/batch` (`useBarsBatch`,
     5-min refetch) and rendered through a tiny **lightweight-charts** area
     series (`SparkChart` inside `discover/SparkCard.tsx`) for visual parity
-    with the Workspace Mini chart's spark tier; first paint / missing-data
-    falls back to the symbol-seeded synthetic SVG so loading isn't blank.
+    with the Workspace Mini chart's spark tier. While bars are in flight
+    the sparkline area is empty (no synthetic-curve fallback — the swap
+    onto the LWC chart read as a visible flash); the price + day-% chip
+    above the curve still render so cards are never fully blank. Each
+    SparkChart overlays a dashed horizontal hairline at `closes[N-2]`
+    via LWC's `createPriceLine` — yesterday's daily close, the same
+    `prev_close` the day-% chip is measured against — so a sparkline
+    trending up against a red day chip (or vice versa) is readable at
+    a glance (tip below the line = today is down).
     **Desktop layout is a 2-col grid**: a sticky left **watchlist sidebar**
     (`260px` expanded, collapses to a `32px` chevron strip — state persisted
     in `localStorage('discover_sidebar_collapsed_v1')`) + main column with
@@ -90,10 +97,6 @@ separate silos behind a shared account.
     a sidebar card writes `selected` which drives the inline chart on the
     right. Mobile keeps the linear stacked flow (watchlist as a horizontal
     `CardsRow`, no sidebar).
-    Each watchlist SparkCard draws a thin dashed hairline at the
-    position of `closes[N-2]` (yesterday's daily close — the `prev_close`
-    that the card's day-% chip is measured against) so a sparkline
-    trending up against a red day chip (or vice versa) is readable.
     - *Stocks*: `DiscoverHero` (single-column silo holdings + ~80px
       area-filled net P/L sparkline from `usePnlHistory` — the allocation
       donut moved to Portfolio as a sibling card), indices marquee ticker,

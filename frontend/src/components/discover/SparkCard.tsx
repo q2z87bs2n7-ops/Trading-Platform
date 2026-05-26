@@ -2,13 +2,15 @@ import { useEffect, useRef } from "react";
 import {
   createChart,
   type IChartApi,
+  type IPriceLine,
   type ISeriesApi,
+  LineStyle,
   type UTCTimestamp,
 } from "lightweight-charts";
 
 import { useTheme } from "../../hooks/useTheme";
 import { fmtCryptoPrice, pct } from "../../lib/format";
-import { fmtPrice, sparkPaths } from "./util";
+import { fmtPrice } from "./util";
 
 // Read --pos / --neg / --panel from the active Calm theme so the chart tracks
 // light/dark swaps. The lightweight-charts canvas can't consume CSS variables
@@ -62,6 +64,9 @@ function SparkChart({
   const ref = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Area"> | null>(null);
+  // Holds the createPriceLine instance so we can remove it before redrawing
+  // when `closes` updates (new prev_close on the next bar).
+  const priceLineRef = useRef<IPriceLine | null>(null);
   const { theme } = useTheme();
 
   useEffect(() => {
@@ -95,6 +100,7 @@ function SparkChart({
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
+      priceLineRef.current = null;
     };
     // Re-create on `up` flip handled via applyOptions below — no remount needed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -114,9 +120,12 @@ function SparkChart({
     });
   }, [up, theme]);
 
-  // Feed data. We don't have real bar timestamps at this layer (Watchlist /
-  // DiscoverPage only forward closes), so synthesise sequential daily times
-  // ending today — order is what matters, not absolute dates.
+  // Feed data + redraw the prev-close hairline. Horizontal price line at
+  // closes[N-2] (yesterday's daily close — the `prev_close` the card's
+  // day-% chip is measured against). A horizontal hairline directly shows
+  // the baseline: tip above = today up, tip below = today down. Resolve
+  // --text-2 through the canvas trick so the token works whether it's
+  // oklch / color() / rgb.
   useEffect(() => {
     if (!seriesRef.current) return;
     const t0 = Math.floor(Date.now() / 1000);
@@ -127,37 +136,28 @@ function SparkChart({
       })),
     );
     chartRef.current?.timeScale().fitContent();
-  }, [closes]);
 
-  // Marker at index N-2 (yesterday's close — the prev_close the day chip
-  // is computed against). X position scales evenly across the bars since
-  // closes are equispaced. Skip when too few points (single-day account)
-  // or when it'd visually collide with the right edge.
-  const markerLeftPct =
-    closes.length >= 3
-      ? ((closes.length - 2) / (closes.length - 1)) * 100
-      : null;
+    if (priceLineRef.current) {
+      seriesRef.current.removePriceLine(priceLineRef.current);
+      priceLineRef.current = null;
+    }
+    if (closes.length >= 2) {
+      const prevClose = closes[closes.length - 2];
+      const cs = getComputedStyle(document.documentElement);
+      const muteToken = cs.getPropertyValue("--text-2").trim() || "#828680";
+      const mute = withAlpha(muteToken, 0.7);
+      priceLineRef.current = seriesRef.current.createPriceLine({
+        price: prevClose,
+        color: mute,
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: false,
+        title: "",
+      });
+    }
+  }, [closes, theme]);
 
-  return (
-    <div style={{ position: "relative", height, width: "100%" }}>
-      <div ref={ref} style={{ height, width: "100%" }} />
-      {markerLeftPct != null && (
-        <div
-          aria-hidden
-          style={{
-            position: "absolute",
-            top: 0,
-            bottom: 0,
-            left: `${markerLeftPct}%`,
-            width: 0,
-            borderLeft: "1px dashed var(--text-2)",
-            opacity: 0.5,
-            pointerEvents: "none",
-          }}
-        />
-      )}
-    </div>
-  );
+  return <div ref={ref} style={{ height, width: "100%" }} />;
 }
 
 export function SparkCard({
@@ -195,11 +195,8 @@ export function SparkCard({
 }) {
   const up = changePct >= 0;
   const stroke = up ? "var(--pos)" : "var(--neg)";
-  const W = 100;
   const H = compact ? 32 : 48;
   const hasReal = !!closes && closes.length >= 2;
-  const { line, area } = sparkPaths(symbol, changePct, W, H);
-  const gradId = `spark-${symbol.replace(/[^A-Z0-9]/gi, "")}`;
   return (
     <div
       role="button"
@@ -265,25 +262,7 @@ export function SparkCard({
       </div>
       {!dense && (
         <div className="mt-1.5" style={{ height: H }}>
-          {hasReal ? (
-            <SparkChart closes={closes!} up={up} height={H} />
-          ) : (
-            <svg
-              height={H}
-              viewBox={`0 0 ${W} ${H}`}
-              preserveAspectRatio="none"
-              className="block w-full"
-            >
-              <defs>
-                <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={stroke} stopOpacity={0.12} />
-                  <stop offset="100%" stopColor={stroke} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <path d={area} fill={`url(#${gradId})`} />
-              <path d={line} fill="none" stroke={stroke} strokeWidth={1.5} />
-            </svg>
-          )}
+          {hasReal && <SparkChart closes={closes!} up={up} height={H} />}
         </div>
       )}
     </div>
