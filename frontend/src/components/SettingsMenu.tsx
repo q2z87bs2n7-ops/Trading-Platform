@@ -94,14 +94,6 @@ function SiloRow({ onClose }: { onClose: () => void }) {
     >
       <div className="flex flex-col min-w-0">
         <span className="text-[13px] font-medium">Market</span>
-        <span
-          className="text-[12px] mt-0.5 leading-snug"
-          style={{ color: "var(--mute)" }}
-        >
-          Switch between the stocks and crypto silos. Account view stays the
-          same; everything else (positions, watchlist, orders, news) follows
-          this pick.
-        </span>
       </div>
       <div
         role="radiogroup"
