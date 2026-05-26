@@ -36,7 +36,7 @@ function actionColor(a: string | null): string {
   const lc = a.toLowerCase();
   if (lc.startsWith("upgrad")) return "var(--pos)";
   if (lc.startsWith("downgrad")) return "var(--neg)";
-  if (lc.startsWith("initiat")) return "var(--accent, var(--text))";
+  if (lc.startsWith("initiat")) return "var(--accent)";
   return "var(--mute)";
 }
 
@@ -45,10 +45,17 @@ function ActionBadge({ action }: { action: string | null }) {
   const color = actionColor(action);
   return (
     <span
-      className="text-[10px] uppercase font-medium tracking-wide px-1 py-0.5 rounded"
+      className="uppercase"
       style={{
+        fontSize: 10,
+        fontWeight: 600,
+        letterSpacing: "0.05em",
+        padding: "2px 7px",
+        borderRadius: 999,
         color,
-        background: "color-mix(in oklab, currentColor 12%, transparent)",
+        background: "color-mix(in oklch, currentColor 14%, transparent)",
+        border: "1px solid color-mix(in oklch, currentColor 35%, transparent)",
+        whiteSpace: "nowrap",
       }}
       title={action}
     >
@@ -82,7 +89,7 @@ function RowItem({
     <div
       className="py-2 cursor-default"
       style={{
-        borderTop: rank === 0 ? "none" : "1px solid var(--border)",
+        borderTop: rank === 0 ? "none" : "1px solid var(--hairline)",
         cursor: onClick ? "pointer" : "default",
       }}
       onClick={onClick}
@@ -115,40 +122,76 @@ function RowItem({
         </span>
       </div>
 
-      {/* Line 2: PT · this-stock hit rate · date */}
+      {/* Line 2: PT · this-stock hit rate (mini bar) · date */}
       <div className="flex items-center gap-2 mt-0.5">
         {ptLabel && (
           <span
-            className="text-[11px] font-mono tabular-nums"
-            style={{ color: "var(--text)" }}
+            className="font-mono tabular-nums"
+            style={{
+              fontSize: 11,
+              color: "var(--text)",
+              background: "var(--panel-2)",
+              border: "1px solid var(--hairline)",
+              padding: "2px 7px",
+              borderRadius: 6,
+            }}
             title="Analyst price target"
           >
             PT {ptLabel}
           </span>
         )}
-        {!dense && stockHit && (
+        {!dense && r.stock_success_rate != null && (
           <span
-            className="text-[11px] tabular-nums"
-            style={{
-              color:
-                r.stock_success_rate != null && r.stock_success_rate >= 0.55
-                  ? "var(--pos)"
-                  : r.stock_success_rate != null && r.stock_success_rate <= 0.45
-                    ? "var(--neg)"
-                    : "var(--mute)",
-            }}
+            className="inline-flex items-center"
+            style={{ gap: 6, fontSize: 11 }}
             title={
               r.stock_total_recommendations != null
                 ? `${r.stock_good_recommendations ?? 0} of ${r.stock_total_recommendations} calls on this stock`
                 : "Track record on this stock"
             }
           >
-            {stockHit} hit
+            <span
+              aria-hidden
+              style={{
+                width: 28,
+                height: 3,
+                background: "var(--panel-2)",
+                borderRadius: 2,
+                overflow: "hidden",
+              }}
+            >
+              <span
+                style={{
+                  display: "block",
+                  width: `${r.stock_success_rate * 100}%`,
+                  height: "100%",
+                  background:
+                    r.stock_success_rate >= 0.55
+                      ? "var(--pos)"
+                      : r.stock_success_rate <= 0.45
+                        ? "var(--neg)"
+                        : "var(--mute)",
+                  borderRadius: 2,
+                }}
+              />
+            </span>
+            <span
+              className="font-mono tabular-nums"
+              style={{
+                color:
+                  r.stock_success_rate >= 0.55
+                    ? "var(--pos)"
+                    : r.stock_success_rate <= 0.45
+                      ? "var(--neg)"
+                      : "var(--mute)",
+              }}
+            >
+              {stockHit}
+            </span>
             {r.stock_avg_return != null && (
-              <span style={{ color: "var(--mute)" }}>
-                {" "}
-                · {r.stock_avg_return > 0 ? "+" : ""}
-                {r.stock_avg_return.toFixed(1)}% avg
+              <span className="font-mono tabular-nums" style={{ color: "var(--mute)" }}>
+                {r.stock_avg_return > 0 ? "+" : ""}
+                {r.stock_avg_return.toFixed(1)}%
               </span>
             )}
           </span>
@@ -212,12 +255,12 @@ export function AnalystRatingsCard({
 
   return (
     <div
-      className="p-[18px]"
       style={{
+        padding: "16px 18px",
         background: "var(--panel)",
         border: "1px solid var(--border)",
         borderRadius: "var(--r-lg)",
-        boxShadow: "var(--shadow-sm)",
+        boxShadow: "0 0 0 1px var(--hairline), 0 1px 1px rgba(0,0,0,0.25)",
       }}
     >
       {body}
@@ -240,11 +283,12 @@ export function AnalystRatingsCardSkeleton({ bare = false }: { bare?: boolean } 
   if (bare) return body;
   return (
     <div
-      className="p-[18px]"
       style={{
+        padding: "16px 18px",
         background: "var(--panel)",
         border: "1px solid var(--border)",
         borderRadius: "var(--r-lg)",
+        boxShadow: "0 0 0 1px var(--hairline), 0 1px 1px rgba(0,0,0,0.25)",
       }}
     >
       {body}

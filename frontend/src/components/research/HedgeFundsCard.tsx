@@ -59,7 +59,7 @@ function FundRow({
         gridTemplateColumns: dense
           ? "1fr auto auto 64px"
           : "1fr 130px auto auto 64px 64px",
-        borderTop: rank === 0 ? "none" : "1px solid var(--border)",
+        borderTop: rank === 0 ? "none" : "1px solid var(--hairline)",
       }}
     >
       <span
@@ -79,10 +79,17 @@ function FundRow({
       )}
       {f.action && (
         <span
-          className="text-[10px] uppercase font-medium tracking-wide px-1 py-0.5 rounded"
+          className="uppercase"
           style={{
+            fontSize: 10,
+            fontWeight: 600,
+            letterSpacing: "0.05em",
+            padding: "2px 7px",
+            borderRadius: 999,
             color: actionColor(f.action),
-            background: "color-mix(in oklab, currentColor 12%, transparent)",
+            background: "color-mix(in oklch, currentColor 14%, transparent)",
+            border: "1px solid color-mix(in oklch, currentColor 35%, transparent)",
+            whiteSpace: "nowrap",
           }}
           title={f.action}
         >
@@ -192,8 +199,12 @@ export function HedgeFundsCard({
         {/* Signal headline */}
         <div className="flex items-baseline gap-2">
           <span
-            className="font-semibold text-[15px]"
-            style={{ color: ratingColor(row.signal.rating) }}
+            className="font-semibold"
+            style={{
+              color: ratingColor(row.signal.rating),
+              fontSize: 19,
+              letterSpacing: "-0.01em",
+            }}
           >
             {row.signal.rating ?? "—"}
           </span>
@@ -215,8 +226,13 @@ export function HedgeFundsCard({
         >
           <div className="flex flex-col gap-0.5">
             <span
-              className="text-[10px] uppercase"
-              style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
+              className="uppercase"
+              style={{
+                fontSize: 10.5,
+                color: "color-mix(in oklab, var(--mute) 70%, var(--text-2))",
+                letterSpacing: "0.06em",
+                fontWeight: 500,
+              }}
             >
               Last Q net
             </span>
@@ -229,8 +245,13 @@ export function HedgeFundsCard({
           </div>
           <div className="flex flex-col gap-0.5">
             <span
-              className="text-[10px] uppercase"
-              style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
+              className="uppercase"
+              style={{
+                fontSize: 10.5,
+                color: "color-mix(in oklab, var(--mute) 70%, var(--text-2))",
+                letterSpacing: "0.06em",
+                fontWeight: 500,
+              }}
             >
               Funds covered
             </span>
@@ -240,8 +261,13 @@ export function HedgeFundsCard({
           </div>
           <div className="flex flex-col gap-0.5">
             <span
-              className="text-[10px] uppercase"
-              style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
+              className="uppercase"
+              style={{
+                fontSize: 10.5,
+                color: "color-mix(in oklab, var(--mute) 70%, var(--text-2))",
+                letterSpacing: "0.06em",
+                fontWeight: 500,
+              }}
             >
               Total holders
             </span>
@@ -251,48 +277,96 @@ export function HedgeFundsCard({
           </div>
         </div>
 
-        {/* Quarterly holdings history — last 4 quarters at full width, last 2
-            at narrow widths so the per-cell numeric label stays readable. */}
-        {row.holdings_history.length > 0 && (
-          <div className="flex flex-col gap-1">
-            <span
-              className="text-[10px] uppercase"
-              style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
-            >
-              Quarterly net Δ
-            </span>
-            <div className="flex gap-2">
-              {row.holdings_history
-                .slice(narrow ? -2 : -4)
-                .map((h) => (
-                  <div
-                    key={h.date}
-                    className="flex flex-col items-center flex-1 min-w-0"
-                  >
-                    <span
-                      className="font-mono text-[11px] tabular-nums truncate"
-                      style={{ color: signedColor(h.net_shares_change) }}
+        {/* Quarterly holdings history — vertical bars chart. Last 4 quarters at
+            full width, last 2 at narrow widths so bars stay readable. */}
+        {row.holdings_history.length > 0 && (() => {
+          const maxNet = Math.max(...row.holdings_history.map(h => Math.abs(h.net_shares_change ?? 0)));
+          return (
+            <div className="flex flex-col gap-1">
+              <span
+                className="uppercase"
+                style={{
+                  fontSize: 10.5,
+                  color: "color-mix(in oklab, var(--mute) 70%, var(--text-2))",
+                  letterSpacing: "0.06em",
+                  fontWeight: 500,
+                }}
+              >
+                Quarterly net Δ
+              </span>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "flex-end",
+                  height: 56,
+                  marginTop: 4,
+                }}
+              >
+                {row.holdings_history.slice(narrow ? -2 : -4).map((h) => {
+                  const v = h.net_shares_change ?? 0;
+                  const heightPct = maxNet > 0 ? (Math.abs(v) / maxNet) * 100 : 0;
+                  return (
+                    <div
+                      key={h.date}
+                      style={{
+                        flex: 1,
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        gap: 4,
+                        minWidth: 0,
+                      }}
                     >
-                      {signedCompact(h.net_shares_change)}
-                    </span>
-                    <span
-                      className="text-[10px]"
-                      style={{ color: "var(--mute)" }}
-                    >
-                      {fmtQuarter(h.date)}
-                    </span>
-                  </div>
-                ))}
+                      <span
+                        className="font-mono tabular-nums truncate"
+                        style={{ fontSize: 10.5, color: signedColor(v) }}
+                      >
+                        {signedCompact(v)}
+                      </span>
+                      <div
+                        style={{
+                          width: "100%",
+                          height: 36,
+                          background: "var(--panel-2)",
+                          borderRadius: "3px 3px 0 0",
+                          display: "flex",
+                          flexDirection: "column",
+                          justifyContent: "flex-end",
+                          overflow: "hidden",
+                        }}
+                      >
+                        <div
+                          style={{
+                            height: `${heightPct}%`,
+                            background: v < 0 ? "var(--neg)" : "var(--pos)",
+                            opacity: 0.85,
+                            borderRadius: "3px 3px 0 0",
+                          }}
+                        />
+                      </div>
+                      <span style={{ fontSize: 10, color: "var(--mute)" }}>
+                        {fmtQuarter(h.date)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Top moving funds list */}
         {fundRows.length > 0 && (
           <div className="flex flex-col gap-0.5">
             <span
-              className="text-[10px] uppercase"
-              style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
+              className="uppercase"
+              style={{
+                fontSize: 10.5,
+                color: "color-mix(in oklab, var(--mute) 70%, var(--text-2))",
+                letterSpacing: "0.06em",
+                fontWeight: 500,
+              }}
             >
               Largest movers (last Q)
             </span>
@@ -322,12 +396,12 @@ export function HedgeFundsCard({
 
   return (
     <div
-      className="p-[18px]"
       style={{
+        padding: "16px 18px",
         background: "var(--panel)",
         border: "1px solid var(--border)",
         borderRadius: "var(--r-lg)",
-        boxShadow: "var(--shadow-sm)",
+        boxShadow: "0 0 0 1px var(--hairline), 0 1px 1px rgba(0,0,0,0.25)",
       }}
     >
       {body}
@@ -363,11 +437,12 @@ export function HedgeFundsCardSkeleton({ bare = false }: { bare?: boolean } = {}
   if (bare) return body;
   return (
     <div
-      className="p-[18px]"
       style={{
+        padding: "16px 18px",
         background: "var(--panel)",
         border: "1px solid var(--border)",
         borderRadius: "var(--r-lg)",
+        boxShadow: "0 0 0 1px var(--hairline), 0 1px 1px rgba(0,0,0,0.25)",
       }}
     >
       {body}
