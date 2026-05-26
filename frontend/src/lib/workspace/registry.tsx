@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import type { IDockviewPanelHeaderProps, IDockviewPanelProps } from "dockview-react";
-import { useContainerNarrow } from "../../hooks/useContainerNarrow";
+import { useContainerNarrow, useContainerTall } from "../../hooks/useContainerNarrow";
 import Positions from "../../components/Positions";
 import Orders from "../../components/Orders";
 import Activities from "../../components/Activities";
@@ -432,6 +432,7 @@ function MiniChartWidget(props: IDockviewPanelProps) {
 // Table→stacked-card flip widths, tuned per widget by column count. Orders has
 // the widest table (11 cols) so it flips earliest; Activities is the narrowest.
 const POSITIONS_DENSE_W = 480;
+const POSITIONS_TALL_H = 600;
 const ORDERS_DENSE_W = 560;
 const ORDERS_MID_W = 760;
 const ACTIVITY_DENSE_W = 360;
@@ -448,6 +449,9 @@ function PositionsWidget(props: IDockviewPanelProps) {
   const symbol = channel === "none" ? undefined : getSymbol(channel);
   const ref = useRef<HTMLDivElement>(null);
   const dense = useContainerNarrow(ref, POSITIONS_DENSE_W);
+  const tall = useContainerTall(ref, POSITIONS_TALL_H);
+  // Tall+narrow docks fit more rows when the stacked-card padding tightens.
+  const compact = dense && tall;
   return (
     <WidgetShell
       header={
@@ -468,6 +472,7 @@ function PositionsWidget(props: IDockviewPanelProps) {
             variant="strip"
             symbol={symbol}
             dense={dense}
+            compact={compact}
             bare
             onSelect={(s) => setSymbol(channel === "none" ? "main" : channel, s)}
             assetClass={assetClass}
