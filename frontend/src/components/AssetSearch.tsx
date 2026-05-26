@@ -238,6 +238,7 @@ export function AssetSearch({
         createPortal(
           <div
             ref={dropRef}
+            data-asset-search-dropdown
             style={{
               position: "fixed",
               top: pos.top,

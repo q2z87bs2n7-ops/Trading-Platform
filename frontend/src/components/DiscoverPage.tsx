@@ -27,6 +27,7 @@ import { isCryptoPosition } from "../lib/asset-class";
 import { showToast } from "../lib/toast";
 import type { Snapshot } from "../types";
 import { AssetSearch } from "./AssetSearch";
+import { AddSymbolTile } from "./discover/AddSymbolTile";
 import { CardsRow } from "./discover/CardsRow";
 import { ChartCard } from "./discover/ChartCard";
 import { CryptoTicker } from "./discover/CryptoTicker";
@@ -241,6 +242,9 @@ export default function DiscoverPage({
       />
 
       {/* Watchlist */}
+      {/* The add affordance is now the persistent "+ Add" tile inside the
+         grid (last cell). Heading stays a simple count — no separate search
+         field "above" the cards. */}
       <SectionHeading
         label="Watchlist"
         ctx={
@@ -250,15 +254,6 @@ export default function DiscoverPage({
               ? `${wlSymbols.length} pair${wlSymbols.length === 1 ? "" : "s"}`
               : `${wlSymbols.length} symbol${wlSymbols.length === 1 ? "" : "s"}`
         }
-        ctxRight={
-          isMobile ? undefined : (
-            <AssetSearch
-              assetClass={isCrypto ? "crypto" : "us_equity"}
-              onChoose={addSymbol}
-              disabled={adding}
-            />
-          )
-        }
       />
       {watchlist.isPending ? (
         <CardsRow>
@@ -267,42 +262,16 @@ export default function DiscoverPage({
           ))}
         </CardsRow>
       ) : wlSymbols.length === 0 ? (
-        <div
-          className="p-5 text-[13px] flex flex-col items-start gap-3"
-          style={{
-            background: "var(--panel)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--r)",
-            color: "var(--mute)",
-          }}
-        >
-          <span>
-            {isCrypto
-              ? isMobile
-                ? "Your crypto watchlist is empty. Add a pair (e.g. BTC/USD) to start."
-                : "Your crypto watchlist is empty. Type a pair above (e.g. BTC/USD) to add one."
-              : isMobile
-                ? "Your watchlist is empty. Add a ticker to start."
-                : "Your watchlist is empty. Type a ticker above to add one."}
-          </span>
-          {isMobile && (
-            <button
-              type="button"
-              onClick={() => setAddSheetOpen(true)}
-              className="text-[13px] font-medium cursor-pointer"
-              style={{
-                minHeight: "var(--mob-tap)",
-                padding: "8px 16px",
-                background: "var(--accent-bg)",
-                color: "var(--accent)",
-                border: "1px solid var(--accent)",
-                borderRadius: 8,
-              }}
-            >
-              + Add {isCrypto ? "pair" : "symbol"}
-            </button>
-          )}
-        </div>
+        <CardsRow>
+          <AddSymbolTile
+            assetClass={isCrypto ? "crypto" : "us_equity"}
+            isCrypto={isCrypto}
+            isMobile={isMobile}
+            disabled={adding}
+            onChoose={addSymbol}
+            onMobileTap={() => setAddSheetOpen(true)}
+          />
+        </CardsRow>
       ) : (
         <CardsRow>
           {wlSymbols.map((sym) => {
@@ -325,29 +294,14 @@ export default function DiscoverPage({
               />
             );
           })}
-          {isMobile && (
-            <button
-              type="button"
-              onClick={() => setAddSheetOpen(true)}
-              aria-label="Add to watchlist"
-              style={{
-                scrollSnapAlign: "start",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                minWidth: 90,
-                border: "1.5px dashed var(--border-2)",
-                borderRadius: "var(--r)",
-                background: "transparent",
-                color: "var(--accent)",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              + Add
-            </button>
-          )}
+          <AddSymbolTile
+            assetClass={isCrypto ? "crypto" : "us_equity"}
+            isCrypto={isCrypto}
+            isMobile={isMobile}
+            disabled={adding}
+            onChoose={addSymbol}
+            onMobileTap={() => setAddSheetOpen(true)}
+          />
         </CardsRow>
       )}
 
