@@ -331,6 +331,26 @@ def research_analysts(symbol: str) -> dict:
     }
 
 
+@app.get("/api/research/hedge-funds/{symbol}")
+def research_hedge_funds(symbol: str) -> dict:
+    """Hedge-fund signal + 13F quarterly trend + per-fund holdings (Tipranks)."""
+    return {
+        "symbol": symbol.upper(),
+        "hedge_funds": tipranks.get_hedge_funds(symbol),
+        "as_of": int(time.time()),
+    }
+
+
+@app.get("/api/research/insiders/{symbol}")
+def research_insiders(symbol: str) -> dict:
+    """Insider Form-4 transactions + monthly history + confidence (Tipranks)."""
+    return {
+        "symbol": symbol.upper(),
+        "insiders": tipranks.get_insiders(symbol),
+        "as_of": int(time.time()),
+    }
+
+
 @app.get("/api/movers", dependencies=[Depends(require_configured)])
 def movers(top: int = Query(10, ge=1, le=50)) -> dict:
     return alpaca.get_movers(top)

@@ -422,6 +422,87 @@ export interface AnalystRatingsResponse {
   as_of?: number;
 }
 
+// Tipranks hedge funds (/api/research/hedge-funds/{symbol}).
+export interface HedgeHoldingHistory {
+  date: string | null;
+  shares_held: number | null;
+  net_shares_change: number | null;
+  number_of_shares_bought: number | null;
+  number_of_shares_sold: number | null;
+}
+export interface HedgeFundRow {
+  manager_name: string | null;
+  institution_name: string | null;
+  reported_value: number | null;
+  remaining_shares: number | null;
+  holding_change: number | null;
+  shares_traded: number | null;
+  percentage_of_portfolio: number | null;
+  hedge_fund_rank: number | null;
+  expert_uid: string | null;
+}
+export interface HedgeFundsRow {
+  ticker: string;
+  last_q_shares_traded: number | null;
+  signal: {
+    rating: string | null;
+    sentiment: number | null;
+    confidence: string | null;
+    based_on_num_hedge_funds: number | null;
+  };
+  total_hedge_funds: number | null;
+  holdings_history: HedgeHoldingHistory[];
+  institutional_holdings: HedgeFundRow[];
+}
+export interface HedgeFundsResponse {
+  symbol: string;
+  hedge_funds: HedgeFundsRow | null;
+  as_of?: number;
+}
+
+// Tipranks insiders (/api/research/insiders/{symbol}).
+export interface InsiderMonthly {
+  year: number | null;
+  month: number | null;
+  buy_count: number | null;
+  buy_amount: number | null;
+  sell_count: number | null;
+  sell_amount: number | null;
+  discretionary_buy_count: number | null;
+  discretionary_buy_amount: number | null;
+  discretionary_sell_count: number | null;
+  discretionary_sell_amount: number | null;
+}
+export interface InsiderTransaction {
+  insider_name: string | null;
+  position: string | null;
+  transaction: string | null;
+  amount: number | null;
+  number_of_shares: number | null;
+  date: string | null;
+  stars: number | null;
+  form_url: string | null;
+  expert_uid: string | null;
+}
+export interface InsidersRow {
+  ticker: string;
+  trend: number | null;
+  confidence_signal: {
+    score: number | null;
+    sector_score: number | null;
+    stock_score: number | null;
+  };
+  discretionary_transactions: number | null;
+  uninformative_transactions: number | null;
+  monthly: InsiderMonthly[];
+  transactions: InsiderTransaction[];
+}
+export interface InsidersResponse {
+  symbol: string;
+  insiders: InsidersRow | null;
+  as_of?: number;
+}
+
 // Benzinga ticker news via Alpaca /api/news
 export interface NewsItem {
   id: number;

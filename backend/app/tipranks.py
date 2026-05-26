@@ -34,6 +34,8 @@ _OVERVIEW_TTL = 3600      # 1h — consensus + PT shifts when analysts update (i
 _SMART_SCORE_TTL = 3600   # 1h — composite recomputed daily upstream; 1h keeps it responsive
 _SENTIMENT_TTL = 1800     # 30min — news sentiment shifts with breaking stories
 _ANALYSTS_TTL = 3600      # 1h — rating events tick irregularly
+_HEDGEFUNDS_TTL = 21600   # 6h — 13F filings are quarterly; 6h is generous
+_INSIDERS_TTL = 14400     # 4h — Form 4 filings within 2 business days of txn
 
 _trending: list[dict] = []
 _trending_ts: float = 0.0
@@ -45,6 +47,10 @@ _sentiment: dict[str, dict] = {}             # symbol -> combined sentiment
 _sentiment_ts: dict[str, float] = {}
 _analysts: dict[str, list[dict]] = {}        # symbol -> per-analyst rows
 _analysts_ts: dict[str, float] = {}
+_hedgefunds: dict[str, dict] = {}            # symbol -> normalized hedgefund payload
+_hedgefunds_ts: dict[str, float] = {}
+_insiders: dict[str, dict] = {}              # symbol -> normalized insider payload
+_insiders_ts: dict[str, float] = {}
 
 
 def configured() -> bool:
@@ -340,3 +346,144 @@ def get_analyst_ratings(symbol: str) -> list[dict]:
     except Exception as exc:
         _log.warning("tipranks analysts fetch failed for %s: %s", sym, exc)
         return cached or []
+
+
+# ── hedge funds (13F filings) ───────────────────────────────────────────────
+
+def _norm_hedge_holding(r: dict) -> dict:
+    """One quarterly snapshot from holdingData.holdings."""
+    return {
+        "date": r.get("date"),
+        "shares_held": r.get("sharesHeld"),
+        "net_shares_change": r.get("netSharesChange"),
+        "number_of_shares_bought": r.get("numberOfSharesBought"),
+        "number_of_shares_sold": r.get("numberOfSharesSold"),
+    }
+
+
+def _norm_hedge_fund(r: dict) -> dict:
+    """One fund's institutional holding row."""
+    return {
+        "manager_name": r.get("managerName"),
+        "institution_name": r.get("institutionName"),
+        "reported_value": r.get("reportedValue"),
+        "remaining_shares": r.get("adjRemainingShares"),
+        "holding_change": _f(r.get("holdingChange")),
+        "shares_traded": r.get("sharesTraded"),
+        "percentage_of_portfolio": _f(r.get("percentageOfPortfolio")),
+        "hedge_fund_rank": r.get("hedgeFundRank"),
+        "expert_uid": r.get("expertUID"),
+    }
+
+
+def get_hedge_funds(symbol: str) -> dict | None:
+    """Hedge-fund signal + quarterly trend + per-fund holdings (Tipranks)."""
+    if not configured():
+        return None
+    sym = symbol.upper()
+    now = time.time()
+    cached = _hedgefunds.get(sym)
+    if cached is not None and (now - _hedgefunds_ts.get(sym, 0.0)) < _HEDGEFUNDS_TTL:
+        return cached
+    try:
+        raw = _get(f"/api/hedgefunds/{sym}")
+        if not isinstance(raw, dict):
+            return cached
+        signal = raw.get("signalData") or {}
+        holding_data = raw.get("holdingData") or {}
+        row = {
+            "ticker": sym,
+            "last_q_shares_traded": _f(raw.get("lastQSharesTraded")),
+            "signal": {
+                "rating": signal.get("rating"),
+                "sentiment": _f(signal.get("sentiment")),
+                "confidence": signal.get("confidence"),
+                "based_on_num_hedge_funds": signal.get("basedOnNumHedgeFunds"),
+            },
+            "total_hedge_funds": holding_data.get("totalHedgeFunds"),
+            "holdings_history": [
+                _norm_hedge_holding(h) for h in (holding_data.get("holdings") or [])
+            ],
+            "institutional_holdings": [
+                _norm_hedge_fund(f) for f in (raw.get("institutionalHoldings") or [])
+            ],
+        }
+        _hedgefunds[sym] = row
+        _hedgefunds_ts[sym] = now
+        return row
+    except Exception as exc:
+        _log.warning("tipranks hedgefunds fetch failed for %s: %s", sym, exc)
+        return cached
+
+
+# ── insiders (Form 4 filings) ───────────────────────────────────────────────
+
+def _norm_monthly_insider(r: dict) -> dict:
+    """One bucket from yearlyInsiderTransactions (despite the name, monthly)."""
+    return {
+        "year": r.get("year"),
+        "month": r.get("month"),
+        "buy_count": r.get("buyCount"),
+        "buy_amount": _f(r.get("buyAmount")),
+        "sell_count": r.get("sellCount"),
+        "sell_amount": _f(r.get("sellAmount")),
+        "discretionary_buy_count": r.get("discretionaryBuyCount"),
+        "discretionary_buy_amount": _f(r.get("discretionaryBuyAmount")),
+        "discretionary_sell_count": r.get("discretionarySellCount"),
+        "discretionary_sell_amount": _f(r.get("discretionarySellAmount")),
+    }
+
+
+def _norm_insider_txn(r: dict) -> dict:
+    """One row from transactions[]. Dates upstream are DD/MM/YYYY (UK)."""
+    return {
+        "insider_name": r.get("insiderName"),
+        "position": r.get("position"),
+        "transaction": r.get("transaction"),
+        "amount": _f(r.get("amount")),
+        "number_of_shares": r.get("numberOfShares"),
+        "date": r.get("date"),
+        "stars": _f(r.get("stars")),
+        "form_url": r.get("formURL"),
+        "expert_uid": r.get("expertUid"),
+    }
+
+
+def get_insiders(symbol: str) -> dict | None:
+    """Insider transactions + monthly history + confidence signal (Tipranks)."""
+    if not configured():
+        return None
+    sym = symbol.upper()
+    now = time.time()
+    cached = _insiders.get(sym)
+    if cached is not None and (now - _insiders_ts.get(sym, 0.0)) < _INSIDERS_TTL:
+        return cached
+    try:
+        raw = _get(f"/api/insiders/{sym}")
+        if not isinstance(raw, dict):
+            return cached
+        cs = raw.get("confidenceSignal") or {}
+        row = {
+            "ticker": sym,
+            "trend": _f(raw.get("trend")),
+            "confidence_signal": {
+                "score": _f(cs.get("score")),
+                "sector_score": _f(cs.get("sectorScore")),
+                "stock_score": _f(cs.get("stockScore")),
+            },
+            "discretionary_transactions": raw.get("discretionaryTransactions"),
+            "uninformative_transactions": raw.get("uninformativeTransactions"),
+            "monthly": [
+                _norm_monthly_insider(m)
+                for m in (raw.get("yearlyInsiderTransactions") or [])
+            ],
+            "transactions": [
+                _norm_insider_txn(t) for t in (raw.get("transactions") or [])
+            ],
+        }
+        _insiders[sym] = row
+        _insiders_ts[sym] = now
+        return row
+    except Exception as exc:
+        _log.warning("tipranks insiders fetch failed for %s: %s", sym, exc)
+        return cached

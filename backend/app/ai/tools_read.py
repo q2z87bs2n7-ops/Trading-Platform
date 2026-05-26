@@ -30,6 +30,8 @@ READ_TOOL_NAMES = {
     "get_smart_score",
     "get_sentiment_signals",
     "get_analyst_ratings",
+    "get_hedge_funds",
+    "get_insiders",
 }
 
 
@@ -566,6 +568,54 @@ READ_TOOLS: list[dict[str, Any]] = [
             "consensus shown in Trending. Distinct from get_smart_score "
             "(composite signal) and get_asset_profile (catalogue facts). "
             "Stocks only; list can be long (20-50 rows)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symbol": {
+                    "type": "string",
+                    "description": "Exact ticker, e.g. AAPL.",
+                },
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "get_hedge_funds",
+        "description": (
+            "Hedge-fund flow + signal for ONE stock symbol (Tipranks, "
+            "13F-derived). Returns rating (Positive/Negative Sentiment + "
+            "confidence), last-quarter net shares traded across all reporting "
+            "funds, count of funds covered, count of total holders, "
+            "quarterly net-shares trend (last 8 quarters), and per-fund "
+            "institutional holdings (manager name, institution, shares "
+            "traded, remaining shares, % of portfolio). Use for 'are hedge "
+            "funds buying X', 'which funds own X', 'institutional flow on X', "
+            "'13F activity on X'. Data updates quarterly (13F deadlines: "
+            "mid-Feb / May / Aug / Nov). Stocks only."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symbol": {
+                    "type": "string",
+                    "description": "Exact ticker, e.g. AAPL.",
+                },
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "get_insiders",
+        "description": (
+            "Insider transactions for ONE stock symbol (Tipranks, Form-4 "
+            "derived). Returns confidence signal scores (stock vs sector), "
+            "rolling insider trend, counts of discretionary vs uninformative "
+            "transactions, monthly buy/sell amounts (last 12 months), and "
+            "named insider rows (name, position, transaction type, amount, "
+            "share count, filing date, link to SEC form). Use for 'are "
+            "insiders buying X', 'who's selling X', 'recent insider activity "
+            "on X', 'C-suite transactions on X'. Stocks only."
         ),
         "input_schema": {
             "type": "object",

@@ -48,6 +48,8 @@ export const qk = {
   smartScore: (symbol: string) => ["smartScore", symbol] as const,
   sentiment: (symbol: string) => ["sentiment", symbol] as const,
   analystRatings: (symbol: string) => ["analystRatings", symbol] as const,
+  hedgeFunds: (symbol: string) => ["hedgeFunds", symbol] as const,
+  insiders: (symbol: string) => ["insiders", symbol] as const,
   assetSymbols: ["assetSymbols"] as const,
   marketNews: ["marketNews"] as const,
   news: (symbol: string) => ["news", symbol] as const,

@@ -33,6 +33,14 @@ import {
   AnalystRatingsCard,
   AnalystRatingsCardSkeleton,
 } from "../../components/research/AnalystRatingsCard";
+import {
+  HedgeFundsCard,
+  HedgeFundsCardSkeleton,
+} from "../../components/research/HedgeFundsCard";
+import {
+  InsidersCard,
+  InsidersCardSkeleton,
+} from "../../components/research/InsidersCard";
 import ErrorBanner from "../../components/ErrorBanner";
 import { isCryptoSymbol } from "../asset-class";
 import {
@@ -41,6 +49,8 @@ import {
   useNews,
   useSymbolEarnings,
   useAnalystRatings,
+  useHedgeFunds,
+  useInsiders,
   useSentiment,
   useSmartScore,
   useTrendingResearch,
@@ -463,6 +473,8 @@ const EARNINGS_DENSE_W = 420;
 const EARNINGS_TIGHT_W = 320;
 const TRENDING_DENSE_W = 360;
 const ANALYSTS_DENSE_W = 380;
+const HEDGEFUNDS_DENSE_W = 420;
+const INSIDERS_DENSE_W = 420;
 const NEWS_COMPACT_W = 320;
 
 function PositionsWidget(props: IDockviewPanelProps) {
@@ -1034,6 +1046,98 @@ function AnalystRatingsWidget(props: IDockviewPanelProps) {
   );
 }
 
+// HedgeFunds widget: Tipranks 13F flow + per-fund holdings for one stock.
+// Stocks-only, default Main channel. Quarterly cadence underneath so the
+// hook TTL is long (6h).
+function HedgeFundsWidget(props: IDockviewPanelProps) {
+  const { getSymbol, setSymbol, assetClass } = useWorkspace();
+  const [channel, setChannel] = useChannel(props, "main");
+  const symbol = getSymbol(channel).toUpperCase();
+  const isCrypto = assetClass === "crypto" || isCryptoSymbol(symbol);
+  const ref = useRef<HTMLDivElement>(null);
+  const dense = useContainerNarrow(ref, HEDGEFUNDS_DENSE_W);
+  const data = useHedgeFunds(symbol, !isCrypto && symbol.length > 0);
+
+  return (
+    <WidgetShell
+      header={
+        <LinkHeader
+          label={symbol || "—"}
+          channel={channel}
+          setChannel={setChannel}
+          includeNone={false}
+          assetClass={assetClass}
+          onPickSymbol={(s) => setSymbol(channel, s)}
+          kind="Hedge Funds"
+        />
+      }
+    >
+      <div ref={ref} style={{ height: "100%" }}>
+        <Pane pad>
+          {isCrypto ? (
+            <p className="text-[13px]" style={{ color: "var(--mute)" }}>
+              Hedge-fund flow is stocks-only. Link this widget to a stock.
+            </p>
+          ) : (
+            <>
+              {data.error && <ErrorBanner message={data.error.message} />}
+              {!data.data && !data.error && <HedgeFundsCardSkeleton bare />}
+              {data.data && (
+                <HedgeFundsCard row={data.data.hedge_funds} bare dense={dense} />
+              )}
+            </>
+          )}
+        </Pane>
+      </div>
+    </WidgetShell>
+  );
+}
+
+// Insiders widget: Form-4 transactions + monthly bars for one stock.
+function InsidersWidget(props: IDockviewPanelProps) {
+  const { getSymbol, setSymbol, assetClass } = useWorkspace();
+  const [channel, setChannel] = useChannel(props, "main");
+  const symbol = getSymbol(channel).toUpperCase();
+  const isCrypto = assetClass === "crypto" || isCryptoSymbol(symbol);
+  const ref = useRef<HTMLDivElement>(null);
+  const dense = useContainerNarrow(ref, INSIDERS_DENSE_W);
+  const data = useInsiders(symbol, !isCrypto && symbol.length > 0);
+
+  return (
+    <WidgetShell
+      header={
+        <LinkHeader
+          label={symbol || "—"}
+          channel={channel}
+          setChannel={setChannel}
+          includeNone={false}
+          assetClass={assetClass}
+          onPickSymbol={(s) => setSymbol(channel, s)}
+          kind="Insiders"
+        />
+      }
+    >
+      <div ref={ref} style={{ height: "100%" }}>
+        <Pane pad>
+          {isCrypto ? (
+            <p className="text-[13px]" style={{ color: "var(--mute)" }}>
+              Insider activity is stocks-only. Link this widget to a stock.
+            </p>
+          ) : (
+            <>
+              {data.error && <ErrorBanner message={data.error.message} />}
+              {!data.data && !data.error && <InsidersCardSkeleton bare />}
+              {data.data && (
+                <InsidersCard row={data.data.insiders} bare dense={dense} />
+              )}
+            </>
+          )}
+        </Pane>
+      </div>
+    </WidgetShell>
+  );
+}
+
 // id → React component, consumed by DockviewReact's `components` map.
 export const WIDGET_COMPONENTS: Record<
   string,
@@ -1055,6 +1159,8 @@ export const WIDGET_COMPONENTS: Record<
   smartscore: SmartScoreWidget,
   sentiment: SentimentWidget,
   analysts: AnalystRatingsWidget,
+  hedgefunds: HedgeFundsWidget,
+  insiders: InsidersWidget,
 };
 
 // Drives the "add widget" menu and panel titles. Grouped + described to power
@@ -1160,6 +1266,20 @@ export const WIDGET_CATALOG: WidgetMeta[] = [
     title: "Analyst Ratings",
     desc: "Per-analyst rating list (firm, recommendation, date) for one stock",
     iconPath: "M3 4 H13 M3 8 H13 M3 12 H10",
+  },
+  {
+    id: "hedgefunds",
+    group: "Market data",
+    title: "Hedge Funds",
+    desc: "13F-derived hedge-fund flow + per-fund holdings for one stock",
+    iconPath: "M2 13 H14 M4 13 V8 L8 4 L12 8 V13 M7 13 V10 H9 V13",
+  },
+  {
+    id: "insiders",
+    group: "Market data",
+    title: "Insiders",
+    desc: "Form-4 insider transactions + monthly buy/sell history for one stock",
+    iconPath: "M8 8 A2.5 2.5 0 1 1 8 3 A2.5 2.5 0 1 1 8 8 M3 14 V12 A3 3 0 0 1 6 9 H10 A3 3 0 0 1 13 12 V14",
   },
   {
     id: "positions",

@@ -29,6 +29,8 @@ WORKSPACE_WIDGET_KINDS = (
     "smartscore",
     "sentiment",
     "analysts",
+    "hedgefunds",
+    "insiders",
 )
 
 _SILO_PROP = {
@@ -112,7 +114,13 @@ WORKSPACE_TOOLS: list[dict[str, Any]] = [
             "sentiment for one STOCK — symbol-linked. "
             "'analysts' shows the per-analyst ratings list (firm, "
             "recommendation, date) for one STOCK — symbol-linked, drills "
-            "down from the aggregate consensus in Trending."
+            "down from the aggregate consensus in Trending. "
+            "'hedgefunds' shows 13F-derived hedge-fund flow for one STOCK: "
+            "rating + confidence + last-quarter net shares + top movers + "
+            "quarterly trend — symbol-linked. "
+            "'insiders' shows Form-4 insider transactions for one STOCK: "
+            "trend, monthly buy/sell bars, recent named-insider rows — "
+            "symbol-linked."
         ),
         "input_schema": {
             "type": "object",

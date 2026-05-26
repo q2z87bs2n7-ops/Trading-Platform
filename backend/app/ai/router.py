@@ -284,6 +284,20 @@ def _execute_read_tool(
             default=str,
         )
 
+    if name == "get_hedge_funds":
+        symbol = str(args["symbol"]).upper()
+        return json.dumps(
+            {"symbol": symbol, "hedge_funds": tipranks.get_hedge_funds(symbol)},
+            default=str,
+        )
+
+    if name == "get_insiders":
+        symbol = str(args["symbol"]).upper()
+        return json.dumps(
+            {"symbol": symbol, "insiders": tipranks.get_insiders(symbol)},
+            default=str,
+        )
+
     if name == "add_to_watchlist":
         req_ac = args.get("asset_class") or asset_class
         default_class = "crypto" if req_ac == "crypto" else ""

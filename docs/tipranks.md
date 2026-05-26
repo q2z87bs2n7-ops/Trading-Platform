@@ -100,6 +100,10 @@ that's better discovered up front than mid-feature).
 | AI bot read tool `get_sentiment_signals` | same | One symbol arg. Returns combined blogger + news (stock + sector) + investor blocks. |
 | Workspace **Analyst Ratings** widget (per-symbol, stocks-only) | `/api/research/analysts/{symbol}` → `analysts/{ticker}` | `components/research/AnalystRatingsCard.tsx` + `AnalystRatingsWidget`. Paginated 8/page; dense breakpoint 380 drops the firm column. |
 | AI bot read tool `get_analyst_ratings` | same | One symbol arg. Returns per-analyst rows (name, firm, recommendation, date). |
+| Workspace **Hedge Funds** widget (per-symbol, stocks-only) | `/api/research/hedge-funds/{symbol}` → `hedgefunds/{ticker}` | `components/research/HedgeFundsCard.tsx` + `HedgeFundsWidget`. Signal headline (rating + confidence), last-Q net, count of funds covered, quarterly trend (last 4 quarters), top movers list (sorted by abs shares traded). 6h TTL — 13F cadence is quarterly. |
+| AI bot read tool `get_hedge_funds` | same | One symbol arg. Returns signal + holdings_history + institutional_holdings. |
+| Workspace **Insiders** widget (per-symbol, stocks-only) | `/api/research/insiders/{symbol}` → `insiders/{ticker}` | `components/research/InsidersCard.tsx` + `InsidersWidget`. Trend + confidence signal (stock vs sector), discretionary vs uninformative counts, monthly buy/sell bars (last 6 months), recent named transactions. 4h TTL — Form-4 filings within 2 business days. |
+| AI bot read tool `get_insiders` | same | One symbol arg. Returns confidence_signal + monthly + transactions. |
 
 Backend client: `backend/app/tipranks.py` — in-process TTL cache (15min on
 `trendingStocks`), graceful empty list when env vars unset (mirrors the FMP /

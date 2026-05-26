@@ -134,6 +134,18 @@ Widgets reuse existing surfaces:
   for one stock (name, firm, recommendation, date). Paginated 8/page. Drills
   down from Trending's aggregate consensus. Symbol-linked (default Main, no
   None), stocks-only. Dense breakpoint 380 collapses the firm column.
+- **Hedge Funds** — `research/HedgeFundsCard.tsx`, 13F-derived hedge-fund
+  flow for one stock. Signal headline (rating + confidence), last-Q net
+  shares delta, count of funds covered + total holders, quarterly trend
+  (last 4 quarters), and a paginated top-movers list sorted by absolute
+  shares traded. Symbol-linked (default Main, no None), stocks-only. TTL is
+  6h because the underlying 13F filings are quarterly.
+- **Insiders** — `research/InsidersCard.tsx`, Form-4 insider transactions
+  for one stock. Insider trend + stock/sector confidence scores,
+  discretionary vs uninformative counts, last-6-months buy/sell bars, and
+  paginated recent transactions (insider name, position, amount, date with
+  DD/MM/YYYY upstream format defensively parsed). Symbol-linked (default
+  Main, no None), stocks-only.
 
 ## Link channels
 

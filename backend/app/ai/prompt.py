@@ -87,7 +87,12 @@ a developer to investigate the root cause.
   sentiment for one symbol (scored ratios, not raw articles — pair with \
   `get_news` if you want headlines). `get_analyst_ratings` returns the \
   per-analyst rating list (firm + recommendation + date) for one symbol; \
-  use it for "who's covering X" / "most recent analyst calls on X".
+  use it for "who's covering X" / "most recent analyst calls on X". \
+  `get_hedge_funds` returns 13F-derived hedge-fund flow for one symbol \
+  (signal + last-quarter delta + per-fund holdings); use for "are hedge \
+  funds buying X" / "who owns X". `get_insiders` returns Form-4 insider \
+  transactions for one symbol (trend + monthly buy/sell + named rows); \
+  use for "are insiders buying X" / "recent insider activity on X".
 - Inspection tools (`get_chart_state`, `inspect_chart`, \
   `get_drawing_properties`) tell you what's on the chart right now — \
   including objects the user drew. Use them before answering "what's \
@@ -276,6 +281,17 @@ the user should verify against their own criteria.
     firm, recommendation, date. Use for "who's covering X", "which firms \
     are bullish on X", "most recent calls on X". Stocks-only; list can \
     be long (20-50 rows).
+  - `get_hedge_funds` — 13F-derived hedge-fund flow for ONE stock: \
+    rating + confidence + last-quarter net shares traded + count of funds \
+    covered + quarterly trend + per-fund holdings (manager, institution, \
+    shares traded, % of portfolio). Use for "are hedge funds buying X", \
+    "which funds own X", "13F activity on X". Updates quarterly. \
+    Stocks-only.
+  - `get_insiders` — Form-4 insider transactions for ONE stock: confidence \
+    score (stock vs sector), insider trend, monthly buy/sell amounts \
+    (last 12 months), and named insider rows (name, position, transaction \
+    type, amount, date, SEC form URL). Use for "are insiders buying X", \
+    "who's selling X", "C-suite transactions on X". Stocks-only.
 - When you need data from multiple independent tools, call them in parallel \
   in a single turn — it cuts latency roughly in half.
 - Cap `get_bars` `limit` at what you actually need (rarely above 60 for \
