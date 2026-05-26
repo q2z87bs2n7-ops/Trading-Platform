@@ -28,6 +28,10 @@ visual centrepiece, layouts anchor the left, quiet actions anchor the right.
   Researcher / Watcher / Focus — see `presets.tsx`; Trader = the old default,
   applied on first run; select a card then Apply, which clobbers the canvas),
   and a **"My layouts"** section for the user's named saved layouts —
+  the header row also carries a violet **✦ Ask AI to build one** CTA that
+  closes the popover and dispatches the same synthetic ⌘K as the empty-state
+  CTA so the Ask anything bar can build a custom layout via
+  `buildCustomLayout` —
   *Save current as…* (inline name input), then per-row *Apply / Rename /
   Delete*. A saved layout snapshots the Dockview JSON **and** the current
   colour-channel symbols into `saved[name] = { layout, channels }`
