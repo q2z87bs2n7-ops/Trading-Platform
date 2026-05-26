@@ -41,6 +41,7 @@ function RowItem({
   narrow: boolean;
   onSelect?: (s: string) => void;
 }) {
+  const [hover, setHover] = useState(false);
   const inner = (
     <>
       <div className="font-semibold text-[13px] min-w-0 truncate">
@@ -94,20 +95,41 @@ function RowItem({
       : "48px 1fr auto 56px 60px";
   const style = {
     gridTemplateColumns: cols,
-    borderTop: rank === 0 ? "none" : "1px solid var(--border)",
+    borderTop: rank === 0 ? "none" : "1px solid var(--hairline)",
   } as const;
 
   return onSelect ? (
     <button
       type="button"
       onClick={() => onSelect(r.ticker)}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
       className={`${cls} cursor-pointer`}
-      style={style}
+      style={{
+        ...style,
+        transition: "background .12s",
+        padding: hover ? "7px 6px" : undefined,
+        margin: hover ? "0 -6px" : undefined,
+        borderRadius: hover ? 6 : undefined,
+        background: hover ? "var(--panel-2)" : undefined,
+      }}
     >
       {inner}
     </button>
   ) : (
-    <div className={cls} style={style}>
+    <div
+      className={cls}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        ...style,
+        transition: "background .12s",
+        padding: hover ? "7px 6px" : undefined,
+        margin: hover ? "0 -6px" : undefined,
+        borderRadius: hover ? 6 : undefined,
+        background: hover ? "var(--panel-2)" : undefined,
+      }}
+    >
       {inner}
     </div>
   );
@@ -166,26 +188,32 @@ export function RelatedTickersCard({
       </p>
     ) : (
       <div className="flex flex-col gap-2">
-        {/* Cohort selector — single row of pills, only shown if more than 1 */}
+        {/* Cohort selector — rail-style segmented control, only shown if more than 1 */}
         {availableCohorts.length > 1 && (
-          <div className="flex flex-wrap gap-1">
+          <div
+            className="inline-flex"
+            style={{
+              gap: 2,
+              padding: 2,
+              background: "var(--panel-2)",
+              borderRadius: 8,
+              alignSelf: "flex-start",
+            }}
+          >
             {availableCohorts.map((c) => (
               <button
                 key={c}
                 type="button"
-                onClick={() => {
-                  setCohort(c);
-                  setPage(0);
-                }}
-                className="text-[11px] px-2 py-0.5 rounded border-0 cursor-pointer"
+                onClick={() => { setCohort(c); setPage(0); }}
+                className="cursor-pointer border-0"
                 style={{
-                  background:
-                    cohort === c ? "var(--panel-2)" : "transparent",
-                  color: cohort === c ? "var(--text)" : "var(--mute)",
-                  border:
-                    cohort === c
-                      ? "1px solid var(--border)"
-                      : "1px solid transparent",
+                  fontSize: 11,
+                  padding: "4px 10px",
+                  borderRadius: 6,
+                  background: cohort === c ? "var(--panel)" : "transparent",
+                  color: cohort === c ? "var(--text)" : "var(--text-2)",
+                  boxShadow: cohort === c ? "0 0 0 1px var(--border)" : "none",
+                  fontWeight: cohort === c ? 600 : 500,
                 }}
               >
                 {COHORT_LABEL[c]}
@@ -230,12 +258,12 @@ export function RelatedTickersCard({
 
   return (
     <div
-      className="p-[18px]"
       style={{
+        padding: "16px 18px",
         background: "var(--panel)",
         border: "1px solid var(--border)",
         borderRadius: "var(--r-lg)",
-        boxShadow: "var(--shadow-sm)",
+        boxShadow: "0 0 0 1px var(--hairline), 0 1px 1px rgba(0,0,0,0.25)",
       }}
     >
       {body}
@@ -260,11 +288,12 @@ export function RelatedTickersCardSkeleton({
   if (bare) return body;
   return (
     <div
-      className="p-[18px]"
       style={{
+        padding: "16px 18px",
         background: "var(--panel)",
         border: "1px solid var(--border)",
         borderRadius: "var(--r-lg)",
+        boxShadow: "0 0 0 1px var(--hairline), 0 1px 1px rgba(0,0,0,0.25)",
       }}
     >
       {body}

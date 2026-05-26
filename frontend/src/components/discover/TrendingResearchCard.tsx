@@ -37,6 +37,7 @@ function TrendingRowItem({
   dense: boolean;
   onSelect?: (s: string) => void;
 }) {
+  const [hover, setHover] = useState(false);
   const inner = (
     <>
       <div className="font-semibold text-[14px] min-w-0 truncate">{r.ticker}</div>
@@ -49,8 +50,16 @@ function TrendingRowItem({
         </span>
       )}
       <span
-        className="text-[12px] tabular-nums text-right"
-        style={{ color: consensusColor(r.consensus) }}
+        className="tabular-nums"
+        style={{
+          fontSize: 11,
+          fontWeight: 500,
+          padding: "1px 7px",
+          borderRadius: 999,
+          color: consensusColor(r.consensus),
+          background: "color-mix(in oklch, currentColor 10%, transparent)",
+          border: "1px solid color-mix(in oklch, currentColor 25%, transparent)",
+        }}
         title="Analyst consensus"
       >
         {consensusLabel(r.consensus)}
@@ -109,20 +118,41 @@ function TrendingRowItem({
     gridTemplateColumns: dense
       ? "56px auto 72px"
       : "56px 1fr auto 72px 64px",
-    borderTop: rank === 0 ? "none" : "1px solid var(--border)",
+    borderTop: rank === 0 ? "none" : "1px solid var(--hairline)",
   } as const;
 
   return onSelect ? (
     <button
       type="button"
       onClick={() => onSelect(r.ticker)}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
       className={`${cls} cursor-pointer`}
-      style={style}
+      style={{
+        ...style,
+        transition: "background .12s",
+        padding: hover ? "7px 6px" : undefined,
+        margin: hover ? "0 -6px" : undefined,
+        borderRadius: hover ? 6 : undefined,
+        background: hover ? "var(--panel-2)" : undefined,
+      }}
     >
       {inner}
     </button>
   ) : (
-    <div className={cls} style={style}>
+    <div
+      className={cls}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        ...style,
+        transition: "background .12s",
+        padding: hover ? "7px 6px" : undefined,
+        margin: hover ? "0 -6px" : undefined,
+        borderRadius: hover ? 6 : undefined,
+        background: hover ? "var(--panel-2)" : undefined,
+      }}
+    >
       {inner}
     </div>
   );
@@ -179,12 +209,12 @@ export function TrendingResearchCard({
 
   return (
     <div
-      className="p-[18px]"
       style={{
+        padding: "16px 18px",
         background: "var(--panel)",
         border: "1px solid var(--border)",
         borderRadius: "var(--r-lg)",
-        boxShadow: "var(--shadow-sm)",
+        boxShadow: "0 0 0 1px var(--hairline), 0 1px 1px rgba(0,0,0,0.25)",
       }}
     >
       {body}
@@ -209,11 +239,12 @@ export function TrendingResearchCardSkeleton({
   if (bare) return body;
   return (
     <div
-      className="p-[18px]"
       style={{
+        padding: "16px 18px",
         background: "var(--panel)",
         border: "1px solid var(--border)",
         borderRadius: "var(--r-lg)",
+        boxShadow: "0 0 0 1px var(--hairline), 0 1px 1px rgba(0,0,0,0.25)",
       }}
     >
       {body}

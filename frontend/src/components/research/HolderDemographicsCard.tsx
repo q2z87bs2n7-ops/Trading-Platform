@@ -68,6 +68,11 @@ function signedColor(n: number | null): string {
   return n > 0 ? "var(--pos)" : "var(--neg)";
 }
 
+function signedArrow(n: number | null): string {
+  if (n == null || n === 0) return "";
+  return n > 0 ? "▴ " : "▾ ";
+}
+
 function CohortColumn({
   cohort,
   label,
@@ -75,14 +80,34 @@ function CohortColumn({
   cohort: HolderCohort;
   label: string;
 }) {
+  const getBorderColor = (lbl: string) => {
+    if (lbl === "Young") return "color-mix(in oklch, var(--accent) 80%, transparent)";
+    if (lbl === "Eldest") return "color-mix(in oklch, var(--amber) 80%, transparent)";
+    return "color-mix(in oklch, var(--mute) 100%, transparent)";
+  };
+
   return (
     <div className="flex flex-col gap-1 min-w-0">
       <span
-        className="text-[10px] font-medium uppercase"
-        style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
+        className="uppercase"
+        style={{
+          fontSize: 10.5,
+          color: "color-mix(in oklab, var(--mute) 70%, var(--text-2))",
+          letterSpacing: "0.06em",
+          fontWeight: 500,
+        }}
       >
         {label}
       </span>
+      <div
+        style={{
+          height: 2,
+          borderRadius: 1,
+          marginBottom: 4,
+          background: getBorderColor(label),
+        }}
+        aria-hidden
+      />
       <div className="flex flex-col gap-0.5">
         {ROWS.map((r) => {
           const v = cohort[r.key];
@@ -96,6 +121,11 @@ function CohortColumn({
                 className="font-mono tabular-nums"
                 style={{ color: tone }}
               >
+                {r.signed && (
+                  <span style={{ fontSize: 9, marginRight: 2, opacity: 0.75 }}>
+                    {signedArrow(v)}
+                  </span>
+                )}
                 {r.fmt(v)}
               </span>
             </div>
@@ -141,12 +171,17 @@ export function HolderDemographicsCard({
         {/* Footer: sector + best-investor benchmark */}
         <div
           className="flex flex-wrap gap-x-4 gap-y-1 pt-2"
-          style={{ borderTop: "1px solid var(--border)" }}
+          style={{ borderTop: "1px solid var(--hairline)" }}
         >
           <div className="flex flex-col">
             <span
-              className="text-[10px] uppercase"
-              style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
+              className="uppercase"
+              style={{
+                fontSize: 10.5,
+                color: "color-mix(in oklab, var(--mute) 70%, var(--text-2))",
+                letterSpacing: "0.06em",
+                fontWeight: 500,
+              }}
             >
               Sector
             </span>
@@ -164,8 +199,13 @@ export function HolderDemographicsCard({
           </div>
           <div className="flex flex-col">
             <span
-              className="text-[10px] uppercase"
-              style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
+              className="uppercase"
+              style={{
+                fontSize: 10.5,
+                color: "color-mix(in oklab, var(--mute) 70%, var(--text-2))",
+                letterSpacing: "0.06em",
+                fontWeight: 500,
+              }}
             >
               Best investors
             </span>
@@ -189,12 +229,12 @@ export function HolderDemographicsCard({
 
   return (
     <div
-      className="p-[18px]"
       style={{
+        padding: "16px 18px",
         background: "var(--panel)",
         border: "1px solid var(--border)",
         borderRadius: "var(--r-lg)",
-        boxShadow: "var(--shadow-sm)",
+        boxShadow: "0 0 0 1px var(--hairline), 0 1px 1px rgba(0,0,0,0.25)",
       }}
     >
       {body}
@@ -229,11 +269,12 @@ export function HolderDemographicsCardSkeleton({
   if (bare) return body;
   return (
     <div
-      className="p-[18px]"
       style={{
+        padding: "16px 18px",
         background: "var(--panel)",
         border: "1px solid var(--border)",
         borderRadius: "var(--r-lg)",
+        boxShadow: "0 0 0 1px var(--hairline), 0 1px 1px rgba(0,0,0,0.25)",
       }}
     >
       {body}
