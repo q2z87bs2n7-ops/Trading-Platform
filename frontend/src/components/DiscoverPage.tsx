@@ -27,11 +27,10 @@ import { isCryptoPosition } from "../lib/asset-class";
 import { showToast } from "../lib/toast";
 import type { Snapshot } from "../types";
 import { AssetSearch } from "./AssetSearch";
-import { AllocationCard } from "./discover/AllocationCard";
-import { BalanceCard } from "./discover/BalanceCard";
 import { CardsRow } from "./discover/CardsRow";
 import { ChartCard } from "./discover/ChartCard";
 import { CryptoTicker } from "./discover/CryptoTicker";
+import { DiscoverHero } from "./discover/DiscoverHero";
 import { EarningsCard, EarningsCardSkeleton } from "./discover/EarningsCard";
 import { EconomicCard, EconomicCardSkeleton } from "./discover/EconomicCard";
 import { HeroCardMobile } from "./discover/HeroCardMobile";
@@ -198,7 +197,7 @@ export default function DiscoverPage({
         indices.data && <IndicesTicker indices={indices.data.indices} />
       )}
 
-      {/* Hero row — combined single card on mobile, two-card grid on desktop */}
+      {/* Hero — combined single card on mobile, unified 60/40 hero on desktop */}
       {isMobile ? (
         <div className="mb-6">
           <HeroCardMobile
@@ -219,26 +218,17 @@ export default function DiscoverPage({
           />
         </div>
       ) : (
-        <div className="grid gap-4 mb-6 grid-cols-1 lg:grid-cols-[1.4fr_1fr]">
-          <BalanceCard
-            account={account.data}
-            title={isCrypto ? "Crypto" : "Stocks"}
-            value={invested}
-            dayPl={dayPl}
-            dayPlPct={dayPlPct}
-            unrealized={unrealized}
-            unrealizedPct={unrealizedPct}
-            buyingPower={
-              isCrypto
-                ? account.data?.non_marginable_buying_power ?? 0
-                : account.data?.buying_power ?? 0
-            }
-          />
-          <AllocationCard
-            positions={siloPositions}
-            colors={isCrypto ? undefined : DONUT_COLORS_GREEN}
-          />
-        </div>
+        <DiscoverHero
+          assetClass={assetClass}
+          title={isCrypto ? "Crypto" : "Stocks"}
+          value={invested}
+          dayPl={dayPl}
+          dayPlPct={dayPlPct}
+          unrealized={unrealized}
+          unrealizedPct={unrealizedPct}
+          positions={siloPositions}
+          colors={isCrypto ? undefined : DONUT_COLORS_GREEN}
+        />
       )}
 
       {/* AI market summary — auto-generated per time window, dismissible */}

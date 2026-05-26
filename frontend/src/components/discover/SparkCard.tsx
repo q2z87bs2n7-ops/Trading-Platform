@@ -1,5 +1,5 @@
 import { fmtCryptoPrice, pct } from "../../lib/format";
-import { fmtPrice, sparkPath } from "./util";
+import { fmtPrice, sparkPaths } from "./util";
 
 export function SparkCard({
   symbol,
@@ -22,7 +22,10 @@ export function SparkCard({
 }) {
   const up = changePct >= 0;
   const stroke = up ? "var(--pos)" : "var(--neg)";
-  const path = sparkPath(symbol, changePct);
+  const W = 100;
+  const H = 48;
+  const { line, area } = sparkPaths(symbol, changePct, W, H);
+  const gradId = `spark-${symbol.replace(/[^A-Z0-9]/gi, "")}`;
   return (
     <div
       role="button"
@@ -72,12 +75,19 @@ export function SparkCard({
         {pct(changePct)}
       </div>
       <svg
-        height={32}
-        viewBox="0 0 100 32"
+        height={H}
+        viewBox={`0 0 ${W} ${H}`}
         preserveAspectRatio="none"
         className="block w-full mt-1.5"
       >
-        <path d={path} fill="none" stroke={stroke} strokeWidth={1.5} />
+        <defs>
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={stroke} stopOpacity={0.12} />
+            <stop offset="100%" stopColor={stroke} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <path d={area} fill={`url(#${gradId})`} />
+        <path d={line} fill="none" stroke={stroke} strokeWidth={1.5} />
       </svg>
     </div>
   );
@@ -96,7 +106,7 @@ export function SparkCardSkeleton() {
       <div className="h-3 w-12 rounded mb-1.5" style={{ background: "var(--panel-2)" }} />
       <div className="h-2.5 w-20 rounded" style={{ background: "var(--panel-2)" }} />
       <div className="h-4 w-16 rounded mt-2" style={{ background: "var(--panel-2)" }} />
-      <div className="h-8 w-full rounded mt-2" style={{ background: "var(--panel-2)" }} />
+      <div className="h-12 w-full rounded mt-2" style={{ background: "var(--panel-2)" }} />
     </div>
   );
 }

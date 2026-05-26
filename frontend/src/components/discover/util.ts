@@ -19,6 +19,17 @@ export function sparkPath(
   width = 100,
   height = 32,
 ): string {
+  return sparkPaths(symbol, dayChange, width, height).line;
+}
+
+// Same curve as sparkPath but also returns a closed area path so callers can
+// render an under-fill (12% opacity in the watchlist cards).
+export function sparkPaths(
+  symbol: string,
+  dayChange: number,
+  width = 100,
+  height = 32,
+): { line: string; area: string } {
   const n = 24;
   const seed = symbol.charCodeAt(0) + (symbol.length % 5);
   const arr: number[] = [];
@@ -30,13 +41,15 @@ export function sparkPath(
   const max = Math.max(...arr);
   const range = max - min || 1;
   const stepX = width / (n - 1);
-  return arr
-    .map((v, i) => {
-      const x = i * stepX;
-      const y = height - ((v - min) / range) * (height - 4) - 2;
-      return `${i === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
-    })
+  const pts = arr.map((v, i) => ({
+    x: i * stepX,
+    y: height - ((v - min) / range) * (height - 4) - 2,
+  }));
+  const line = pts
+    .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`)
     .join(" ");
+  const area = `${line} L ${width.toFixed(2)} ${height.toFixed(2)} L 0 ${height.toFixed(2)} Z`;
+  return { line, area };
 }
 
 // SVG path for a donut-slice annulus segment.

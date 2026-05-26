@@ -28,6 +28,11 @@ export default function MarketSummaryCard({
 }: Props) {
   const [noticeHidden, setNoticeHidden] = useState(false);
 
+  // 3px --cb-accent left rail signals cloud-AI surface; carried into the
+  // disabled state so the user retains spatial memory of where the summary
+  // lives. Per docs/ai.md: violet = real Claude call (credits).
+  const cbRail = { borderLeft: "3px solid var(--cb-accent)" } as const;
+
   if (disabled) {
     if (noticeHidden) return null;
     return (
@@ -38,6 +43,7 @@ export default function MarketSummaryCard({
           border: "1px solid var(--border)",
           boxShadow: "var(--shadow-sm)",
           padding: "10px 12px",
+          ...cbRail,
         }}
       >
         <button
@@ -48,7 +54,7 @@ export default function MarketSummaryCard({
         >
           ×
         </button>
-        <AiDisabledNotice surface="market" compact />
+        <AiDisabledNotice surface="market" accent="var(--cb-accent)" compact />
       </div>
     );
   }
@@ -62,13 +68,14 @@ export default function MarketSummaryCard({
         background: "var(--panel)",
         border: "1px solid var(--border)",
         boxShadow: "var(--shadow-sm)",
+        ...cbRail,
       }}
     >
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <span
             className="text-[11px] font-medium uppercase"
-            style={{ color: "var(--accent)", letterSpacing: "0.08em" }}
+            style={{ color: "var(--cb-accent)", letterSpacing: "0.08em" }}
           >
             ✦ {windowLabel}
           </span>

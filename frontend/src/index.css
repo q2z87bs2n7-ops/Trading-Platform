@@ -184,7 +184,7 @@ body {
 
 @media (max-width: 640px) {
   :root {
-    /* Hero numerals — read with a desktop fallback in BalanceCard. */
+    /* Hero numerals — read with a desktop fallback in PortfolioHero / HeroCardMobile. */
     --mob-hero-value: clamp(28px, 9vw, 38px);
   }
 
