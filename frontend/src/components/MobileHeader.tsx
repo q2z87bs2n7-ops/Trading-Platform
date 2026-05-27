@@ -73,6 +73,7 @@ export default function MobileHeader({
         top: "var(--safe-top)",
         zIndex: 30,
         background: "var(--bg)",
+        paddingTop: 4,
       }}
     >
       {/* Row 1 — merged chrome + status + equity pill */}
