@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import * as api from "../api";
-import type { FxcmAccount, FxcmPrice } from "../types";
+import type { FxcmAccount, FxcmPosition, FxcmPrice } from "../types";
 import { money } from "../lib/format";
+import FxcmOrderSheet from "./trade/FxcmOrderSheet";
 
 // Forex-specific price formatter: 5 decimal places for most pairs, 3 for JPY
 function fmtFxPrice(price: number | undefined, symbol?: string): string {
@@ -171,15 +172,114 @@ function BridgeStatus({ ok }: { ok: boolean | null }) {
   );
 }
 
+// ── Positions panel ────────────────────────────────────────────────────────────
+
+function FxcmPositions({
+  positions,
+  prices,
+  onClose,
+}: {
+  positions: FxcmPosition[];
+  prices: Map<string, FxcmPrice>;
+  onClose: (tradeId: string | number) => void;
+}) {
+  const [closing, setClosing] = useState<string | null>(null);
+
+  if (positions.length === 0) {
+    return (
+      <div className="px-4 py-6 text-center text-[13px]" style={{ color: "var(--mute)" }}>
+        No open positions
+      </div>
+    );
+  }
+
+  async function handleClose(tradeId: string | number) {
+    setClosing(String(tradeId));
+    try {
+      await onClose(tradeId);
+    } finally {
+      setClosing(null);
+    }
+  }
+
+  return (
+    <div>
+      {positions.map((pos) => {
+        const tid = String(pos.trade_id ?? pos.offer_id ?? Math.random());
+        const instrument = String(pos.instrument ?? "");
+        const current = prices.get(instrument);
+        const currentRate = pos.buy_sell === "B" ? current?.bid : current?.ask;
+        const openRate = pos.open ?? pos.open_rate;
+        const pl = typeof pos.pl === "number" ? pos.pl : (typeof pos.gross_pl === "number" ? pos.gross_pl : 0);
+        const plUp = pl >= 0;
+        const isJpy = instrument.includes("JPY");
+        const dec = isJpy ? 3 : 5;
+
+        return (
+          <div
+            key={tid}
+            className="flex items-center px-4 py-3 gap-3 flex-wrap"
+            style={{ borderBottom: "1px solid var(--hairline)" }}
+          >
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="text-[13px] font-semibold">{instrument}</span>
+              <span className="text-[11px]" style={{ color: "var(--mute)" }}>
+                {pos.buy_sell === "B" ? "Buy" : "Sell"} · {pos.amount ?? "—"} units
+              </span>
+            </div>
+            <div className="flex gap-4 tabular-nums text-[12px]">
+              <div className="flex flex-col items-end">
+                <span style={{ color: "var(--mute)", fontSize: 10 }}>Open</span>
+                <span>{typeof openRate === "number" ? openRate.toFixed(dec) : "—"}</span>
+              </div>
+              <div className="flex flex-col items-end">
+                <span style={{ color: "var(--mute)", fontSize: 10 }}>Current</span>
+                <span>{currentRate != null ? currentRate.toFixed(dec) : "—"}</span>
+              </div>
+              <div className="flex flex-col items-end">
+                <span style={{ color: "var(--mute)", fontSize: 10 }}>P&amp;L</span>
+                <span style={{ color: plUp ? "var(--pos)" : "var(--neg)", fontWeight: 600 }}>
+                  {fmtPl(pl)}
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleClose(tid)}
+              disabled={closing === tid}
+              className="text-[11.5px] font-medium px-2.5 py-1 rounded border cursor-pointer"
+              style={{
+                background: "var(--neg-bg)",
+                borderColor: "color-mix(in oklch, var(--neg) 30%, transparent)",
+                color: "var(--neg)",
+                opacity: closing === tid ? 0.5 : 1,
+              }}
+            >
+              {closing === tid ? "Closing…" : "Close"}
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const POLL_INTERVAL_MS = 3000;
 
-export default function ForexDiscoverPage() {
+interface ForexDiscoverPageProps {
+  onSelectSymbol?: (symbol: string) => void;
+  onOpenChart?: () => void;
+}
+
+export default function ForexDiscoverPage({ onSelectSymbol, onOpenChart }: ForexDiscoverPageProps) {
   const [bridgeOk, setBridgeOk] = useState<boolean | null>(null);
   const [account, setAccount] = useState<FxcmAccount | null>(null);
   const [prices, setPrices] = useState<FxcmPrice[]>([]);
   const [prevPrices, setPrevPrices] = useState<Map<string, FxcmPrice>>(new Map());
+  const [positions, setPositions] = useState<FxcmPosition[]>([]);
+  const [orderSheetOpen, setOrderSheetOpen] = useState(false);
 
   // Health check + initial load
   useEffect(() => {
@@ -195,13 +295,15 @@ export default function ForexDiscoverPage() {
       }
 
       try {
-        const [acct, wl] = await Promise.all([
+        const [acct, wl, pos] = await Promise.all([
           api.getFxcmAccount(),
           api.getFxcmWatchlist(),
+          api.getFxcmPositions(),
         ]);
         if (!cancelled) {
           setAccount(acct);
           setPrices(wl);
+          setPositions(pos);
         }
       } catch { /* non-fatal — leave blank hero */ }
     }
@@ -210,18 +312,22 @@ export default function ForexDiscoverPage() {
     return () => { cancelled = true; };
   }, []);
 
-  // Live price polling
+  // Live price + position polling
   useEffect(() => {
     if (!bridgeOk) return;
     const tick = async () => {
       try {
-        const wl = await api.getFxcmWatchlist();
+        const [wl, pos] = await Promise.all([
+          api.getFxcmWatchlist(),
+          api.getFxcmPositions(),
+        ]);
         setPrices((prev) => {
           const map = new Map<string, FxcmPrice>();
           for (const p of prev) map.set(p.instrument, p);
           setPrevPrices(map);
           return wl;
         });
+        setPositions(pos);
       } catch { /* bridge went away — leave last data visible */ }
     };
     const id = setInterval(tick, POLL_INTERVAL_MS);
@@ -230,6 +336,20 @@ export default function ForexDiscoverPage() {
 
   const priceMap = new Map<string, FxcmPrice>();
   for (const p of prices) priceMap.set(p.instrument, p);
+
+  async function handleClosePosition(tradeId: string | number) {
+    await api.closeFxcmPosition(tradeId);
+    // Refresh positions after close
+    try {
+      const pos = await api.getFxcmPositions();
+      setPositions(pos);
+    } catch { /* leave stale */ }
+  }
+
+  function handleSelectPair(instrument: string) {
+    onSelectSymbol?.(instrument);
+    onOpenChart?.();
+  }
 
   return (
     <div className="max-w-[900px] mx-auto px-4 pt-4 pb-20 flex flex-col gap-6">
@@ -243,11 +363,59 @@ export default function ForexDiscoverPage() {
             FXCM ForexConnect — demo account
           </span>
         </div>
-        <BridgeStatus ok={bridgeOk} />
+        <div className="flex items-center gap-3">
+          {bridgeOk && (
+            <button
+              type="button"
+              onClick={() => setOrderSheetOpen(true)}
+              className="text-[12.5px] font-semibold px-3 py-1.5 rounded-card border-0 cursor-pointer"
+              style={{
+                background: "var(--accent)",
+                color: "var(--bg)",
+              }}
+            >
+              + New Order
+            </button>
+          )}
+          <BridgeStatus ok={bridgeOk} />
+        </div>
       </div>
 
       {/* Account hero */}
       <FxcmAccountHero account={account} />
+
+      {/* Positions */}
+      {bridgeOk && (
+        <div
+          style={{
+            background: "var(--panel)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--r)",
+            boxShadow: "var(--shadow-sm)",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            className="px-4 py-3 flex items-center justify-between"
+            style={{ borderBottom: "1px solid var(--hairline)" }}
+          >
+            <span className="text-[13px] font-semibold">Open Positions</span>
+            {positions.length > 0 && (
+              <span
+                className="inline-flex items-center justify-center text-[10.5px] font-semibold tabular-nums rounded-full px-2"
+                style={{ background: "var(--accent-bg)", color: "var(--accent)", minWidth: 20, height: 18 }}
+              >
+                {positions.length}
+              </span>
+            )}
+          </div>
+          <FxcmPositions
+            positions={positions}
+            prices={priceMap}
+            onClose={handleClosePosition}
+          />
+        </div>
+      )}
 
       {/* Watchlist */}
       <div
@@ -282,11 +450,13 @@ export default function ForexDiscoverPage() {
           </div>
         ) : (
           prices.map((p) => (
-            <PriceRow
+            <div
               key={p.instrument}
-              price={p}
-              prev={prevPrices.get(p.instrument)}
-            />
+              onClick={() => handleSelectPair(p.instrument)}
+              style={{ cursor: onOpenChart ? "pointer" : undefined }}
+            >
+              <PriceRow price={p} prev={prevPrices.get(p.instrument)} />
+            </div>
           ))
         )}
       </div>
@@ -307,6 +477,18 @@ export default function ForexDiscoverPage() {
             python37\python.exe fxcm-bridge\bridge.py
           </code>
         </div>
+      )}
+
+      {/* Order sheet */}
+      {orderSheetOpen && (
+        <FxcmOrderSheet
+          instruments={prices}
+          onClose={() => setOrderSheetOpen(false)}
+          onSubmitted={() => {
+            // Refresh positions after order
+            api.getFxcmPositions().then(setPositions).catch(() => {});
+          }}
+        />
       )}
     </div>
   );

@@ -451,7 +451,25 @@ export const getFxcmHistory = (
   dateTo?: string,
 ) => {
   const params = new URLSearchParams({ instrument, timeframe });
-  if (dateFrom) params.set("date_from", dateFrom);
-  if (dateTo) params.set("date_to", dateTo);
+  if (dateFrom) params.set("from", dateFrom);
+  if (dateTo) params.set("to", dateTo);
   return getJSON<FxcmBar[]>(`/api/fxcm/history?${params}`);
 };
+
+export interface FxcmOrderRequest {
+  instrument: string;
+  buy_sell: "B" | "S";
+  amount: number;
+  order_type?: "OM" | "SE" | "LE";
+  rate?: number;
+  stop?: number;
+  limit?: number;
+}
+
+export const submitFxcmOrder = (order: FxcmOrderRequest) =>
+  sendJSON<{ status: string; order_id?: string }>("POST", "/api/fxcm/order", order);
+
+export const closeFxcmPosition = (tradeId: string | number) =>
+  sendJSON<{ status: string; trade_id?: string }>("POST", "/api/fxcm/close", {
+    trade_id: String(tradeId),
+  });

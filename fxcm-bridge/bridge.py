@@ -146,8 +146,15 @@ def prices():
 @app.route("/positions")
 def positions():
     with _lock:
-        rows = _read_table(_fc.TRADES)
-    return jsonify(rows)
+        trades = _read_table(_fc.TRADES)
+        offers = _read_table(_fc.OFFERS)
+    # TRADES rows only carry offer_id; join to OFFERS so the frontend gets instrument names
+    offer_map = {str(o.get("offer_id", "")): o.get("instrument", "") for o in offers}
+    for trade in trades:
+        oid = str(trade.get("offer_id", ""))
+        if oid in offer_map:
+            trade["instrument"] = offer_map[oid]
+    return jsonify(trades)
 
 
 @app.route("/orders")
@@ -155,6 +162,18 @@ def orders():
     with _lock:
         rows = _read_table(_fc.ORDERS)
     return jsonify(rows)
+
+
+@app.route("/debug")
+def debug_tables():
+    """Returns the first row of each table so column names can be inspected."""
+    with _lock:
+        result = {}
+        for name, table_type in [("OFFERS", _fc.OFFERS), ("TRADES", _fc.TRADES),
+                                  ("ACCOUNTS", _fc.ACCOUNTS), ("ORDERS", _fc.ORDERS)]:
+            rows = _read_table(table_type)
+            result[name] = {"count": len(rows), "keys": list(rows[0].keys()) if rows else [], "first": rows[0] if rows else {}}
+    return jsonify(result)
 
 
 @app.route("/summary")
@@ -297,19 +316,12 @@ def place_order():
 
     try:
         with _lock:
-            # Get the offer_id for this instrument
-            offer_id = None
-            reader = _fc.get_table_reader(_fc.OFFERS)
-            for row in reader:
-                cols = row.columns
-                n = cols.size
-                d = {cols.get(i).id: row.get_cell(i) for i in range(n)}
-                if d.get("instrument") == instrument:
-                    offer_id = d["offer_id"]
-                    break
-
-            if offer_id is None:
+            # Use _read_table so column key names are consistent with the rest of the bridge
+            offers = _read_table(_fc.OFFERS)
+            offer_row = next((o for o in offers if o.get("instrument") == instrument), None)
+            if offer_row is None:
                 return jsonify({"error": f"Instrument not found: {instrument}"}), 404
+            offer_id = offer_row.get("offer_id")
 
             # Get account_id
             acct_rows = _read_table(_fc.ACCOUNTS)

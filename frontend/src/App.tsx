@@ -256,6 +256,9 @@ export default function App() {
   const { theme, toggle: toggleTheme } = useTheme();
 
   const activeClass: AssetClassMode = assetClassMode ?? "stocks";
+  // Alpaca-backed components only understand "stocks" | "crypto"; forex falls
+  // back to stocks so those surfaces stay functional when the silo is forex.
+  const alpacaSilo: "stocks" | "crypto" = activeClass === "crypto" ? "crypto" : "stocks";
   const symbols = (activeClass === "crypto" ? cryptoWl?.symbols : wl?.symbols) ?? [];
 
   useEffect(() => {
@@ -327,7 +330,7 @@ export default function App() {
     if (prefetchedModes.current.has(key)) return;
     prefetchedModes.current.add(key);
     if (m === "portfolio") {
-      queryClient.prefetchQuery({ queryKey: qk.pnlHistory(activeClass, "ALL"), queryFn: () => api.getPnlHistory(activeClass, "ALL") });
+      queryClient.prefetchQuery({ queryKey: qk.pnlHistory(alpacaSilo, "ALL"), queryFn: () => api.getPnlHistory(alpacaSilo, "ALL") });
       queryClient.prefetchQuery({ queryKey: qk.orders("all", 25), queryFn: () => api.getOrders("all", 25) });
       queryClient.prefetchQuery({ queryKey: qk.activities(25), queryFn: () => api.getActivities(25) });
     } else if (m === "chart" && selected) {
@@ -393,7 +396,7 @@ export default function App() {
         if (silo && silo !== activeClass) switchAssetClass(silo);
         switchMode("workspace");
       },
-      getEnv: () => ({ mode, assetClass: activeClass, isMobile }),
+      getEnv: () => ({ mode, assetClass: alpacaSilo, isMobile }),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, activeClass, isMobile]);
@@ -438,7 +441,7 @@ export default function App() {
         {isMobile ? (
           <MobileHeader
             mode={mode}
-            activeClass={activeClass}
+            activeClass={alpacaSilo}
             onOpenDrawer={() => setDrawerOpen(true)}
             onSwitchMode={switchMode}
             onSwitchAssetClass={switchAssetClass}
@@ -497,7 +500,7 @@ export default function App() {
               aria-hidden
             />
             <span className="hidden lg:inline-flex">
-              <HeaderStatusInline assetClass={activeClass} />
+              <HeaderStatusInline assetClass={alpacaSilo} />
             </span>
           </div>
 
@@ -519,7 +522,7 @@ export default function App() {
 
           {/* RIGHT — equity readout (with hairline divider) + actions */}
           <div className="flex items-center gap-3 justify-self-end">
-            <HeaderEquityReadout assetClass={activeClass} />
+            <HeaderEquityReadout assetClass={alpacaSilo} />
             <span
               className="hidden lg:inline-block w-px h-7 shrink-0"
               style={{ background: "var(--hairline)" }}
@@ -536,7 +539,10 @@ export default function App() {
 
       {/* Discover — parameterized by active asset class; forex gets its own surface */}
       {mode === "discover" && activeClass === "forex" && (
-        <ForexDiscoverPage />
+        <ForexDiscoverPage
+          onSelectSymbol={(s) => setSelected(s)}
+          onOpenChart={() => switchMode("chart")}
+        />
       )}
       {mode === "discover" && activeClass !== "forex" && (
         <DiscoverPage
@@ -551,12 +557,16 @@ export default function App() {
         <div style={{ display: "flex", flex: isMobile ? undefined : 1, minHeight: 0 }}>
           <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
             <TVPlatform
-              symbol={selected}
+              symbol={
+                activeClass === "forex"
+                  ? (selected || "EUR/USD")
+                  : selected
+              }
               onSymbolChange={setSelected}
               assetClass={activeClass}
             />
           </div>
-          <ChatPanel symbol={selected || (activeClass === "crypto" ? "BTC/USD" : "AAPL")} />
+          <ChatPanel symbol={selected || (activeClass === "crypto" ? "BTC/USD" : activeClass === "forex" ? "EUR/USD" : "AAPL")} />
         </div>
       )}
 
@@ -577,7 +587,7 @@ export default function App() {
           <Workspace
             symbol={selected}
             onSelect={setSelected}
-            assetClass={activeClass}
+            assetClass={alpacaSilo}
             theme={theme}
             focus={focusMode}
             onToggleFocus={() => setFocusMode((v) => !v)}
@@ -590,9 +600,9 @@ export default function App() {
          below). */}
       {mode === "portfolio" && (
         <div className="max-w-[1280px] mx-auto pt-2">
-          <PortfolioHero assetClass={activeClass} />
+          <PortfolioHero assetClass={alpacaSilo} />
 
-          <PortfolioAllocation activeClass={activeClass} />
+          <PortfolioAllocation activeClass={alpacaSilo} />
 
           {/* Positions is the primary block — promoted heading + full-width
              list. Orders + Activity drop to a 2-col secondary row beneath. */}
@@ -603,13 +613,13 @@ export default function App() {
               setSelected(s);
               switchMode("chart");
             }}
-            assetClass={activeClass}
+            assetClass={alpacaSilo}
           />
 
           <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
             <section>
               <SectionHeading label="Orders" />
-              <Orders assetClass={activeClass} />
+              <Orders assetClass={alpacaSilo} />
             </section>
             <section>
               <SectionHeading label="Activity" />
@@ -661,7 +671,7 @@ export default function App() {
          and the global Cmd+K / Ctrl+K hotkey toggles it. */}
       <AskBar
         open={askOpen}
-        assetClass={activeClass}
+        assetClass={alpacaSilo}
         onClose={() => setAskOpen(false)}
         onOpenInWorkspace={(sym) => {
           setSelected(sym);

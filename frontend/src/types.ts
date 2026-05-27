@@ -673,11 +673,14 @@ export interface FxcmPosition {
   trade_id?: string | number;
   account_id?: string | number;
   offer_id?: string | number;
+  instrument?: string;
   amount?: number;
   buy_sell?: string;
+  open?: number;
   open_rate?: number;
   close?: number;
   pl?: number;
+  gross_pl?: number;
   [key: string]: unknown;
 }
 

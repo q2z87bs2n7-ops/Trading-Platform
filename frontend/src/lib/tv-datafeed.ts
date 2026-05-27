@@ -8,7 +8,7 @@
 import { subscribeBar } from "../data/barStream";
 import { subscribeQuoteTicks } from "../data/quoteStream";
 import { isCryptoSymbol } from "./asset-class";
-import type { Quote } from "../types";
+import type { FxcmBar, Quote } from "../types";
 
 // Matches the flush interval in useLiveQuotes — caps TV order-ticket
 // re-renders to at most one per 500ms regardless of tick rate.
@@ -31,8 +31,31 @@ const RESOLUTION_MAP: Record<string, string> = {
   "1W": "1Week",
 };
 
+// Map TradingView resolution strings → FXCM bridge timeframe strings
+const FXCM_RESOLUTION_MAP: Record<string, string> = {
+  "1": "m1",
+  "5": "m5",
+  "15": "m15",
+  "30": "m30",
+  "60": "H1",
+  "240": "H4",
+  "D": "D1",
+  "1D": "D1",
+  "W": "W1",
+  "1W": "W1",
+};
+
 function toBackendTf(resolution: string): string {
   return RESOLUTION_MAP[resolution] ?? "1Day";
+}
+
+function toFxcmTf(resolution: string): string {
+  return FXCM_RESOLUTION_MAP[resolution] ?? "H1";
+}
+
+// pricescale for forex: JPY pairs have 3 decimal places, others 5
+function forexPriceScale(symbol: string): number {
+  return symbol.includes("JPY") ? 1000 : 100000;
 }
 
 interface DatafeedOpts {
@@ -42,10 +65,13 @@ interface DatafeedOpts {
   // A function so the live silo can flow through without re-creating the
   // datafeed and tearing down the TV widget on every toggle.
   getSearchAssetClass?: () => string;
+  // Full silo name — used to route bar/resolve calls to FXCM when "forex".
+  getAssetClass?: () => string;
 }
 
 export function createDatafeed(opts: DatafeedOpts = {}) {
   const getSearchAssetClass = opts.getSearchAssetClass ?? (() => "");
+  const getAssetClass = opts.getAssetClass ?? (() => "");
   return {
     onReady(callback: (config: object) => void) {
       setTimeout(() =>
@@ -66,6 +92,23 @@ export function createDatafeed(opts: DatafeedOpts = {}) {
       _symbolType: string,
       onResult: (results: object[]) => void,
     ) {
+      if (getAssetClass() === "forex") {
+        // Forex: search FXCM instruments endpoint
+        fetch(`${API_BASE}/api/fxcm/instruments?search=${encodeURIComponent(userInput)}`)
+          .then((r) => r.json())
+          .then((data) => {
+            const list = Array.isArray(data) ? data : [];
+            onResult(list.map((a: { instrument?: string; display_name?: string }) => ({
+              symbol: a.instrument ?? "",
+              full_name: a.instrument ?? "",
+              description: a.display_name ?? a.instrument ?? "",
+              exchange: "FXCM",
+              type: "forex",
+            })));
+          })
+          .catch(() => onResult([]));
+        return;
+      }
       const ac = getSearchAssetClass();
       const cls = ac ? `&asset_class=${encodeURIComponent(ac)}` : "";
       fetch(
@@ -91,6 +134,25 @@ export function createDatafeed(opts: DatafeedOpts = {}) {
       onResolve: (info: object) => void,
       onError: (err: string) => void,
     ) {
+      if (getAssetClass() === "forex") {
+        // Resolve forex symbols locally — they're not in the Alpaca asset catalogue
+        onResolve({
+          name: symbolName,
+          full_name: symbolName,
+          description: symbolName,
+          type: "forex",
+          session: "0000-2400:23456",
+          timezone: "UTC",
+          exchange: "FXCM",
+          minmov: 1,
+          pricescale: forexPriceScale(symbolName),
+          has_intraday: true,
+          supported_resolutions: ["1", "5", "15", "30", "60", "240", "D", "W"],
+          volume_precision: 0,
+          data_status: "streaming",
+        });
+        return;
+      }
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 15_000);
       fetch(`${API_BASE}/api/assets/${symbolName}`, { signal: ctrl.signal })
@@ -124,6 +186,34 @@ export function createDatafeed(opts: DatafeedOpts = {}) {
       onResult: (bars: object[], meta: { noData: boolean }) => void,
       onError: (err: string) => void,
     ) {
+      if (getAssetClass() === "forex") {
+        const tf = toFxcmTf(resolution);
+        // date_from / date_to from TV's `from` epoch seconds
+        const fromDate = new Date(periodParams.from * 1000).toISOString().slice(0, 10);
+        const toDate   = new Date(periodParams.to   * 1000).toISOString().slice(0, 10);
+        const url = `${API_BASE}/api/fxcm/history` +
+          `?instrument=${encodeURIComponent(symbolInfo.name)}&timeframe=${tf}` +
+          `&from=${fromDate}&to=${toDate}`;
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 20_000);
+        fetch(url, { signal: ctrl.signal })
+          .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+          .then((data: FxcmBar[]) => {
+            clearTimeout(timer);
+            const bars = (Array.isArray(data) ? data : []).map((b) => ({
+              time: Date.parse(b.time),  // ISO string → ms for TV
+              open: b.open,
+              high: b.high,
+              low: b.low,
+              close: b.close,
+              volume: b.volume ?? 0,
+            }));
+            onResult(bars, { noData: bars.length === 0 });
+          })
+          .catch((e) => { clearTimeout(timer); onError(String(e)); });
+        return;
+      }
+
       const tf = toBackendTf(resolution);
       // Backend uses ?symbol=&timeframe=&limit= — no path param, no start/end.
       // Use countBack as the limit when provided; fall back to 300.
