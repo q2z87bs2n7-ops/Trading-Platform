@@ -623,6 +623,9 @@ function ChannelChip({
       const t = e.target as Node;
       if (ref.current?.contains(t)) return;
       if (popRef.current?.contains(t)) return;
+      // AssetSearch portals its dropdown outside popRef — don't dismiss when
+      // the user clicks a result inside that portal.
+      if ((t as Element).closest?.("[data-asset-search-dropdown]")) return;
       setOpen(false);
     }
     document.addEventListener("mousedown", onDoc);
