@@ -1857,9 +1857,6 @@ export default function Workspace({
         <div
           className="grid items-center shrink-0"
           style={{
-            // In focus mode the app header is hidden so the toolbar sits at
-            // the very top of the viewport — consume the safe-area inset here.
-            paddingTop: focus ? "var(--safe-top)" : undefined,
             marginBottom: 8,
             columnGap: 12,
             gridTemplateColumns: "auto 1fr auto",
