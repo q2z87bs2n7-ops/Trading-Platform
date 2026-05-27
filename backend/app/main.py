@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 
 from alpaca.common.exceptions import APIError
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
@@ -227,7 +227,8 @@ def asset(symbol: str) -> dict:
 
 
 @app.get("/api/asset-profile/{symbol:path}", dependencies=[Depends(require_configured)])
-def asset_profile(symbol: str) -> dict:
+def asset_profile(symbol: str, response: Response) -> dict:
+    response.headers["Cache-Control"] = "public, max-age=3600"
     # Full catalogue enrichment for one symbol (FMP for stocks, CoinGecko for
     # crypto) — every column, with NULL keys dropped so a stock row never carries
     # empty crypto fields and vice versa. Powers the Workspace Profile widget.
@@ -288,35 +289,40 @@ def indices_snapshot() -> dict:
 
 
 @app.get("/api/calendar/earnings")
-def earnings_calendar(include: str = Query("")) -> dict:
+def earnings_calendar(response: Response, include: str = Query("")) -> dict:
     """Curated whole-market earnings calendar (FMP). No Alpaca keys required.
     `include` is a comma-separated symbol list (the user's positions / orders /
     watchlist) that is always kept regardless of market cap."""
+    response.headers["Cache-Control"] = "public, max-age=3600"
     syms = {s.strip().upper() for s in include.split(",") if s.strip()}
     return {"earnings": calendar_fmp.get_earnings_calendar(syms), "as_of": int(time.time())}
 
 
 @app.get("/api/calendar/earnings/{symbol}")
-def symbol_earnings(symbol: str) -> dict:
+def symbol_earnings(symbol: str, response: Response) -> dict:
     """Recent + upcoming earnings for one ticker (FMP). No Alpaca keys required."""
+    response.headers["Cache-Control"] = "public, max-age=3600"
     return {"symbol": symbol.upper(), "earnings": calendar_fmp.get_symbol_earnings(symbol)}
 
 
 @app.get("/api/calendar/economic")
-def economic_calendar() -> dict:
+def economic_calendar(response: Response) -> dict:
     """US high/medium-impact macro calendar (FMP). No Alpaca keys required."""
+    response.headers["Cache-Control"] = "public, max-age=3600"
     return {"economic": calendar_fmp.get_economic_calendar(), "as_of": int(time.time())}
 
 
 @app.get("/api/research/trending")
-def research_trending() -> dict:
+def research_trending(response: Response) -> dict:
     """Top trending stocks by analyst coverage (Tipranks). Equities only."""
+    response.headers["Cache-Control"] = "public, max-age=900"
     return {"trending": tipranks.get_trending_stocks(), "as_of": int(time.time())}
 
 
 @app.get("/api/research/smart-score/{symbol:path}")
-def research_smart_score(symbol: str) -> dict:
+def research_smart_score(symbol: str, response: Response) -> dict:
     """Tipranks SmartScore composite (1–10) + component breakdown for one symbol."""
+    response.headers["Cache-Control"] = "public, max-age=3600"
     return {
         "symbol": symbol.upper(),
         "smart_score": tipranks.get_smart_score(symbol),
@@ -325,9 +331,10 @@ def research_smart_score(symbol: str) -> dict:
 
 
 @app.get("/api/research/sentiment/{symbol:path}")
-def research_sentiment(symbol: str) -> dict:
+def research_sentiment(symbol: str, response: Response) -> dict:
     """Combined blogger + news + investor sentiment (Tipranks). Three upstream
     calls fanned in. Stocks only."""
+    response.headers["Cache-Control"] = "public, max-age=1800"
     return {
         "symbol": symbol.upper(),
         "sentiment": tipranks.get_sentiment_signals(symbol),
@@ -336,8 +343,9 @@ def research_sentiment(symbol: str) -> dict:
 
 
 @app.get("/api/research/analysts/{symbol:path}")
-def research_analysts(symbol: str) -> dict:
+def research_analysts(symbol: str, response: Response) -> dict:
     """Per-analyst ratings list for one symbol (Tipranks). Stocks only."""
+    response.headers["Cache-Control"] = "public, max-age=3600"
     return {
         "symbol": symbol.upper(),
         "analysts": tipranks.get_analyst_ratings(symbol),
@@ -346,8 +354,9 @@ def research_analysts(symbol: str) -> dict:
 
 
 @app.get("/api/research/hedge-funds/{symbol:path}")
-def research_hedge_funds(symbol: str) -> dict:
+def research_hedge_funds(symbol: str, response: Response) -> dict:
     """Hedge-fund signal + 13F quarterly trend + per-fund holdings (Tipranks)."""
+    response.headers["Cache-Control"] = "public, max-age=21600"
     return {
         "symbol": symbol.upper(),
         "hedge_funds": tipranks.get_hedge_funds(symbol),
@@ -356,8 +365,9 @@ def research_hedge_funds(symbol: str) -> dict:
 
 
 @app.get("/api/research/insiders/{symbol:path}")
-def research_insiders(symbol: str) -> dict:
+def research_insiders(symbol: str, response: Response) -> dict:
     """Insider Form-4 transactions + monthly history + confidence (Tipranks)."""
+    response.headers["Cache-Control"] = "public, max-age=14400"
     return {
         "symbol": symbol.upper(),
         "insiders": tipranks.get_insiders(symbol),
@@ -366,9 +376,10 @@ def research_insiders(symbol: str) -> dict:
 
 
 @app.get("/api/research/related-tickers/{symbol:path}")
-def research_related_tickers(symbol: str) -> dict:
+def research_related_tickers(symbol: str, response: Response) -> dict:
     """Tickers also held by investors who hold ``symbol`` (Tipranks). Four
     lists — overall + per-age-cohort (youngest / midRange / eldest)."""
+    response.headers["Cache-Control"] = "public, max-age=1800"
     return {
         "symbol": symbol.upper(),
         "related": tipranks.get_related_tickers(symbol),
@@ -377,9 +388,10 @@ def research_related_tickers(symbol: str) -> dict:
 
 
 @app.get("/api/research/holder-demographics/{symbol:path}")
-def research_holder_demographics(symbol: str) -> dict:
+def research_holder_demographics(symbol: str, response: Response) -> dict:
     """Per-cohort behavioural profile of the stock's holder base
     (eldest / midRange / youngest) + sector & best-investor benchmark footer."""
+    response.headers["Cache-Control"] = "public, max-age=1800"
     return {
         "symbol": symbol.upper(),
         "demographics": tipranks.get_holder_demographics(symbol),

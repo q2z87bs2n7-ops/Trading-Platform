@@ -1,10 +1,13 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
+  useAccount,
   useAppStatus,
   useCryptoWatchlist,
   usePositions,
   useWatchlist,
 } from "./data/hooks";
+import * as api from "./api";
+import { queryClient, qk } from "./data/queryClient";
 import { useTheme } from "./hooks/useTheme";
 import MaintenancePage from "./components/MaintenancePage";
 import Positions from "./components/Positions";
@@ -94,10 +97,12 @@ function BrandMark() {
 function ModePill({
   active,
   onClick,
+  onHoverPrefetch,
   children,
 }: {
   active: boolean;
   onClick: () => void;
+  onHoverPrefetch?: () => void;
   children: React.ReactNode;
 }) {
   const [hover, setHover] = useState(false);
@@ -105,7 +110,7 @@ function ModePill({
     <button
       type="button"
       onClick={onClick}
-      onMouseEnter={() => setHover(true)}
+      onMouseEnter={() => { setHover(true); onHoverPrefetch?.(); }}
       onMouseLeave={() => setHover(false)}
       className="relative text-[13.5px] px-3.5 py-2 rounded-card bg-transparent border-0 cursor-pointer transition-colors"
       style={{
@@ -223,6 +228,9 @@ function ThemeToggle({
 export default function App() {
   const { data: wl } = useWatchlist();
   const { data: cryptoWl } = useCryptoWatchlist();
+  // Account is needed by every mode — fetch at the top level so it's warm
+  // before the user lands on any page.
+  useAccount();
   // Once force_stop is seen we latch `booted` and disable the status poll, so
   // the terminal page makes zero further requests and never auto-recovers
   // (manual browser reload only).
@@ -292,6 +300,41 @@ export default function App() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [focusMode]);
+
+  // Prefetch slow-to-compute data on mount so tab switches are instant.
+  // Runs once; prefetchQuery is a no-op if the cache is already warm.
+  const prefetchedRef = useRef(false);
+  useEffect(() => {
+    if (prefetchedRef.current) return;
+    prefetchedRef.current = true;
+    queryClient.prefetchQuery({ queryKey: qk.pnlHistory("stocks", "ALL"), queryFn: () => api.getPnlHistory("stocks", "ALL") });
+    queryClient.prefetchQuery({ queryKey: qk.pnlHistory("crypto", "ALL"), queryFn: () => api.getPnlHistory("crypto", "ALL") });
+    queryClient.prefetchQuery({ queryKey: qk.orders("all", 25), queryFn: () => api.getOrders("all", 25) });
+    queryClient.prefetchQuery({ queryKey: qk.activities(25), queryFn: () => api.getActivities(25) });
+  }, []);
+
+  // Preload Workspace JS chunk on desktop so the first click is instant.
+  useEffect(() => {
+    if (!isMobile) import("./components/Workspace");
+  }, [isMobile]);
+
+  // Per-mode hover prefetch — fires once per hover (prefetchQuery is a no-op
+  // when data is fresh, so repeated hovers are free).
+  const prefetchedModes = useRef(new Set<string>());
+  function prefetchMode(m: PlatformMode) {
+    const key = `${m}:${activeClass}`;
+    if (prefetchedModes.current.has(key)) return;
+    prefetchedModes.current.add(key);
+    if (m === "portfolio") {
+      queryClient.prefetchQuery({ queryKey: qk.pnlHistory(activeClass, "ALL"), queryFn: () => api.getPnlHistory(activeClass, "ALL") });
+      queryClient.prefetchQuery({ queryKey: qk.orders("all", 25), queryFn: () => api.getOrders("all", 25) });
+      queryClient.prefetchQuery({ queryKey: qk.activities(25), queryFn: () => api.getActivities(25) });
+    } else if (m === "chart" && selected) {
+      queryClient.prefetchQuery({ queryKey: qk.bars(selected, "1Day"), queryFn: () => api.getBars(selected, "1Day", 200) });
+    } else if (m === "workspace" && !isMobile) {
+      import("./components/Workspace");
+    }
+  }
 
   function switchMode(m: PlatformMode) {
     setMode(m);
@@ -460,6 +503,7 @@ export default function App() {
                 key={m.value}
                 active={mode === m.value}
                 onClick={() => switchMode(m.value)}
+                onHoverPrefetch={() => prefetchMode(m.value)}
               >
                 {m.label}
               </ModePill>

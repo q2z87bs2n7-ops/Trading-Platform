@@ -6,6 +6,7 @@ export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 5_000,
+      gcTime: 30 * 60_000, // 30 min — keep inactive cache across tab switches
       refetchOnWindowFocus: false,
       retry: 1,
     },

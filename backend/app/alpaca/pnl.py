@@ -12,12 +12,16 @@ deposits ignored. Daily granularity; FIFO assumed; fees are folded into the
 fill price.
 """
 
+import time as _time
 from collections import defaultdict, deque
 from datetime import date, datetime, time, timedelta, timezone
 
 from .account import get_positions
 from .client import coerce_silo, is_crypto, normalize_crypto_symbol, trading_client
 from .market_data import get_daily_closes
+
+_PNL_CACHE: dict[tuple, tuple[float, dict]] = {}
+_PNL_TTL = 60  # seconds — matches frontend refetchInterval
 
 # Lookback per period; ``ALL`` (or anything unmapped) walks back to the first
 # fill.
@@ -53,6 +57,17 @@ def _start_dt(d: date) -> datetime:
 
 
 def get_pnl_history(asset_class: str, period: str = "ALL") -> dict:
+    key = (coerce_silo(asset_class), period)
+    now = _time.monotonic()
+    cached = _PNL_CACHE.get(key)
+    if cached and now - cached[0] < _PNL_TTL:
+        return cached[1]
+    result = _compute_pnl_history(asset_class, period)
+    _PNL_CACHE[key] = (now, result)
+    return result
+
+
+def _compute_pnl_history(asset_class: str, period: str = "ALL") -> dict:
     silo = coerce_silo(asset_class)
     want_crypto = silo == "crypto"
 
