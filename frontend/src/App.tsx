@@ -445,6 +445,7 @@ export default function App() {
           className="grid items-center gap-4"
           style={{
             gridTemplateColumns: "auto 1fr auto",
+            paddingTop: "max(14px, var(--safe-top))",
             paddingBottom: 14,
             borderBottom: "1px solid var(--hairline)",
           }}
