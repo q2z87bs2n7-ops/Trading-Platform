@@ -1,21 +1,23 @@
 # Trading Platform
 
-A paper-trading dashboard built on the [Alpaca](https://alpaca.markets/) API.
+A paper-trading dashboard built on the [Alpaca](https://alpaca.markets/) API,
+with a **Forex silo** powered by the FXCM ForexConnect API.
 
 **Scope:** full **paper** trading — account/portfolio summary, a live-quote
 watchlist, candlestick charts, asset search, market clock, and the full
 order path (market/limit/stop/stop-limit/trailing, bracket/OCO, replace,
 cancel, close positions) with a positions/orders/activities blotter.
-Supports **US equities** and **crypto** in separate silos. Paper account
-only — there is no live-trading path.
+Supports **US equities**, **crypto**, and **forex** (FXCM demo, local
+sidecar) in separate silos. Alpaca silos are paper-only — there is no live
+Alpaca trading path.
 
 On the **first session only**, an **asset class splash** is shown as the
-landing screen — pick Stocks or Crypto to enter. Subsequent loads land
-straight on the last-used silo's Discover. The splash doubles as an **Account
-Hub** (re-opened from the header brand mark) showing a whole-account
+landing screen — pick Stocks, Crypto, or Forex to enter. Subsequent loads
+land straight on the last-used silo's Discover. The splash doubles as an
+**Account Hub** (re-opened from the header brand mark) showing a whole-account
 overview: total equity, day P/L, buying power, and a stocks-vs-crypto-vs-cash
-split. The active silo tints the accent (green for Stocks, blue for Crypto).
-Both sides share the same mode toggle (Workspace is desktop-only):
+split. The active silo tints the accent (green for Stocks, blue for Crypto,
+orange for Forex). All silos share the same mode toggle (Workspace is desktop-only):
 
 - **Discover** (default)
   - *Stocks* — silo holdings + allocation donut (green), indices marquee
@@ -26,6 +28,10 @@ Both sides share the same mode toggle (Workspace is desktop-only):
   - *Crypto* — live crypto price marquee, holdings + allocation hero (crypto
     positions only, blue), crypto watchlist sparkline cards, inline chart, BTC
     news. No movers/most-active (Alpaca has no crypto screener).
+  - *Forex* — FXCM account hero (equity / balance / margin) and live major-pair
+    watchlist (bid/ask, spread in pips, 3 s polling). Requires the local FXCM
+    bridge to be running; shows an offline notice otherwise. POC stage — order
+    entry and Chart integration are in the backlog.
 - **Portfolio** — siloed value + day P/L hero with a reconstructed per-silo
   **net P/L curve** (from `/api/pnl-history`), positions strip (one card per
   position, filtered to the active asset class), open-orders table, and
@@ -79,7 +85,12 @@ top nav; preference persists in `localStorage`.
 - **Backend:** FastAPI + `alpaca-py` (REST reads + a real-time quote stream
   over Server-Sent Events, with REST polling as automatic fallback).
   Separate `StockDataStream` and `CryptoDataStream` hubs; the SSE endpoint
-  auto-routes based on symbol format.
+  auto-routes based on symbol format. A `/api/fxcm/*` proxy router
+  (`backend/app/fxcm.py`) forwards to the local FXCM bridge.
+- **FXCM bridge:** A Python 3.7 Flask sidecar (`fxcm-bridge/bridge.py`)
+  that holds the persistent ForexConnect session and exposes a local HTTP API
+  on port 3001. Uses an embedded Python 3.7 runtime (the `forexconnect` wheel
+  is CPython 3.7 only). Local-only — not deployed to Vercel or Render.
 - **Frontend:** React + TypeScript (Vite) + Tailwind on the Calm v2 token
   set (light + dark in oklch, Inter + IBM Plex Mono). Four modes —
   Discover, Portfolio, Chart (the full Charting Library at
@@ -180,6 +191,46 @@ TIPRANKS_API_TOKEN=...      # secret token
 Auth is via query-string params despite the `X-` prefixed names. See
 `docs/tipranks.md` for the endpoint inventory, cache TTLs (15min → 6h
 depending on update cadence), and the per-widget surfaces.
+
+### 1e. FXCM ForexConnect bridge (optional, local only)
+
+The Forex silo requires the FXCM bridge sidecar running on your machine.
+It connects to a hardcoded FXCM demo account and listens on port 3001.
+
+**Prerequisites (one-time):**
+
+The bridge requires Python 3.7 (the `forexconnect` wheel is CP37-only). An
+embedded Python 3.7 runtime is already checked into `fxcm-bridge/python37/`
+so no system Python 3.7 install is needed.
+
+If the site-packages are missing (first clone), install them:
+
+```powershell
+# From repo root (PowerShell)
+# If on a corporate network add: --trusted-host pypi.org --trusted-host files.pythonhosted.org
+& "fxcm-bridge\python37\python.exe" -m pip install flask forexconnect pandas
+```
+
+**Starting the bridge:**
+
+```powershell
+# Foreground (shows log output)
+& "fxcm-bridge\python37\python.exe" "fxcm-bridge\bridge.py"
+
+# Background (hidden window)
+Start-Process -FilePath "fxcm-bridge\python37\python.exe" `
+              -ArgumentList "fxcm-bridge\bridge.py" `
+              -WorkingDirectory (Get-Location) `
+              -WindowStyle Hidden
+```
+
+The bridge logs `"FXCM connected — account D161665432"` when ready.
+Verify: `Invoke-RestMethod http://127.0.0.1:3001/health`
+
+If the bridge is not running, the Forex silo shows an offline notice and
+all other silos (Stocks, Crypto) are completely unaffected.
+
+See `docs/fxcm.md` for the full integration reference.
 
 ### 2. Backend
 
@@ -285,9 +336,9 @@ paid Alpaca data plan for the full consolidated tape.
   when the stream is unavailable and quotes are polling instead.
 - Keys live only in `backend/.env`, which is gitignored. Never commit it.
 - Default watchlist symbols are configurable via `DEFAULT_SYMBOLS` in `.env`.
-- Browser state is in `localStorage`: `asset_class_mode` (stocks / crypto —
-  the silo the app boots into post-splash; also highlights the active card
-  in the Account Hub), `splash_seen_v1` (set once the user has picked a
+- Browser state is in `localStorage`: `asset_class_mode` (stocks / crypto /
+  forex — the silo the app boots into post-splash; also highlights the active
+  card in the Account Hub), `splash_seen_v1` (set once the user has picked a
   silo; clearing it restores the first-time landing), `platform_mode_v1`
   (last-used mode pill), `theme` (light / dark), `chartbot_session` (256 KB
   byte budget —

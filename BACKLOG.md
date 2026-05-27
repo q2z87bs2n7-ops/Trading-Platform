@@ -3,6 +3,62 @@
 Outstanding work only — shipped / historic notes are intentionally not kept
 here; use `git log` for that.
 
+## Forex (FXCM)
+
+POC is live (see `docs/fxcm.md` for full reference). The bridge, proxy router,
+and ForexDiscoverPage (account hero + live watchlist) are shipped. What remains:
+
+- **Order entry UI** — `fxcm-bridge/bridge.py` has `POST /order` and `POST /close`
+  wired. Need a new `FxcmOrderSheet` component (the Alpaca `OrderSheet` is not
+  reusable — it hardwires Alpaca schemas). Fields: instrument, buy/sell, amount
+  in lots, order type (market / stop / limit), rate, stop, limit.
+- **Positions panel** — `GET /api/fxcm/positions` returns open trades from the
+  ForexConnect TRADES table. Add a `FxcmPositions` table or card list to
+  ForexDiscoverPage. Columns: instrument, direction (B/S), lots, open rate,
+  current rate, P&L. A "Close" button per row calls `POST /api/fxcm/close`.
+- **Closed trades / P&L history** — `GET /api/fxcm/closed_trades` is wired.
+  Add a history table (instrument, direction, amount, open/close rates, P&L,
+  date range). A mini P&L curve is possible if you aggregate `pl` by date.
+- **Chart mode (History → TradingView)** — `GET /api/fxcm/history` returns
+  OHLCV bars that match the TV bar format. The TV datafeed (`lib/tv-datafeed.ts`)
+  needs a branch: when `assetClass === "forex"`, call `getFxcmHistory(instrument,
+  timeframe)` instead of `/api/bars`. The `isCryptoSymbol` slash conflict must
+  be resolved first (see landmines → FXCM bridge).
+- **`isCryptoSymbol` slash conflict resolution** — `lib/asset-class.ts` uses
+  `symbol.includes("/")` for crypto fast-detection; forex pairs also contain
+  slashes. Fix: add an `assetClass` parameter to `isCryptoSymbol`, or rename it
+  to `isSlashSymbol` and gate the crypto constraint in `useOrderTicket` behind
+  an explicit `assetClass === "crypto"` check instead.
+- **Real-time price push** — current 3 s polling works but the bridge could use
+  ForexConnect's subscription model (`fc.subscribe_rate`) and SSE-push to the
+  frontend. The bridge already has `threading.Lock` around session use; a
+  subscriber callback can push into an `asyncio.Queue` bridged via a FastAPI SSE
+  route at `/api/fxcm/stream`.
+- **Bridge process management** — no auto-start, no health-restart, no PID
+  tracking. Options: a PowerShell startup script, a Windows Task Scheduler
+  entry, or a simple watchdog loop in the bridge itself. The frontend offline
+  notice already handles the bridge being down gracefully.
+- **Credentials in environment** — currently hardcoded constants in `bridge.py`.
+  Extract to env vars (`FXCM_USER`, `FXCM_PASS`, `FXCM_URL`, `FXCM_ENV`) via
+  `python-dotenv` before committing any live/real account details.
+- **Spread pip denominator from OFFERS table** — the `digits` field in the
+  ForexConnect OFFERS row gives the correct precision per instrument (typically
+  5 for most forex pairs, 3 for JPY). `ForexDiscoverPage` currently hardcodes
+  the JPY / non-JPY split; use `price.digits` from the enriched price row instead.
+- **Watchlist customisation** — the bridge's `DEFAULT_WATCHLIST` is a hardcoded
+  constant. Options: store user watchlist symbols in localStorage (simple) or
+  persist them via a new `/api/fxcm/watchlist-prefs` endpoint backed by the
+  bridge's in-memory state.
+- **DB seeding of FXCM instruments** — 737 instruments are cache-only in the
+  bridge. If we want the asset catalogue to cover forex (for the AI `find_symbol`
+  tool, Chart search, etc.), add a `POST /api/_dev/seed-fxcm` routine that reads
+  the bridge's `/instruments` endpoint and upserts into the Supabase `assets`
+  table with `asset_class='forex'` (a new value — schema migration needed).
+- **Account hub metrics** — the FXCM account card in `AssetClassSplash`
+  currently shows placeholder zeros (no positions, zero equity). Wire it to
+  `getFxcmAccount()` + `getFxcmPositions()` so the splash shows real FXCM
+  balance and open position count alongside the Alpaca silo cards.
+
 ## Data / persistence
 
 - **Postgres-backed app data** — trade journal, server-side watchlists, and

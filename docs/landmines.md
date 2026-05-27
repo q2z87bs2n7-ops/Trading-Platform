@@ -474,3 +474,65 @@ the user gets a normal internal answer. Consequence: an org-off failure is
 **silent** — there's no error and no `web_search` chip — so don't rely on the
 app to surface it. To truly confirm org state, test in the Anthropic Workbench
 with a key from that org (it shows the raw 400).
+
+## FXCM bridge (ForexConnect sidecar)
+
+The FXCM integration uses a Python 3.7 Flask sidecar (`fxcm-bridge/bridge.py`)
+that owns the persistent ForexConnect session. Things that cost debugging time:
+
+- **`forexconnect` is CPython 3.7 only.** The PyPI wheel is `cp37-win_amd64`
+  and will not install on Python 3.11 or 3.14. The solution is the Python 3.7
+  embeddable ZIP in `fxcm-bridge/python37/`. Do not attempt to upgrade the
+  wheel or run the bridge under the main venv.
+
+- **The embeddable ZIP has `import site` commented out by default.** Without
+  it, site-packages (i.e. the installed wheels) are invisible. The file is
+  `fxcm-bridge/python37/python37._pth` — the uncommented `import site` line is
+  already there; don't revert it.
+
+- **Group policy blocks `pip.exe` and `uvicorn.exe` directly.** Always use
+  `python.exe -m pip` for installs and `python.exe -c "import uvicorn; ..."` to
+  run the server. The `python.exe` binary itself is not blocked.
+
+- **Corporate SSL interception breaks pip certificate checks.** Add these to
+  every `pip install` call:
+  `--trusted-host pypi.org --trusted-host files.pythonhosted.org --trusted-host bootstrap.pypa.io`
+
+- **`api-demo.fxcm.com` / `api.fxcm.com` DNS does not resolve on the Fiserv
+  network.** This is why the FXCM REST API approach was ruled out and
+  ForexConnect was chosen instead. `www.fxcorporate.com` resolves fine.
+
+- **`cols.size` is a property, not a method.** Calling `cols.size()` raises
+  `TypeError: 'int' object is not callable`. The bridge uses `cols.size`
+  (no parentheses). A seemingly correct `for`-loop over table rows will silently
+  read nothing if this is wrong.
+
+- **Empty ForexConnect tables raise `TypeError` on iteration.** When a table
+  (Trades, Orders, ClosedTrades) has no rows, the reader returns `None` from the
+  iterator protocol rather than an empty sequence. Every `for row in reader`
+  call must be wrapped in `try/except TypeError: pass`.
+
+- **`get_history()` requires a plain string timeframe — not the C++ type.**
+  `fc.get_timeframe("H1")` returns a C++ object that causes a second `TypeError`
+  inside `get_history`. Pass the string directly: `fc.get_history(instrument,
+  "H1", dt_from, dt_to)`.
+
+- **`get_history()` returns a numpy structured array, not a list of objects.**
+  Access fields with `row['Date']`, `row['BidOpen']` etc. Date conversion:
+  `row['Date'].astype('datetime64[s]').astype(datetime.datetime)`.
+
+- **The FXCM public instrument endpoint wraps the symbol list.**
+  `https://endpoints.fxcorporate.com/symbol/data?...` returns
+  `{"Version":"...","Symbols":[...]}`, not a bare list. Parse with
+  `data.get("Symbols", data)` to handle both shapes.
+
+- **The bridge is local-only.** It is not deployed to Vercel or Render. The
+  FastAPI proxy (`backend/app/fxcm.py`) raises HTTP 503 when the bridge is not
+  running; the frontend shows an offline notice. Don't add the bridge to the
+  Dockerfile or Render deployment.
+
+- **`isCryptoSymbol` slash conflict.** `lib/asset-class.ts` uses
+  `symbol.includes("/")` to fast-detect crypto. Forex pairs (EUR/USD, GBP/USD)
+  also contain a slash. This is harmless in the current POC because forex
+  symbols never enter Alpaca flows, but any Chart-mode integration for forex
+  must resolve this first — see `docs/fxcm.md`.

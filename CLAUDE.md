@@ -3,21 +3,25 @@
 Guidance for working in this repo. Read in full before changing deploy
 config, dependencies, or the streaming path. Companion docs:
 `README.md` (setup & deployment), `BACKLOG.md` (deferred work),
-`docs/landmines.md` (Vercel-Python / TradingView / streaming details
+`docs/landmines.md` (Vercel-Python / TradingView / streaming / FXCM details
 that took several iterations to land — don't undo them),
 `docs/workspace.md` (Workspace mode + module pattern), `docs/ai.md`
 (the two AI surfaces), `docs/database.md` (Postgres asset catalogue),
 `docs/tipranks.md` (Tipranks research API — endpoint inventory & auth
-quirks, not yet wired).
+quirks, not yet wired), `docs/fxcm.md` (FXCM ForexConnect integration —
+bridge architecture, SDK patterns, what's built, what's next).
 
 ## What this is
 
 A serious hobby-grade paper-trading platform on the
-[Alpaca](https://alpaca.markets/) API. Full paper trading: orders
+[Alpaca](https://alpaca.markets/) API, with a third **Forex silo** powered by
+the FXCM ForexConnect API. Full paper trading on Alpaca: orders
 (market/limit/stop/stop-limit/trailing, bracket/OCO), cancel/replace,
 close positions, portfolio & P/L, persisted watchlists, asset search,
-real-time streaming. Supports both **US equities** and **crypto** in
-separate silos behind a shared account.
+real-time streaming. Supports **US equities**, **crypto**, and **forex
+(FXCM demo account)** in three separate silos. Alpaca silos are paper-only
+— there is no live trading path. The FXCM silo is a POC against a demo
+account via a local Python 3.7 sidecar bridge.
 
 **Hard rules — do not cross without an explicit, deliberate decision:**
 
@@ -53,10 +57,10 @@ separate silos behind a shared account.
 
 - **Frontend:** React 18 + TypeScript + Vite, single-page (no router).
   On the **first session only** `AssetClassSplash.tsx` is shown as the
-  landing screen, prompting the user to pick **Stocks** or **Crypto**.
-  Once a silo is picked, `localStorage('splash_seen_v1')='1'` is set and
-  every subsequent load lands straight on the last-used silo's Discover.
-  `localStorage('asset_class_mode')` is now **load-bearing** — it
+  landing screen, prompting the user to pick **Stocks**, **Crypto**, or
+  **Forex**. Once a silo is picked, `localStorage('splash_seen_v1')='1'`
+  is set and every subsequent load lands straight on the last-used silo's
+  Discover. `localStorage('asset_class_mode')` is now **load-bearing** — it
   selects the silo the app boots into (was previously just a last-used
   hint). The header brand button re-opens the splash on demand as the
   **Account Hub**: a whole-account overview (total equity, day P/L,
@@ -66,7 +70,8 @@ separate silos behind a shared account.
   → hub on desktop (the standalone stocks/crypto pill is gone); mobile
   keeps the inline toggle for fast access. Per-silo accent: stocks
   recolours the `--accent` tokens to green (`--pos`), crypto keeps the
-  default blue; `--pos`/`--neg` P/L colours are untouched. The header
+  default blue, forex uses orange/amber (`oklch(72% 0.18 55)`);
+  `--pos`/`--neg` P/L colours are untouched. The header
   pill switches between four modes
   (persisted across reloads via `localStorage('platform_mode_v1')`;
   **Workspace** is desktop-only — a mobile reload that rehydrates
@@ -249,7 +254,12 @@ separate silos behind a shared account.
   research/holder-demographics/{symbol}, assets, asset-profile, news,
   watchlist, movers,
   most-active, indices, market-news, crypto/tickers, ai/chat, ai/ask (last two gated by
-  `AI_CHAT_ENABLED`; require `ANTHROPIC_API_KEY`). `/api/indices` and
+  `AI_CHAT_ENABLED`; require `ANTHROPIC_API_KEY`),
+  fxcm/health, fxcm/account, fxcm/prices, fxcm/watchlist, fxcm/positions,
+  fxcm/orders, fxcm/summary, fxcm/closed_trades, fxcm/instruments,
+  fxcm/instruments/{name:path}, fxcm/history, fxcm/order (POST/DELETE),
+  fxcm/close (POST) — these proxy to the local FXCM bridge on port 3001;
+  return 503 when the bridge is not running. `/api/indices` and
   `/api/market-news` hit Yahoo Finance directly via `requests` (no yfinance,
   no C extensions — Python 3.14 safe). `/api/calendar/{earnings,economic}`
   are **FMP-backed**, live-proxied with an in-process cache (`calendar_fmp.py`,
@@ -441,7 +451,7 @@ new surface. Full rules, precedents, and examples: `docs/workspace.md` →
 
 | Key | Writer | Read by | Notes |
 | --- | ------ | ------- | ----- |
-| `asset_class_mode` | `App.tsx` | `App.tsx` | `"stocks" \| "crypto"`. **Load-bearing** — the silo the app boots into on subsequent loads (post-splash). Also highlights the active card in the Account Hub. |
+| `asset_class_mode` | `App.tsx` | `App.tsx` | `"stocks" \| "crypto" \| "forex"`. **Load-bearing** — the silo the app boots into on subsequent loads (post-splash). Also highlights the active card in the Account Hub. |
 | `platform_mode_v1` | `App.tsx` | `App.tsx` | `"discover" \| "portfolio" \| "chart" \| "workspace"`. The header-pill mode the app boots into. A mobile reload that rehydrates `workspace` falls back to `discover` (workspace is desktop-only). |
 | `splash_seen_v1` | `App.tsx` | `App.tsx` | `"1"` once the user has picked a silo from the splash. Subsequent loads skip the splash and land on the `asset_class_mode` silo. Clearing this key restores the first-time landing. |
 | `theme` | `hooks/useTheme.ts` + `index.html` bootstrap | both | `"light" \| "dark"`. Defaults to OS preference. |
@@ -456,7 +466,7 @@ new surface. Full rules, precedents, and examples: `docs/workspace.md` →
 
 Watchlists are not in localStorage — server-side via `/api/watchlist`.
 
-## Three deploy targets (do not conflate)
+## Four runtime targets (do not conflate)
 
 1. **Vercel — production**, from `main` only, via
    `.github/workflows/deploy-prod.yml` (`vercel deploy --prod`).
@@ -476,6 +486,13 @@ Watchlists are not in localStorage — server-side via `/api/watchlist`.
    frontend only; talks to the Vercel prod backend. Auto-publishes to
    `gh-pages` on every `claude/**` push. Cannot trigger a Vercel
    deploy.
+4. **FXCM bridge — local sidecar** (`fxcm-bridge/bridge.py`). Python
+   3.7 Flask process on port 3001, started manually on the developer's
+   machine. **Not deployed to Vercel or Render** — it cannot be: the
+   `forexconnect` wheel is Windows CP37 only, and FXCM's ForexConnect
+   protocol requires a persistent TCP connection incompatible with
+   serverless. The FastAPI proxy returns 503 when the bridge is not
+   running; the frontend shows an offline notice. See `docs/fxcm.md`.
 
 ## Two AI surfaces (teal Ask anything vs violet ChartBot)
 
