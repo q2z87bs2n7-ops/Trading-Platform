@@ -6,18 +6,22 @@ and seeded on first access. No extra infra (Charter: Alpaca is the source
 of truth; server-side watchlist persistence without a new datastore).
 """
 
-from alpaca.trading.requests import CreateWatchlistRequest
+from alpaca.trading.requests import CreateWatchlistRequest, UpdateWatchlistRequest
 
 from ..config import get_settings
-from .client import trading_client
+from .client import normalize_crypto_symbol, trading_client
 
 _NAME = "primary"
 _NAME_CRYPTO = "primary-crypto"
 _CRYPTO_DEFAULTS = ["BTC/USD", "ETH/USD", "SOL/USD"]
 
 
-def _symbols(wl) -> list[str]:
-    return [a.symbol for a in (wl.assets or [])]
+def _symbols(wl, asset_class: str = "") -> list[str]:
+    """Return watchlist symbols, normalizing crypto pairs to use slashes."""
+    symbols = [a.symbol for a in (wl.assets or [])]
+    if asset_class == "crypto":
+        symbols = [normalize_crypto_symbol(s, asset_class="crypto") for s in symbols]
+    return symbols
 
 
 def _get_or_create(name: str, defaults: list[str] | None = None):
@@ -38,24 +42,40 @@ def _wl_defaults(asset_class: str) -> list[str] | None:
 
 
 def get_watchlist(asset_class: str = "") -> dict:
-    return {"symbols": _symbols(_get_or_create(_wl_name(asset_class), _wl_defaults(asset_class)))}
+    return {"symbols": _symbols(_get_or_create(_wl_name(asset_class), _wl_defaults(asset_class)), asset_class)}
 
 
 def add_to_watchlist(symbol: str, asset_class: str = "") -> dict:
     sym = symbol.strip().upper()
     wl = _get_or_create(_wl_name(asset_class), _wl_defaults(asset_class))
-    if sym and sym not in _symbols(wl):
+    # Check in normalized form
+    wl_symbols = _symbols(wl, asset_class)
+    normalized_sym = normalize_crypto_symbol(sym, asset_class) if asset_class == "crypto" else sym
+    if normalized_sym and normalized_sym not in wl_symbols:
         wl = trading_client().add_asset_to_watchlist_by_id(
-            watchlist_id=str(wl.id), symbol=sym
+            watchlist_id=str(wl.id), symbol=normalized_sym
         )
-    return {"symbols": _symbols(wl)}
+    return {"symbols": _symbols(wl, asset_class)}
 
 
 def remove_from_watchlist(symbol: str, asset_class: str = "") -> dict:
     sym = symbol.strip().upper()
     wl = _get_or_create(_wl_name(asset_class), _wl_defaults(asset_class))
-    if sym in _symbols(wl):
-        wl = trading_client().remove_asset_from_watchlist_by_id(
-            watchlist_id=str(wl.id), symbol=sym
+    wl_symbols = _symbols(wl, asset_class)
+    target = normalize_crypto_symbol(sym, asset_class) if asset_class == "crypto" else sym
+    if target not in wl_symbols:
+        return {"symbols": wl_symbols}
+    tc = trading_client()
+    if asset_class == "crypto":
+        # Alpaca's remove-by-id puts the symbol in the URL path
+        # (DELETE /watchlists/{id}/{symbol}); a slashed pair like BTC/USD adds a
+        # phantom path segment, so Alpaca matches nothing and returns the list
+        # unchanged. Rewrite the whole list via update (PUT, body) instead.
+        kept = [s for s in wl_symbols if s != target]
+        wl = tc.update_watchlist_by_id(
+            watchlist_id=str(wl.id),
+            watchlist_data=UpdateWatchlistRequest(name=_wl_name(asset_class), symbols=kept),
         )
-    return {"symbols": _symbols(wl)}
+    else:
+        wl = tc.remove_asset_from_watchlist_by_id(watchlist_id=str(wl.id), symbol=target)
+    return {"symbols": _symbols(wl, asset_class)}

@@ -26,6 +26,14 @@ READ_TOOL_NAMES = {
     "get_calendar",
     "get_watchlist",
     "get_corporate_actions",
+    "get_trending_stocks",
+    "get_smart_score",
+    "get_sentiment_signals",
+    "get_analyst_ratings",
+    "get_hedge_funds",
+    "get_insiders",
+    "get_related_tickers",
+    "get_holder_demographics",
 }
 
 
@@ -310,11 +318,16 @@ READ_TOOLS: list[dict[str, Any]] = [
         "description": (
             "Full catalogue profile for ONE known symbol. Stocks: sector, "
             "industry, country, CEO, employees, IPO date, market cap, beta, "
-            "description. Crypto: category tags, market-cap rank, "
+            "description, AND annual fundamentals — P/E, P/S, P/B, EV/EBITDA, "
+            "PEG, gross/operating/net margin, ROE, ROIC, debt/equity, current "
+            "ratio, diluted EPS, free cash flow, revenue & EPS YoY growth, "
+            "dividend yield/payout, and a 5-year revenue/net-income/EPS/FCF "
+            "trend (financials_annual). Crypto: category tags, market-cap rank, "
             "circulating/total/max supply, all-time high/low, description. Use "
             "when the user names a specific ticker and asks about its "
-            "fundamentals, classification, or background (e.g. 'what sector is "
-            "NVDA', 'when did Coinbase IPO', 'what is BTC's max supply'). To "
+            "fundamentals, financials, valuation, profitability, classification, "
+            "or background (e.g. 'what's NVDA's net margin', 'is AAPL's revenue "
+            "growing', 'when did Coinbase IPO', 'what is BTC's max supply'). To "
             "resolve a vague description to a ticker, use find_symbol instead."
         ),
         "input_schema": {
@@ -335,7 +348,10 @@ READ_TOOLS: list[dict[str, Any]] = [
             "top matches ranked by market cap. Use when the user describes a "
             "SET of assets by attributes rather than naming one (e.g. 'large-cap "
             "healthcare stocks', 'biotech under $2B', 'high-beta tech names', "
-            "'DeFi coins', 'meme coins'). For a single named ticker use "
+            "'cheap profitable value stocks', 'high-dividend names', "
+            "'fast-growing software', 'DeFi coins', 'meme coins'). Stock screens "
+            "support annual-fundamentals filters/sorts (P/E, dividend yield, net "
+            "margin, ROE, revenue growth). For a single named ticker use "
             "get_asset_profile; to resolve a vague NAME to a ticker use "
             "find_symbol. Screens only the curated, enriched universe (large & "
             "options-listed US stocks + major crypto), not every listed "
@@ -411,17 +427,51 @@ READ_TOOLS: list[dict[str, Any]] = [
                     "type": "string",
                     "description": "Stocks only. IPO on/before this date (YYYY-MM-DD).",
                 },
+                "pe_min": {"type": "number", "description": "Stocks only. Minimum P/E ratio."},
+                "pe_max": {
+                    "type": "number",
+                    "description": "Stocks only. Maximum P/E ratio (e.g. 15 for 'cheap' value names).",
+                },
+                "dividend_yield_min": {
+                    "type": "number",
+                    "description": (
+                        "Stocks only. Minimum dividend yield as a FRACTION "
+                        "(0.03 = 3%). Use for 'dividend' / 'income' / 'high-yield' "
+                        "requests."
+                    ),
+                },
+                "net_margin_min": {
+                    "type": "number",
+                    "description": (
+                        "Stocks only. Minimum net profit margin as a FRACTION "
+                        "(0.2 = 20%). Use for 'profitable' / 'high-margin'."
+                    ),
+                },
+                "roe_min": {
+                    "type": "number",
+                    "description": "Stocks only. Minimum return on equity as a FRACTION (0.15 = 15%).",
+                },
+                "revenue_growth_min": {
+                    "type": "number",
+                    "description": (
+                        "Stocks only. Minimum YoY revenue growth as a FRACTION "
+                        "(0.2 = 20%). Use for 'fast-growing' / 'growth' names."
+                    ),
+                },
                 "sort_by": {
                     "type": "string",
                     "enum": [
                         "market_cap_desc", "market_cap_asc", "beta_desc",
                         "beta_asc", "ipo_newest", "ipo_oldest",
+                        "pe_asc", "pe_desc", "dividend_yield_desc",
+                        "net_margin_desc", "roe_desc", "revenue_growth_desc",
                     ],
                     "description": (
                         "Result ordering (default 'market_cap_desc' = biggest "
                         "first). Use 'market_cap_asc' for smallest/cheapest "
-                        "first. beta_* and ipo_* are stocks-only; crypto "
-                        "supports only the market_cap sorts."
+                        "first. beta_*, ipo_*, pe_*, dividend_yield_desc, "
+                        "net_margin_desc, roe_desc and revenue_growth_desc are "
+                        "stocks-only; crypto supports only the market_cap sorts."
                     ),
                 },
                 "limit": {
@@ -431,6 +481,200 @@ READ_TOOLS: list[dict[str, Any]] = [
                     "description": "Max rows to return (default 20).",
                 },
             },
+        },
+    },
+    {
+        "name": "get_trending_stocks",
+        "description": (
+            "Top trending stocks by analyst coverage (Tipranks; whole-market, "
+            "US equities only — no crypto). Returns up to ~10 names with "
+            "popularity, sentiment, analyst buy/hold/sell counts, consensus "
+            "(StrongBuy/Buy/Hold/Sell/StrongSell), average price target, "
+            "sector, market cap, and last rating date. Use when the user asks "
+            "what's trending, which stocks have the most analyst attention "
+            "right now, or names like 'hot stocks today', 'most-covered "
+            "names', 'what are analysts watching'. Distinct from get_movers "
+            "(intraday price/volume) and screen_assets (structured filters "
+            "over the catalogue) — this is coverage-driven, not price- or "
+            "fundamentals-driven. Also useful when building a Workspace "
+            "around 'trending names': call this first to resolve the "
+            "symbols, then build_workspace_layout / add_workspace_widget "
+            "with those tickers. No arguments; the list is global."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+        },
+    },
+    {
+        "name": "get_smart_score",
+        "description": (
+            "Tipranks SmartScore composite (1-10, higher = more bullish) plus "
+            "its six input components for ONE stock symbol: hedge-fund flow "
+            "(net shares traded last quarter), blogger bullish sentiment vs "
+            "sector average, news sentiment (bullish/bearish ratios), insider "
+            "transactions (net last 3 months), investor holding deltas (7d / "
+            "30d), plus a Tipranks-sourced price target. Also returns "
+            "fundamentals_return_on_equity + fundamentals_asset_growth — use "
+            "these only if FMP/get_asset_profile is unavailable, otherwise "
+            "prefer get_asset_profile (higher fidelity). Use SmartScore when "
+            "the user asks for a 'quick read' on a name, 'is X bullish', "
+            "'what do hedge funds / insiders / bloggers think about X', or to "
+            "rank a small set of symbols by signal strength. Stocks only; "
+            "crypto returns null."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symbol": {
+                    "type": "string",
+                    "description": "Exact ticker, e.g. AAPL.",
+                },
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "get_sentiment_signals",
+        "description": (
+            "Combined Tipranks sentiment for ONE stock symbol — three sources "
+            "fanned in: blogger consensus (bullish/bearish ratios + per-site "
+            "distribution + sector blogger average), news sentiment "
+            "(positive/neutral/negative ratios for the stock AND its sector), "
+            "and Tipranks-investor portfolio stats (portfolios holding the "
+            "stock, average allocation, 7-day & 30-day holding-percent change). "
+            "Use when the user asks about sentiment, news mood, blogger "
+            "opinion, or how Tipranks's investor population is positioned in "
+            "a name. Distinct from get_news (raw headlines) — this returns "
+            "scored ratios, not articles. Stocks only."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symbol": {
+                    "type": "string",
+                    "description": "Exact ticker, e.g. AAPL.",
+                },
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "get_analyst_ratings",
+        "description": (
+            "Per-analyst ratings list for ONE stock symbol (Tipranks). Returns "
+            "rows with analyst name, firm name, recommendation "
+            "(Buy/Hold/Sell/etc.), and recommendation date. Use when the user "
+            "asks 'who's covering X', 'which firms rate X a buy', 'most "
+            "recent analyst opinions on X', or wants to drill into the "
+            "consensus shown in Trending. Distinct from get_smart_score "
+            "(composite signal) and get_asset_profile (catalogue facts). "
+            "Stocks only; list can be long (20-50 rows)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symbol": {
+                    "type": "string",
+                    "description": "Exact ticker, e.g. AAPL.",
+                },
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "get_hedge_funds",
+        "description": (
+            "Hedge-fund flow + signal for ONE stock symbol (Tipranks, "
+            "13F-derived). Returns rating (Positive/Negative Sentiment + "
+            "confidence), last-quarter net shares traded across all reporting "
+            "funds, count of funds covered, count of total holders, "
+            "quarterly net-shares trend (last 8 quarters), and per-fund "
+            "institutional holdings (manager name, institution, shares "
+            "traded, remaining shares, % of portfolio). Use for 'are hedge "
+            "funds buying X', 'which funds own X', 'institutional flow on X', "
+            "'13F activity on X'. Data updates quarterly (13F deadlines: "
+            "mid-Feb / May / Aug / Nov). Stocks only."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symbol": {
+                    "type": "string",
+                    "description": "Exact ticker, e.g. AAPL.",
+                },
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "get_insiders",
+        "description": (
+            "Insider transactions for ONE stock symbol (Tipranks, Form-4 "
+            "derived). Returns confidence signal scores (stock vs sector), "
+            "rolling insider trend, counts of discretionary vs uninformative "
+            "transactions, monthly buy/sell amounts (last 12 months), and "
+            "named insider rows (name, position, transaction type, amount, "
+            "share count, filing date, link to SEC form). Use for 'are "
+            "insiders buying X', 'who's selling X', 'recent insider activity "
+            "on X', 'C-suite transactions on X'. Stocks only."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symbol": {
+                    "type": "string",
+                    "description": "Exact ticker, e.g. AAPL.",
+                },
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "get_related_tickers",
+        "description": (
+            "Tickers also held by investors who hold ONE given stock symbol "
+            "(Tipranks 'investorsAlsoBought' — a recommendation/discovery "
+            "feed). Returns four lists: overall + per-age-cohort (youngest, "
+            "midRange, eldest). Each row has ticker, company name, sector, "
+            "average holding size, 7d/30d portfolio-holding change, score, "
+            "sentiment text, market cap. Use when the user asks 'what's "
+            "similar to X', 'what else do TSLA holders own', or wants "
+            "discovery from a starting symbol. Stocks-only."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symbol": {
+                    "type": "string",
+                    "description": "Exact ticker, e.g. AAPL.",
+                },
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "get_holder_demographics",
+        "description": (
+            "Per-cohort behavioural profile of a stock's holder base "
+            "(Tipranks-investor demographics, ageDistribution). Returns "
+            "three cohorts (eldest / midRange / youngest), each with: "
+            "percent of holders, 7d & 30d holding-change, average portfolio "
+            "beta, average monthly return, dividend yield, average P/E. "
+            "Plus a footer with sector-average score + sentiment + best-"
+            "investor benchmark. Use when asked 'who owns this stock', "
+            "'is this a young/old investor name', 'do dividend-focused "
+            "investors hold X'. Stocks-only."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symbol": {
+                    "type": "string",
+                    "description": "Exact ticker, e.g. AAPL.",
+                },
+            },
+            "required": ["symbol"],
         },
     },
 ]

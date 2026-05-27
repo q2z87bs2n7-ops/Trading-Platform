@@ -1,5 +1,8 @@
 import { useState } from "react";
 
+import { useSpeechToText } from "../../hooks/useSpeechToText";
+import MicButton from "../MicButton";
+
 interface Props {
   busy: boolean;
   onSend: (text: string) => void;
@@ -11,11 +14,18 @@ const MAX_LEN = 4000;
 
 export default function ChatComposer({ busy, onSend, onCancel }: Props) {
   const [input, setInput] = useState("");
+  const [interim, setInterim] = useState("");
+  const speech = useSpeechToText({
+    onAppend: (delta) => setInput((t) => (t + delta).slice(0, MAX_LEN)),
+    onInterim: setInterim,
+  });
 
   function submit() {
     const t = input.trim();
     if (!t || busy) return;
+    if (speech.listening) speech.stop();
     setInput("");
+    setInterim("");
     onSend(t);
   }
 
@@ -46,10 +56,11 @@ export default function ChatComposer({ busy, onSend, onCancel }: Props) {
         </label>
         <textarea
           id="chartbot-composer"
-          value={input}
+          value={speech.listening && interim ? `${input}${input ? " " : ""}${interim}` : input}
+          readOnly={speech.listening}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="Ask the chart…"
+          placeholder={speech.listening ? "Listening…" : "Ask the chart…"}
           rows={1}
           maxLength={MAX_LEN}
           disabled={busy}
@@ -63,6 +74,14 @@ export default function ChatComposer({ busy, onSend, onCancel }: Props) {
             paddingBottom: 4,
           }}
         />
+        {speech.supported && !busy && (
+          <MicButton
+            listening={speech.listening}
+            onClick={speech.toggle}
+            size={32}
+            variant="subtle"
+          />
+        )}
         {busy ? (
           <button
             type="button"

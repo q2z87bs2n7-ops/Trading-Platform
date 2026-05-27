@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { AiAskMessage, AiAskResponse } from "../../api";
 import {
@@ -15,8 +15,11 @@ import {
   useSymbolUniverse,
   useWatchlist,
 } from "../../data/hooks";
+import { useFirstOpenHint } from "../../hooks/useFirstOpenHint";
 import { useSettings } from "../../hooks/useSettings";
 import { useMobile } from "../../hooks/useMobile";
+import { useSpeechToText } from "../../hooks/useSpeechToText";
+import MicButton from "../MicButton";
 import { AskResult } from "./cards";
 
 interface Turn {
@@ -26,10 +29,54 @@ interface Turn {
   // Snapshot of the AI conversation as of this turn, passed to the fallback
   // bot so it can see earlier exchanges in the same modal session.
   history: AiAskMessage[];
+  // Populated for resolved fallback turns so a remount (e.g. reopen the
+  // modal, reload the page) can replay the answer without re-firing the
+  // Anthropic call.
+  cachedResp?: AiAskResponse;
 }
 
 // Keep the trailing N messages so multi-turn context stays bounded.
 const HISTORY_CAP = 16;
+
+const STORAGE_KEY = "ask_session_v1";
+const STORAGE_BUDGET_BYTES = 256 * 1024;
+
+interface Persisted {
+  turns: Turn[];
+  apiHistory: AiAskMessage[];
+}
+
+function loadPersisted(): Persisted {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { turns: [], apiHistory: [] };
+    const p = JSON.parse(raw) as { turns?: unknown; apiHistory?: unknown };
+    const turns = Array.isArray(p.turns) ? (p.turns as Turn[]) : [];
+    const apiHistory = Array.isArray(p.apiHistory) ? (p.apiHistory as AiAskMessage[]) : [];
+    return { turns, apiHistory };
+  } catch {
+    return { turns: [], apiHistory: [] };
+  }
+}
+
+function savePersisted(turns: Turn[], apiHistory: AiAskMessage[]) {
+  let t = turns;
+  let h = apiHistory;
+  for (let guard = 0; guard < 200; guard++) {
+    const payload = JSON.stringify({ turns: t, apiHistory: h });
+    if (payload.length <= STORAGE_BUDGET_BYTES) {
+      try { localStorage.setItem(STORAGE_KEY, payload); } catch { /* quota */ }
+      return;
+    }
+    if (t.length === 0) {
+      try { localStorage.removeItem(STORAGE_KEY); } catch { /* noop */ }
+      return;
+    }
+    // Drop the oldest turn (and its matching user+assistant pair if any).
+    t = t.slice(1);
+    h = h.length >= 2 ? h.slice(2) : [];
+  }
+}
 
 // Display label for a symbol — strips the /USD quote off crypto pairs.
 const coin = (s: string) => (s.includes("/") ? s.split("/")[0] : s);
@@ -214,13 +261,21 @@ interface Props {
 
 export default function AskBar({ open, assetClass, onClose, onOpenInWorkspace }: Props) {
   const [text, setText] = useState("");
-  const [turns, setTurns] = useState<Turn[]>([]);
-  const [lastAiResp, setLastAiResp] = useState<AiAskResponse | null>(null);
-  // Running AI conversation for the fallback bot (session-only).
-  const apiHistory = useRef<AiAskMessage[]>([]);
+  const [interim, setInterim] = useState("");
+  const speech = useSpeechToText({
+    onAppend: (delta) => setText((t) => t + delta),
+    onInterim: setInterim,
+  });
+  // Combined cache: turns (rendered transcript) + apiHistory (model context).
+  // Persisted to localStorage so reopens / reloads keep prior Q&A without
+  // re-billing Anthropic for already-resolved turns.
+  const [state, setState] = useState<Persisted>(loadPersisted);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const counter = useRef(0);
+  const counter = useRef(
+    state.turns.reduce((m, t) => (t.id > m ? t.id : m), 0),
+  );
+  const turns = state.turns;
 
   const { data: posData } = usePositions();
   const { data: wl } = useWatchlist();
@@ -228,6 +283,7 @@ export default function AskBar({ open, assetClass, onClose, onOpenInWorkspace }:
   const symbolUniverse = useSymbolUniverse();
   const aiEnabled = useSettings().askAiEnabled;
   const isMobile = useMobile();
+  const askHint = useFirstOpenHint("ask_convention");
 
   const siloPositions = useMemo(
     () =>
@@ -251,22 +307,32 @@ export default function AskBar({ open, assetClass, onClose, onOpenInWorkspace }:
   );
 
   const lastTurn = turns[turns.length - 1];
+  // Followups for the last AI turn read its cached response directly —
+  // no separate state needed, and they survive reloads alongside the turn.
+  const lastFallbackResp =
+    lastTurn && lastTurn.intent.type === "fallback"
+      ? lastTurn.cachedResp ?? null
+      : null;
   const followups = useMemo(
-    () => buildFollowups(lastTurn?.intent ?? null, lastAiResp, assetClass),
-    [lastTurn?.id, lastAiResp, assetClass],
+    () => buildFollowups(lastTurn?.intent ?? null, lastFallbackResp, assetClass),
+    [lastTurn?.id, lastFallbackResp, assetClass],
   );
 
-  // Focus the textarea each time the modal opens; clear transcript on
-  // close so each session starts fresh.
+  // Persist cache whenever it changes. Strict-Mode-safe (idempotent write).
+  useEffect(() => {
+    savePersisted(state.turns, state.apiHistory);
+  }, [state]);
+
+  // Focus the textarea each time the modal opens; reset only the composer
+  // on close — transcript + apiHistory persist until the user clicks Clear.
   useEffect(() => {
     if (open) {
       const id = setTimeout(() => inputRef.current?.focus(), 30);
       return () => clearTimeout(id);
     }
     setText("");
-    setTurns([]);
-    setLastAiResp(null);
-    apiHistory.current = [];
+    setInterim("");
+    speech.stop();
   }, [open]);
 
   // ESC closes.
@@ -292,42 +358,65 @@ export default function AskBar({ open, assetClass, onClose, onOpenInWorkspace }:
     };
   }, [open]);
 
-  // Auto-scroll transcript when a new turn lands so the latest answer
-  // sits just above the composer.
+  // Auto-scroll transcript when a new turn lands — and on reopen, since
+  // the cache may already hold prior turns to surface.
   useEffect(() => {
-    if (!scrollRef.current) return;
+    if (!open || !scrollRef.current) return;
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [turns.length]);
+  }, [turns.length, open]);
 
-  // Append a completed AI exchange so later fallback turns have context.
-  function recordExchange(userText: string, assistantText: string) {
-    const next: AiAskMessage[] = [
-      ...apiHistory.current,
-      { role: "user", content: userText },
-      { role: "assistant", content: assistantText },
-    ];
-    apiHistory.current = next.slice(-HISTORY_CAP);
+  // Attach the resolved AI response to its turn and extend apiHistory so
+  // the next turn keeps multi-turn context. Called once per fallback turn,
+  // and only on a live (non-cached) resolution — replaying from the cache
+  // does not re-invoke this.
+  function handleResolved(turnId: number, resp: AiAskResponse) {
+    setState((s) => {
+      const turn = s.turns.find((t) => t.id === turnId);
+      if (!turn || turn.intent.type !== "fallback") return s;
+      const nextTurns = s.turns.map((t) =>
+        t.id === turnId ? { ...t, cachedResp: resp } : t,
+      );
+      if (!resp.text) return { ...s, turns: nextTurns };
+      const nextHistory: AiAskMessage[] = [
+        ...s.apiHistory,
+        { role: "user" as const, content: turn.intent.text },
+        { role: "assistant" as const, content: resp.text },
+      ].slice(-HISTORY_CAP);
+      return { turns: nextTurns, apiHistory: nextHistory };
+    });
+  }
+
+  function clear() {
+    setState({ turns: [], apiHistory: [] });
+    try { localStorage.removeItem(STORAGE_KEY); } catch { /* noop */ }
+    counter.current = 0;
+    requestAnimationFrame(() => inputRef.current?.focus());
   }
 
   function submit(value: string) {
     const trimmed = value.trim();
     if (!trimmed) return;
+    if (speech.listening) speech.stop();
     counter.current += 1;
-    setLastAiResp(null);
     const intent = routeQuery(trimmed, { assetClass, aiEnabled, symbolUniverse });
     // Drop the force-AI prefix from the displayed query bubble.
     const display = trimmed.replace(/^(?:ai|ask):\s*/i, "");
-    setTurns((t) => [
-      ...t,
-      {
-        id: counter.current,
-        query: display,
-        intent,
-        // Snapshot the conversation so far for this turn's AI call.
-        history: [...apiHistory.current],
-      },
-    ]);
+    const id = counter.current;
+    setState((s) => ({
+      ...s,
+      turns: [
+        ...s.turns,
+        {
+          id,
+          query: display,
+          intent,
+          // Snapshot the conversation so far for this turn's AI call.
+          history: [...s.apiHistory],
+        },
+      ],
+    }));
     setText("");
+    setInterim("");
     // Refocus so the user can keep typing follow-ups without re-clicking.
     requestAnimationFrame(() => inputRef.current?.focus());
   }
@@ -383,11 +472,30 @@ export default function AskBar({ open, assetClass, onClose, onOpenInWorkspace }:
           >
             Ask anything
           </span>
+          {turns.length > 0 && (
+            <button
+              type="button"
+              onClick={clear}
+              aria-label="Clear chat"
+              title="Clear chat"
+              className="ml-auto cursor-pointer text-[11.5px] font-medium"
+              style={{
+                background: "var(--panel-2)",
+                color: "var(--text-2)",
+                border: "1px solid var(--border)",
+                height: 28,
+                padding: "0 10px",
+                borderRadius: 6,
+              }}
+            >
+              Clear
+            </button>
+          )}
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="ml-auto cursor-pointer border-0 text-[14px] grid place-items-center"
+            className={`${turns.length > 0 ? "" : "ml-auto "}cursor-pointer border-0 text-[14px] grid place-items-center`}
             style={{
               background: "var(--panel-2)",
               color: "var(--text-2)",
@@ -467,13 +575,13 @@ export default function AskBar({ open, assetClass, onClose, onOpenInWorkspace }:
                     intent={turn.intent}
                     assetClass={assetClass}
                     history={turn.history}
+                    cachedResp={turn.cachedResp}
                     onClose={onClose}
                     onOpenInWorkspace={(sym) => {
                       onOpenInWorkspace(sym);
                       onClose();
                     }}
-                    onAiResponse={setLastAiResp}
-                    onExchange={recordExchange}
+                    onResolved={(resp) => handleResolved(turn.id, resp)}
                   />
                 </div>
               ))}
@@ -517,6 +625,29 @@ export default function AskBar({ open, assetClass, onClose, onOpenInWorkspace }:
           )}
         </div>
 
+        {/* Convention hint — shown on first 3 opens of Ask anything; explains
+           why some answers are instant + free (this bar) and others spend
+           credits (ChartBot / Market summary). Dismissible. */}
+        {askHint.show && (
+          <button
+            type="button"
+            onClick={askHint.dismiss}
+            className="cursor-pointer border-0 bg-transparent text-left mx-4 mt-2"
+            style={{
+              fontSize: 9.5,
+              fontStyle: "italic",
+              color: "var(--mute)",
+              padding: "0 4px",
+            }}
+            aria-label="Dismiss tip"
+            title="Dismiss"
+          >
+            <span style={{ color: "var(--accent)", fontStyle: "normal" }}>Teal</span>
+            {" — instant local parse · free · always on. "}
+            <span style={{ color: "var(--mute)" }}>(tap to hide)</span>
+          </button>
+        )}
+
         {/* Composer — pinned at the bottom of the modal. Enter submits;
            Shift+Enter inserts a newline. */}
         <div
@@ -529,7 +660,8 @@ export default function AskBar({ open, assetClass, onClose, onOpenInWorkspace }:
         >
           <textarea
             ref={inputRef}
-            value={text}
+            value={speech.listening && interim ? `${text}${text ? " " : ""}${interim}` : text}
+            readOnly={speech.listening}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
@@ -537,7 +669,7 @@ export default function AskBar({ open, assetClass, onClose, onOpenInWorkspace }:
                 submit(text);
               }
             }}
-            placeholder="Ask anything — orders, portfolio, news, charts…"
+            placeholder={speech.listening ? "Listening…" : "Ask anything — orders, portfolio, news, charts…"}
             rows={1}
             className="flex-1 resize-none bg-transparent outline-none text-[15px]"
             style={{
@@ -551,6 +683,14 @@ export default function AskBar({ open, assetClass, onClose, onOpenInWorkspace }:
               padding: "8px 10px",
             }}
           />
+          {speech.supported && (
+            <MicButton
+              listening={speech.listening}
+              onClick={speech.toggle}
+              size={isMobile ? 44 : 36}
+              variant="accent"
+            />
+          )}
           <button
             type="button"
             onClick={() => submit(`ai: ${text}`)}

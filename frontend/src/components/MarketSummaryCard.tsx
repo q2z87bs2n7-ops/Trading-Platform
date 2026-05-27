@@ -28,7 +28,17 @@ export default function MarketSummaryCard({
 }: Props) {
   const [noticeHidden, setNoticeHidden] = useState(false);
 
-  if (disabled) {
+  // 3px --cb-accent left rail signals cloud-AI surface. Enabled state owns
+  // the rail here; the disabled-state notice carries its own (so the rail
+  // survives whether AI is on or off, retaining spatial memory).
+  const cbRail = { borderLeft: "3px solid var(--cb-accent)" } as const;
+
+  // When AI is off, still surface the last cached summary (don't hide work
+  // already paid for); only fall back to the standalone notice when there
+  // is nothing cached to show.
+  const showCachedWhileDisabled = disabled && cache && !cache.dismissed;
+
+  if (disabled && !showCachedWhileDisabled) {
     if (noticeHidden) return null;
     return (
       <div
@@ -37,18 +47,18 @@ export default function MarketSummaryCard({
           background: "var(--panel)",
           border: "1px solid var(--border)",
           boxShadow: "var(--shadow-sm)",
-          padding: "10px 12px",
+          overflow: "hidden",
         }}
       >
         <button
           onClick={() => setNoticeHidden(true)}
-          className="absolute top-2 right-2 text-[18px] leading-none px-1 hover:opacity-70 transition-opacity"
+          className="absolute top-2 right-2 text-[18px] leading-none px-1 hover:opacity-70 transition-opacity z-10"
           style={{ color: "var(--mute)" }}
           aria-label="Dismiss"
         >
           ×
         </button>
-        <AiDisabledNotice surface="market" compact />
+        <AiDisabledNotice surface="market" accent="var(--cb-accent)" compact />
       </div>
     );
   }
@@ -62,19 +72,21 @@ export default function MarketSummaryCard({
         background: "var(--panel)",
         border: "1px solid var(--border)",
         boxShadow: "var(--shadow-sm)",
+        ...cbRail,
       }}
     >
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <span
             className="text-[11px] font-medium uppercase"
-            style={{ color: "var(--accent)", letterSpacing: "0.08em" }}
+            style={{ color: "var(--cb-accent)", letterSpacing: "0.08em" }}
           >
             ✦ {windowLabel}
           </span>
           {cache && !isGenerating && (
             <span className="text-[11px]" style={{ color: "var(--mute)" }}>
               · {relTime(cache.generatedAt)}
+              {disabled ? " · AI off" : ""}
             </span>
           )}
           {isGenerating && (

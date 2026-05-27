@@ -60,18 +60,18 @@ here; use `git log` for that.
 
 ## Workspace
 
-- **Split `components/Workspace.tsx` (~1325 lines)** — the container holds five
+- **Split `components/Workspace.tsx` (~1780 lines)** — the container holds six
   self-contained toolbar sub-components (`AddWidgetMenu`, `LayoutsMenu`,
-  `ChannelChip`, `EmptyState`, `ChannelsStrip` — ~860 lines together) plus the
-  layout/channel persistence helpers. Extracting the toolbar into
-  `components/workspace/` would leave the container ~450 lines. Deferred because
-  it's desktop-only Dockview UI that can't be exercised in the cloud sandbox, so
-  the split needs local verification before it ships.
-- **Named user layouts** — the v2 persistence shape reserves
-  `saved: Record<name, layout>` for "Save current as…"; build the Save / Rename /
-  Delete UI in the Layouts menu (the popover already has the card grid + Apply
-  confirm to extend). The AI builder currently writes its custom layout into
-  `active` (named `"custom"`), not `saved`.
+  `SavedLayoutRow`, `ChannelChip`, `EmptyState`, `ChannelsStrip` — ~1190 lines
+  together) plus the layout/channel persistence helpers. Extracting the toolbar
+  into `components/workspace/` would leave the container ~520 lines. Deferred
+  because it's desktop-only Dockview UI that can't be exercised in the cloud
+  sandbox, so the split needs local verification before it ships.
+- **AI-saved named layouts** — named user layouts now ship (the Layouts menu's
+  "My layouts": Save current as… / Apply / Rename / Delete, persisted in the v2
+  `saved` map as `{ layout, channels }`). The AI builder still writes its custom
+  grid into `active` (named `"custom"`), not `saved`; wiring it to save a named
+  layout is the remaining gap.
 
 ## Chart mode
 
@@ -86,7 +86,7 @@ here; use `git log` for that.
 - **`createAlert` integration** — TV has a native alert API but no notification
   path exists yet; defer until alerts have somewhere to go.
 - **Real `onStudyAdded` / `onStudyRemoved` events** — the bundled TV build
-  doesn't expose them, so `IndicatorPillsRow` / `ChatContextPills` poll
+  doesn't expose them, so `ChatContextPills` polls
   `getAllStudies()` every 1.2 s; replace with subscriptions if a future build
   ships them.
 - **Positions strip narrow-desktop band** — the 641–720px band (large-phone
@@ -122,4 +122,33 @@ here; use `git log` for that.
 - **Calendar exceptions chip** — the "Cal · N exceptions" popover (holidays +
   half-days, next 21 days) was removed from `TopBar.tsx`; `useCalendar` +
   `/api/calendar` are still wired. Restore as a dedicated surface (a Discover
-  calendar widget or Markets item) rather than back in the status strip.
+  calendar widget or Markets item) rather than back in the (now-deleted)
+  status strip.
+
+## V1 UX-sweep follow-ups
+
+- **PnL window switcher (1D / 1W / YTD).** `DiscoverHero` + `PortfolioHero`
+  designs called for a 1D/1W/1M/YTD/ALL segmented control above the curve.
+  Backend `/api/pnl-history` (`backend/app/alpaca/pnl.py`) currently supports
+  only `1M`/`3M`/`1Y`/`ALL`. Adding 1D needs intraday-bar valuation; 1W needs
+  the same; YTD is trivial. Switcher waits on the backend periods.
+- **Realised-today stat in `PortfolioHero`.** Spec wanted a 2×2 grid with
+  Cash · BP · Total P/L · Realised today. No per-day realised field on
+  `/api/account`. Could derive from `pnl[len-1] - pnl[len-2]` of the
+  net-P/L curve, but the curve is anchored on open-position cost so the
+  derivation is fiddly. Currently substituted with "Open orders".
+- **Activities "View all" footer / pagination.** Spec wanted Activities
+  capped at 8 with a "View all →" link. No full-page Activity route exists;
+  the existing 25–50 fills list stays. Add a `/activity` route (or a modal)
+  and the footer link.
+- **Real-token-median calibration for AI cost estimates.** `lib/ai-cost.ts`
+  uses eyeballed per-surface token medians (input + output) keyed off the
+  prompt sizes in `backend/app/ai/router.py`. Log actual `/api/ai/ask`
+  usage_metadata and update the `USAGE` table from real medians; multiply
+  ChartBot by the observed tool-loop iteration distribution rather than the
+  current static `iterMultiplier: 2`.
+- **Full Tailwind preflight enable** (a.k.a. priority #12 Option A from the
+  V1 sweep handoff). `app-reset.css` covers the most-visible defaults today.
+  Enabling preflight properly will regress hand-styled surfaces that never
+  finished the utility migration — audit + fix surface-by-surface before
+  flipping `corePlugins.preflight: true`.

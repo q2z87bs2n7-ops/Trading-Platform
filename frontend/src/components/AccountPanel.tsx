@@ -1,5 +1,11 @@
+import { useRef } from "react";
+
 import { useAccount } from "../data/hooks";
+import { useContainerNarrow } from "../hooks/useContainerNarrow";
 import { money } from "../lib/format";
+
+const ROOMY_W = 360;
+const TIGHT_W = 240;
 
 function Row({ k, v, tone }: { k: string; v: string; tone?: string }) {
   return (
@@ -27,6 +33,9 @@ export default function AccountPanel({
   assetClass: "stocks" | "crypto";
 }) {
   const { data: acct } = useAccount();
+  const ref = useRef<HTMLDivElement>(null);
+  const tight = useContainerNarrow(ref, TIGHT_W);
+  const roomyOrAbove = !useContainerNarrow(ref, ROOMY_W);
   if (!acct) {
     return (
       <div className="text-[13px] p-1" style={{ color: "var(--mute)" }}>
@@ -44,9 +53,10 @@ export default function AccountPanel({
     assetClass === "crypto"
       ? acct.non_marginable_buying_power
       : acct.buying_power;
+  const equityPx = tight ? 20 : roomyOrAbove ? 32 : 24;
 
   return (
-    <div className="flex flex-col gap-3">
+    <div ref={ref} className="flex flex-col gap-3">
       <div>
         <div
           className="text-[11px] font-medium uppercase mb-0.5"
@@ -54,7 +64,10 @@ export default function AccountPanel({
         >
           Equity
         </div>
-        <div className="font-mono text-[24px] font-semibold tabular-nums leading-tight">
+        <div
+          className="font-mono font-semibold tabular-nums leading-tight"
+          style={{ fontSize: equityPx }}
+        >
           {money(acct.equity)}
         </div>
         <div className="font-mono text-[13px] tabular-nums" style={{ color: plColor }}>

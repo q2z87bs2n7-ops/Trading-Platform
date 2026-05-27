@@ -64,6 +64,89 @@ function Toggle({
   );
 }
 
+type AssetClassMode = "stocks" | "crypto";
+
+function readSilo(): AssetClassMode {
+  const raw = localStorage.getItem("asset_class_mode");
+  return raw === "crypto" ? "crypto" : "stocks";
+}
+
+// Silo switcher row — matches the ToggleRow rhythm (title + description on
+// the left, control on the right) so it reads as a peer of the AI toggles
+// rather than a chip floating above them. Dispatches a window event that
+// App.tsx listens for; no callback drilling through the header chrome.
+function SiloRow({ onClose }: { onClose: () => void }) {
+  const current = readSilo();
+  function switchTo(silo: AssetClassMode) {
+    if (silo === current) {
+      onClose();
+      return;
+    }
+    window.dispatchEvent(
+      new CustomEvent("trading-platform:switch-silo", { detail: { silo } }),
+    );
+    onClose();
+  }
+  return (
+    <div
+      className="px-3 py-3 flex items-start justify-between gap-3"
+      style={{ borderTop: "1px solid var(--hairline)" }}
+    >
+      <div className="flex flex-col min-w-0">
+        <span className="text-[13px] font-medium">Market</span>
+      </div>
+      <div
+        role="radiogroup"
+        aria-label="Active market"
+        className="inline-flex shrink-0"
+        style={{
+          padding: 2,
+          borderRadius: 999,
+          background: "var(--panel-2)",
+          border: "1px solid var(--border)",
+        }}
+      >
+        {(["stocks", "crypto"] as AssetClassMode[]).map((s) => {
+          const active = s === current;
+          const tint = s === "stocks" ? "var(--pos)" : "var(--accent)";
+          return (
+            <button
+              key={s}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => switchTo(s)}
+              className="text-[12px] font-semibold cursor-pointer border-0 capitalize transition-colors"
+              style={{
+                background: active ? tint : "transparent",
+                color: active ? "white" : "var(--text-2)",
+                borderRadius: 999,
+                padding: "5px 14px",
+              }}
+            >
+              {s}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Group label between sections of the settings menu (AI / System / …).
+// Thin separator only — the first ToggleRow under each label still draws
+// its own top border, so the eye reads section breaks consistently.
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      className="px-3 pt-3 pb-1 text-[10.5px] uppercase font-semibold"
+      style={{ color: "var(--mute)", letterSpacing: "0.06em" }}
+    >
+      {children}
+    </div>
+  );
+}
+
 function ToggleRow({
   title,
   desc,
@@ -119,6 +202,18 @@ export default function SettingsMenu() {
     };
   }, [open]);
 
+  // Listen for the "open Settings" event that AiDisabledNotice's CTA fires —
+  // explicit-consent UX: the notice doesn't flip toggles itself, it deposits
+  // the user here to do it.
+  useEffect(() => {
+    function onOpen() {
+      setOpen(true);
+    }
+    window.addEventListener("trading-platform:open-settings", onOpen);
+    return () =>
+      window.removeEventListener("trading-platform:open-settings", onOpen);
+  }, []);
+
   return (
     <div ref={ref} className="relative">
       <IconButton
@@ -145,12 +240,11 @@ export default function SettingsMenu() {
           }}
           role="menu"
         >
-          <div
-            className="px-3 py-2 text-[11px] uppercase font-semibold"
-            style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
-          >
-            Settings
-          </div>
+          <SectionLabel>Market</SectionLabel>
+
+          <SiloRow onClose={() => setOpen(false)} />
+
+          <SectionLabel>AI</SectionLabel>
 
           <ToggleRow
             title="Market summary AI"
@@ -175,6 +269,8 @@ export default function SettingsMenu() {
             onChange={(v) => updateSettings({ chartbotEnabled: v })}
             label="Enable ChartBot"
           />
+
+          <SectionLabel>System</SectionLabel>
 
           <div
             className="px-3 py-3 flex items-center justify-between gap-3"

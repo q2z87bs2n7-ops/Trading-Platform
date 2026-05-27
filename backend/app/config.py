@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     # Optional: unset falls back to the keyless public tier (rate-limited,
     # unstable under load). The free Demo key lifts limits to ~30 calls/min.
     coingecko_api_key: str = ""
+    # Tipranks research API — partner ID + secret token. Powers the
+    # /api/research/* surfaces (trending stocks, etc.). Auth is via
+    # query-string params despite the X-prefixed names; see docs/tipranks.md.
+    tipranks_api_key: str = ""
+    tipranks_api_token: str = ""
     # Browser origins allowed to call this API. The GitHub Pages origin is
     # included so the dev-branch previews can reach the Vercel backend.
     cors_origins: str = (

@@ -1,14 +1,26 @@
-import { lazy, Suspense, useEffect, useState } from "react";
-import { useCryptoWatchlist, useWatchlist } from "./data/hooks";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import {
+  useAccount,
+  useAppStatus,
+  useCryptoWatchlist,
+  usePositions,
+  useWatchlist,
+} from "./data/hooks";
+import * as api from "./api";
+import { queryClient, qk } from "./data/queryClient";
 import { useTheme } from "./hooks/useTheme";
+import MaintenancePage from "./components/MaintenancePage";
 import Positions from "./components/Positions";
 import Orders from "./components/Orders";
 import Activities from "./components/Activities";
-import TopBar from "./components/TopBar";
+import { HeaderEquityReadout, HeaderStatusInline } from "./components/TopBar";
 import DiscoverPage from "./components/DiscoverPage";
 import AssetClassSplash from "./components/AssetClassSplash";
+import AllocationDonut from "./components/AllocationDonut";
 import PortfolioHero from "./components/PortfolioHero";
 import SectionHeading from "./components/SectionHeading";
+import { isCryptoPosition } from "./lib/asset-class";
+import { DONUT_COLORS_GREEN } from "./components/discover/util";
 import TVPlatform from "./components/TVPlatform";
 import ChatPanel from "./components/chat/ChatPanel";
 import TradeBar from "./components/trade/TradeBar";
@@ -34,6 +46,26 @@ function readAssetClassMode(): AssetClassMode | null {
   return null;
 }
 
+// First-session-only splash. After the user has picked a silo once, subsequent
+// loads land straight on the last-used silo's Discover; the brand button
+// re-opens the hub on demand.
+const SPLASH_SEEN_KEY = "splash_seen_v1";
+function readSplashSeen(): boolean {
+  return localStorage.getItem(SPLASH_SEEN_KEY) === "1";
+}
+
+// Last-used platform mode — persisted so a reload lands on the same tab the
+// user was on (Discover / Portfolio / Chart / Workspace) instead of always
+// snapping back to Discover.
+const PLATFORM_MODE_KEY = "platform_mode_v1";
+function readPlatformMode(): PlatformMode {
+  const raw = localStorage.getItem(PLATFORM_MODE_KEY);
+  if (raw === "discover" || raw === "portfolio" || raw === "chart" || raw === "workspace") {
+    return raw;
+  }
+  return "discover";
+}
+
 // "workspace" is desktop-only; the mobile header renders its own pill set and
 // deliberately omits it.
 const MODES: { value: PlatformMode; label: string }[] = [
@@ -46,10 +78,14 @@ const MODES: { value: PlatformMode; label: string }[] = [
 function BrandMark() {
   return (
     <div
-      className="flex items-center justify-center w-8 h-8 rounded-card text-panel font-bold text-sm"
+      className="flex items-center justify-center w-8 h-8 text-panel font-bold text-sm"
       style={{
         background:
           "linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%)",
+        borderRadius: 9,
+        boxShadow:
+          "0 0 0 1px color-mix(in oklch, var(--accent) 30%, transparent), " +
+          "0 4px 12px color-mix(in oklch, var(--accent) 18%, transparent)",
       }}
       aria-hidden
     >
@@ -58,57 +94,47 @@ function BrandMark() {
   );
 }
 
-function AssetClassToggle({
-  mode,
-  onChange,
-}: {
-  mode: AssetClassMode;
-  onChange: (m: AssetClassMode) => void;
-}) {
-  return (
-    <div
-      className="inline-flex items-center gap-0.5 p-0.5 rounded-card"
-      style={{ background: "var(--panel-2)", border: "1px solid var(--border)" }}
-    >
-      {(["stocks", "crypto"] as AssetClassMode[]).map((m) => (
-        <button
-          key={m}
-          type="button"
-          onClick={() => onChange(m)}
-          className="text-[11px] font-semibold px-2.5 py-1 rounded-card transition-colors border-0 cursor-pointer capitalize"
-          style={{
-            background: mode === m ? "var(--accent)" : "transparent",
-            color: mode === m ? "white" : "var(--text-2)",
-          }}
-        >
-          {m}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 function ModePill({
   active,
   onClick,
+  onHoverPrefetch,
   children,
 }: {
   active: boolean;
   onClick: () => void;
+  onHoverPrefetch?: () => void;
   children: React.ReactNode;
 }) {
+  const [hover, setHover] = useState(false);
   return (
     <button
       type="button"
       onClick={onClick}
-      className="text-[13px] font-medium px-3 py-1.5 rounded-card transition-colors bg-transparent border-0 cursor-pointer"
+      onMouseEnter={() => { setHover(true); onHoverPrefetch?.(); }}
+      onMouseLeave={() => setHover(false)}
+      className="relative text-[13.5px] px-3.5 py-2 rounded-card bg-transparent border-0 cursor-pointer transition-colors"
       style={{
         color: active ? "var(--text)" : "var(--text-2)",
-        background: active ? "var(--panel)" : "transparent",
-        boxShadow: active ? "var(--shadow-sm)" : "none",
+        fontWeight: active ? 600 : 500,
+        letterSpacing: "-0.008em",
+        ...(hover && !active && { color: "var(--text)" }),
       }}
     >
       {children}
+      {active && (
+        <span
+          aria-hidden
+          style={{
+            position: "absolute",
+            left: 14,
+            right: 14,
+            bottom: -8,
+            height: 2,
+            borderRadius: 2,
+            background: "var(--accent)",
+          }}
+        />
+      )}
     </button>
   );
 }
@@ -116,27 +142,67 @@ function ModePill({
 function AskPill({ onClick }: { onClick: () => void }) {
   const isMac =
     typeof navigator !== "undefined" && /mac/i.test(navigator.platform);
+  const [hover, setHover] = useState(false);
   return (
-    <IconButton
+    <button
+      type="button"
       onClick={onClick}
       aria-label="Ask anything"
       title={`Ask anything (${isMac ? "⌘K" : "Ctrl+K"})`}
-      className="text-[13px] px-3 py-1.5"
+      className="cursor-pointer border-0 transition-colors"
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 10,
+        width: "auto",
+        minWidth: 34,
+        maxWidth: 260,
+        height: 34,
+        padding: "0 6px 0 12px",
+        background: "var(--panel-2)",
+        border: `1px solid ${hover ? "var(--border-2)" : "var(--border)"}`,
+        borderRadius: 10,
+        color: "var(--mute)",
+        fontWeight: 500,
+        fontSize: 13,
+      }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
     >
-      <span style={{ color: "var(--accent)" }} aria-hidden>
-        ✦
-      </span>
-      <span className="hidden lg:inline">Ask anything</span>
       <span
-        className="hidden lg:inline font-mono text-[11px] px-1.5 py-0.5 rounded"
+        aria-hidden
         style={{
-          border: "1px solid var(--border)",
-          color: "var(--mute)",
+          color: "var(--accent)",
+          fontSize: 14,
+          filter:
+            "drop-shadow(0 0 6px color-mix(in oklch, var(--accent) 45%, transparent))",
         }}
       >
-        {isMac ? "⌘K" : "Ctrl K"}
+        ✦
       </span>
-    </IconButton>
+      <span className="hidden lg:inline" style={{ flex: 1, textAlign: "left" }}>
+        Ask anything…
+      </span>
+      <span
+        className="hidden lg:inline font-mono"
+        style={{
+          background: "var(--panel-3)",
+          border: "1px solid var(--border)",
+          boxShadow:
+            "inset 0 -1px 0 var(--border-2), inset 0 1px 0 rgba(255,255,255,0.03)",
+          color: "var(--text-2)",
+          padding: "3px 7px",
+          fontSize: 10.5,
+          fontWeight: 600,
+          letterSpacing: "0.02em",
+          borderRadius: 4,
+          marginLeft: "auto",
+          lineHeight: 1,
+        }}
+      >
+        {isMac ? "⌘ K" : "Ctrl K"}
+      </span>
+    </button>
   );
 }
 
@@ -162,14 +228,25 @@ function ThemeToggle({
 export default function App() {
   const { data: wl } = useWatchlist();
   const { data: cryptoWl } = useCryptoWatchlist();
+  // Account is needed by every mode — fetch at the top level so it's warm
+  // before the user lands on any page.
+  useAccount();
+  // Once force_stop is seen we latch `booted` and disable the status poll, so
+  // the terminal page makes zero further requests and never auto-recovers
+  // (manual browser reload only).
+  const [booted, setBooted] = useState(false);
+  const { data: status } = useAppStatus(!booted);
+  useEffect(() => {
+    if (status?.force_stop) setBooted(true);
+  }, [status?.force_stop]);
   const [selected, setSelected] = useState<string>("");
-  const [mode, setMode] = useState<PlatformMode>("discover");
+  const [mode, setMode] = useState<PlatformMode>(readPlatformMode);
   const [assetClassMode, setAssetClassMode] = useState<AssetClassMode | null>(readAssetClassMode);
   const [askOpen, setAskOpen] = useState(false);
   const [hubOpen, setHubOpen] = useState(false);
-  // The platform always lands on the market-picker / account overview, so
-  // this starts open on every load (no last-page restore).
-  const [landingOpen, setLandingOpen] = useState(true);
+  // First-session-only splash: opens on the very first load, then dismissed.
+  // The brand button (▾) re-opens it as the account hub.
+  const [landingOpen, setLandingOpen] = useState(() => !readSplashSeen());
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Workspace-only immersive mode: hides the app header for a near-full-screen
   // canvas (paired with the full-bleed `.app.bleed` layout).
@@ -183,6 +260,27 @@ export default function App() {
   useEffect(() => {
     if (!selected && symbols.length) setSelected(symbols[0]);
   }, [symbols.join(","), selected]);
+
+  // Workspace is desktop-only. If a mobile reload rehydrated mode=workspace
+  // (e.g. user resized down, or last session was desktop), fall back to
+  // discover so the user isn't stranded on a hidden mode.
+  useEffect(() => {
+    if (isMobile && mode === "workspace") switchMode("discover");
+  }, [isMobile, mode]);
+
+  // Self-reload when the deployed build differs from this tab's bundle, so a
+  // long-lived tab picks up new code (incl. the maintenance gate) on its own.
+  // Guarded per-version via sessionStorage to avoid a reload loop if a CDN edge
+  // briefly serves the old bundle.
+  useEffect(() => {
+    if (status?.force_stop) return; // terminal boot page must not reload itself
+    const serverVer = status?.version;
+    if (!serverVer || serverVer === __APP_VERSION__) return;
+    const key = `reloaded_for_${serverVer}`;
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, "1");
+    window.location.reload();
+  }, [status?.version, status?.force_stop]);
 
   // Global Cmd+K / Ctrl+K opens Ask anything from anywhere.
   // Esc exits Workspace focus mode (unless a modal/sheet has focus).
@@ -203,8 +301,48 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [focusMode]);
 
+  // Prefetch slow-to-compute data on mount so tab switches are instant.
+  // Runs once; prefetchQuery is a no-op if the cache is already warm.
+  const prefetchedRef = useRef(false);
+  useEffect(() => {
+    if (prefetchedRef.current) return;
+    prefetchedRef.current = true;
+    queryClient.prefetchQuery({ queryKey: qk.pnlHistory("stocks", "ALL"), queryFn: () => api.getPnlHistory("stocks", "ALL") });
+    queryClient.prefetchQuery({ queryKey: qk.pnlHistory("crypto", "ALL"), queryFn: () => api.getPnlHistory("crypto", "ALL") });
+    queryClient.prefetchQuery({ queryKey: qk.orders("all", 25), queryFn: () => api.getOrders("all", 25) });
+    queryClient.prefetchQuery({ queryKey: qk.activities(25), queryFn: () => api.getActivities(25) });
+  }, []);
+
+  // Preload Workspace JS chunk on desktop so the first click is instant.
+  useEffect(() => {
+    if (!isMobile) import("./components/Workspace");
+  }, [isMobile]);
+
+  // Per-mode hover prefetch — fires once per hover (prefetchQuery is a no-op
+  // when data is fresh, so repeated hovers are free).
+  const prefetchedModes = useRef(new Set<string>());
+  function prefetchMode(m: PlatformMode) {
+    const key = `${m}:${activeClass}`;
+    if (prefetchedModes.current.has(key)) return;
+    prefetchedModes.current.add(key);
+    if (m === "portfolio") {
+      queryClient.prefetchQuery({ queryKey: qk.pnlHistory(activeClass, "ALL"), queryFn: () => api.getPnlHistory(activeClass, "ALL") });
+      queryClient.prefetchQuery({ queryKey: qk.orders("all", 25), queryFn: () => api.getOrders("all", 25) });
+      queryClient.prefetchQuery({ queryKey: qk.activities(25), queryFn: () => api.getActivities(25) });
+    } else if (m === "chart" && selected) {
+      queryClient.prefetchQuery({ queryKey: qk.bars(selected, "1Day"), queryFn: () => api.getBars(selected, "1Day", 200) });
+    } else if (m === "workspace" && !isMobile) {
+      import("./components/Workspace");
+    }
+  }
+
   function switchMode(m: PlatformMode) {
     setMode(m);
+    try {
+      localStorage.setItem(PLATFORM_MODE_KEY, m);
+    } catch {
+      /* private mode / quota — non-fatal, just won't persist */
+    }
   }
 
   function switchAssetClass(m: AssetClassMode) {
@@ -213,9 +351,31 @@ export default function App() {
     localStorage.setItem("asset_class_mode", m);
   }
 
-  // Picking a market from the landing/hub enters the platform.
+  // Bridge for child surfaces that don't have a direct callback path — the
+  // Settings menu's silo switcher dispatches this so it can flip silos
+  // without prop-drilling switchAssetClass through three levels.
+  useEffect(() => {
+    function onSwitch(e: Event) {
+      const detail = (e as CustomEvent<{ silo?: AssetClassMode }>).detail;
+      if (detail?.silo === "stocks" || detail?.silo === "crypto") {
+        switchAssetClass(detail.silo);
+      }
+    }
+    window.addEventListener("trading-platform:switch-silo", onSwitch);
+    return () =>
+      window.removeEventListener("trading-platform:switch-silo", onSwitch);
+  }, []);
+
+  // Picking a market from the landing/hub enters the platform. The first time
+  // through, mark the splash as seen so subsequent loads skip straight to
+  // Discover; the brand button still re-opens the hub on demand.
   function enterMarket(m: AssetClassMode) {
     switchAssetClass(m);
+    try {
+      localStorage.setItem(SPLASH_SEEN_KEY, "1");
+    } catch {
+      /* private mode / quota — non-fatal */
+    }
     setLandingOpen(false);
     setHubOpen(false);
   }
@@ -250,9 +410,22 @@ export default function App() {
         } as React.CSSProperties)
       : undefined;
 
+  if (booted || status?.force_stop)
+    return <MaintenancePage message={status?.force_stop_message} terminal />;
+  if (status?.maintenance) return <MaintenancePage message={status.message} />;
+
   return (
     <>
-    <div className={mode === "workspace" ? "app bleed" : "app"} style={siloAccent}>
+    <div
+      className={
+        mode === "workspace"
+          ? "app bleed"
+          : mode === "chart" && !isMobile
+            ? "app app-chart"
+            : "app"
+      }
+      style={siloAccent}
+    >
       {!(mode === "workspace" && focusMode) && (
       <header>
         {isMobile ? (
@@ -260,66 +433,97 @@ export default function App() {
             mode={mode}
             activeClass={activeClass}
             onOpenDrawer={() => setDrawerOpen(true)}
-            onOpenAsk={openAskBar}
             onSwitchMode={switchMode}
             onSwitchAssetClass={switchAssetClass}
           />
         ) : (
-        <div className="flex items-center justify-between gap-2 lg:gap-4 flex-wrap">
+        // One-row, three-zone header (Identity · Mode · Account & actions).
+        // Status / equity / day-P/L fold into the right zone from the old
+        // TopBar strip — see HeaderStatusInline + HeaderEquityReadout. BP is
+        // intentionally not surfaced here; it moves to PortfolioHero in #8.
+        <div
+          className="grid items-center gap-4"
+          style={{
+            gridTemplateColumns: "auto 1fr auto",
+            paddingBottom: 14,
+            borderBottom: "1px solid var(--hairline)",
+          }}
+        >
           <div className="flex items-center gap-3 min-w-0">
+            {/* Brand button now stands in for the asset-class toggle: it
+               surfaces the active silo with a ▾ chevron and re-opens the
+               account hub (where the user picks again). The standalone
+               stocks/crypto pill is gone — the hub is what silo switching
+               is for. */}
             <button
               type="button"
               onClick={() => setHubOpen(true)}
-              aria-label="Open account overview"
-              title="Account overview"
-              className="border-0 bg-transparent p-0 cursor-pointer"
+              aria-label="Account hub · switch market"
+              title="Account hub · switch market"
+              className="flex items-center gap-3 border-0 bg-transparent p-0 cursor-pointer min-w-0"
             >
               <BrandMark />
+              <div className="flex flex-col min-w-0 items-start leading-tight">
+                <span
+                  className="text-[14px] font-semibold truncate inline-flex items-center gap-1"
+                  style={{ letterSpacing: "-0.005em" }}
+                >
+                  {activeClass === "crypto" ? "Crypto" : "Stocks"}
+                  <span
+                    aria-hidden
+                    style={{ color: "var(--mute)", fontSize: 10 }}
+                  >
+                    ▾
+                  </span>
+                </span>
+                <span
+                  className="text-[10.5px] tabular-nums font-mono"
+                  style={{ color: "var(--mute)" }}
+                >
+                  v{__APP_VERSION__}
+                </span>
+              </div>
             </button>
-            <div className="flex flex-col min-w-0">
-              <span
-                className="text-[15px] font-semibold leading-tight truncate"
-                style={{ letterSpacing: "-0.005em" }}
-              >
-                Trading Platform
-              </span>
-              <span
-                className="text-[11px] tabular-nums"
-                style={{ color: "var(--mute)" }}
-              >
-                v{__APP_VERSION__}
-              </span>
-            </div>
-            <AssetClassToggle mode={activeClass} onChange={switchAssetClass} />
+            <span
+              className="hidden lg:inline-block w-px h-6 shrink-0"
+              style={{ background: "var(--hairline)" }}
+              aria-hidden
+            />
+            <span className="hidden lg:inline-flex">
+              <HeaderStatusInline assetClass={activeClass} />
+            </span>
           </div>
 
-          {/* Three-pill mode toggle */}
+          {/* CENTRE — Mode pills, centred via justify-self */}
           <div
-            className="inline-flex items-center gap-1 p-1 rounded-card"
-            style={{ background: "var(--panel-2)" }}
+            className="inline-flex items-center gap-1 justify-self-center"
           >
             {MODES.map((m) => (
               <ModePill
                 key={m.value}
                 active={mode === m.value}
                 onClick={() => switchMode(m.value)}
+                onHoverPrefetch={() => prefetchMode(m.value)}
               >
                 {m.label}
               </ModePill>
             ))}
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* RIGHT — equity readout (with hairline divider) + actions */}
+          <div className="flex items-center gap-3 justify-self-end">
+            <HeaderEquityReadout assetClass={activeClass} />
+            <span
+              className="hidden lg:inline-block w-px h-7 shrink-0"
+              style={{ background: "var(--hairline)" }}
+              aria-hidden
+            />
             <AskPill onClick={openAskBar} />
             <ThemeToggle theme={theme} onToggle={toggleTheme} />
             <SettingsMenu />
           </div>
         </div>
         )}
-        {/* Status ribbon (market status + equity/P/L/BP). Omitted in Workspace
-           — the canvas reclaims the strip; account info lives in the Account
-           widget instead. */}
-        {mode !== "workspace" && <TopBar assetClass={activeClass} />}
       </header>
       )}
 
@@ -334,9 +538,13 @@ export default function App() {
 
       {/* TradingView full terminal + ChartBot panel — Chart mode only */}
       {mode === "chart" && (
-        <div style={{ display: "flex" }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <TVPlatform symbol={selected} onSymbolChange={setSelected} assetClass={activeClass} />
+        <div style={{ display: "flex", flex: isMobile ? undefined : 1, minHeight: 0 }}>
+          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+            <TVPlatform
+              symbol={selected}
+              onSymbolChange={setSelected}
+              assetClass={activeClass}
+            />
           </div>
           <ChatPanel symbol={selected || (activeClass === "crypto" ? "BTC/USD" : "AAPL")} />
         </div>
@@ -367,20 +575,37 @@ export default function App() {
         </Suspense>
       )}
 
-      {/* Portfolio: hero + positions strip + open orders + activity. Order
-         entry now comes from the floating TradeBar (mounted below). */}
+      {/* Portfolio: hero + allocation + positions strip + open orders +
+         activity. Order entry now comes from the floating TradeBar (mounted
+         below). */}
       {mode === "portfolio" && (
         <div className="max-w-[1280px] mx-auto pt-2">
           <PortfolioHero assetClass={activeClass} />
 
-          <SectionHeading label="Positions" />
-          <Positions variant="strip" onSelect={setSelected} assetClass={activeClass} />
+          <PortfolioAllocation activeClass={activeClass} />
 
-          <SectionHeading label="Orders" />
-          <Orders assetClass={activeClass} />
+          {/* Positions is the primary block — promoted heading + full-width
+             list. Orders + Activity drop to a 2-col secondary row beneath. */}
+          <SectionHeading label="Positions" size="lg" />
+          <Positions
+            variant="strip"
+            onSelect={(s) => {
+              setSelected(s);
+              switchMode("chart");
+            }}
+            assetClass={activeClass}
+          />
 
-          <SectionHeading label="Activity" />
-          <Activities />
+          <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+            <section>
+              <SectionHeading label="Orders" />
+              <Orders assetClass={activeClass} />
+            </section>
+            <section>
+              <SectionHeading label="Activity" />
+              <Activities />
+            </section>
+          </div>
         </div>
       )}
 
@@ -388,6 +613,36 @@ export default function App() {
          its own TradeBar inside TVPlatform so it ships with TV's chrome. */}
       {(mode === "discover" || mode === "portfolio") && (
         <TradeBar symbol={selected} />
+      )}
+
+      {/* Mobile-only floating ✦ Ask launcher. Bottom-left so it sits in the
+         same screen real-estate as ChartBot's violet launcher (chart mode):
+         the user reaches for one corner regardless of mode. Suppressed in
+         Chart itself — ChartBot already owns this corner there, two circles
+         would read as noise. The right corner stays free for TradeBar. */}
+      {isMobile && mode !== "chart" && (
+        <button
+          type="button"
+          aria-label="Ask anything"
+          title="Ask anything"
+          onClick={openAskBar}
+          className="cursor-pointer border-0"
+          style={{
+            position: "fixed",
+            left: 16,
+            bottom: "calc(var(--safe-bottom) + 16px)",
+            zIndex: 34,
+            width: 48,
+            height: 48,
+            borderRadius: 999,
+            background: "var(--accent)",
+            color: "white",
+            fontSize: 20,
+            boxShadow: "var(--shadow-lg)",
+          }}
+        >
+          ✦
+        </button>
       )}
 
       {/* Ask anything — mounted in the app shell so it's available from
@@ -427,5 +682,35 @@ export default function App() {
         />
       )}
     </>
+  );
+}
+
+// Allocation card on Portfolio. Lives here (not inside PortfolioHero) so the
+// hero stays focused on the silo's headline numbers — the donut is a sibling
+// section beneath, gated on having any open positions in the active silo.
+function PortfolioAllocation({
+  activeClass,
+}: {
+  activeClass: AssetClassMode;
+}) {
+  const positions = usePositions();
+  const siloPositions = (positions.data?.positions || []).filter((p) =>
+    activeClass === "crypto" ? isCryptoPosition(p) : !isCryptoPosition(p),
+  );
+  if (siloPositions.length === 0) return null;
+  return (
+    <div
+      className="rounded-card-lg mb-6"
+      style={{
+        background: "var(--panel)",
+        border: "1px solid var(--border)",
+        boxShadow: "var(--shadow-sm)",
+      }}
+    >
+      <AllocationDonut
+        positions={siloPositions}
+        colors={activeClass === "crypto" ? undefined : DONUT_COLORS_GREEN}
+      />
+    </div>
   );
 }

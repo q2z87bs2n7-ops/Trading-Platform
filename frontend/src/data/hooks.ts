@@ -18,6 +18,21 @@ export const useConfig = () =>
     staleTime: Infinity,
   });
 
+// App version + maintenance/force-stop switches. Doesn't need a tight poll:
+// check on mount, on window focus (instant for active users, free), and a slow
+// 5-min interval that tightens to 30s while in graceful maintenance so recovery
+// is prompt. `enabled` is set false by the caller once force_stop is seen, which
+// halts ALL polling (no interval, no focus refetch) — the terminal boot.
+export const useAppStatus = (enabled = true) =>
+  useQuery({
+    queryKey: qk.status,
+    queryFn: api.getStatus,
+    enabled,
+    refetchOnWindowFocus: enabled,
+    staleTime: 0,
+    refetchInterval: (q) => (q.state.data?.maintenance ? 30_000 : 300_000),
+  });
+
 export const useAccount = () =>
   useQuery({
     queryKey: qk.account,
@@ -58,6 +73,21 @@ export const useBars = (symbol: string, timeframe: string, limit = 200) =>
     queryKey: qk.bars(symbol, timeframe),
     queryFn: () => api.getBars(symbol, timeframe, limit),
     enabled: symbol.length > 0,
+  });
+
+// Single-call batch for the watchlist sparklines. Daily closes are
+// slow-moving so a 5-min refetch is plenty.
+export const useBarsBatch = (
+  symbols: string[],
+  timeframe: string = "1Day",
+  limit = 30,
+) =>
+  useQuery({
+    queryKey: qk.barsBatch(symbols, timeframe),
+    queryFn: () => api.getBarsBatch(symbols, timeframe, limit),
+    enabled: symbols.length > 0,
+    refetchInterval: 300_000,
+    staleTime: 120_000,
   });
 
 // Single-call replacement for the watchlist's N parallel useBars(sym,
@@ -160,6 +190,78 @@ export const useEconomicCalendar = (enabled = true) =>
     refetchInterval: 300_000,
     staleTime: 120_000,
     enabled,
+  });
+
+export const useTrendingResearch = (enabled = true) =>
+  useQuery({
+    queryKey: qk.trendingResearch,
+    queryFn: api.getTrendingResearch,
+    refetchInterval: 900_000, // matches backend cache TTL
+    staleTime: 600_000,
+    enabled,
+  });
+
+export const useSmartScore = (symbol: string, enabled = true) =>
+  useQuery({
+    queryKey: qk.smartScore(symbol),
+    queryFn: () => api.getSmartScore(symbol),
+    refetchInterval: 3_600_000, // 1h, matches backend cache TTL
+    staleTime: 1_800_000,
+    enabled: enabled && symbol.length > 0,
+  });
+
+export const useSentiment = (symbol: string, enabled = true) =>
+  useQuery({
+    queryKey: qk.sentiment(symbol),
+    queryFn: () => api.getSentiment(symbol),
+    refetchInterval: 1_800_000, // 30min, matches backend cache TTL
+    staleTime: 900_000,
+    enabled: enabled && symbol.length > 0,
+  });
+
+export const useAnalystRatings = (symbol: string, enabled = true) =>
+  useQuery({
+    queryKey: qk.analystRatings(symbol),
+    queryFn: () => api.getAnalystRatings(symbol),
+    refetchInterval: 3_600_000, // 1h, matches backend cache TTL
+    staleTime: 1_800_000,
+    enabled: enabled && symbol.length > 0,
+  });
+
+export const useHedgeFunds = (symbol: string, enabled = true) =>
+  useQuery({
+    queryKey: qk.hedgeFunds(symbol),
+    queryFn: () => api.getHedgeFunds(symbol),
+    refetchInterval: 21_600_000, // 6h, matches backend cache TTL (13F cadence)
+    staleTime: 10_800_000,
+    enabled: enabled && symbol.length > 0,
+  });
+
+export const useInsiders = (symbol: string, enabled = true) =>
+  useQuery({
+    queryKey: qk.insiders(symbol),
+    queryFn: () => api.getInsiders(symbol),
+    refetchInterval: 14_400_000, // 4h, matches backend cache TTL
+    staleTime: 7_200_000,
+    enabled: enabled && symbol.length > 0,
+  });
+
+export const useRelatedTickers = (symbol: string, enabled = true) =>
+  useQuery({
+    queryKey: qk.relatedTickers(symbol),
+    queryFn: () => api.getRelatedTickers(symbol),
+    refetchInterval: 1_800_000, // 30min — shares backend InvestorSentiment cache
+    staleTime: 900_000,
+    enabled: enabled && symbol.length > 0,
+  });
+
+export const useHolderDemographics = (symbol: string, enabled = true) =>
+  useQuery({
+    queryKey: qk.holderDemographics(symbol),
+    queryFn: () => api.getHolderDemographics(symbol),
+    refetchInterval: 1_800_000, // 30min — shares backend InvestorSentiment cache
+    staleTime: 900_000,
+    enabled: enabled && symbol.length > 0,
   });
 
 // --- Asset symbol universe (Ask-anything router ticker validation) -------

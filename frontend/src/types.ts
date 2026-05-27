@@ -194,9 +194,42 @@ export interface AssetProfile {
   ath_date?: string;
   atl_usd?: number;
   atl_date?: string;
+  // Annual fundamentals (FMP, us_equity). Margins/ratios are fractions (0.21 =
+  // 21%); financials_annual is newest-first, ≤5yr.
+  pe_ratio?: number;
+  ps_ratio?: number;
+  pb_ratio?: number;
+  ev_to_ebitda?: number;
+  peg_ratio?: number;
+  gross_margin?: number;
+  operating_margin?: number;
+  net_margin?: number;
+  roe?: number;
+  roic?: number;
+  debt_to_equity?: number;
+  current_ratio?: number;
+  eps_diluted?: number;
+  book_value_per_share?: number;
+  free_cash_flow?: number;
+  revenue_growth_yoy?: number;
+  eps_growth_yoy?: number;
+  dividend_yield?: number;
+  payout_ratio?: number;
+  latest_fiscal_year?: number;
+  reported_currency?: string;
+  financials_annual?: FinancialsYear[];
+  fundamentals_enriched_at?: string;
   // Metadata.
   enriched_at?: string;
   enrichment_source?: string;
+}
+
+export interface FinancialsYear {
+  year: number;
+  revenue?: number | null;
+  net_income?: number | null;
+  eps?: number | null;
+  fcf?: number | null;
 }
 
 export interface Snapshot {
@@ -281,6 +314,317 @@ export interface EconomicRow {
 
 export interface EconomicResponse {
   economic: EconomicRow[];
+  as_of?: number;
+}
+
+// Tipranks trending stocks (/api/research/trending). Whole-market list of
+// equities by analyst coverage; no symbol input. Per-row enriched with PT
+// range + analyst count from the stocks/overview endpoint (batched).
+export interface TrendingResearchRow {
+  ticker: string;
+  company_name: string | null;
+  sector: string | null;
+  popularity: number | null;
+  sentiment: number | null;
+  buy: number | null;
+  hold: number | null;
+  sell: number | null;
+  consensus: string | null;
+  average_price_target: number | null;
+  market_cap: number | null;
+  market_name: string | null;
+  last_rating_date: string | null;
+  // From stocks/overview (additive context — does NOT replace
+  // average_price_target as the displayed price).
+  low_price_target: number | null;
+  high_price_target: number | null;
+  total_analysts: number | null;
+  price_target_upside: number | null;
+}
+
+export interface TrendingResearchResponse {
+  trending: TrendingResearchRow[];
+  as_of?: number;
+}
+
+// Tipranks SmartScore (/api/research/smart-score/{symbol}). Composite 1–10
+// + six component signals + a Tipranks-sourced price target. fundamentals_*
+// fields are kept in the payload for AI tool answers but hidden in the
+// SmartScore widget UI (Fundamentals widget owns those metrics).
+export interface SmartScoreRow {
+  ticker: string;
+  smart_score: number | null;
+  price_target: number | null;
+  price_target_currency_code: string | null;
+  hedge_fund_trend_value: number | null;
+  blogger_bullish_sentiment: number | null;
+  blogger_sector_avg: number | null;
+  insiders_last_3_months_sum: number | null;
+  news_sentiments_bullish_percent: number | null;
+  news_sentiments_bearish_percent: number | null;
+  investor_holding_change_last_7_days: number | null;
+  investor_holding_change_last_30_days: number | null;
+  fundamentals_return_on_equity: number | null;
+  fundamentals_asset_growth: number | null;
+  technicals_twelve_months_momentum: number | null;
+  // Text-label companions paired with the numeric components above.
+  sma: string | null;
+  analyst_consensus: string | null;
+  hedge_fund_trend: string | null;
+  insider_trend: string | null;
+  investor_sentiment: string | null;
+  news_sentiment: string | null;
+  blogger_consensus: string | null;
+}
+
+export interface SmartScoreResponse {
+  symbol: string;
+  smart_score: SmartScoreRow | null;
+  as_of?: number;
+}
+
+// Tipranks combined sentiment (/api/research/sentiment/{symbol}). Three
+// upstream calls fanned in: bloggerConsensus + newsSentiment + InvestorSentiment.
+export interface SentimentBlogger {
+  bullish_ratio: number | null;
+  bearish_ratio: number | null;
+  sector_bull_ratio: number | null;
+  blogs_distribution: { site: string; percentage: number | null }[];
+}
+export interface SentimentNewsBlock {
+  positive: number | null;
+  neutral: number | null;
+  negative: number | null;
+}
+export interface SentimentNewsCount {
+  week_start: string | null;
+  buy: number | null;
+  sell: number | null;
+  neutral: number | null;
+  all: number | null;
+}
+export interface SentimentNews {
+  stock: SentimentNewsBlock;
+  sector: SentimentNewsBlock;
+  counts: SentimentNewsCount[];
+  score: {
+    stock_score: string | null;
+    stock_score_value: number | null;
+    sector_score: number | null;
+  };
+  buzz: {
+    weekly_average: number | null;
+    this_week: number | null;
+    buzz: number | null;
+  };
+  bullish_bearish: {
+    stock_bullish: number | null;
+    stock_bearish: number | null;
+    sector_bullish: number | null;
+    sector_bearish: number | null;
+  };
+  word_cloud: string[];
+}
+export interface SentimentInvestor {
+  number_of_portfolios: number | null;
+  portfolios_holding_stock: number | null;
+  average_allocation: number | null;
+  percent_over_last_7_days: number | null;
+  percent_over_last_30_days: number | null;
+  investor_score: number | null;
+  sector_average_score: number | null;
+  sentiment: string | null;
+  sector_average_sentiment: string | null;
+  best: {
+    portfolios_holding_stock: number | null;
+    average_allocation: number | null;
+    percent_over_last_7_days: number | null;
+    percent_over_last_30_days: number | null;
+    investor_score: number | null;
+  };
+}
+export interface SentimentRow {
+  ticker: string;
+  blogger: SentimentBlogger;
+  news: SentimentNews;
+  investor: SentimentInvestor;
+}
+export interface SentimentResponse {
+  symbol: string;
+  sentiment: SentimentRow | null;
+  as_of?: number;
+}
+
+// Tipranks per-analyst rating list (/api/research/analysts/{symbol}).
+export interface AnalystRatingRow {
+  analyst_name: string | null;
+  firm_name: string | null;
+  recommendation: string | null;
+  recommendation_date: string | null;
+  expert_uid: string | null;
+  url: string | null;
+  url_slug: string | null;
+  article_title: string | null;
+  analyst_action: string | null;
+  analyst_rank: number | null;
+  number_of_ranked_experts: number | null;
+  num_of_stars: number | null;
+  stock_success_rate: number | null;
+  stock_avg_return: number | null;
+  stock_total_recommendations: number | null;
+  stock_good_recommendations: number | null;
+  price_target: number | null;
+  price_target_currency_code: string | null;
+}
+export interface AnalystRatingsResponse {
+  symbol: string;
+  analysts: AnalystRatingRow[];
+  as_of?: number;
+}
+
+// Tipranks hedge funds (/api/research/hedge-funds/{symbol}).
+export interface HedgeHoldingHistory {
+  date: string | null;
+  shares_held: number | null;
+  net_shares_change: number | null;
+  number_of_shares_bought: number | null;
+  number_of_shares_sold: number | null;
+}
+export interface HedgeFundRow {
+  manager_name: string | null;
+  institution_name: string | null;
+  reported_value: number | null;
+  remaining_shares: number | null;
+  holding_change: number | null;
+  shares_traded: number | null;
+  percentage_of_portfolio: number | null;
+  hedge_fund_rank: number | null;
+  number_of_ranked_hedge_funds: number | null;
+  is_active_investor: boolean | null;
+  // Pre-classified action: "New Position" / "Closed Position" / "Added" /
+  // "Reduced" / "Maintained" — use verbatim, don't re-infer from share-delta.
+  action: string | null;
+  stars: number | null;
+  expert_uid: string | null;
+}
+export interface HedgeFundsRow {
+  ticker: string;
+  last_q_shares_traded: number | null;
+  signal: {
+    rating: string | null;
+    sentiment: number | null;
+    confidence: string | null;
+    based_on_num_hedge_funds: number | null;
+  };
+  total_hedge_funds: number | null;
+  holdings_history: HedgeHoldingHistory[];
+  institutional_holdings: HedgeFundRow[];
+}
+export interface HedgeFundsResponse {
+  symbol: string;
+  hedge_funds: HedgeFundsRow | null;
+  as_of?: number;
+}
+
+// Tipranks insiders (/api/research/insiders/{symbol}).
+export interface InsiderMonthly {
+  year: number | null;
+  month: number | null;
+  buy_count: number | null;
+  buy_amount: number | null;
+  sell_count: number | null;
+  sell_amount: number | null;
+  discretionary_buy_count: number | null;
+  discretionary_buy_amount: number | null;
+  discretionary_sell_count: number | null;
+  discretionary_sell_amount: number | null;
+}
+export interface InsiderTransaction {
+  insider_name: string | null;
+  position: string | null;
+  transaction: string | null;
+  amount: number | null;
+  number_of_shares: number | null;
+  date: string | null;
+  stars: number | null;
+  form_url: string | null;
+  expert_uid: string | null;
+  currency_code: string | null;
+}
+export interface InsidersRow {
+  ticker: string;
+  trend: number | null;
+  confidence_signal: {
+    // NB: upstream `score` is a label string ("Negative Sentiment" / "NA"),
+    // not a numeric — render as a chip, not a meter.
+    score: string | null;
+    sector_score: number | null;
+    stock_score: number | null;
+  };
+  discretionary_transactions: number | null;
+  uninformative_transactions: number | null;
+  monthly: InsiderMonthly[];
+  transactions: InsiderTransaction[];
+}
+export interface InsidersResponse {
+  symbol: string;
+  insiders: InsidersRow | null;
+  as_of?: number;
+}
+
+// Tipranks related tickers (/api/research/related-tickers/{symbol}).
+// "Investors who hold X also hold ..." — discovery feed.
+export interface RelatedTickerRow {
+  ticker: string;
+  company_name: string | null;
+  sector: string | null;
+  sector_name: string | null;
+  average_holding_size: number | null;
+  last_seven_day_change: number | null;
+  last_thirty_day_change: number | null;
+  score: number | null;
+  sentiment: string | null;
+  market_cap: number | null;
+  market_cap_currency_code: string | null;
+}
+export interface RelatedTickersRow {
+  ticker: string;
+  all: RelatedTickerRow[];
+  youngest: RelatedTickerRow[];
+  mid_range: RelatedTickerRow[];
+  eldest: RelatedTickerRow[];
+}
+export interface RelatedTickersResponse {
+  symbol: string;
+  related: RelatedTickersRow | null;
+  as_of?: number;
+}
+
+// Tipranks holder demographics (/api/research/holder-demographics/{symbol}).
+// Per-age-cohort behavioural profile of the stock's holder base.
+export interface HolderCohort {
+  percent_holders: number | null;
+  last_7_days_change: number | null;
+  last_30_days_change: number | null;
+  average_beta: number | null;
+  average_monthly_return: number | null;
+  dividend_yield: number | null;
+  average_pe_ratio: number | null;
+}
+export interface HolderDemographicsRow {
+  ticker: string;
+  eldest: HolderCohort;
+  mid_range: HolderCohort;
+  youngest: HolderCohort;
+  sector_average_score: number | null;
+  sector_average_sentiment: string | null;
+  best_investors_score: number | null;
+  best_investors_holding: number | null;
+  best_investors_allocation: number | null;
+}
+export interface HolderDemographicsResponse {
+  symbol: string;
+  demographics: HolderDemographicsRow | null;
   as_of?: number;
 }
 

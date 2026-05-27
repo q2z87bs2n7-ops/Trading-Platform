@@ -1,125 +1,88 @@
-import { useAccount, usePositions } from "../data/hooks";
+import { useAccount, useClock, usePositions } from "../data/hooks";
 import { useMobile } from "../hooks/useMobile";
 import { isCryptoPosition } from "../lib/asset-class";
 import { money, pct } from "../lib/format";
 
 type AssetClassMode = "stocks" | "crypto";
 
-function Card({
-  title,
-  subtitle,
-  detail,
-  accent,
+const timeHM = (ts: number) =>
+  new Date(ts * 1000).toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+// Calm silo summary card. Whole card is the affordance (1px border, no inner
+// "Enter" CTA, no outer ring). Reads as a list row, not a Stripe billboard.
+function SiloCard({
+  name,
+  dot,
+  positions,
+  equity,
+  dayPl,
+  dayPlPct,
+  subStatus,
   active,
   onClick,
 }: {
-  title: string;
-  subtitle: string;
-  detail: string;
-  accent: string;
+  name: string;
+  dot: string;
+  positions: number;
+  equity: number;
+  dayPl: number;
+  dayPlPct: number;
+  subStatus: string;
   active?: boolean;
   onClick: () => void;
 }) {
+  const dayUp = dayPl >= 0;
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex flex-col gap-3 p-8 text-left cursor-pointer transition-all border-0 w-full"
+      className="flex flex-col gap-2 text-left cursor-pointer border-0 w-full transition-colors"
       style={{
         background: "var(--panel)",
-        border: `1.5px solid ${active ? accent : "var(--border)"}`,
-        borderRadius: "var(--r-xl)",
-        boxShadow: active ? `0 0 0 3px ${accent}22` : "var(--shadow-sm)",
+        border: `1px solid ${active ? "var(--border-2)" : "var(--border)"}`,
+        borderRadius: "var(--r)",
+        boxShadow: "var(--shadow-sm)",
+        padding: "18px 22px",
+        minWidth: 0,
       }}
       onMouseEnter={(e: { currentTarget: HTMLButtonElement }) => {
-        e.currentTarget.style.borderColor = accent;
-        e.currentTarget.style.boxShadow = `0 0 0 3px ${accent}22`;
+        e.currentTarget.style.borderColor = "var(--border-2)";
       }}
       onMouseLeave={(e: { currentTarget: HTMLButtonElement }) => {
-        e.currentTarget.style.borderColor = active ? accent : "var(--border)";
-        e.currentTarget.style.boxShadow = active
-          ? `0 0 0 3px ${accent}22`
-          : "var(--shadow-sm)";
+        e.currentTarget.style.borderColor = active
+          ? "var(--border-2)"
+          : "var(--border)";
       }}
     >
+      <div className="flex items-center gap-2">
+        <span
+          aria-hidden
+          className="inline-block"
+          style={{ width: 6, height: 6, borderRadius: 99, background: dot }}
+        />
+        <span className="text-[14px] font-semibold" style={{ color: "var(--text)" }}>
+          {name}
+        </span>
+        <span className="text-[10.5px] tabular-nums" style={{ color: "var(--mute)" }}>
+          {positions} position{positions === 1 ? "" : "s"}
+        </span>
+      </div>
       <div
-        className="text-[28px] font-bold tabular-nums"
-        style={{ color: accent }}
+        className="font-mono font-semibold tabular-nums"
+        style={{ fontSize: 24, lineHeight: 1, letterSpacing: "-0.02em" }}
       >
-        {title}
+        {money(equity)}
       </div>
-      <div className="text-[18px] font-semibold" style={{ color: "var(--text)" }}>
-        {subtitle}
+      <div className="text-[11.5px] tabular-nums" style={{ color: "var(--mute)" }}>
+        <span style={{ color: dayUp ? "var(--pos)" : "var(--neg)", fontWeight: 600 }}>
+          Day {pct(dayPlPct)}
+        </span>
+        {" · "}
+        {subStatus}
       </div>
-      <div className="text-[13px]" style={{ color: "var(--mute)" }}>
-        {detail}
-      </div>
-      <div
-        className="mt-2 text-[13px] font-semibold px-4 py-2 rounded-card self-start"
-        style={{ background: accent, color: "white" }}
-      >
-        Enter {subtitle}
-      </div>
-    </button>
-  );
-}
-
-// Compact horizontal market pill — mobile alternative to the big glyph
-// cards so both markets sit above the fold.
-function MarketPill({
-  glyph,
-  name,
-  detail,
-  accent,
-  active,
-  onClick,
-}: {
-  glyph: string;
-  name: string;
-  detail: string;
-  accent: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="w-full text-left cursor-pointer"
-      style={{
-        background: "var(--panel)",
-        border: `1.5px solid ${active ? accent : "var(--border)"}`,
-        borderRadius: 14,
-        padding: 14,
-        boxShadow: active ? `0 0 0 3px ${accent}22` : "var(--shadow-sm)",
-        display: "grid",
-        gridTemplateColumns: "44px 1fr auto",
-        gap: 12,
-        alignItems: "center",
-        minHeight: "var(--mob-tap)",
-      }}
-    >
-      <span
-        aria-hidden
-        style={{
-          width: 44,
-          height: 44,
-          borderRadius: 12,
-          display: "grid",
-          placeItems: "center",
-          fontSize: 22,
-          fontWeight: 700,
-          background: `${accent}1a`,
-          color: accent,
-        }}
-      >
-        {glyph}
-      </span>
-      <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-        <span style={{ fontSize: 16, fontWeight: 600 }}>{name}</span>
-        <span style={{ fontSize: 11.5, color: "var(--mute)" }}>{detail}</span>
-      </span>
-      <span style={{ color: accent, fontWeight: 600, fontSize: 18 }}>→</span>
     </button>
   );
 }
@@ -269,6 +232,28 @@ export default function AssetClassSplash({
   currentClass?: AssetClassMode;
 }) {
   const isMobile = useMobile();
+  const positions = usePositions();
+  const clock = useClock();
+
+  const all = positions.data?.positions ?? [];
+  const stockPos = all.filter((p) => !isCryptoPosition(p));
+  const cryptoPos = all.filter(isCryptoPosition);
+  const stockEquity = stockPos.reduce((s, p) => s + p.market_value, 0);
+  const cryptoEquity = cryptoPos.reduce((s, p) => s + p.market_value, 0);
+  const stockDay = stockPos.reduce((s, p) => s + p.unrealized_intraday_pl, 0);
+  const cryptoDay = cryptoPos.reduce((s, p) => s + p.unrealized_intraday_pl, 0);
+  const stockDayPct =
+    stockEquity - stockDay > 0 ? stockDay / (stockEquity - stockDay) : 0;
+  const cryptoDayPct =
+    cryptoEquity - cryptoDay > 0 ? cryptoDay / (cryptoEquity - cryptoDay) : 0;
+
+  const clk = clock.data;
+  const stockSub = clk
+    ? clk.is_open
+      ? `Open until ${timeHM(clk.next_close)}`
+      : `Closed · opens ${timeHM(clk.next_open)}`
+    : "Market hours";
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-6 overflow-auto"
@@ -290,7 +275,7 @@ export default function AssetClassSplash({
         </button>
       )}
       <div className="flex flex-col items-center gap-8 w-full max-w-2xl py-8">
-        {/* Brand */}
+        {/* Brand + eyebrow + heading */}
         <div className="flex flex-col items-center gap-2 text-center">
           <div
             className="flex items-center justify-center w-12 h-12 rounded-card text-white font-bold text-xl mb-1"
@@ -302,60 +287,55 @@ export default function AssetClassSplash({
           >
             ◆
           </div>
+          <span
+            className="text-[10.5px] font-semibold uppercase tabular-nums"
+            style={{ color: "var(--mute)", letterSpacing: "0.12em" }}
+          >
+            Paper trading
+          </span>
           <h1
-            className="text-[26px] font-bold"
+            className="text-[26px] font-semibold"
             style={{ letterSpacing: "-0.02em", color: "var(--text)" }}
           >
-            Trading Platform
+            {onClose ? "Your account" : "Pick a market to step into."}
           </h1>
-          <p className="text-[15px]" style={{ color: "var(--mute)" }}>
-            {onClose ? "Your account at a glance" : "Choose your market to get started"}
-          </p>
         </div>
 
-        {/* Global account overview */}
-        <AccountOverview />
+        {/* Global account overview (only shown as the hub overlay, not on the
+            first-time landing — keeps the picker focused). */}
+        {onClose && <AccountOverview />}
 
-        {/* Market cards — big glyph cards on desktop, compact pills on mobile */}
-        {isMobile ? (
-          <div className="flex flex-col gap-2.5 w-full">
-            <MarketPill
-              glyph="$"
-              name="Stocks"
-              detail="9,000+ equities · Market hours"
-              accent="var(--pos)"
-              active={currentClass === "stocks"}
-              onClick={() => onSelect("stocks")}
-            />
-            <MarketPill
-              glyph="₿"
-              name="Crypto"
-              detail="BTC · ETH · SOL · 24/7 trading"
-              accent="var(--accent)"
-              active={currentClass === "crypto"}
-              onClick={() => onSelect("crypto")}
-            />
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
-            <Card
-              title="$"
-              subtitle="Stocks"
-              detail="NYSE · NASDAQ · ARCA · 9,000+ equities · Market hours"
-              accent="var(--pos)"
-              active={currentClass === "stocks"}
-              onClick={() => onSelect("stocks")}
-            />
-            <Card
-              title="₿"
-              subtitle="Crypto"
-              detail="BTC · ETH · SOL · XRP · DOGE · 24/7 trading"
-              accent="var(--accent)"
-              active={currentClass === "crypto"}
-              onClick={() => onSelect("crypto")}
-            />
-          </div>
-        )}
+        {/* Silo summary cards — whole card is the affordance, no inner CTA. */}
+        <div
+          className={`grid w-full gap-${isMobile ? "2.5" : "[18px]"} ${
+            isMobile ? "grid-cols-1" : "grid-cols-2"
+          }`}
+          style={isMobile ? undefined : { gap: 18 }}
+        >
+          <SiloCard
+            name="Stocks"
+            dot="var(--pos)"
+            positions={stockPos.length}
+            equity={stockEquity}
+            dayPl={stockDay}
+            dayPlPct={stockDayPct}
+            subStatus={stockSub}
+            active={currentClass === "stocks"}
+            onClick={() => onSelect("stocks")}
+          />
+          <SiloCard
+            name="Crypto"
+            dot="var(--accent)"
+            positions={cryptoPos.length}
+            equity={cryptoEquity}
+            dayPl={cryptoDay}
+            dayPlPct={cryptoDayPct}
+            subStatus="24/7"
+            active={currentClass === "crypto"}
+            onClick={() => onSelect("crypto")}
+          />
+        </div>
+
       </div>
     </div>
   );

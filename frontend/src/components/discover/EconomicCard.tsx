@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 
+import { lookupFredUrl } from "../../lib/economic-fred-map";
 import { compact } from "../../lib/format";
 import type { EconomicRow } from "../../types";
 import { CardPager } from "./CardPager";
@@ -68,16 +69,19 @@ function ImpactChip({ impact }: { impact: string | null }) {
   );
 }
 
+// Only the ~95 mapped recurring releases are clickable (deep-link to a FRED
+// series page). Unmapped rows — Fed speeches, CFTC COT, ISM, OPEC, … —
+// render as plain text rather than a generic Google search, which was rarely
+// useful.
+function eventLink(event: string | null): string | null {
+  return lookupFredUrl(event);
+}
+
 function EconomicRowItem({ r, rank }: { r: EconomicRow; rank: number }) {
   const { day, time } = fmtWhen(r.date);
-  return (
-    <div
-      className="grid items-start gap-3 py-2.5"
-      style={{
-        gridTemplateColumns: "64px 1fr auto",
-        borderTop: rank === 0 ? "none" : "1px solid var(--border)",
-      }}
-    >
+  const href = eventLink(r.event);
+  const inner = (
+    <>
       <div className="font-mono text-[11px] leading-tight" style={{ color: "var(--mute)" }}>
         <div>{day}</div>
         <div>{time}</div>
@@ -92,6 +96,28 @@ function EconomicRowItem({ r, rank }: { r: EconomicRow; rank: number }) {
         </div>
       </div>
       <ImpactChip impact={r.impact} />
+    </>
+  );
+  const style = {
+    gridTemplateColumns: "64px 1fr auto",
+    borderTop: rank === 0 ? "none" : "1px solid var(--border)",
+  };
+  if (href) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className="grid items-start gap-3 py-2.5 hover:bg-panel-2"
+        style={{ ...style, color: "var(--text)", textDecoration: "none" }}
+      >
+        {inner}
+      </a>
+    );
+  }
+  return (
+    <div className="grid items-start gap-3 py-2.5" style={style}>
+      {inner}
     </div>
   );
 }

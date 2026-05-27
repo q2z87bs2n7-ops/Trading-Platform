@@ -1,10 +1,15 @@
 # Asset catalogue (Postgres / Supabase)
 
-Reference for the database layer. The platform has **one** Postgres table,
-`assets` (Supabase), holding the full Alpaca universe (base identity) plus
-per-source enrichment. It powers the watchlist autocomplete, chart search,
-`/api/assets`, and the AI bot's catalogue tools (`find_symbol`,
-`get_asset_profile`, `screen_assets`).
+Reference for the database layer. The main Postgres table is `assets`
+(Supabase), holding the full Alpaca universe (base identity) plus per-source
+enrichment. It powers the watchlist autocomplete, chart search, `/api/assets`,
+and the AI bot's catalogue tools (`find_symbol`, `get_asset_profile`,
+`screen_assets`). A second, tiny `app_settings` key/value table holds the
+**maintenance** and **force_stop** switches read by `/api/status` (created by
+`backend/sql/003_app_settings.sql`, run once; flip the relevant row in the
+Supabase SQL editor — graceful maintenance auto-recovers, force_stop is a
+terminal boot. Full command reference in that SQL file and CLAUDE.md
+"Maintenance / force-stop switches").
 
 Companions: `CLAUDE.md` for repo-wide rules, `docs/landmines.md` →
 "Asset catalogue / Postgres" for the hard-won gotchas, and
@@ -24,11 +29,18 @@ within a row.**
 | Base identity | `symbol`, `alpaca_id`, `name`, `asset_class`, `exchange`, `status`, `tradable`, `marginable`, `shortable`, `fractionable`, `attributes[]`, `min_order_size`, `min_trade_increment`, `price_increment` | Alpaca (all rows) |
 | Common enrichment | `description`, `website`, `logo_url`, `market_cap` | per `asset_class` |
 | Stock-only | `sector`, `industry`, `country`, `city`, `state`, `ipo_date`, `isin`, `cik`, `is_etf`, `is_adr`, `is_fund`, `is_actively_trading`, `ceo`, `employees`, `phone`, `beta`, `dcf`, `dcf_diff` | FMP |
+| Stock fundamentals | `pe_ratio`, `ps_ratio`, `pb_ratio`, `ev_to_ebitda`, `peg_ratio`, `gross_margin`, `operating_margin`, `net_margin`, `roe`, `roic`, `debt_to_equity`, `current_ratio`, `eps_diluted`, `book_value_per_share`, `free_cash_flow`, `revenue_growth_yoy`, `eps_growth_yoy`, `dividend_yield`, `payout_ratio`, `latest_fiscal_year`, `reported_currency`, `financials_annual` (JSONB, ≤5yr trend), `fundamentals_enriched_at` | FMP (annual) |
 | Crypto-only | `coingecko_id`, `hashing_algorithm`, `genesis_date`, `categories[]`, `whitepaper_url`, `github_url`, `circulating_supply`, `total_supply`, `max_supply`, `market_cap_rank`, `ath_usd`, `ath_date`, `atl_usd`, `atl_date` | CoinGecko |
 | Metadata | `seeded_at`, `enriched_at`, `enrichment_source` (`fmp` \| `coingecko`) | — |
 
 `dcf`/`dcf_diff` aren't in FMP's stable profile (separate endpoint) — left null.
 `market_cap` is **BIGINT** — bind integers, not floats, in queries.
+The **Stock fundamentals** group was added directly in the Supabase SQL editor
+(`ALTER TABLE assets ADD COLUMN …`), **not** via a tracked `.sql` — `002_assets.sql`
+predates it, so re-creating the DB from that file alone misses these columns.
+Margins/ratios/yield/growth are stored as **fractions** (0.21 = 21%);
+`fundamentals_enriched_at` is a separate stamp from `enriched_at` so the
+fundamentals backfill resumes independently of the profile enrichment.
 
 ---
 
@@ -36,39 +48,79 @@ within a row.**
 
 | File | Role |
 | --- | --- |
-| `backend/app/db.py` | pg8000 (pure-Python, 3.14/Vercel-safe) access. Per-op connections from `DATABASE_URL`; `DbUnavailable` when unset. Writes: `bulk_upsert_assets`, `upsert_asset_enrichment` (crypto), `upsert_stock_enrichment` (FMP). Reads: `search_assets` (visibility-filtered), `get_asset`, `get_asset_profile`, `screen_assets`, `crypto_symbols`, `enriched_/unenriched_stock_symbols`, `enriched_crypto_symbols`. Holds `CRYPTO_CATEGORY_MAP` (screen whitelist). |
+| `backend/app/db.py` | pg8000 (pure-Python, 3.14/Vercel-safe) access. Per-op connections from `DATABASE_URL`; `DbUnavailable` when unset. Writes: `bulk_upsert_assets`, `upsert_asset_enrichment` (crypto), `upsert_stock_enrichment` (FMP), `upsert_fundamentals` (FMP annual). Reads: `search_assets` (visibility-filtered), `get_asset`, `get_asset_profile`, `screen_assets`, `crypto_symbols`, `enriched_/unenriched_stock_symbols`, `enriched_crypto_symbols`, `fundamentals_enriched_/fundamentals_target_symbols`. Holds `CRYPTO_CATEGORY_MAP` (screen whitelist). |
 | `backend/app/alpaca/trading.py` | `get_all_assets_for_seed()` → full us_equity + crypto list; `_full_asset_dict` captures base fields. `_enum_value` extracts the wire value from Alpaca SDK enums (see landmines). |
 | `backend/app/coingecko.py` | Crypto enrichment. Static **base-ticker → coingecko-id** map (BTC/USD, BTC/USDT … → `bitcoin`), Demo-key header when `COINGECKO_API_KEY` set, 429 backoff. |
-| `backend/app/fmp.py` | Stock enrichment via FMP's **stable** `/profile` (single-symbol). Maps ~20 columns; translates dot-class symbols to dash for the query (`BRK.B`→`BRK-B`). |
-| `backend/app/seed.py` | `run_seed(force, base)` — Alpaca base upsert + CoinGecko crypto enrich; `enrich_stocks(symbols, limit, force)` — FMP stock enrich (explicit list or next `limit` un-enriched). Both resumable. |
+| `backend/app/fmp.py` | Stock enrichment via FMP's **stable** `/profile` (single-symbol). Maps ~20 columns; translates dot-class symbols to dash for the query (`BRK.B`→`BRK-B`). Also `map_fundamentals` off `income-statement`+`cash-flow-statement`+`ratios` (annual): derives margins/growth from the statements, pulls valuation/quality ratios with alias fallbacks (stable field names vary). |
+| `backend/app/seed.py` | Onboarding: `run_seed(force, base)` — Alpaca base upsert + CoinGecko crypto enrich. Per-widget **refresh routines** (background daemon via `_start_background`): `refresh_profile_stocks`, `refresh_profile_crypto`, `refresh_fundamentals` (each `include_missing` to also onboard), plus aggregate `refresh_all_stocks` (profile+fundamentals) and `refresh_all_crypto`. `refresh_alpaca` re-pulls Alpaca base/trading status; `check_new_symbols` diffs Alpaca's live list against `db.all_symbols()` (read-only new-listing check). `enrich_stocks`/`enrich_fundamentals` remain as the per-symbol executors the refreshers loop over. |
 | `backend/app/main.py` | Endpoints: `/api/assets` (search), `/api/assets/{symbol}` (both DB-backed w/ Alpaca fallback), and the dev seeders below. |
 | `backend/app/ai/tools_read.py`, `ai/router.py` | The AI catalogue tools (`get_asset_profile`, `screen_assets`) — schemas + server-side execution. |
 
 ---
 
-## Populating the catalogue (seeders)
+## Onboarding & refresh routines (dev endpoints)
 
-Postgres :5432 is unreachable from the sandbox and the owner's laptop, so
-**seeding only runs from prod/Render.** Both endpoints sit behind
-`require_configured` and are idempotent + resumable.
+Postgres :5432 is unreachable from the sandbox and the owner's laptop, so these
+**only run from prod/Render.** All sit behind `require_configured`. There are two
+concepts: **onboarding** (add NEW Alpaca rows + their first enrichment) and the
+per-widget **refresh routines** (re-pull the DB values an already-enriched card
+shows). On the paid FMP **Starter** tier (single-symbol, 300/min, no daily cap),
+real throughput is ~100/min — a full stock pass is ~1.5–2.5 hr.
+
+### Onboarding & Alpaca status
 
 ```bash
-# Base (Alpaca) + crypto (CoinGecko). ~15 min (base upsert dominates).
+# Base identity for the whole Alpaca universe (~14 min) + CoinGecko crypto enrich.
 curl -X POST "https://<render-url>/api/_dev/seed-assets"
-
-# Crypto enrich only — skips the slow base upsert (~45s). Add &force=true to
-# re-enrich rows already done.
+# Crypto enrich only — skip the slow base upsert (~45s). &force=true re-does all.
 curl -X POST "https://<render-url>/api/_dev/seed-assets?base=false"
 
-# Stock enrich — explicit symbol list...
-curl -X POST "https://<render-url>/api/_dev/enrich-stocks?symbols=AAPL,MSFT,NVDA"
-# ...or backfill the next N un-enriched stocks (options-listed first), repeat.
-curl -X POST "https://<render-url>/api/_dev/enrich-stocks?limit=2500"
+# Refresh Alpaca BASE IDENTITY + TRADING STATUS for every row (tradable,
+# active/inactive on delisting, marginable/shortable/fractionable, has_options,
+# crypto increments) and onboard new listings. Background (the base upsert is
+# ~14 min), so it returns immediately. This is the only routine that updates the
+# Alpaca-sourced fields — the FMP/CoinGecko refreshers don't touch them.
+curl -X POST "https://<render-url>/api/_dev/refresh-alpaca"
+
+# Fast READ-ONLY check for new listings / IPOs: Alpaca symbols not yet in the DB.
+# Seconds (no upsert). GET. Onboard what it finds with refresh-alpaca, then
+# refresh-all-stocks?include_missing=true / refresh-all-crypto to enrich them.
+curl "https://<render-url>/api/_dev/new-symbols"
 ```
 
-We're on the paid FMP **Starter** tier: single-symbol, 300/min (no 250/day free
-cap). It enriches the whole universe in repeated `?limit=` chunks (~1.5–2.5 hr
-total — sequential per-symbol latency, not the rate ceiling, is the floor).
+Delistings need no destructive prune: `refresh-alpaca` flips the row's `tradable`
+to false, and the search **visibility rule** (`tradable = true`) then drops it
+from discovery automatically.
+
+### Refresh routines — one per widget/card (fire-and-forget)
+
+Each routine **completes one card**: it re-fetches every DB field that widget
+shows, **only for rows already enriched for that card**. All run in a background
+daemon thread on Render and **return immediately** (`{"status":"started",…}`) —
+fire once and disconnect; a second call of the same routine while it's running
+returns `already_running`. `?include_missing=true` additionally **onboards** rows
+that card hasn't enriched yet (e.g. a newly listed stock).
+
+| Routine | Card it completes | Source | Curl |
+| --- | --- | --- | --- |
+| `refresh-profile-stocks` | **Profile** (stocks) | FMP `/profile` | `curl -X POST "https://<render-url>/api/_dev/refresh-profile-stocks"` |
+| `refresh-profile-crypto` | **Profile** (crypto) | CoinGecko | `curl -X POST "https://<render-url>/api/_dev/refresh-profile-crypto"` |
+| `refresh-fundamentals` | **Fundamentals** (stocks) | FMP statements | `curl -X POST "https://<render-url>/api/_dev/refresh-fundamentals"` |
+
+**Aggregate flows** (supersets — run everything for a silo in one call, including
+what the per-card routines above cover):
+
+| Flow | Covers | Curl |
+| --- | --- | --- |
+| `refresh-all-stocks` | Profile **+** Fundamentals (FMP) | `curl -X POST "https://<render-url>/api/_dev/refresh-all-stocks"` |
+| `refresh-all-crypto` | all crypto enrichment (CoinGecko) | `curl -X POST "https://<render-url>/api/_dev/refresh-all-crypto"` |
+
+`refresh-all-crypto` matches `refresh-profile-crypto` today (Profile is crypto's
+only enrichment source) and also picks up un-enriched crypto. Onboard new
+instruments instead of just refreshing: add `?include_missing=true` (the
+stocks/fundamentals routines and `refresh-all-stocks`). A sensible **monthly**
+cadence is just the two aggregate flows (no built-in scheduler — trigger manually
+or via an external cron).
 
 For current row counts and coverage, run the verification queries below rather
 than trusting a number in this doc (it would drift).
@@ -99,9 +151,10 @@ one clause.
 - **`get_asset(symbol)`** — 12-column identity row (direct resolution, Alpaca
   fallback). Backs `/api/assets/{symbol}`.
 - **`get_asset_profile(symbol)`** — full single-symbol profile (all base +
-  enrichment columns, NULLs dropped). Direct resolution, not visibility-filtered.
-  Backs `/api/asset-profile/{symbol}` (Workspace **Profile** widget) and the AI
-  tool of the same name (both surfaces).
+  enrichment columns **including the stock-fundamentals group**, NULLs dropped;
+  `financials_annual` JSON-parsed). Direct resolution, not visibility-filtered.
+  Backs `/api/asset-profile/{symbol}` (Workspace **Profile** + **Fundamentals**
+  widgets) and the AI tool of the same name (both surfaces).
 - **`market_cap_map()`** — `{symbol: market_cap}` for the visible US-equity
   universe (`tradable` + enriched + has a cap). Used only by `calendar_fmp` to
   curate/rank the earnings calendar (see `docs/landmines.md` → "Earnings /
@@ -114,7 +167,11 @@ one clause.
   (`{total_matches, returned, has_more, sorted_by, filters_applied, results}`).
   - Stock filters: `sector` (11-GICS enum), `industry` (partial), `asset_type`
     (`stock`/`etf`/`adr`/`any`, default `stock` — excludes ETFs/funds),
-    `beta`, `exchange`, `ipo_after/before`, `market_cap` range.
+    `beta`, `exchange`, `ipo_after/before`, `market_cap` range, plus annual
+    fundamentals: `pe_min/max`, `dividend_yield_min`, `net_margin_min`,
+    `roe_min`, `revenue_growth_min` (fractions, e.g. 0.2 = 20%) and the matching
+    `pe_*`/`dividend_yield_desc`/`net_margin_desc`/`roe_desc`/`revenue_growth_desc`
+    sorts.
   - Crypto filters: curated `category` (keys in `db.CRYPTO_CATEGORY_MAP` →
     raw CoinGecko tags); results collapse to one row per base coin (prefer
     `/USD`).
@@ -220,8 +277,11 @@ FROM assets WHERE enrichment_source='fmp' GROUP BY sector ORDER BY 2 DESC;
    (no price/time-series), so it can't surface "what moved today"; the Discover
    summary already has movers + news. Marginal value.
 4. **Catalogue/screener UI** — the Workspace **Profile** widget
-   (`components/AssetProfile.tsx`, off `/api/asset-profile`) now consumes
-   `get_asset_profile`. Still parked: a `screen_assets`-backed **screener**
+   (`components/AssetProfile.tsx`, off `/api/asset-profile`) consumes
+   `get_asset_profile`, and a **Fundamentals** widget (`components/Fundamentals.tsx`,
+   same endpoint) now surfaces the FMP annual fundamentals; `screen_assets` also
+   gained stock fundamentals filters/sorts (P/E, dividend yield, net margin, ROE,
+   revenue growth). Still parked: a dedicated `screen_assets`-backed **screener**
    surface and any Discover/Chart company card.
 
 History: this catalogue replaced an earlier lazy `company_profiles` cache

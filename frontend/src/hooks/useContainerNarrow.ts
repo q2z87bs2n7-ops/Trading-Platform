@@ -29,3 +29,32 @@ export function useContainerNarrow(
 
   return narrow;
 }
+
+/**
+ * True when the observed element's height is at or above `threshold`. Sibling
+ * to `useContainerNarrow` for height-axis adaptations (e.g. tall+narrow
+ * Positions docks getting a tighter row to show more rows at once).
+ */
+export function useContainerTall(
+  ref: RefObject<HTMLElement>,
+  threshold: number,
+): boolean {
+  const [tall, setTall] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => {
+      const h = el.clientHeight;
+      if (h === 0) return;
+      const next = h >= threshold;
+      setTall((prev) => (prev === next ? prev : next));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref, threshold]);
+
+  return tall;
+}

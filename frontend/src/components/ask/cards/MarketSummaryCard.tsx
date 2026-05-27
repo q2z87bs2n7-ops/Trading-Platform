@@ -16,7 +16,9 @@ export function MarketSummaryIntentCard({ assetClass }: { assetClass: AssetClass
     readMarketSummaryCache(assetClass),
   );
 
-  if (!enabled) {
+  // AI off + nothing cached → show the notice. If a prior summary is still
+  // cached we'd rather surface it (with an "AI off" hint below) than hide it.
+  if (!enabled && !cache) {
     return (
       <AskResultCard title="✦ Market summary">
         <AiDisabledNotice surface="market" compact />
@@ -43,7 +45,11 @@ export function MarketSummaryIntentCard({ assetClass }: { assetClass: AssetClass
   return (
     <AskResultCard
       title={`✦ ${label}`}
-      meta={genTime ? `Generated ${genTime} ${tzLabel}` : "No summary yet"}
+      meta={
+        genTime
+          ? `Generated ${genTime} ${tzLabel}${!enabled ? " · AI off" : ""}`
+          : "No summary yet"
+      }
     >
       {cache ? (
         <p

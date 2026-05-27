@@ -26,6 +26,8 @@ const KIND_STYLE: Record<
   },
 };
 
+const MAX_VISIBLE = 3;
+
 export default function Toaster() {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
@@ -33,14 +35,19 @@ export default function Toaster() {
 
   if (toasts.length === 0) return null;
 
+  // Stack the newest 3 toasts; older ones are summarised by a count badge so
+  // bursts (e.g. multiple cancel-all errors) don't push content off-screen.
+  const visible = toasts.slice(0, MAX_VISIBLE);
+  const overflow = toasts.length - visible.length;
+
   return (
     <div
-      className="fixed z-50 flex flex-col gap-2"
-      style={{ bottom: 16, right: 16, maxWidth: "calc(100vw - 32px)" }}
+      className="fixed z-50 flex flex-col"
+      style={{ bottom: 16, right: 16, maxWidth: "calc(100vw - 32px)", gap: 8 }}
       aria-live="polite"
       role="status"
     >
-      {toasts.map((t) => {
+      {visible.map((t) => {
         const s = KIND_STYLE[t.kind];
         return (
           <button
@@ -67,6 +74,22 @@ export default function Toaster() {
           </button>
         );
       })}
+      {overflow > 0 && (
+        <div
+          className="text-[11.5px] font-medium tabular-nums text-center"
+          style={{
+            padding: "4px 8px",
+            color: "var(--mute)",
+            background: "var(--panel)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--r)",
+            boxShadow: "var(--shadow-sm)",
+          }}
+          aria-label={`${overflow} more notification${overflow === 1 ? "" : "s"}`}
+        >
+          +{overflow} more
+        </div>
+      )}
     </div>
   );
 }

@@ -156,11 +156,15 @@ function StripRowMobile({
   onSelect,
   onCloseClick,
   bare = false,
+  compact = false,
 }: {
   p: Position;
   onSelect?: (s: string) => void;
   onCloseClick: (p: Position) => void;
   bare?: boolean;
+  // Tighter padding + gap for tall+narrow docks where many rows compete
+  // for vertical space.
+  compact?: boolean;
 }) {
   const dayUp = p.change_today >= 0;
   const plUp = p.unrealized_pl >= 0;
@@ -173,11 +177,11 @@ function StripRowMobile({
         border: bare ? "none" : "1px solid var(--border)",
         borderBottom: bare ? "1px solid var(--hairline)" : undefined,
         borderRadius: bare ? 0 : "var(--mob-card-radius)",
-        padding: "14px 16px",
+        padding: compact ? "8px 12px" : "14px 16px",
         boxShadow: bare ? "none" : "var(--shadow-sm)",
         display: "flex",
         flexDirection: "column",
-        gap: 10,
+        gap: compact ? 6 : 10,
         cursor: onSelect ? "pointer" : "default",
       }}
     >
@@ -299,6 +303,7 @@ export default function Positions({
   assetClass,
   symbol,
   dense = false,
+  compact = false,
   bare = false,
 }: {
   variant?: "strip" | "table";
@@ -306,6 +311,9 @@ export default function Positions({
   assetClass?: "stocks" | "crypto";
   symbol?: string;
   dense?: boolean;
+  // Only meaningful with `dense`/mobile (i.e. card layout). Tightens row
+  // padding + gap for tall-but-narrow Workspace docks.
+  compact?: boolean;
   bare?: boolean;
 } = {}) {
   const { data, error, isPending } = usePositions();
@@ -364,6 +372,7 @@ export default function Positions({
               onSelect={onSelect}
               onCloseClick={setClosingPos}
               bare={bare}
+              compact={compact}
             />
           ))}
         {rows && rows.length > 1 && (

@@ -16,8 +16,7 @@ import AskResultCard from "../AskResultCard";
 import AiDisabledNotice from "../../AiDisabledNotice";
 import { WorkspaceResult } from "./WorkspaceCard";
 
-type OnAiResponse = (resp: AiAskResponse) => void;
-type OnExchange = (userText: string, assistantText: string) => void;
+type OnResolved = (resp: AiAskResponse) => void;
 
 function downloadCsv(report: AiAskReport) {
   const blob = new Blob([report.csv], { type: "text/csv;charset=utf-8" });
@@ -43,22 +42,26 @@ function AiAskCard({
   text,
   assetClass,
   history = [],
-  onAiResponse,
-  onExchange,
+  cachedResp,
+  onResolved,
 }: {
   text: string;
   assetClass: AssetClass;
   history?: AiAskMessage[];
-  onAiResponse?: OnAiResponse;
-  onExchange?: OnExchange;
+  cachedResp?: AiAskResponse;
+  onResolved?: OnResolved;
 }) {
-  const [resp, setResp] = useState<AiAskResponse | null>(null);
+  const [resp, setResp] = useState<AiAskResponse | null>(cachedResp ?? null);
   const [err, setErr] = useState<string | null>(null);
-  const [pending, setPending] = useState(true);
+  const [pending, setPending] = useState(!cachedResp);
   const [wsResult, setWsResult] = useState<ApplyResult | null>(null);
   const queryClient = useQueryClient();
 
   useEffect(() => {
+    // Replaying a cached turn — no fetch, no side effects. Workspace
+    // actions and watchlist invalidations already fired when the turn
+    // originally resolved.
+    if (cachedResp) return;
     let cancelled = false;
     setPending(true);
     setErr(null);
@@ -69,8 +72,7 @@ function AiAskCard({
         if (cancelled) return;
         setResp(r);
         setPending(false);
-        onAiResponse?.(r);
-        if (r.text) onExchange?.(text, r.text);
+        onResolved?.(r);
         // Replay any Workspace directives the bot emitted against the canvas.
         if (r.workspace_actions && r.workspace_actions.length) {
           applyWorkspaceActions(r.workspace_actions).then((res) => {
@@ -98,7 +100,10 @@ function AiAskCard({
     return () => {
       cancelled = true;
     };
-  }, [text, assetClass]);
+    // history intentionally excluded — submitting a turn freezes its
+    // history snapshot; cachedResp toggles only on fresh resolution.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text, assetClass, cachedResp]);
 
   return (
     <AskResultCard title="✦ AI" meta={text || "(empty)"}>
@@ -190,14 +195,14 @@ export function FallbackOrAiCard({
   text,
   assetClass,
   history = [],
-  onAiResponse,
-  onExchange,
+  cachedResp,
+  onResolved,
 }: {
   text: string;
   assetClass: AssetClass;
   history?: AiAskMessage[];
-  onAiResponse?: OnAiResponse;
-  onExchange?: OnExchange;
+  cachedResp?: AiAskResponse;
+  onResolved?: OnResolved;
 }) {
   const settings = useSettings();
   return settings.askAiEnabled ? (
@@ -205,8 +210,8 @@ export function FallbackOrAiCard({
       text={text}
       assetClass={assetClass}
       history={history}
-      onAiResponse={onAiResponse}
-      onExchange={onExchange}
+      cachedResp={cachedResp}
+      onResolved={onResolved}
     />
   ) : (
     <FallbackCard text={text} />

@@ -256,9 +256,29 @@ const WORKSPACE_WIDGETS: Record<string, WidgetId> = {
   trade: "trade",
   tradeticket: "trade",
   profile: "profile",
-  fundamentals: "profile",
+  fundamentals: "fundamentals",
+  financials: "fundamentals",
   earnings: "earnings",
   earningscalendar: "earnings",
+  trending: "trending",
+  trendingstocks: "trending",
+  smartscore: "smartscore",
+  smart: "smartscore",
+  sentiment: "sentiment",
+  analysts: "analysts",
+  analystratings: "analysts",
+  ratings: "analysts",
+  hedgefunds: "hedgefunds",
+  hedgefund: "hedgefunds",
+  hedgies: "hedgefunds",
+  insiders: "insiders",
+  insider: "insiders",
+  relatedtickers: "relatedtickers",
+  related: "relatedtickers",
+  alsobought: "relatedtickers",
+  holders: "holderdemographics",
+  demographics: "holderdemographics",
+  holderdemographics: "holderdemographics",
 };
 
 function watchSilo(syms: string[], ctx: RouteContext): AssetClass {
@@ -335,7 +355,7 @@ const workspace: Detector = (text, ctx) => {
 
   // Add a single widget: "add a chart", "add a news widget", "add chart of AAPL".
   const add = lower.match(
-    /\badd\s+(?:a\s+|an\s+)?(chart|mini\s?chart|news|watchlist|positions|orders|activity|account|trade(?:\s*ticket)?|profile|fundamentals|earnings(?:\s*calendar)?)\b(?:.*?\b(?:of|for)\s+([a-z]{1,5}(?:\.[a-z])?(?:\/[a-z]{3,4})?)\b)?/,
+    /\badd\s+(?:a\s+|an\s+)?(chart|mini\s?chart|news|watchlist|positions|orders|activity|account|trade(?:\s*ticket)?|profile|fundamentals|financials|earnings(?:\s*calendar)?|trending(?:\s*stocks)?|smart\s?score|smart|sentiment|analyst\s?ratings|analysts|ratings|hedge\s?funds?|hedgies|insiders?|related(?:\s*tickers)?|also\s?bought|holder\s?demographics|holders|demographics)\b(?:.*?\b(?:of|for)\s+([a-z]{1,5}(?:\.[a-z])?(?:\/[a-z]{3,4})?)\b)?/,
   );
   if (add) {
     const widget = WORKSPACE_WIDGETS[add[1].replace(/\s+/g, "")];

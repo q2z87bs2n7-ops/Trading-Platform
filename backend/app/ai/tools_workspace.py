@@ -24,6 +24,15 @@ WORKSPACE_WIDGET_KINDS = (
     "news",
     "profile",
     "earnings",
+    "fundamentals",
+    "trending",
+    "smartscore",
+    "sentiment",
+    "analysts",
+    "hedgefunds",
+    "insiders",
+    "relatedtickers",
+    "holderdemographics",
 )
 
 _SILO_PROP = {
@@ -92,7 +101,35 @@ WORKSPACE_TOOLS: list[dict[str, Any]] = [
             "fundamentals (stocks) or tokenomics (crypto) for one symbol — it is "
             "symbol-linked like trade, so give it a channel. 'earnings' shows a "
             "symbol's report history when given a channel, or the market-wide "
-            "earnings calendar when left whole-account (no channel)."
+            "earnings calendar when left whole-account (no channel). "
+            "'fundamentals' shows annual statement metrics for one STOCK "
+            "(revenue & net-income trend, valuation, margins, growth, dividend) "
+            "— stocks-only and symbol-linked, so give it a channel. "
+            "'trending' shows top trending stocks by analyst coverage "
+            "(stocks-only, no symbol input); a row click writes the picked "
+            "ticker into the widget's channel. "
+            "'smartscore' shows the Tipranks composite signal (1-10) plus the "
+            "six input components (hedge-fund flow, blogger sentiment, news "
+            "sentiment, insider activity, investor holding deltas) for one "
+            "STOCK — symbol-linked, so give it a channel. "
+            "'sentiment' shows combined blogger / news / Tipranks-investor "
+            "sentiment for one STOCK — symbol-linked. "
+            "'analysts' shows the per-analyst ratings list (firm, "
+            "recommendation, date) for one STOCK — symbol-linked, drills "
+            "down from the aggregate consensus in Trending. "
+            "'hedgefunds' shows 13F-derived hedge-fund flow for one STOCK: "
+            "rating + confidence + last-quarter net shares + top movers + "
+            "quarterly trend — symbol-linked. "
+            "'insiders' shows Form-4 insider transactions for one STOCK: "
+            "trend, monthly buy/sell bars, recent named-insider rows — "
+            "symbol-linked. "
+            "'relatedtickers' shows tickers also held by investors who hold "
+            "the linked symbol (Tipranks 'investorsAlsoBought' — discovery "
+            "feed). Symbol-linked. "
+            "'holderdemographics' shows per-age-cohort behavioural profile "
+            "of the stock's holder base (eldest / midRange / youngest), "
+            "each with % holders, 7d/30d activity, beta, return, dividend "
+            "yield, P/E. Symbol-linked."
         ),
         "input_schema": {
             "type": "object",

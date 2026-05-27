@@ -18,9 +18,17 @@ import type {
   PortfolioHistory,
   Position,
   Quote,
+  AnalystRatingsResponse,
+  HedgeFundsResponse,
+  HolderDemographicsResponse,
+  InsidersResponse,
+  RelatedTickersResponse,
   ReplaceOrderInput,
+  SentimentResponse,
+  SmartScoreResponse,
   Snapshot,
   SubmitOrderInput,
+  TrendingResearchResponse,
 } from "./types";
 import type { SiloedAction } from "./lib/workspace/actions";
 
@@ -78,13 +86,33 @@ async function sendJSON<T>(
 }
 
 export const getConfig = () =>
-  getJSON<{ symbols: string[]; feed: string; paper: boolean }>("/api/config");
+  getJSON<{
+    symbols: string[];
+    feed: string;
+    paper: boolean;
+    anthropic_model: string;
+    ai_max_tool_iterations: number;
+  }>("/api/config");
+
+export interface AppStatus {
+  version: string;
+  maintenance: boolean;
+  message: string;
+  force_stop: boolean;
+  force_stop_message: string;
+}
+export const getStatus = () => getJSON<AppStatus>("/api/status");
 
 export const getAccount = () => getJSON<Account>("/api/account");
 
 export const getBars = (symbol: string, timeframe = "1Day", limit = 120) =>
   getJSON<{ symbol: string; bars: Bar[] }>(
     `/api/bars?symbol=${encodeURIComponent(symbol)}&timeframe=${timeframe}&limit=${limit}`,
+  );
+
+export const getBarsBatch = (symbols: string[], timeframe = "1Day", limit = 30) =>
+  getJSON<{ bars: Record<string, Bar[]> }>(
+    `/api/bars/batch?symbols=${encodeURIComponent(symbols.join(","))}&timeframe=${timeframe}&limit=${limit}`,
   );
 
 export const getMovers = (top = 10) =>
@@ -160,6 +188,32 @@ export const getSymbolEarnings = (symbol: string) =>
 
 export const getEconomicCalendar = () =>
   getJSON<EconomicResponse>("/api/calendar/economic");
+
+export const getTrendingResearch = () =>
+  getJSON<TrendingResearchResponse>("/api/research/trending");
+
+export const getSmartScore = (symbol: string) =>
+  getJSON<SmartScoreResponse>(`/api/research/smart-score/${symbol}`);
+
+export const getSentiment = (symbol: string) =>
+  getJSON<SentimentResponse>(`/api/research/sentiment/${symbol}`);
+
+export const getAnalystRatings = (symbol: string) =>
+  getJSON<AnalystRatingsResponse>(`/api/research/analysts/${symbol}`);
+
+export const getHedgeFunds = (symbol: string) =>
+  getJSON<HedgeFundsResponse>(`/api/research/hedge-funds/${symbol}`);
+
+export const getInsiders = (symbol: string) =>
+  getJSON<InsidersResponse>(`/api/research/insiders/${symbol}`);
+
+export const getRelatedTickers = (symbol: string) =>
+  getJSON<RelatedTickersResponse>(`/api/research/related-tickers/${symbol}`);
+
+export const getHolderDemographics = (symbol: string) =>
+  getJSON<HolderDemographicsResponse>(
+    `/api/research/holder-demographics/${symbol}`,
+  );
 
 // Full catalogue symbol universe per asset class (DB-backed; tradable +
 // enriched). Fetched once and cached stale-while-revalidate to validate

@@ -60,6 +60,55 @@ def get_bars(symbol: str, timeframe: str, limit: int) -> list[dict]:
     return out
 
 
+def get_bars_batch(
+    symbols: list[str], timeframe: str, limit: int
+) -> dict[str, list[dict]]:
+    """One round-trip for last-N bars across N symbols, keyed by symbol.
+
+    Powers the watchlist sparkline cards (was N parallel ``/api/bars`` calls).
+    Alpaca's multi-symbol bar request scopes ``limit`` to the *total* response,
+    not per-symbol, so we open a wide ``start`` window instead and trim
+    per-symbol to the last ``limit`` bars."""
+    if not symbols:
+        return {}
+    tf = timeframe_from_str(timeframe)
+    # Wide enough for daily-bar sparklines through weekends/holidays. For
+    # intraday timeframes this slightly over-pulls; trimming below caps it.
+    start = datetime.now(timezone.utc) - timedelta(days=max(limit * 2, 30))
+    out: dict[str, list[dict]] = {}
+
+    crypto = [s.upper() for s in symbols if is_crypto(s)]
+    stocks = [s.upper() for s in symbols if not is_crypto(s)]
+
+    def _emit(sym: str, bars_for_sym) -> None:
+        rows = [
+            {
+                "time": int(b.timestamp.timestamp()),
+                "open": b.open,
+                "high": b.high,
+                "low": b.low,
+                "close": b.close,
+                "volume": b.volume,
+            }
+            for b in bars_for_sym
+        ]
+        out[sym] = rows[-limit:]
+
+    if stocks:
+        req = StockBarsRequest(
+            symbol_or_symbols=stocks, timeframe=tf, start=start, feed=_feed()
+        )
+        data = data_client().get_stock_bars(req).data
+        for sym in stocks:
+            _emit(sym, data.get(sym, []))
+    if crypto:
+        req = CryptoBarsRequest(symbol_or_symbols=crypto, timeframe=tf, start=start)
+        data = crypto_data_client().get_crypto_bars(req).data
+        for sym in crypto:
+            _emit(sym, data.get(sym, []))
+    return out
+
+
 def get_daily_closes(symbols: list[str], start: datetime) -> dict[str, dict[str, float]]:
     """Daily close prices per symbol from `start` to now, keyed by ISO date.
 

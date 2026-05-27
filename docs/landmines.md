@@ -44,10 +44,12 @@ area.
   proxy a streaming SSE response through `event.respondWith`, and Chrome drops
   the connection after ~12 s. Symptom: `ERR_CONNECTION_CLOSED 200 OK` with
   `(ServiceWorker)` in the Network tab initiator column.
-- **`POLL_MS` is intentionally 15 000 ms (not 2 s).** At 2 s the fallback
-  generates ~43 k Vercel edge requests/day and burns the free-tier 1 M
-  allowance in ~3 weeks. 15 s is still responsive for a degraded path.
-  Don't reduce it without considering the edge-request budget.
+- **`POLL_MS` is currently 60 000 ms (dev setting).** The original 2 s
+  fallback generated ~43 k Vercel edge requests/day and would burn the
+  free-tier 1 M allowance in ~3 weeks; it was raised to 15 s, then to 60 s
+  during dev to keep edge usage minimal. The degraded path is correspondingly
+  less fresh — **lower this toward more constant polling before any live use**,
+  weighing freshness against the edge-request budget.
 - **Render relay keepalive.** `quoteStream.ts` pings `STREAM_BASE/api/health`
   every 9 minutes while any symbol is subscribed. This prevents Render
   spindown, which is what triggers stream failures and the expensive
@@ -115,8 +117,10 @@ The relay image is built from `backend/Dockerfile`. Two things bit us:
 ## Asset catalogue / Postgres (Supabase)
 
 The `assets` table (`backend/app/db.py`, enriched via `coingecko.py` + `fmp.py`,
-seeded through the `/api/_dev/seed-assets` and `/api/_dev/enrich-stocks` dev
-tools). Each item cost a round of debugging:
+onboarded via `/api/_dev/seed-assets` / `refresh-alpaca` and refreshed via the
+per-widget `/api/_dev/refresh-profile-stocks` / `-crypto` / `refresh-fundamentals`
+routines; `new-symbols` is the read-only new-listing check). Each item cost a
+round of debugging:
 
 - **Postgres :5432/:6543 is unreachable except from prod.** The sandbox blocks
   raw TCP (only :443 is open even on a loosened egress policy) and the owner's
@@ -126,6 +130,10 @@ tools). Each item cost a round of debugging:
   editor or by hitting the deployed seeders.
 - **The table is created by `002_assets.sql`, not auto-created.** Run it once in
   the Supabase SQL editor (the old `company_profiles` auto-create was removed).
+  The **stock-fundamentals columns** (`pe_ratio` … `financials_annual`,
+  `fundamentals_enriched_at`) were added later as a direct `ALTER TABLE` in the
+  SQL editor and were **not** committed as a `003_*.sql` — re-creating the DB
+  from `002_assets.sql` alone misses them (see `docs/database.md` → Schema).
 - **Alpaca SDK enums stringify to the member NAME, not the value.**
   `str(AssetClass.CRYPTO)` → `"AssetClass.CRYPTO"`, not `"crypto"` — same for
   `AssetExchange`/`AssetStatus`, and it holds even on a pydantic model field.
@@ -161,10 +169,24 @@ tools). Each item cost a round of debugging:
 - **The base upsert is slow (~14 min for ~13.8k rows)** — row-by-row over the
   pooler. `seed-assets?base=false` skips it to (re)enrich crypto only (~45s);
   both seeders are resumable (skip already-enriched).
-- **Stock enrich is sequential, not rate-limit-bound.** Each symbol is one FMP
+- **Enrichment is sequential, not rate-limit-bound.** Each symbol is one+ FMP
   fetch + pacing + a fresh DB connection, so real throughput is ~100/min even on
-  a paid 300/min tier — the whole universe is ~1.5–2.5 hr. Run `enrich-stocks
-  ?limit=N` in chunks (resumable); don't expect the rate ceiling.
+  a paid 300/min tier — a full stock pass is ~1.5–2.5 hr. **This is why the
+  refresh routines are background daemon threads** (`_start_background` in
+  `seed.py`): a synchronous request that long gets a **502** from Render's gateway
+  (returns an HTML page, not JSON) mid-run. Fundamentals is **3 FMP calls/symbol**,
+  so it's the slowest. Per-symbol commits persist, so everything is resumable;
+  fire the routine and disconnect rather than holding a long request open.
+- **FMP fundamentals are annual-only on the Starter tier** (quarterly / "full
+  fundamentals" needs Premium). `map_fundamentals` therefore stores ≤5yr annual
+  figures, **derives** margins + YoY growth from the income statement (well-known
+  fields), and pulls valuation/quality ratios (P/E, ROE, EV/EBITDA, dividend
+  yield…) from the `ratios` endpoint with **multi-key alias fallbacks** — the
+  stable field names vary by version and couldn't be verified from the sandbox
+  (docs 403; FMP only reachable from prod). After the first run, spot-check a
+  known row (e.g. `SELECT pe_ratio, roe, dividend_yield FROM assets WHERE
+  symbol='AAPL'`); a uniformly-NULL ratio column means an alias is off — a
+  one-line fix in `fmp.py:map_fundamentals`.
 - **Crypto's "exchange" is the pseudo-value `CRYPTO`.** `_asset_dict`/`get_asset`
   return `exchange="CRYPTO"` for crypto, which duplicates the asset-class label
   in UI (we hide the exchange span when it's `CRYPTO` — see `PriceChart.tsx`).
@@ -277,21 +299,27 @@ places TV interface.
   resolve and the chart stays blank. Fix: poll
   `typeof TradingView.widget === "function"` at 100ms intervals before
   constructing the widget (see `TVPlatform.tsx`).
-- **TV's native top header + trading UI are hidden** via
-  `DISABLED_FEATURES` in `TVPlatform.tsx`: every `header_*` item,
-  `trading_account_manager`, `open_account_manager`, `order_panel`,
-  `show_order_panel_on_start`, `trading_notifications`,
-  `show_trading_notifications_history`, `buy_sell_buttons`,
-  `broker_button`, plus `show_right_widgets_panel_by_default` and
-  `create_volume_indicator_by_default`. The broker is still wired
-  (`broker_factory`) because that's how TV's price-line overlays work
-  — trade initiation is ours via `TradeBar` → `OrderSheet`. Don't
-  re-enable any of these features; you'll get doubled UI on top of our
-  cards.
+- **Chart mode uses TV's native chrome; only trade-initiation UI is
+  hidden.** `TVPlatform.tsx` keeps TV's native header **and** native
+  Account Manager (the custom `ChartTopBar` / `IndicatorPillsRow` /
+  `ChartBlotter` bars were removed). `DISABLED_FEATURES` now suppresses
+  only the trade-initiation pieces — `order_panel`,
+  `show_order_panel_on_start`, `buy_sell_buttons`, `broker_button`,
+  `trading_notifications`, `show_trading_notifications_history` — plus
+  `header_saveload` (no charts-storage backend),
+  `use_localstorage_for_settings`, `show_right_widgets_panel_by_default`,
+  `create_volume_indicator_by_default`, and `open_account_manager` (the
+  Account Manager stays enabled via `trading_account_manager` but starts
+  **collapsed**). The broker is still wired (`broker_factory`) so TV's
+  price-line overlays draw and the Account Manager can close positions;
+  trade entry stays ours via `TradeBar` → `OrderSheet` so the crypto
+  constraints + confirm flow hold. Don't re-enable `order_panel` /
+  `buy_sell_buttons` / `broker_button` — that re-introduces TV order
+  entry that bypasses those guards.
 - **In-TV symbol changes propagate back to App.** `TVPlatform`
   subscribes to `widget.activeChart().onSymbolChanged()`, normalises
-  (strips `EXCHANGE:` prefix), and calls `onSymbolChange(next)` so
-  `ChartTopBar`, `TradeBar`, and `ChatPanel` follow. The reverse-
+  (strips `EXCHANGE:` prefix), and calls `onSymbolChange(next)` so the
+  `TradeBar` and `ChatPanel` follow. The reverse-
   direction prop → `setSymbol` effect has an equality guard so an
   in-TV change round-tripping through App doesn't refire `setSymbol`
   and rebuild drawings pointlessly.
@@ -314,11 +342,29 @@ places TV interface.
   module store** (`useSyncExternalStore`): every consumer must observe
   the same value, or non-CSS consumers like the chart silently miss
   toggles. Don't revert it to per-instance `useState`.
-- **`IndicatorPillsRow` polls `getAllStudies()`** every 1.2s. This
-  build's `IChartWidgetApi` doesn't expose `onStudyAdded` /
-  `onStudyRemoved`; polling is the only reliable way to keep the
-  pills in sync (including studies added via right-click). Cheap;
-  bounded by Chart-mode mounts.
+- **TV charts must re-assert the theme in `onChartReady`.** Both
+  `TVPlatform` and the Workspace `TVChartWidget` call their `applyTheme`
+  (i.e. `changeTheme` + pane-background override) once the chart is
+  ready, not only on toggle. The `[theme]` effect bails while the widget
+  is still loading, and `TVChartWidget` keeps
+  `use_localstorage_for_settings` on (it wants to persist chart
+  settings), so TV can otherwise restore a *previous session's* palette
+  that doesn't match the app theme — the colours then stay wrong until a
+  manual toggle. Don't drop the `onChartReady` re-assert.
+- **TV's `autosize` gets stuck across Dockview `display:none` → visible.**
+  Dockview hides inactive panels with `display: none`, which halts iframe
+  layout. When the panel is shown again at the *same* dimensions, TV's
+  internal ResizeObserver never fires (no `clientWidth`/`clientHeight`
+  delta) and the iframe stays on its pre-hide measurements — often a
+  collapsed 0×0 if it was hidden at startup, or yesterday's panel size
+  if it was resized while hidden. `TVChartWidget` takes the Dockview
+  panel API as a prop and subscribes to `onDidVisibilityChange` +
+  `onDidDimensionsChange`; on either signal it briefly flips the
+  container `height` to `calc(100% - 1px)` then back, forcing a
+  measurable size delta so TV's autosize re-measures. Don't remove the
+  `panelApi` prop or the nudge effect; the underlying iframe doesn't
+  expose a public `resize()` and remounting the widget would lose
+  drawings/zoom/active symbol.
 
 ## Mobile / responsive layer (≤ 640px)
 
@@ -330,12 +376,12 @@ desktop / iPad (> 640px) render byte-identical. A few things bite:
   the `@media` rules in `index.css`. Change one, change both — otherwise
   JS-driven branches desync from the style rules.
 - **`--mob-hero-value` lives in the `@media (max-width: 640px)` block, NOT
-  `:root`.** `discover/BalanceCard.tsx` reads it as
-  `var(--mob-hero-value, clamp(34px, 5.4vw, 48px))` — the desktop clamp is
-  the *fallback*, which only fires when the var is undefined. Define the
-  token in `:root` and desktop silently inherits the smaller mobile hero
-  size. The other `--mob-*` / `--safe-*` tokens are fine in `:root` because
-  they're only ever read inside mobile-gated code.
+  `:root`.** `PortfolioHero.tsx` and `discover/HeroCardMobile.tsx` read it
+  as `var(--mob-hero-value, clamp(34px, 5.4vw, 48px))` — the desktop clamp
+  is the *fallback*, which only fires when the var is undefined. Define
+  the token in `:root` and desktop silently inherits the smaller mobile
+  hero size. The other `--mob-*` / `--safe-*` tokens are fine in `:root`
+  because they're only ever read inside mobile-gated code.
 - **Mobile overlays render `position: fixed`.** The nav drawer, the ChartBot
   slide-up + its launcher, the OrderSheet / EquitySheet / watchlist-add
   sheets, and the full-screen AskBar are all fixed. That's why `App.tsx`'s

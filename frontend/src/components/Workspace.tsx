@@ -49,12 +49,17 @@ const STORAGE_KEY_V1 = (ac: AssetClass) => `workspace_layout_${ac}_v1`;
 const STORAGE_KEY_V2 = (ac: AssetClass) => `workspace_layouts_${ac}_v2`;
 
 // v2 persistence shape: an active layout (currently displayed; may equal a
-// preset's output plus any subsequent dragging) plus a slot for future named
-// user layouts ("Save current as…"). The v2 shape is forward-compatible so
-// the named-layouts UI can ship later without another migration.
+// preset's output plus any subsequent dragging) plus a map of named user
+// layouts ("Save current as…"). Each saved entry snapshots the Dockview JSON
+// *and* the silo's colour-channel symbols, so restoring brings back both the
+// arrangement and the tickers on each channel.
+interface NamedLayout {
+  layout: unknown;
+  channels?: Record<string, string>;
+}
 interface SavedLayouts {
   active: { name: string; layout: unknown };
-  saved: Record<string, unknown>;
+  saved: Record<string, NamedLayout>;
 }
 
 function loadLayouts(ac: AssetClass): SavedLayouts | null {
@@ -91,9 +96,71 @@ function saveActiveLayout(ac: AssetClass, layout: unknown, name?: string) {
   }
 }
 
+// Reset only the *active* layout, preserving named saved layouts. Applying a
+// preset / custom layout calls this before writing the new active, so it must
+// not clobber the user's `saved` map.
 function clearActiveLayout(ac: AssetClass) {
   try {
-    localStorage.removeItem(STORAGE_KEY_V2(ac));
+    const cur = loadLayouts(ac);
+    if (!cur) {
+      localStorage.removeItem(STORAGE_KEY_V2(ac));
+      return;
+    }
+    cur.active = { name: "default", layout: null };
+    localStorage.setItem(STORAGE_KEY_V2(ac), JSON.stringify(cur));
+  } catch {
+    /* non-fatal */
+  }
+}
+
+// ---- named saved layouts ("Save current as…") -----------------------------
+
+function listSavedLayouts(ac: AssetClass): string[] {
+  const cur = loadLayouts(ac);
+  return cur ? Object.keys(cur.saved).sort((a, b) => a.localeCompare(b)) : [];
+}
+
+function getNamedLayout(ac: AssetClass, name: string): NamedLayout | null {
+  return loadLayouts(ac)?.saved[name] ?? null;
+}
+
+function saveNamedLayout(
+  ac: AssetClass,
+  name: string,
+  layout: unknown,
+  channels: Record<string, string>,
+) {
+  try {
+    const cur = loadLayouts(ac) ?? {
+      active: { name: "default", layout: null },
+      saved: {},
+    };
+    cur.saved[name] = { layout, channels };
+    localStorage.setItem(STORAGE_KEY_V2(ac), JSON.stringify(cur));
+  } catch {
+    /* quota / serialization — non-fatal */
+  }
+}
+
+function deleteNamedLayout(ac: AssetClass, name: string) {
+  try {
+    const cur = loadLayouts(ac);
+    if (!cur || !(name in cur.saved)) return;
+    delete cur.saved[name];
+    localStorage.setItem(STORAGE_KEY_V2(ac), JSON.stringify(cur));
+  } catch {
+    /* non-fatal */
+  }
+}
+
+function renameNamedLayout(ac: AssetClass, oldName: string, newName: string) {
+  const next = newName.trim();
+  try {
+    const cur = loadLayouts(ac);
+    if (!cur || !(oldName in cur.saved) || !next || next === oldName) return;
+    cur.saved[next] = cur.saved[oldName];
+    delete cur.saved[oldName];
+    localStorage.setItem(STORAGE_KEY_V2(ac), JSON.stringify(cur));
   } catch {
     /* non-fatal */
   }
@@ -137,12 +204,14 @@ function ToolbarButton({
   active,
   ariaPressed,
   variant = "default",
+  title,
 }: {
   onClick: () => void;
   children: React.ReactNode;
   active?: boolean;
   ariaPressed?: boolean;
   variant?: ToolbarVariant;
+  title?: string;
 }) {
   const ghost = variant === "ghost";
   return (
@@ -150,6 +219,7 @@ function ToolbarButton({
       type="button"
       onClick={onClick}
       aria-pressed={ariaPressed}
+      title={title}
       className="text-[12px] px-2.5 py-1 rounded-card cursor-pointer transition-colors"
       style={{
         background: ghost ? "transparent" : "var(--panel-2)",
@@ -169,12 +239,40 @@ function ToolbarButton({
   );
 }
 
-// Primary CTA — accent-filled "+ Add widget" button (replaces today's muted
-// "+ Add ▾" pill). Used by the toolbar.
-function AddWidgetButton({ onClick, buttonRef }: {
+// Primary "+ Add widget" pill (also exposed as a ghost variant for the
+// reworked toolbar's RIGHT zone — channels now own the visual primacy and the
+// add affordance steps back).
+function AddWidgetButton({ onClick, buttonRef, ghost = false }: {
   onClick: () => void;
   buttonRef?: React.Ref<HTMLButtonElement>;
+  ghost?: boolean;
 }) {
+  if (ghost) {
+    return (
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={onClick}
+        className="text-[12px] cursor-pointer rounded-card transition-colors"
+        style={{
+          background: "transparent",
+          color: "var(--text-2)",
+          fontWeight: 500,
+          border: "1px solid transparent",
+          padding: "5px 10px",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = "var(--panel-2)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = "transparent";
+        }}
+      >
+        <span style={{ marginRight: 4, fontSize: 13, fontWeight: 600 }}>+</span>
+        Widget
+      </button>
+    );
+  }
   return (
     <button
       ref={buttonRef}
@@ -233,9 +331,11 @@ function useAnchoredPopover(
 function AddWidgetMenu({
   onAdd,
   openRef,
+  ghost = false,
 }: {
   onAdd: (id: string) => void;
   openRef?: React.MutableRefObject<(() => void) | null>;
+  ghost?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -310,7 +410,7 @@ function AddWidgetMenu({
 
   return (
     <>
-      <AddWidgetButton onClick={() => setOpen((o) => !o)} buttonRef={btnRef} />
+      <AddWidgetButton onClick={() => setOpen((o) => !o)} buttonRef={btnRef} ghost={ghost} />
       {open &&
         createPortal(
           <div
@@ -523,6 +623,9 @@ function ChannelChip({
       const t = e.target as Node;
       if (ref.current?.contains(t)) return;
       if (popRef.current?.contains(t)) return;
+      // AssetSearch portals its dropdown outside popRef — don't dismiss when
+      // the user clicks a result inside that portal.
+      if ((t as Element).closest?.("[data-asset-search-dropdown]")) return;
       setOpen(false);
     }
     document.addEventListener("mousedown", onDoc);
@@ -625,19 +728,196 @@ function ChannelChip({
   );
 }
 
+// One row in the Layouts menu's "My layouts" list: name + Apply / Rename /
+// Delete, with inline rename. Hover-highlighted; the rename input swallows
+// Enter/Escape so they don't bubble to the popover's preset-apply handler.
+function SavedLayoutRow({
+  name,
+  onApply,
+  onDelete,
+  onRename,
+}: {
+  name: string;
+  onApply: () => void;
+  onDelete: () => void;
+  onRename: (newName: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(name);
+
+  function commit() {
+    const n = draft.trim();
+    if (n && n !== name) onRename(n);
+    setEditing(false);
+  }
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "5px 6px",
+        borderRadius: 6,
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = "var(--panel-2)")}
+      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+    >
+      <svg
+        width={13}
+        height={13}
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="var(--mute)"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+        style={{ flexShrink: 0 }}
+      >
+        <rect x="2.5" y="2.5" width="11" height="11" rx="1.5" />
+        <path d="M8 2.5 V13.5 M2.5 8 H13.5" />
+      </svg>
+      {editing ? (
+        <input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === "Enter") commit();
+            if (e.key === "Escape") {
+              setDraft(name);
+              setEditing(false);
+            }
+          }}
+          onBlur={commit}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            fontSize: 12,
+            padding: "2px 6px",
+            background: "var(--panel-2)",
+            border: "1px solid var(--border)",
+            borderRadius: 4,
+            color: "var(--text)",
+            outline: "none",
+            fontFamily: "var(--font-mono)",
+          }}
+        />
+      ) : (
+        <span
+          style={{
+            flex: 1,
+            minWidth: 0,
+            fontSize: 12.5,
+            color: "var(--text)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            fontFamily: "var(--font-mono)",
+          }}
+        >
+          {name}
+        </span>
+      )}
+      {!editing && (
+        <>
+          <button
+            type="button"
+            onClick={onApply}
+            className="text-[11px] cursor-pointer rounded-card"
+            style={{
+              background: "var(--panel-2)",
+              border: "1px solid var(--border)",
+              color: "var(--text-2)",
+              padding: "2px 8px",
+              flexShrink: 0,
+            }}
+          >
+            Apply
+          </button>
+          <button
+            type="button"
+            title="Rename"
+            onClick={() => {
+              setDraft(name);
+              setEditing(true);
+            }}
+            className="cursor-pointer rounded-card"
+            style={{
+              background: "transparent",
+              border: "1px solid transparent",
+              color: "var(--mute)",
+              padding: "2px 6px",
+              fontSize: 12,
+              flexShrink: 0,
+            }}
+          >
+            ✎
+          </button>
+          <button
+            type="button"
+            title="Delete"
+            onClick={onDelete}
+            className="cursor-pointer rounded-card"
+            style={{
+              background: "transparent",
+              border: "1px solid transparent",
+              color: "var(--mute)",
+              padding: "2px 6px",
+              fontSize: 12,
+              flexShrink: 0,
+            }}
+          >
+            ✕
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 // Toolbar Layouts menu — opens a 480px popover showing preset cards (Trader /
 // Researcher / Watcher / Focus) with sketched thumbnails, descriptions, and
-// badges. Selecting a card highlights it; Apply replaces the canvas. Applying
-// is destructive, hence the explicit confirm step.
+// badges, plus a "My layouts" section for the user's named saved layouts
+// (Save current as… / Apply / Rename / Delete). Selecting a preset card
+// highlights it; Apply replaces the canvas. Applying is destructive, hence the
+// explicit confirm step.
+// Maps a saveActiveLayout name (preset id, "custom", user-saved name) to the
+// label shown on the toolbar Layouts button. Preset ids → preset titles;
+// "custom" / "default" → "Custom"; anything else (a user's saved name) is
+// surfaced verbatim.
+function labelForActiveName(name: string): string {
+  const preset = PRESETS.find((p) => p.id === name);
+  if (preset) return preset.title;
+  if (name === "custom" || name === "default") return "Custom";
+  return name;
+}
+
 function LayoutsMenu({
   onApply,
   openRef,
+  savedNames,
+  activeLabel,
+  onSaveCurrent,
+  onApplyNamed,
+  onDeleteNamed,
+  onRenameNamed,
 }: {
   onApply: (preset: LayoutPreset) => void;
   openRef?: React.MutableRefObject<(() => void) | null>;
+  savedNames: string[];
+  activeLabel: string;
+  onSaveCurrent: (name: string) => void;
+  onApplyNamed: (name: string) => void;
+  onDeleteNamed: (name: string) => void;
+  onRenameNamed: (oldName: string, newName: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string>(PRESETS[0].id);
+  const [saving, setSaving] = useState(false);
+  const [saveName, setSaveName] = useState("");
   const btnRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
   const pos = useAnchoredPopover(btnRef, 480, open);
@@ -655,6 +935,13 @@ function LayoutsMenu({
   }, [open]);
 
   useEffect(() => {
+    if (!open) {
+      setSaving(false);
+      setSaveName("");
+    }
+  }, [open]);
+
+  useEffect(() => {
     if (!openRef) return;
     openRef.current = () => setOpen(true);
     return () => {
@@ -668,27 +955,40 @@ function LayoutsMenu({
     setOpen(false);
   }
 
+  function commitSave() {
+    const n = saveName.trim();
+    if (!n) return;
+    onSaveCurrent(n);
+    setSaving(false);
+    setSaveName("");
+  }
+
   return (
     <>
       <button
         ref={btnRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="text-[12px] px-2.5 py-1 rounded-card cursor-pointer transition-colors"
+        className="text-[12px] px-2.5 py-1 rounded-card cursor-pointer transition-colors inline-flex items-center gap-1.5"
         style={{
-          background: "transparent",
-          border: "1px solid transparent",
-          color: "var(--text-2)",
-          fontWeight: 500,
+          background: "var(--panel)",
+          border: "1px solid var(--border)",
+          color: "var(--text)",
+          fontWeight: 600,
+          height: 32,
+          boxSizing: "border-box",
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = "var(--panel-2)";
+          e.currentTarget.style.borderColor = "var(--border-2)";
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.background = "transparent";
+          e.currentTarget.style.borderColor = "var(--border)";
         }}
+        title="Switch layout"
       >
-        Layouts ▾
+        <span aria-hidden style={{ color: "var(--mute)" }}>▦</span>
+        <span>{activeLabel}</span>
+        <span aria-hidden style={{ color: "var(--mute)", fontSize: 10 }}>▾</span>
       </button>
       {open &&
         createPortal(
@@ -709,27 +1009,64 @@ function LayoutsMenu({
               borderRadius: 12,
               boxShadow: "var(--shadow-lg)",
               padding: 16,
+              maxHeight: `calc(100vh - ${pos.top + 16}px)`,
+              overflowY: "auto",
             }}
           >
-            <div style={{ marginBottom: 12 }}>
-              <div
+            <div
+              style={{
+                marginBottom: 12,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: "var(--text)",
+                  }}
+                >
+                  Choose a layout
+                </div>
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: "var(--mute)",
+                    marginTop: 2,
+                  }}
+                >
+                  Applying replaces the current arrangement.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  window.dispatchEvent(
+                    new KeyboardEvent("keydown", {
+                      key: "k",
+                      metaKey: true,
+                      ctrlKey: true,
+                    }),
+                  );
+                }}
+                title="Ask AI to build a custom layout"
+                className="text-[12px] cursor-pointer rounded-card whitespace-nowrap"
                 style={{
-                  fontSize: 13,
+                  background: "transparent",
+                  color: "var(--cb-accent)",
+                  border: "1px solid var(--cb-accent)",
                   fontWeight: 600,
-                  color: "var(--text)",
+                  padding: "5px 10px",
+                  flexShrink: 0,
                 }}
               >
-                Choose a layout
-              </div>
-              <div
-                style={{
-                  fontSize: 11,
-                  color: "var(--mute)",
-                  marginTop: 2,
-                }}
-              >
-                Applying replaces the current arrangement.
-              </div>
+                ✦ Ask AI to build one
+              </button>
             </div>
 
             <div
@@ -816,6 +1153,141 @@ function LayoutsMenu({
 
             <div
               style={{
+                marginTop: 16,
+                borderTop: "1px solid var(--border)",
+                paddingTop: 14,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 8,
+                }}
+              >
+                <div
+                  style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}
+                >
+                  My layouts
+                </div>
+                {!saving && (
+                  <button
+                    type="button"
+                    onClick={() => setSaving(true)}
+                    className="text-[11px] cursor-pointer rounded-card"
+                    style={{
+                      background: "var(--panel-2)",
+                      border: "1px solid var(--border)",
+                      color: "var(--text)",
+                      fontWeight: 600,
+                      padding: "3px 9px",
+                    }}
+                  >
+                    + Save current as…
+                  </button>
+                )}
+              </div>
+
+              {saving && (
+                <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+                  <input
+                    autoFocus
+                    value={saveName}
+                    onChange={(e) => setSaveName(e.target.value)}
+                    onKeyDown={(e) => {
+                      e.stopPropagation();
+                      if (e.key === "Enter") commitSave();
+                      if (e.key === "Escape") {
+                        setSaving(false);
+                        setSaveName("");
+                      }
+                    }}
+                    placeholder="Layout name"
+                    style={{
+                      flex: 1,
+                      fontSize: 12,
+                      padding: "5px 8px",
+                      background: "var(--panel-2)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 6,
+                      color: "var(--text)",
+                      outline: "none",
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={commitSave}
+                    className="text-[12px] cursor-pointer rounded-card"
+                    style={{
+                      background: "var(--accent)",
+                      color: "#fff",
+                      fontWeight: 600,
+                      border: "1px solid transparent",
+                      padding: "5px 12px",
+                    }}
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSaving(false);
+                      setSaveName("");
+                    }}
+                    className="text-[12px] cursor-pointer rounded-card"
+                    style={{
+                      background: "transparent",
+                      color: "var(--text-2)",
+                      border: "1px solid var(--border)",
+                      padding: "5px 10px",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+
+              {savedNames.length === 0
+                ? !saving && (
+                    <div
+                      style={{
+                        fontSize: 11.5,
+                        color: "var(--mute)",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      No saved layouts yet. Arrange the canvas, then “Save
+                      current as…”.
+                    </div>
+                  )
+                : (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      maxHeight: 180,
+                      overflowY: "auto",
+                    }}
+                  >
+                    {savedNames.map((n) => (
+                      <SavedLayoutRow
+                        key={n}
+                        name={n}
+                        onApply={() => {
+                          onApplyNamed(n);
+                          setOpen(false);
+                        }}
+                        onDelete={() => onDeleteNamed(n)}
+                        onRename={(nn) => onRenameNamed(n, nn)}
+                      />
+                    ))}
+                  </div>
+                )}
+            </div>
+
+            <div
+              style={{
                 display: "flex",
                 justifyContent: "flex-end",
                 gap: 8,
@@ -866,6 +1338,14 @@ function EmptyState({
   onAdd: () => void;
   onBrowseLayouts: () => void;
 }) {
+  // Surfaces the Ask-anything bar (which already builds custom layouts via
+  // buildCustomLayout). Synthesised Cmd+K reaches App's global hotkey
+  // handler — no extra prop drilling.
+  function openAsk() {
+    window.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "k", metaKey: true, ctrlKey: true }),
+    );
+  }
   return (
     <div
       style={{
@@ -908,7 +1388,7 @@ function EmptyState({
       >
         Add a widget to get started, or pick a layout.
       </div>
-      <div style={{ display: "flex", gap: 8 }}>
+      <div style={{ display: "flex", gap: 10 }}>
         <button
           type="button"
           onClick={onAdd}
@@ -934,8 +1414,33 @@ function EmptyState({
             padding: "6px 12px",
           }}
         >
-          Browse layouts
+          ▦ Browse layouts
         </button>
+        <button
+          type="button"
+          onClick={openAsk}
+          className="text-[12px] cursor-pointer rounded-card"
+          style={{
+            background: "transparent",
+            color: "var(--cb-accent)",
+            border: "1px solid var(--cb-accent)",
+            fontWeight: 600,
+            padding: "6px 12px",
+          }}
+        >
+          ✦ Ask AI to build one
+        </button>
+      </div>
+      <div
+        style={{
+          fontSize: 11.5,
+          fontStyle: "italic",
+          color: "var(--mute)",
+          maxWidth: 380,
+          textAlign: "center",
+        }}
+      >
+        e.g. “watch the 7 largest semis with charts, fundamentals and news”
       </div>
     </div>
   );
@@ -960,26 +1465,34 @@ function ChannelsStrip({
         display: "flex",
         alignItems: "center",
         gap: 6,
-        padding: "4px 8px",
-        background: "var(--panel)",
+        padding: "5px 14px",
+        background: "var(--bg)",
         border: "1px solid var(--border)",
-        borderRadius: "var(--r)",
+        borderRadius: 10,
         height: 32,
         boxSizing: "border-box",
       }}
     >
       <span
         style={{
-          fontSize: 10,
+          fontSize: 9.5,
           color: "var(--mute)",
           textTransform: "uppercase",
           letterSpacing: "0.06em",
           fontWeight: 600,
-          paddingRight: 4,
         }}
       >
         Channels
       </span>
+      <span
+        aria-hidden
+        style={{
+          width: 1,
+          alignSelf: "stretch",
+          background: "var(--hairline)",
+          marginInline: 4,
+        }}
+      />
       {SYMBOL_CHANNELS.map((ch) => (
         <ChannelChip
           key={ch}
@@ -1014,6 +1527,23 @@ export default function Workspace({
   // selected symbol (so Chart mode etc. stay in sync); the colour channels are
   // seeded from CHANNEL_DEFAULTS and persist user picks across reloads.
   const [channelSymbols, setChannelSymbols] = useState<SiloChannels>(loadChannels);
+
+  // Names of the user's saved layouts for the current silo, surfaced in the
+  // Layouts menu. Refreshed on silo switch and after any save/delete/rename.
+  const [savedNames, setSavedNames] = useState<string[]>(() =>
+    listSavedLayouts(assetClass),
+  );
+  // The currently-applied preset / saved-layout name, surfaced on the toolbar
+  // Layouts button (so it reads as a stateful selector — "▦ Trader ▾" — not a
+  // generic dropdown). Mirrors what saveActiveLayout writes; "custom" when the
+  // user has dragged things around.
+  const [activeName, setActiveName] = useState<string>(
+    () => loadLayouts(assetClass)?.active.name ?? "default",
+  );
+  useEffect(() => {
+    setSavedNames(listSavedLayouts(assetClass));
+    setActiveName(loadLayouts(assetClass)?.active.name ?? "default");
+  }, [assetClass]);
 
   // panelId → current channel. Each widget's useChannel reports up here so the
   // Channels strip can show a live "widgets bound to each channel" count;
@@ -1208,6 +1738,7 @@ export default function Workspace({
         buildLayout(api, spec);
         saveActiveLayout(assetClass, api.toJSON(), "custom");
         setPanelCount(api.panels.length);
+        setActiveName("custom");
       },
       panelIds: () => apiRef.current?.panels.map((p) => p.id) ?? [],
     };
@@ -1253,6 +1784,61 @@ export default function Workspace({
     applyPreset(api, preset);
     saveActiveLayout(assetClass, api.toJSON(), preset.id);
     setPanelCount(api.panels.length);
+    setActiveName(preset.id);
+  }
+
+  function saveCurrentLayout(name: string) {
+    const api = apiRef.current;
+    if (!api) return;
+    saveNamedLayout(
+      assetClass,
+      name,
+      api.toJSON(),
+      channelSymbols[assetClass] ?? {},
+    );
+    setSavedNames(listSavedLayouts(assetClass));
+  }
+
+  function applyNamedLayout(name: string) {
+    const api = apiRef.current;
+    if (!api) return;
+    const entry = getNamedLayout(assetClass, name);
+    if (!entry?.layout) return;
+    // Restore the snapshotted channel symbols first so widgets re-read the
+    // saved tickers as the panels mount from fromJSON.
+    const ch = entry.channels;
+    if (ch && Object.keys(ch).length) {
+      setChannelSymbols((p) => {
+        const next: SiloChannels = {
+          ...p,
+          [assetClass]: { ...p[assetClass], ...ch },
+        };
+        try {
+          localStorage.setItem(CHANNELS_KEY, JSON.stringify(next));
+        } catch {
+          /* quota — non-fatal */
+        }
+        return next;
+      });
+    }
+    try {
+      api.fromJSON(entry.layout as Parameters<DockviewApi["fromJSON"]>[0]);
+    } catch {
+      return;
+    }
+    saveActiveLayout(assetClass, api.toJSON(), name);
+    setPanelCount(api.panels.length);
+    setActiveName(name);
+  }
+
+  function deleteSavedLayout(name: string) {
+    deleteNamedLayout(assetClass, name);
+    setSavedNames(listSavedLayouts(assetClass));
+  }
+
+  function renameSavedLayout(oldName: string, newName: string) {
+    renameNamedLayout(assetClass, oldName, newName);
+    setSavedNames(listSavedLayouts(assetClass));
   }
 
   const openAddRef = useRef<(() => void) | null>(null);
@@ -1269,29 +1855,50 @@ export default function Workspace({
         }}
       >
         <div
-          className="flex items-center gap-2 flex-wrap shrink-0"
-          style={{ marginBottom: 8 }}
+          className="grid items-center shrink-0"
+          style={{
+            marginBottom: 8,
+            columnGap: 12,
+            gridTemplateColumns: "auto 1fr auto",
+          }}
         >
-          <AddWidgetMenu onAdd={addWidget} openRef={openAddRef} />
-          <ChannelsStrip
-            assetClass={assetClass}
-            getSymbol={workspaceCtx.getSymbol}
-            setSymbol={workspaceCtx.setSymbol}
-            counts={channelCounts}
+          {/* LEFT — Named-layout selector (stateful, shows the active preset). */}
+          <LayoutsMenu
+            onApply={applyLayoutPreset}
+            openRef={openLayoutsRef}
+            savedNames={savedNames}
+            activeLabel={labelForActiveName(activeName)}
+            onSaveCurrent={saveCurrentLayout}
+            onApplyNamed={applyNamedLayout}
+            onDeleteNamed={deleteSavedLayout}
+            onRenameNamed={renameSavedLayout}
           />
-          <div className="flex-1" />
-          <LayoutsMenu onApply={applyLayoutPreset} openRef={openLayoutsRef} />
-          <ToolbarButton variant="ghost" onClick={onToggleFocus}>
-            {focus ? "Exit focus" : "Focus"}
-          </ToolbarButton>
-          <ToolbarButton
-            variant="ghost"
-            onClick={toggleTabs}
-            active={!tabsHidden}
-            ariaPressed={!tabsHidden}
-          >
-            Tab bars
-          </ToolbarButton>
+
+          {/* CENTRE — Channels strip (the centrepiece). */}
+          <div className="justify-self-center">
+            <ChannelsStrip
+              assetClass={assetClass}
+              getSymbol={workspaceCtx.getSymbol}
+              setSymbol={workspaceCtx.setSymbol}
+              counts={channelCounts}
+            />
+          </div>
+
+          {/* RIGHT — Quiet actions: + Widget · Tab bars · Focus. */}
+          <div className="flex items-center gap-1.5 justify-self-end">
+            <AddWidgetMenu onAdd={addWidget} openRef={openAddRef} ghost />
+            <ToolbarButton
+              variant="ghost"
+              onClick={toggleTabs}
+              active={!tabsHidden}
+              ariaPressed={!tabsHidden}
+            >
+              Tab bars
+            </ToolbarButton>
+            <ToolbarButton variant="ghost" onClick={onToggleFocus} title={focus ? "Exit focus" : "Focus"}>
+              {focus ? "✕" : "⛶"}
+            </ToolbarButton>
+          </div>
         </div>
 
         <div

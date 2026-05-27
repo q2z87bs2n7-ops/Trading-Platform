@@ -4,9 +4,14 @@ import type { MarketNewsArticle } from "../../types";
 export function NewsCard({
   articles,
   bare = false,
+  compact = false,
 }: {
   articles: MarketNewsArticle[];
   bare?: boolean;
+  // Stacks the rel-time *above* the source+title instead of in a left column.
+  // Used by the narrow Workspace News widget where the 60px date column eats
+  // too much of the headline width.
+  compact?: boolean;
 }) {
   const body = (
     <div>
@@ -21,7 +26,7 @@ export function NewsCard({
           href={a.link}
           target="_blank"
           rel="noreferrer"
-          className="flex gap-4 items-start no-underline"
+          className={`no-underline ${compact ? "flex flex-col" : "flex gap-4 items-start"}`}
           style={{
             padding: "14px 0",
             borderTop: i === 0 ? "none" : "1px solid var(--border)",
@@ -29,12 +34,16 @@ export function NewsCard({
           }}
         >
           <span
-            className="font-mono text-[11px] min-w-[60px] pt-px"
+            className={
+              compact
+                ? "font-mono text-[11px]"
+                : "font-mono text-[11px] min-w-[60px] pt-px"
+            }
             style={{ color: "var(--mute)" }}
           >
             {relTime(a.pub_time)}
           </span>
-          <div className="flex-1">
+          <div className={compact ? "" : "flex-1"}>
             <div
               className="text-[11px] font-medium uppercase"
               style={{

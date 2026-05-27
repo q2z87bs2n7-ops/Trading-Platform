@@ -11,27 +11,57 @@ Core files: `components/Workspace.tsx` (container + toolbar) +
 (`dockview-react`, lazy-loaded): drag-to-dock, tab-stack, float and pop-out
 panels, per-silo layout persistence (`workspace_layouts_{stocks,crypto}_v2` —
 `{ active: { name, layout }, saved: {} }`; a transparent migration from the old
-`workspace_layout_{silo}_v1` runs on first load after upgrade).
+`workspace_layout_{silo}_v1` runs on first load after upgrade). `active` is the
+live canvas (autosaved on drag); `saved` is the user's **named layouts** (see
+Toolbar → Layouts), each entry `{ layout, channels }` so a restore brings back
+both the arrangement and the per-channel symbols.
 
 ## Toolbar
 
-- **＋ Add widget** — primary menu (320px `<body>`-portaled popover with a search
-  input, grouped sections — Charts / Trade / Market data / Activity — and inline
-  single-stroke icons; ↑/↓/Enter/Esc).
-- **Channels strip** — one chip per symbol channel showing the channel symbol +
-  a count of widgets bound to it; click opens `AssetSearch` to retarget the
-  channel everywhere.
-- **Layouts ▾** — 480px popover of named presets (Trader / Researcher / Watcher
-  / Focus — see `presets.tsx`; Trader = the old default, applied on first run;
-  Apply confirms then clobbers the canvas).
-- **Tab bars** toggle — per-group header via Dockview.
-- **Focus** toggle — hides the app header for a near-full-screen canvas; `Esc`
-  exits unless a `[role=dialog]` is focused.
+Three-zone CSS grid (`auto 1fr auto`) — channels sit in the centre as the
+visual centrepiece, layouts anchor the left, quiet actions anchor the right.
 
-When the canvas has zero panels an empty-state overlay shows ＋ Add widget /
-Browse layouts CTAs that imperatively open the toolbar menus. The mode also goes
-**full-bleed** (`.app.bleed` in `index.css` — no max-width/gutters, a full-height
-flex column so the dock fills the viewport) and **drops the `TopBar` equity
+- **Layouts selector (LEFT)** — stateful button labelled `▦ {activeName} ▾`
+  (Trader / Researcher / Watcher / Focus for built-in presets, "Custom" for
+  drag-edited or AI-built layouts, otherwise the user-supplied saved name).
+  Opens a 480px popover with two parts: the built-in **presets** (Trader /
+  Researcher / Watcher / Focus — see `presets.tsx`; Trader = the old default,
+  applied on first run; select a card then Apply, which clobbers the canvas),
+  and a **"My layouts"** section for the user's named saved layouts —
+  the header row also carries a violet **✦ Ask AI to build one** CTA that
+  closes the popover and dispatches the same synthetic ⌘K as the empty-state
+  CTA so the Ask anything bar can build a custom layout via
+  `buildCustomLayout` —
+  *Save current as…* (inline name input), then per-row *Apply / Rename /
+  Delete*. A saved layout snapshots the Dockview JSON **and** the current
+  colour-channel symbols into `saved[name] = { layout, channels }`
+  (localStorage); Apply restores both. Applying a preset/custom layout
+  resets only `active` — saved layouts persist.
+- **Channels strip (CENTRE)** — boxed (`var(--bg)`-tinted panel, 1px border,
+  10px radius), eyebrow `CHANNELS` + 1px hairline divider + one chip per
+  symbol channel showing the channel symbol + a count of widgets bound to
+  it; click opens `AssetSearch` to retarget the channel everywhere. Each
+  Dockview panel header also carries a 7px channel-colour dot before the
+  title (`TabWithChannel` in `lib/workspace/registry.tsx`).
+- **Quiet actions (RIGHT)** — `＋ Widget` (ghost variant of AddWidgetMenu),
+  `Tab bars` toggle (per-group header via Dockview), and a `⛶` Focus icon
+  that hides the app header for a near-full-screen canvas (`Esc` exits
+  unless a `[role=dialog]` is focused).
+
+The AddWidgetMenu popover itself (also reachable from the empty-state CTA)
+is unchanged: 320px `<body>`-portaled popover with a search input, grouped
+sections (Charts / Trade / Market data / Activity), inline single-stroke
+icons, and ↑/↓/Enter/Esc keyboard handling. Within **Market data** and
+**Activity** the entries are alphabetized by title for predictable scanning;
+Charts and Trade preserve a flow order (`chart` → `minichart`,
+`trade` → `account`).
+
+When the canvas has zero panels an empty-state overlay shows ＋ Add widget,
+▦ Browse layouts, and a violet **✦ Ask AI to build one** CTA (dispatches a
+synthetic ⌘K to open the existing Ask anything bar, which already builds
+custom layouts via `buildCustomLayout`). The mode also goes **full-bleed**
+(`.app.bleed` in `index.css` — no max-width/gutters, a full-height flex
+column so the dock fills the viewport) and **drops the `TopBar` equity
 strip** (account figures live in the Account widget).
 
 ## Widgets
@@ -53,8 +83,26 @@ Widgets reuse existing surfaces:
 - **Account** — `components/AccountPanel.tsx`, curated whole-account overview:
   equity, day P/L, buying power, cash, positions value, portfolio value, margin
   (initial/maintenance), and short value when non-zero.
-- **Watchlist** — `components/Watchlist.tsx`, silo watchlist spark cards; a click
-  writes to the widget's channel.
+- **Watchlist** — `components/Watchlist.tsx`, silo watchlist; a click writes to
+  the widget's channel. Has a 3-way view toggle next to the AssetSearch:
+  **Auto** / **Cards** / **List**, persisted per panel in
+  `props.params.watchlistMode` (so each Watchlist instance in a layout — and
+  in a saved layout's Dockview JSON — remembers its own choice).
+  - **Cards** is the SparkCard grid. Container-width-aware in two steps:
+    between 280–420px a `compact` tier keeps the sparkline but shortens it
+    (H=32 instead of 48, drops the name slot, auto-fill min drops 150→110px);
+    under ~280px the layout forces a 2-col grid of dense `SparkCard`s (no
+    sparkline at all, smaller fonts) instead of the auto-fill grid that would
+    otherwise collapse to 1-col and waste the dock height. Sparkline curves
+    are **real recent daily closes** via `/api/bars/batch` (`useBarsBatch`,
+    one round-trip per silo, 5-min refetch); the symbol-seeded synthetic curve
+    in `discover/util.ts` is kept as the first-paint / missing-data fallback.
+  - **List** is a stack of dense single-line rows (`symbol · price · day %`,
+    hover-✕ remove). Designed for short or narrow docks where even one row
+    of cards eats the visible area — the row mode surfaces many more tickers
+    in the same shape.
+  - **Auto** (default) resolves to **List** when the panel height is
+    `< 320px` *or* width is `< 280px`, and **Cards** otherwise.
 - **Positions / Orders / Activity / News** — the existing surfaces.
 - **Profile** — `components/AssetProfile.tsx`, symbol-linked catalogue enrichment
   off `/api/asset-profile`: fundamentals for stocks (sector, market cap, beta,
@@ -62,12 +110,83 @@ Widgets reuse existing surfaces:
   (circulating/max supply bar, market-cap rank, ATH/ATL with live distance,
   categories, whitepaper/GitHub links); always symbol-linked like Trade — default
   Main, no None.
+- **Fundamentals** — `components/Fundamentals.tsx`, symbol-linked off
+  `/api/asset-profile` (the same row Profile reads, now carrying the FMP annual
+  fundamentals). **Stocks-only** (crypto has no income statement → a notice): a
+  5-yr revenue/net-income bar chart plus valuation (P/E, P/S, P/B, EV/EBITDA,
+  PEG), profitability (margins, ROE, ROIC), YoY growth, health (debt/equity,
+  current ratio, EPS, FCF), and dividend. Deliberately **disjoint from Profile**
+  (no market cap / beta / sector / description). Default Main, no None.
 - **Earnings** — `discover/EarningsCard.tsx`, reused from Discover via its
   `bare`/`dense` props (like `NewsCard`/`NewsWidget`): on a colour channel it
   shows that symbol's report history (`/api/calendar/earnings/{symbol}`); on
   **None** it shows the curated whole-market upcoming calendar
-  (`/api/calendar/earnings`), mirroring NewsWidget's market mode. No economic
+  (`/api/calendar/earnings`), mirroring NewsWidget's market mode. The per-symbol
+  view passes the card's additive `showYear` prop (dates render `May 30 '26`)
+  since its rows span quarters; Discover and the market view stay year-less.
+  Market mode passes `sortable` so users can flip between Top (market cap desc)
+  and Upcoming (date asc); the per-symbol view stays chronological, no toggle.
+  A crypto-linked symbol short-circuits the fetch and shows a "crypto has no
+  earnings" notice instead of the backend's bare 404. No economic
   widget — the economic calendar has no per-symbol form and stays Discover-only.
+- **Trending** — `discover/TrendingResearchCard.tsx`, reused from Discover via
+  its `bare`/`dense` props. Whole-market list of top trending stocks by analyst
+  coverage (Tipranks, `/api/research/trending`); no symbol input. **Stocks-only**
+  — crypto silo shows a notice. The widget still carries a channel selector
+  (defaults to Main) so a row click writes the picked ticker into that channel
+  and linked widgets follow — same pattern as Watchlist. See `docs/tipranks.md`.
+- **SmartScore** — `research/SmartScoreCard.tsx`, per-symbol Tipranks composite
+  signal (1-10) plus six input components (hedge-fund flow, blogger / news
+  sentiment, insider activity, investor holding deltas). Symbol-linked like
+  Profile/Fundamentals (default Main, no None). **Stocks-only**. The
+  `fundamentals_*` fields from upstream are deliberately hidden in the UI to
+  avoid duplicating Fundamentals (FMP is the higher-fidelity source for those
+  metrics); the AI bots still receive them via `get_smart_score` so they can
+  answer fundamentals questions when FMP is unavailable. Price target shown is
+  Tipranks' own (NOT unified with Trending's avg PT — each widget keeps its own
+  source).
+- **Sentiment** — `research/SentimentCard.tsx`, combined blogger + news +
+  Tipranks-investor sentiment for one stock. Three upstream Tipranks calls are
+  fanned into the route; the card surfaces each block independently so a
+  partial outage thins rather than blanks the widget. News uses a 3-segment
+  pos/neu/neg bar (stock vs sector); blogger shows bullish/bearish ratios + top
+  sources; investor shows portfolio holding stats + 7d/30d deltas. Symbol-linked
+  (default Main, no None), stocks-only.
+- **Analyst Ratings** — `research/AnalystRatingsCard.tsx`, per-analyst list
+  for one stock (name, firm, recommendation, date). Paginated 8/page. Drills
+  down from Trending's aggregate consensus. Symbol-linked (default Main, no
+  None), stocks-only. Dense breakpoint 380 collapses the firm column.
+- **Hedge Funds** — `research/HedgeFundsCard.tsx`, 13F-derived hedge-fund
+  flow for one stock. Signal headline (rating + confidence), last-Q net
+  shares delta, count of funds covered + total holders, quarterly trend
+  (last 4 quarters), and a paginated top-movers list sorted by absolute
+  shares traded. Symbol-linked (default Main, no None), stocks-only. TTL is
+  6h because the underlying 13F filings are quarterly.
+- **Insiders** — `research/InsidersCard.tsx`, Form-4 insider transactions
+  for one stock. **`trend` is rendered as Net 12-month $ flow** — it's a
+  signed dollar amount upstream, not a 0-1 score, and was reframed in the
+  v1 redesign. `confidenceSignal.score` is a label string ("Negative
+  Sentiment" / "NA") rendered as a chip, NOT a number. Stock/sector
+  confidence sub-scores, discretionary vs uninformative counts (also act
+  as filter affordances later), last-6-months buy/sell bars (last-3 in
+  narrow tier), and paginated recent transactions with: left-rail accent
+  encoding side × informative class, 0-5 star rating per insider, amount
+  + position + DD/MM/YYYY-parsed date, and a "↗" SEC-filing link
+  (`formURL`). Symbol-linked (default Main, no None), stocks-only.
+- **Related Tickers** — `research/RelatedTickersCard.tsx`, discovery feed
+  from Tipranks `investorsAlsoBought` plus three age-cohort variants
+  (youngest / midRange / eldest). Cohort selector pills inside the card;
+  empty cohorts auto-hide. Row click writes the picked ticker into the
+  widget's channel — same pattern as Watchlist. Paginated 8/page. Shares
+  the InvestorSentiment backend cache with Sentiment + HolderDemographics
+  (one upstream call serves all three widgets). Symbol-linked, stocks-only.
+- **Holder Demographics** — `research/HolderDemographicsCard.tsx`,
+  behavioural profile of the stock's holder base from Tipranks
+  `ageDistribution`. Three cohorts (eldest / midRange / youngest) shown
+  side-by-side at full width (stacked at narrow), each with % holders,
+  7d/30d holding change, average portfolio beta, monthly return, dividend
+  yield, P/E. Footer with sector + best-investor benchmark. Shares the
+  InvestorSentiment cache. Symbol-linked, stocks-only.
 
 ## Link channels
 
@@ -101,12 +220,59 @@ Charts shed chrome/axes as their panel shrinks (see the chart widgets above);
 Positions/Orders/Activities flip to their stacked card layout (and Profile drops
 its stat grid 2→1 column) in narrow panels via `hooks/useContainerNarrow` + an
 additive `dense` prop (panel-width, since `useMobile` is viewport-only and never
-trips in this desktop-only mode; the flip width is tuned per widget by column
-count — Orders 560, Positions 480, Activities 360, Profile 340, Earnings 420
-(drops the revenue column)); the header `AssetSearch` portals its dropdown to
-`<body>` so it isn't clipped by the panel. Data widgets render **bare** (the
-`bare` prop on `Orders`/`Activities`/`NewsCard` + the `Positions` strip rows) —
-no per-component card border/shadow, since the panel is already a closed-off
+trips in this desktop-only mode). `useContainerTall` is a sibling hook that
+keys off panel *height* — currently used by Positions so a tall+narrow dock
+tightens row padding/gap to fit more rows. Flip widths are tuned per widget; a
+few widgets carry a second tier between full and dense (or above full, "wide")
+so the transition isn't a single hard flip:
+
+- **Orders** — dense 560 (table → cards). Intermediate `mid` 760 keeps the
+  table but hides TIF + Submitted columns so it fits common 600–760px docks.
+- **Positions** — dense 480 (strip → mobile card). Height `tall` 600 with
+  `dense` engages `compact` row padding (8/12 instead of 14/16) for tall+narrow
+  docks where many rows compete for vertical space.
+- **Activities** — dense 360.
+- **Profile** — dense 340 (stat grid 2 → 1).
+- **Fundamentals** — own dense 400 (denser numeric data than Profile) + `wide`
+  560 promoting the stat grids from 2 → 3 columns on roomy panels.
+- **Earnings** — dense 420 drops the revenue column; `tight` 320 also
+  suppresses the year suffix on per-symbol dates (`May 30 '26` → `May 30`),
+  shrinking the date column from 72 → 48px before revenue drops.
+- **Trending** — dense 360 drops the company name + market-cap columns.
+- **Analyst Ratings** — dense 380 drops the firm column.
+- **Hedge Funds** — dense 420 drops the institution column on the top-movers
+  list; `narrow` 340 also collapses the 3-col top stats grid (Last-Q net /
+  Funds covered / Total holders) to a 1-col vertical stack and trims the
+  quarterly trend row from last-4 to last-2 quarters so the per-cell numeric
+  label stays readable.
+- **Insiders** — dense 420 drops the position column on the transactions list;
+  `narrow` 340 reduces the monthly buy/sell bars from last-6 to last-3 months.
+- **Related Tickers** — dense 320 drops the company name + market-cap columns;
+  `narrow` 240 also drops the 30d-change column.
+- **Holder Demographics** — `narrow` 360 stacks the three cohort columns
+  vertically (one cohort per row) instead of side-by-side.
+- **SmartScore / Sentiment** — flex-based vertical stacks; adapt naturally
+  via `justify-between` rows + `truncate` text. No explicit breakpoint
+  needed; fit cleanly to 240px+ in inspection.
+- **SmartScore** / **Sentiment** — no dense flip; vertical-stack layout fits
+  280px and up.
+- **News** — `compact` 320 stacks the rel-time *above* source+title instead of
+  using the 60px left column.
+- **Watchlist** — Cards mode: `compact` 420 + dense 280 (see widget bullet
+  above). Auto mode also flips to the **List** view at `height < 320` or
+  `width < 280`.
+- **Account** — equity headline scales: 32px at >=360px, 24px default, 20px
+  under 240px.
+- **Trade** — tightens at <300px: row gap and Buy/Sell + Submit button
+  paddings shrink (no layout flip; `flex-wrap` already handled narrow chips).
+- **LinkHeader** (shared) — self-measures via its own `useContainerNarrow`;
+  under 260px drops the `· Kind` suffix and tightens `ChannelPicker`
+  (gap 1 → 0.5, dot 11 → 9).
+
+The header `AssetSearch` portals its dropdown to `<body>` so it isn't clipped
+by the panel. Data widgets render **bare** (the `bare` prop on
+`Orders`/`Activities`/`NewsCard` + the `Positions` strip rows) — no
+per-component card border/shadow, since the panel is already a closed-off
 module; rows separate with a hairline in both the table and the narrow
 stacked-card layouts. Account stays clean by construction.
 
@@ -122,7 +288,7 @@ reusable elsewhere for free:
    `symbol` / `assetClass` / callbacks as props and knows **nothing** about the
    Workspace. Lives in `components/`. Examples: `PriceChart`, `TVChartWidget`,
    `OrderTicketInline`, `Positions`, `Orders`, `Activities`, `NewsCard`,
-   `AssetProfile`, `AssetSearch`.
+   `AssetProfile`, `Fundamentals`, `AssetSearch`.
 3. **Workspace adapter** — `lib/workspace/registry.tsx` (+ `Workspace.tsx`): the
    *only* layer that knows Dockview, link channels, the `LinkHeader`, and
    `useWorkspace`. It wraps a feature component and injects the cross-cutting

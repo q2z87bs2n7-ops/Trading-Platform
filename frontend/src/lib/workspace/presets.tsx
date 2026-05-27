@@ -89,8 +89,16 @@ export const PRESETS: LayoutPreset[] = [
     id: "researcher",
     title: "Researcher",
     desc:
-      "Four charts on a 2×2 grid plus a watchlist and a symbol profile + earnings — compare across the four channels.",
-    badges: ["4× Chart", "Watchlist", "Profile", "Earnings"],
+      "Four charts on a 2×2 grid plus a watchlist and a symbol research stack — profile, fundamentals, earnings, SmartScore and sentiment for the Main channel.",
+    badges: [
+      "4× Chart",
+      "Watchlist",
+      "Profile",
+      "Fundamentals",
+      "Earnings",
+      "SmartScore",
+      "Sentiment",
+    ],
     thumbnail: () => (
       <div
         style={{
@@ -152,9 +160,30 @@ export const PRESETS: LayoutPreset[] = [
         params: { channel: "main" },
       });
       api.addPanel({
+        id: "fundamentals",
+        component: "fundamentals",
+        title: "Fundamentals",
+        position: { referencePanel: "profile", direction: "within" },
+        params: { channel: "main" },
+      });
+      api.addPanel({
         id: "earnings",
         component: "earnings",
         title: "Earnings",
+        position: { referencePanel: "profile", direction: "within" },
+        params: { channel: "main" },
+      });
+      api.addPanel({
+        id: "smartscore",
+        component: "smartscore",
+        title: "SmartScore",
+        position: { referencePanel: "profile", direction: "within" },
+        params: { channel: "main" },
+      });
+      api.addPanel({
+        id: "sentiment",
+        component: "sentiment",
+        title: "Sentiment",
         position: { referencePanel: "profile", direction: "within" },
         params: { channel: "main" },
       });
@@ -164,8 +193,8 @@ export const PRESETS: LayoutPreset[] = [
     id: "watcher",
     title: "Watcher",
     desc:
-      "Six mini-charts, news and account. Pre-open and post-market scanning.",
-    badges: ["6× Mini chart", "News", "Account"],
+      "Six mini-charts plus news + trending and account. Pre-open and post-market scanning.",
+    badges: ["6× Mini chart", "News", "Trending", "Account"],
     thumbnail: () => (
       <div
         style={{
@@ -233,6 +262,12 @@ export const PRESETS: LayoutPreset[] = [
         component: "news",
         title: "News",
         position: { referencePanel: "mc-3", direction: "right" },
+      });
+      api.addPanel({
+        id: "trending",
+        component: "trending",
+        title: "Trending",
+        position: { referencePanel: "news", direction: "within" },
       });
       api.addPanel({
         id: "account",

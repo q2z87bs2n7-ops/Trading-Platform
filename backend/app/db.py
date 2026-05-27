@@ -9,9 +9,11 @@ a 503-style fallback, mirroring the Alpaca-keys seam.
 
 from __future__ import annotations
 
+import json
 import logging
 import math
 import ssl
+import time
 from contextlib import contextmanager
 from datetime import date
 from urllib.parse import unquote, urlparse
@@ -69,6 +71,48 @@ def _connect():
         raise
     finally:
         conn.close()
+
+
+# ---- app settings (maintenance / force-stop switches) -----------------------
+
+# Flags are read on every /api/status poll; cache briefly so a long-lived
+# process (Render) doesn't hit the DB each time. On Vercel each invocation is a
+# fresh process, so this is effectively a no-op there — fine, polls are
+# infrequent. Two switches: `maintenance` (graceful, auto-recovers) and
+# `force_stop` (terminal boot — client stops all polling, manual reload only).
+_MAINT_TTL = 15.0
+_flags_cache: tuple[float, dict] | None = None
+
+
+def _flag_on(v: object) -> bool:
+    return str(v).strip().lower() in ("on", "true", "1", "yes")
+
+
+def get_app_flags() -> dict:
+    """Return ``{maintenance, message, force_stop, force_stop_message}`` from the
+    ``app_settings`` table. Raises ``DbUnavailable`` if the DB is unreachable so
+    the caller can fail open (DB down must never lock everyone out). Missing keys
+    default off, so deploying before the rows exist is safe."""
+    global _flags_cache
+    now = time.monotonic()
+    if _flags_cache and now - _flags_cache[0] < _MAINT_TTL:
+        return dict(_flags_cache[1])
+    with _connect() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT key, value FROM app_settings WHERE key IN "
+            "('maintenance', 'maintenance_message', "
+            "'force_stop', 'force_stop_message')"
+        )
+        rows = {k: v for k, v in cur.fetchall()}
+    result = {
+        "maintenance": _flag_on(rows.get("maintenance", "off")),
+        "message": rows.get("maintenance_message") or "",
+        "force_stop": _flag_on(rows.get("force_stop", "off")),
+        "force_stop_message": rows.get("force_stop_message") or "",
+    }
+    _flags_cache = (now, result)
+    return dict(result)
 
 
 # ---- assets table -----------------------------------------------------------
@@ -160,6 +204,12 @@ _PROFILE_COLS = (
     "coingecko_id", "hashing_algorithm", "genesis_date", "categories",
     "whitepaper_url", "github_url", "circulating_supply", "total_supply",
     "max_supply", "market_cap_rank", "ath_usd", "ath_date", "atl_usd", "atl_date",
+    "pe_ratio", "ps_ratio", "pb_ratio", "ev_to_ebitda", "peg_ratio",
+    "gross_margin", "operating_margin", "net_margin", "roe", "roic",
+    "debt_to_equity", "current_ratio", "eps_diluted", "book_value_per_share",
+    "free_cash_flow", "revenue_growth_yoy", "eps_growth_yoy", "dividend_yield",
+    "payout_ratio", "latest_fiscal_year", "reported_currency", "financials_annual",
+    "fundamentals_enriched_at",
     "enriched_at", "enrichment_source",
 )
 
@@ -169,6 +219,11 @@ _PROFILE_COLS = (
 _PROFILE_FLOAT_COLS = frozenset({
     "beta", "circulating_supply", "total_supply", "max_supply",
     "ath_usd", "atl_usd",
+    "pe_ratio", "ps_ratio", "pb_ratio", "ev_to_ebitda", "peg_ratio",
+    "gross_margin", "operating_margin", "net_margin", "roe", "roic",
+    "debt_to_equity", "current_ratio", "eps_diluted", "book_value_per_share",
+    "free_cash_flow", "revenue_growth_yoy", "eps_growth_yoy", "dividend_yield",
+    "payout_ratio",
 })
 
 
@@ -193,7 +248,12 @@ def get_asset_profile(symbol: str) -> dict | None:
         for k, v in zip(_PROFILE_COLS, row):
             if v is None:
                 continue
-            out[k] = float(v) if k in _PROFILE_FLOAT_COLS else v
+            if k == "financials_annual":
+                out[k] = json.loads(v) if isinstance(v, str) else v
+            elif k in _PROFILE_FLOAT_COLS:
+                out[k] = float(v)
+            else:
+                out[k] = v
         return out
 
 
@@ -283,12 +343,18 @@ _SCREEN_EXCHANGES = frozenset({"NASDAQ", "NYSE", "ARCA", "BATS", "AMEX", "OTC"})
 # Whitelisted sort keys -> fixed ORDER BY fragments. Values never come from the
 # caller, so the fragment is safe to inline; the model only picks a key.
 _SORT_MAP = {
-    "market_cap_desc": "market_cap DESC NULLS LAST",
-    "market_cap_asc":  "market_cap ASC NULLS LAST",
-    "beta_desc":       "beta DESC NULLS LAST",
-    "beta_asc":        "beta ASC NULLS LAST",
-    "ipo_newest":      "ipo_date DESC NULLS LAST",
-    "ipo_oldest":      "ipo_date ASC NULLS LAST",
+    "market_cap_desc":     "market_cap DESC NULLS LAST",
+    "market_cap_asc":      "market_cap ASC NULLS LAST",
+    "beta_desc":           "beta DESC NULLS LAST",
+    "beta_asc":            "beta ASC NULLS LAST",
+    "ipo_newest":          "ipo_date DESC NULLS LAST",
+    "ipo_oldest":          "ipo_date ASC NULLS LAST",
+    "pe_asc":              "pe_ratio ASC NULLS LAST",
+    "pe_desc":             "pe_ratio DESC NULLS LAST",
+    "dividend_yield_desc": "dividend_yield DESC NULLS LAST",
+    "net_margin_desc":     "net_margin DESC NULLS LAST",
+    "roe_desc":            "roe DESC NULLS LAST",
+    "revenue_growth_desc": "revenue_growth_yoy DESC NULLS LAST",
 }
 _CRYPTO_SORTS = frozenset({"market_cap_desc", "market_cap_asc"})  # crypto rows have no beta/ipo
 
@@ -335,6 +401,8 @@ def _screen_filters(
     asset_class, sector, industry, asset_type, category,
     market_cap_min, market_cap_max, beta_min, beta_max,
     exchange, ipo_after, ipo_before,
+    pe_min=None, pe_max=None, dividend_yield_min=None,
+    net_margin_min=None, roe_min=None, revenue_growth_min=None,
 ):
     """Pure filter builder -> (where_sql, params, applied, ignored, resolved
     class). No DB access. The security boundary lives here: every value is
@@ -369,7 +437,10 @@ def _screen_filters(
                            ("asset_type", asset_type if asset_type != "stock" else None),
                            ("exchange", exchange), ("beta_min", beta_min),
                            ("beta_max", beta_max), ("ipo_after", ipo_after),
-                           ("ipo_before", ipo_before)):
+                           ("ipo_before", ipo_before), ("pe_min", pe_min),
+                           ("pe_max", pe_max), ("dividend_yield_min", dividend_yield_min),
+                           ("net_margin_min", net_margin_min), ("roe_min", roe_min),
+                           ("revenue_growth_min", revenue_growth_min)):
             if val not in (None, ""):
                 ignored.append(f"{label} (stocks-only)")
     else:
@@ -412,6 +483,27 @@ def _screen_filters(
             if hi:
                 where.append("ipo_date <= %s"); params.append(hi); applied["ipo_before"] = hi.isoformat()
 
+        # Fundamentals filters (annual, FMP) — fractions for margin/roe/growth/yield
+        # (0.2 = 20%); only enriched rows carry these, NULLs drop out of >= / <=.
+        pmn = _clampf(pe_min)
+        if pmn is not None:
+            where.append("pe_ratio >= %s"); params.append(pmn); applied["pe_min"] = pmn
+        pmx = _clampf(pe_max)
+        if pmx is not None:
+            where.append("pe_ratio <= %s"); params.append(pmx); applied["pe_max"] = pmx
+        dymn = _clampf(dividend_yield_min, lo=0)
+        if dymn is not None:
+            where.append("dividend_yield >= %s"); params.append(dymn); applied["dividend_yield_min"] = dymn
+        nmmn = _clampf(net_margin_min, lo=-100, hi=100)
+        if nmmn is not None:
+            where.append("net_margin >= %s"); params.append(nmmn); applied["net_margin_min"] = nmmn
+        roemn = _clampf(roe_min, lo=-100, hi=100)
+        if roemn is not None:
+            where.append("roe >= %s"); params.append(roemn); applied["roe_min"] = roemn
+        rgmn = _clampf(revenue_growth_min, lo=-100, hi=100)
+        if rgmn is not None:
+            where.append("revenue_growth_yoy >= %s"); params.append(rgmn); applied["revenue_growth_min"] = rgmn
+
         if category:
             ignored.append("category (crypto-only)")
 
@@ -422,6 +514,8 @@ def screen_assets(*, asset_class="us_equity", sector=None, industry=None,
                   asset_type="stock", category=None, market_cap_min=None,
                   market_cap_max=None, beta_min=None, beta_max=None,
                   exchange=None, ipo_after=None, ipo_before=None,
+                  pe_min=None, pe_max=None, dividend_yield_min=None,
+                  net_margin_min=None, roe_min=None, revenue_growth_min=None,
                   sort_by=None, limit=20) -> dict:
     """Structured screen over the catalogue — visibility-filtered (enriched +
     tradable), parameterised, capped. Returns a count + top-N-by-market-cap
@@ -438,6 +532,8 @@ def screen_assets(*, asset_class="us_equity", sector=None, industry=None,
         asset_class, sector, industry, asset_type, category,
         market_cap_min, market_cap_max, beta_min, beta_max,
         exchange, ipo_after, ipo_before,
+        pe_min, pe_max, dividend_yield_min, net_margin_min, roe_min,
+        revenue_growth_min,
     )
     is_crypto = ac == "crypto"
     order_sql, sorted_key, sort_ignored = _resolve_sort(sort_by, is_crypto)
@@ -467,11 +563,14 @@ def screen_assets(*, asset_class="us_equity", sector=None, industry=None,
             total = int(cur.fetchone()[0])
             cur.execute(
                 "SELECT symbol, COALESCE(name, symbol), sector, industry, market_cap,"
-                " beta FROM assets WHERE " + where_sql +
+                " beta, pe_ratio, dividend_yield, net_margin, roe, revenue_growth_yoy"
+                " FROM assets WHERE " + where_sql +
                 " ORDER BY " + order_sql + ", symbol LIMIT %s",
                 params + [lim],
             )
-            cols = ("symbol", "name", "sector", "industry", "market_cap", "beta")
+            cols = ("symbol", "name", "sector", "industry", "market_cap", "beta",
+                    "pe_ratio", "dividend_yield", "net_margin", "roe",
+                    "revenue_growth_yoy")
             results = [dict(zip(cols, r)) for r in cur.fetchall()]
 
         out: dict = {
@@ -516,6 +615,15 @@ def screen_assets(*, asset_class="us_equity", sector=None, industry=None,
             )
             out["bucket_counts_by_sector"] = {row[0]: int(row[1]) for row in cur.fetchall()}
     return out
+
+
+def all_symbols() -> set[str]:
+    """Every symbol currently in the catalogue (all classes) — used to diff
+    against Alpaca's live list when checking for new listings."""
+    with _connect() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT symbol FROM assets")
+        return {row[0] for row in cur.fetchall()}
 
 
 def _symbols(
@@ -572,6 +680,85 @@ def unenriched_stock_symbols(limit: int) -> list[str]:
             (limit,),
         )
         return [row[0] for row in cur.fetchall()]
+
+
+def fundamentals_enriched_symbols() -> set[str]:
+    """us_equity symbols that already carry annual fundamentals — lets the
+    fundamentals seeder resume."""
+    with _connect() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT symbol FROM assets WHERE fundamentals_enriched_at IS NOT NULL"
+        )
+        return {row[0] for row in cur.fetchall()}
+
+
+def fundamentals_target_symbols(limit: int, only_missing: bool = True) -> list[str]:
+    """Next ``limit`` fundamentals-eligible symbols (profile-enriched, non-ETF
+    US equities), largest market cap first. ``only_missing`` skips rows already
+    done — pass False for a forced full re-enrich."""
+    where = (
+        "asset_class = 'us_equity' AND enrichment_source = 'fmp' "
+        "AND is_etf IS NOT TRUE AND is_fund IS NOT TRUE"
+    )
+    if only_missing:
+        where += " AND fundamentals_enriched_at IS NULL"
+    with _connect() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT symbol FROM assets WHERE " + where +
+            " ORDER BY market_cap DESC NULLS LAST, symbol LIMIT %s",
+            (limit,),
+        )
+        return [row[0] for row in cur.fetchall()]
+
+
+def upsert_fundamentals(e: dict) -> None:
+    """Write FMP annual-fundamentals columns for one us_equity row."""
+    fa = e.get("financials_annual")
+    fa_json = json.dumps(fa) if fa is not None else None
+    with _connect() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            UPDATE assets SET
+                pe_ratio                 = %s,
+                ps_ratio                 = %s,
+                pb_ratio                 = %s,
+                ev_to_ebitda             = %s,
+                peg_ratio                = %s,
+                gross_margin             = %s,
+                operating_margin         = %s,
+                net_margin               = %s,
+                roe                      = %s,
+                roic                     = %s,
+                debt_to_equity           = %s,
+                current_ratio            = %s,
+                eps_diluted              = %s,
+                book_value_per_share     = %s,
+                free_cash_flow           = %s,
+                revenue_growth_yoy       = %s,
+                eps_growth_yoy           = %s,
+                dividend_yield           = %s,
+                payout_ratio             = %s,
+                latest_fiscal_year       = %s,
+                reported_currency        = %s,
+                financials_annual        = %s::jsonb,
+                fundamentals_enriched_at = now()
+            WHERE symbol = %s
+            """,
+            (
+                e.get("pe_ratio"), e.get("ps_ratio"), e.get("pb_ratio"),
+                e.get("ev_to_ebitda"), e.get("peg_ratio"), e.get("gross_margin"),
+                e.get("operating_margin"), e.get("net_margin"), e.get("roe"),
+                e.get("roic"), e.get("debt_to_equity"), e.get("current_ratio"),
+                e.get("eps_diluted"), e.get("book_value_per_share"),
+                e.get("free_cash_flow"), e.get("revenue_growth_yoy"),
+                e.get("eps_growth_yoy"), e.get("dividend_yield"),
+                e.get("payout_ratio"), e.get("latest_fiscal_year"),
+                e.get("reported_currency"), fa_json, e["symbol"],
+            ),
+        )
 
 
 def upsert_stock_enrichment(e: dict) -> None:

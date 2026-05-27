@@ -49,7 +49,9 @@ These don't run server-side — each *queues a client directive* into
 which the frontend `FallbackCard` replays against the lazy Workspace via the
 `lib/workspace/controller.ts` singleton (App registers mode/silo hooks; Workspace
 registers an imperative handle on `onReady`). The bot can resolve symbols
-(`find_symbol`/`screen_assets`) then `build_workspace_layout` a responsive custom
+(`find_symbol`/`screen_assets` — the latter now screens/sorts on stock
+fundamentals too: P/E, dividend yield, net margin, ROE, revenue growth) then
+`build_workspace_layout` a responsive custom
 grid ("watch the 7 best tech names"); the request carries a `viewport` hint and
 the app auto-switches into Workspace mode (desktop-only).
 
@@ -61,7 +63,8 @@ can't take a per-panel symbol otherwise. The placeable-widget enum
 add/build; mirror any new widget into `WidgetId` / `WIDGET_IDS`
 (`lib/workspace/actions.ts`) and the local `WORKSPACE_WIDGETS` map + add-regex
 (`lib/ask-intent/detectors.ts`) so local commands resolve without an AI
-round-trip (the **Earnings** widget follows this pattern). The same directive
+round-trip (the **Earnings** and **Fundamentals** widgets follow this pattern;
+Fundamentals is stocks-only — the bot links it to a stock channel). The same directive
 shapes back a deterministic local `workspace` intent in `lib/ask-intent/` (e.g.
 "watch AAPL NVDA TSLA", "trader layout", "set blue to NVDA", "add earnings for
 AAPL") — no AI round-trip.
@@ -76,20 +79,50 @@ are split across `ai/tools_read.py` (backend), `ai/tools_draw.py` (frontend),
 re-exports the public API (`TOOLS`/`read_only_tools`/`ask_tools`/…). Edit schemas
 in the split files; never reorder `TOOLS`.**
 
-**Multi-turn within a session:** `AskBar` keeps a running `apiHistory` and sends
-prior fallback Q&A as `history` so follow-ups have context; it's session-only
-(reset on close).
+**Multi-turn, persisted:** `AskBar` keeps a running `apiHistory` and sends prior
+fallback Q&A as `history` so follow-ups have context. Cache + history live in
+`localStorage` under `ask_session_v1` (256 KB budget, oldest-turn eviction), so
+reopens and reloads keep the transcript. Each fallback turn also stores its
+resolved `AiAskResponse` (`cachedResp` on the turn) so a remount replays the
+answer without re-firing the Anthropic call; workspace_actions and watchlist
+invalidations only run on the original fresh resolution, never on cache replay.
+A header **Clear** button (visible when the transcript is non-empty) wipes the
+key.
+
+### Voice input
+
+Both Ask anything and the ChartBot composer expose a mic toggle
+(`components/MicButton.tsx` + `hooks/useSpeechToText.ts`) that wraps the
+browser's `SpeechRecognition` API. **Free, no infra** — Chrome / Edge / Safari
+(incl. iOS 14.5+); Firefox lacks support, so the button is hidden there with
+no fallback. While listening the textarea goes read-only (interim transcript
+is previewed in the field, finalized chunks are appended to state — readOnly
+avoids controlled-value desync); submit or modal-close stops the mic.
 
 ## AI market summary (violet — real Claude call)
 
 `hooks/useMarketSummary.ts` + `MarketSummaryCard`, Discover hero. Auto-generates
 a per-window summary via `/api/ai/ask` (gated by its own `marketSummaryAiEnabled`
-toggle — off shows the `AiDisabledNotice`, no generation). Per silo: **stocks**
-uses US market windows (open/midday/close EST) and US headlines; **crypto** uses
-four 6-hour UTC windows (00–06 / 06–12 / 12–18 / 18–24 UTC) and BTC/crypto news;
+toggle — when off, no generation runs; if a prior summary is still cached the
+card surfaces it with an "AI off" hint instead of hiding it, and falls back to
+`AiDisabledNotice` only when nothing is cached). Per silo: **stocks** uses US
+market windows (open/midday/close EST) and US headlines; **crypto** uses four
+6-hour UTC windows (00–06 / 06–12 / 12–18 / 18–24 UTC) and BTC/crypto news;
 labels show the UTC range explicitly so they are unambiguous for users in any
 timezone. Cached per silo (`market_summary_v1` / `crypto_market_summary_v1`); the
 `market_summary` intent card reads the matching cache.
+
+**Tool diet** (deliberately narrow — the prompt restricts Claude to a curated
+subset of the Ask anything toolset to cap per-symbol fan-out and latency).
+Stocks: `get_positions`, `get_orders(closed, 50)`, `get_news`, `get_movers`,
+`get_trending_stocks` (Tipranks, once), `get_asset_profile` on up to 3 largest
+holdings (sector / P-E / margin context from Postgres), and `get_snapshot` for
+watchlist prices. Crypto: `get_positions`, `get_orders(closed, 50)`,
+`get_news(BTC)`, `get_asset_profile` on up to 3 largest holdings
+(category / market-cap rank / ATH distance), and `get_snapshot` for watchlist
+prices. The prompt explicitly forbids `get_smart_score`, `get_sentiment_signals`,
+`get_analyst_ratings`, `get_hedge_funds`, and `get_insiders` — too granular for
+a 150–200 word briefing.
 
 ## ChartBot side panel (violet — real Claude call)
 
@@ -114,3 +147,10 @@ anything bot; requires the org to have web search enabled or the API 400s. The
 bot is internal-first and self-heals: if web search is on but unsupported it drops
 the tool and retries from its own tools/knowledge). 60s Anthropic client timeout;
 auth/config errors surface as 503.
+
+`/api/config` re-exports `anthropic_model` + `ai_max_tool_iterations` to the
+frontend so `lib/ai-cost.ts` can render real per-surface cost estimates in
+`AiDisabledNotice` (input + output token medians × published Anthropic
+per-million-token rates, model family detected by substring). The notice's
+"Turn on" CTA dispatches `trading-platform:open-settings` rather than
+toggling the setting directly — explicit consent before credit spend.

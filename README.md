@@ -9,14 +9,13 @@ cancel, close positions) with a positions/orders/activities blotter.
 Supports **US equities** and **crypto** in separate silos. Paper account
 only — there is no live-trading path.
 
-On **every load** an **asset class splash** is shown as the landing screen —
-pick Stocks or Crypto to enter (the app never restores a last page/silo). It
-doubles as an **Account Hub** (re-opened from the header brand mark) showing a
-whole-account overview: total equity, day P/L, buying power, and a
-stocks-vs-crypto-vs-cash split. The last-used silo is remembered only to
-highlight its card. The active silo also tints the accent (green for Stocks,
-blue for Crypto). Both sides share the same mode toggle (Workspace is
-desktop-only):
+On the **first session only**, an **asset class splash** is shown as the
+landing screen — pick Stocks or Crypto to enter. Subsequent loads land
+straight on the last-used silo's Discover. The splash doubles as an **Account
+Hub** (re-opened from the header brand mark) showing a whole-account
+overview: total equity, day P/L, buying power, and a stocks-vs-crypto-vs-cash
+split. The active silo tints the accent (green for Stocks, blue for Crypto).
+Both sides share the same mode toggle (Workspace is desktop-only):
 
 - **Discover** (default)
   - *Stocks* — silo holdings + allocation donut (green), indices marquee
@@ -125,6 +124,11 @@ ANTHROPIC_API_KEY=sk-ant-...
 The panel lets you ask questions about your positions, request price data,
 and draw annotations directly on the chart via natural language.
 
+Both the Ask anything bar and the ChartBot composer expose a mic button
+for **voice input** via the browser's Web Speech API — free, no extra
+infra. Works on Chrome / Edge / Safari (incl. iOS 14.5+); the button is
+hidden on Firefox which doesn't support the API.
+
 The **Ask anything** bar (teal accent, all modes) is a separate, purely
 local intent parser — orders, portfolio queries, movers, news, charts.
 It works without any Anthropic key and costs nothing to run.
@@ -159,6 +163,23 @@ catalogue is whatever you've chosen to enrich. **Note:** the DB write path
 needs outbound TCP to Postgres :5432, which many local/corporate networks
 block — so seeding only runs from prod/Render. See `docs/database.md` and
 `docs/landmines.md` for the full story.
+
+### 1d. Tipranks research (optional)
+
+Per-symbol analyst / hedge-fund / insider / sentiment data powering the
+Discover **Trending** card and the Workspace research widgets (SmartScore,
+Sentiment, Analyst Ratings, Hedge Funds, Insiders) plus six AI bot read
+tools. Live-proxied via the Tipranks external partner API; not persisted.
+Disabled when keys are absent (routes return empty payloads).
+
+```
+TIPRANKS_API_KEY=TR_FXCM    # partner identifier
+TIPRANKS_API_TOKEN=...      # secret token
+```
+
+Auth is via query-string params despite the `X-` prefixed names. See
+`docs/tipranks.md` for the endpoint inventory, cache TTLs (15min → 6h
+depending on update cadence), and the per-widget surfaces.
 
 ### 2. Backend
 
@@ -257,15 +278,18 @@ paid Alpaca data plan for the full consolidated tape.
 ## Notes
 
 - Quotes stream in real time via `/api/stream` when a relay is reachable,
-  otherwise the watchlist polls `/api/quotes` (~2s, `POLL_MS` in
-  `frontend/src/data/useLiveQuotes.ts`). Charts still load a bar snapshot
-  per symbol/timeframe change. A yellow "Polling · stream off" chip in
-  the `TopBar` status strip indicates when the stream is unavailable.
+  otherwise the watchlist polls `/api/quotes` (~60s dev setting, `POLL_MS`
+  in `frontend/src/data/quoteStream.ts`). Charts still load a bar snapshot
+  per symbol/timeframe change. A small amber dot next to the silo status
+  indicator (desktop) or the mobile header page-name (mobile) signals
+  when the stream is unavailable and quotes are polling instead.
 - Keys live only in `backend/.env`, which is gitignored. Never commit it.
 - Default watchlist symbols are configurable via `DEFAULT_SYMBOLS` in `.env`.
-- Browser state is in `localStorage`: `asset_class_mode` (stocks / crypto,
-  the last-used silo used only to highlight the landing card — the splash
-  shows on every load), `theme` (light / dark), `chartbot_session` (256 KB
+- Browser state is in `localStorage`: `asset_class_mode` (stocks / crypto —
+  the silo the app boots into post-splash; also highlights the active card
+  in the Account Hub), `splash_seen_v1` (set once the user has picked a
+  silo; clearing it restores the first-time landing), `platform_mode_v1`
+  (last-used mode pill), `theme` (light / dark), `chartbot_session` (256 KB
   byte budget —
   oldest user+assistant pairs drop once the budget is exceeded),
   `ai_drawings_v1` (per-symbol drawing UUIDs replayed on chart load),

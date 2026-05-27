@@ -18,7 +18,7 @@ from anthropic import APIError as AnthropicAPIError
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from .. import alpaca, db, market_news
+from .. import alpaca, db, market_news, tipranks
 from ..config import get_settings
 from . import prompt, reports, tools
 from .tools_workspace import (
@@ -216,6 +216,12 @@ def _execute_read_tool(
                 exchange=args.get("exchange"),
                 ipo_after=args.get("ipo_after"),
                 ipo_before=args.get("ipo_before"),
+                pe_min=args.get("pe_min"),
+                pe_max=args.get("pe_max"),
+                dividend_yield_min=args.get("dividend_yield_min"),
+                net_margin_min=args.get("net_margin_min"),
+                roe_min=args.get("roe_min"),
+                revenue_growth_min=args.get("revenue_growth_min"),
                 sort_by=args.get("sort_by"),
                 limit=args.get("limit", 20),
             )
@@ -249,6 +255,60 @@ def _execute_read_tool(
         limit = min(int(args.get("limit", 20)), 50)
         return json.dumps(
             {"corporate_actions": alpaca.get_corporate_actions(symbols, ca_types, since, limit)},
+            default=str,
+        )
+
+    if name == "get_trending_stocks":
+        return json.dumps(
+            {"trending": tipranks.get_trending_stocks()}, default=str
+        )
+
+    if name == "get_smart_score":
+        symbol = str(args["symbol"]).upper()
+        return json.dumps(
+            {"symbol": symbol, "smart_score": tipranks.get_smart_score(symbol)},
+            default=str,
+        )
+
+    if name == "get_sentiment_signals":
+        symbol = str(args["symbol"]).upper()
+        return json.dumps(
+            {"symbol": symbol, "sentiment": tipranks.get_sentiment_signals(symbol)},
+            default=str,
+        )
+
+    if name == "get_analyst_ratings":
+        symbol = str(args["symbol"]).upper()
+        return json.dumps(
+            {"symbol": symbol, "analysts": tipranks.get_analyst_ratings(symbol)},
+            default=str,
+        )
+
+    if name == "get_hedge_funds":
+        symbol = str(args["symbol"]).upper()
+        return json.dumps(
+            {"symbol": symbol, "hedge_funds": tipranks.get_hedge_funds(symbol)},
+            default=str,
+        )
+
+    if name == "get_insiders":
+        symbol = str(args["symbol"]).upper()
+        return json.dumps(
+            {"symbol": symbol, "insiders": tipranks.get_insiders(symbol)},
+            default=str,
+        )
+
+    if name == "get_related_tickers":
+        symbol = str(args["symbol"]).upper()
+        return json.dumps(
+            {"symbol": symbol, "related": tipranks.get_related_tickers(symbol)},
+            default=str,
+        )
+
+    if name == "get_holder_demographics":
+        symbol = str(args["symbol"]).upper()
+        return json.dumps(
+            {"symbol": symbol, "demographics": tipranks.get_holder_demographics(symbol)},
             default=str,
         )
 
@@ -539,8 +599,9 @@ def ai_chat(req: ChatRequest) -> ChatResponse:
 # --- Ask anything general-purpose ask endpoint ------------------------------
 # Smaller surface area than /api/ai/chat: no frontend tools, no per-request
 # chart context, no streaming. One-shot Q&A with backend reads grounding the
-# answer. The modal clears its transcript on close, so history is bounded
-# in practice — we still trim defensively.
+# answer. The modal now persists its transcript across reopens/reloads
+# (ask_session_v1, 256 KB cap with oldest-turn eviction) so history can be
+# longer — we trim defensively here regardless.
 
 
 class AskRequest(BaseModel):

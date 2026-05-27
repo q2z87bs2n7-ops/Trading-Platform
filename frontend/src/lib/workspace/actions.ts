@@ -17,7 +17,16 @@ export type WidgetId =
   | "activity"
   | "news"
   | "profile"
-  | "earnings";
+  | "fundamentals"
+  | "earnings"
+  | "trending"
+  | "smartscore"
+  | "sentiment"
+  | "analysts"
+  | "hedgefunds"
+  | "insiders"
+  | "relatedtickers"
+  | "holderdemographics";
 
 export type Arrangement = "grid" | "focus" | "columns" | "rows";
 export type Silo = AssetClass;
@@ -64,7 +73,16 @@ export const WIDGET_IDS: readonly WidgetId[] = [
   "activity",
   "news",
   "profile",
+  "fundamentals",
   "earnings",
+  "trending",
+  "smartscore",
+  "sentiment",
+  "analysts",
+  "hedgefunds",
+  "insiders",
+  "relatedtickers",
+  "holderdemographics",
 ];
 
 // Chart widgets are the only ones that read a per-panel `params.symbol` (the

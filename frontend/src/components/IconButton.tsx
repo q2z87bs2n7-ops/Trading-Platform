@@ -32,9 +32,9 @@ const IconButton = forwardRef<HTMLButtonElement, Props>(function IconButton(
       }}
       className={`inline-flex items-center gap-2 rounded-card border cursor-pointer transition-colors ${className}`}
       style={{
-        background: "var(--panel)",
-        borderColor: active || hover ? "var(--border-2)" : "var(--border)",
-        boxShadow: "var(--shadow-sm)",
+        background: active || hover ? "var(--panel-2)" : "transparent",
+        borderColor: active || hover ? "var(--border)" : "transparent",
+        boxShadow: "none",
         color: active ? "var(--accent)" : hover ? "var(--text)" : "var(--text-2)",
         ...style,
       }}

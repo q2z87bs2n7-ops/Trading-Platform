@@ -43,6 +43,9 @@
   --pos-bg:  oklch(48% 0.11 155 / 0.09);
   --neg-bg:  oklch(52% 0.18 25 / 0.09);
 
+  /* --- Accent colors --- */
+  --amber:   oklch(78% 0.14 75);
+
   /* --- Elevation --- */
   --shadow-sm: 0 1px 1px rgba(20, 22, 28, 0.04), 0 1px 2px rgba(20, 22, 28, 0.03);
   --shadow:    0 4px 24px rgba(20, 22, 28, 0.05);
@@ -112,10 +115,15 @@ html[data-theme="dark"] {
   --accent-bg:   oklch(74% 0.09 200 / 0.13);
   --accent-soft: oklch(28% 0.05 200 / 0.40);
 
-  --pos:    oklch(70% 0.13 155);
+  /* --pos bumped from 70%→62% lightness so positive P/L rows stop reading
+     as "selected" against --accent-soft / --panel-2 backgrounds. See
+     docs/landmines (and the V1 UX sweep TOKENS.md note). */
+  --pos:    oklch(62% 0.14 155);
   --neg:    oklch(70% 0.18 25);
-  --pos-bg: oklch(70% 0.13 155 / 0.12);
+  --pos-bg: oklch(62% 0.14 155 / 0.14);
   --neg-bg: oklch(70% 0.18 25 / 0.12);
+
+  --amber:  oklch(78% 0.14 75);
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow:    0 4px 24px rgba(0, 0, 0, 0.45);
@@ -158,6 +166,7 @@ body {
   max-width: 1600px;
   margin: 0 auto;
   padding: 24px;
+  padding-top: max(14px, var(--safe-top));
 }
 
 /* Workspace mode goes full-bleed: edge-to-edge (no max-width / gutters), thin
@@ -167,14 +176,45 @@ body {
 .app.bleed {
   max-width: none;
   padding: 8px;
+  padding-top: max(14px, var(--safe-top));
   height: 100dvh;
   display: flex;
   flex-direction: column;
 }
 
+/* Chart mode (desktop): a full-height flex column so the chart row fills
+   the viewport below the header and the chart + ChartBot panel stretch to
+   equal heights — no magic height math. Mobile keeps the plain padded
+   block (the chart sizes itself and ChartBot is a floating sheet). */
+.app.app-chart {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Discover sidebar grid. Default desktop width is 260px; iPad portrait
+   (641–1024px) trims to ~85% so the watchlist column doesn't squash the
+   chart / movers row. Mobile uses a different layout path entirely. */
+.discover-grid {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: 260px 1fr;
+  transition: grid-template-columns 0.18s ease;
+}
+.discover-grid.is-collapsed {
+  gap: 12px;
+  grid-template-columns: 32px 1fr;
+}
+@media (min-width: 641px) and (max-width: 1024px) {
+  .discover-grid:not(.is-collapsed) {
+    gap: 16px;
+    grid-template-columns: 216px 1fr;
+  }
+}
+
 @media (max-width: 640px) {
   :root {
-    /* Hero numerals — read with a desktop fallback in BalanceCard. */
+    /* Hero numerals — read with a desktop fallback in PortfolioHero / HeroCardMobile. */
     --mob-hero-value: clamp(28px, 9vw, 38px);
   }
 
@@ -269,4 +309,35 @@ select {
     font-weight: 550;
     letter-spacing: -0.008em;
   }
+}
+
+/*
+ * Themed scrollbar — applied to scrollable surfaces inside the page
+ * (e.g. the Discover watchlist sidebar). Chrome's default scrollbar
+ * inside a sticky column looks heavy against the calm palette; this
+ * narrows it and tones it to --mute. Firefox supports the two-property
+ * shorthand below; Webkit gets the ::-webkit-scrollbar pseudo-elements.
+ */
+.themed-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.themed-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.themed-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.themed-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.themed-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: var(--mute);
+}
+.themed-scroll::-webkit-scrollbar-corner {
+  background: transparent;
 }

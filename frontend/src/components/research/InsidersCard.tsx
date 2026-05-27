@@ -1,0 +1,466 @@
+import { useState } from "react";
+
+import { compact, money } from "../../lib/format";
+
+function StarBar({ stars }: { stars: number | null }) {
+  if (stars == null || Number.isNaN(stars)) return null;
+  // upstream returns 0-5 float
+  const filled = Math.round(Math.max(0, Math.min(5, stars)));
+  return (
+    <span
+      style={{ fontSize: 10.5, fontVariantNumeric: "tabular-nums" }}
+      title={`Insider rating ${stars.toFixed(1)} / 5`}
+    >
+      <span style={{ color: "var(--amber)" }}>{"★".repeat(filled)}</span>
+      <span style={{ color: "var(--border-2)" }}>{"☆".repeat(5 - filled)}</span>
+    </span>
+  );
+}
+import type { InsidersRow, InsiderTransaction } from "../../types";
+import { CardPager } from "../discover/CardPager";
+
+const PAGE_SIZE = 6;
+
+function signedColor(n: number | null): string {
+  if (n == null || n === 0) return "var(--mute)";
+  return n > 0 ? "var(--pos)" : "var(--neg)";
+}
+
+// Tipranks insider transaction dates are DD/MM/YYYY (UK style). Parse
+// defensively — fall back to raw string on anything unexpected.
+function fmtInsiderDate(d: string | null): string {
+  if (!d) return "—";
+  const parts = d.split("/").map((s) => Number(s));
+  if (parts.length === 3 && parts.every(Number.isFinite)) {
+    const [day, month, year] = parts;
+    // Sanity check — day > 12 confirms DD/MM; if day <= 12 we keep this
+    // assumption rather than guessing (Tipranks is consistent per-endpoint).
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return new Date(year, month - 1, day).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "2-digit",
+      });
+    }
+  }
+  return d;
+}
+
+function txnColor(t: string | null): string {
+  if (!t) return "var(--mute)";
+  const lc = t.toLowerCase();
+  if (lc.includes("buy")) return "var(--pos)";
+  if (lc.includes("sell")) return "var(--neg)";
+  return "var(--mute)";
+}
+
+function scoreChipColor(s: string | null): string {
+  if (!s) return "var(--mute)";
+  const lc = s.toLowerCase();
+  if (lc.includes("positive")) return "var(--pos)";
+  if (lc.includes("negative")) return "var(--neg)";
+  return "var(--mute)";
+}
+
+function MonthlyBar({
+  buy,
+  sell,
+}: {
+  buy: number | null;
+  sell: number | null;
+}) {
+  const b = buy ?? 0;
+  const s = sell ?? 0;
+  const total = b + s || 1;
+  return (
+    <div
+      className="flex w-full overflow-hidden"
+      style={{
+        height: 7,
+        borderRadius: 3,
+        background: "var(--panel-2)",
+        boxShadow:
+          "inset 0 1px 0 rgba(0,0,0,0.25), inset 0 -1px 0 rgba(255,255,255,0.02)",
+      }}
+    >
+      <div
+        style={{ width: `${(b / total) * 100}%`, background: "var(--pos)" }}
+      />
+      <div
+        style={{ width: `${(s / total) * 100}%`, background: "var(--neg)" }}
+      />
+    </div>
+  );
+}
+
+function MonthShortLabel({ m, y }: { m: number | null; y: number | null }) {
+  if (m == null || y == null) return <>—</>;
+  const names = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  ];
+  const idx = m - 1;
+  const name = idx >= 0 && idx < 12 ? names[idx] : `${m}`;
+  return <>{name} {String(y).slice(-2)}</>;
+}
+
+function TxnRow({
+  t,
+  rank,
+  dense,
+}: {
+  t: InsiderTransaction;
+  rank: number;
+  dense: boolean;
+}) {
+  const isInformative =
+    !!t.transaction && t.transaction.toLowerCase().startsWith("informative");
+  const accent = txnColor(t.transaction);
+  return (
+    <div
+      className="grid items-center gap-2 py-2"
+      style={{
+        gridTemplateColumns: dense
+          ? "3px 1fr auto 72px auto"
+          : "3px 1fr 100px auto auto 72px auto",
+        borderTop: rank === 0 ? "none" : "1px solid var(--hairline)",
+      }}
+    >
+      {/* Left-rail accent — color = side, saturation = informative vs routine */}
+      <div
+        style={{
+          width: 3,
+          height: "100%",
+          minHeight: 28,
+          background: accent,
+          opacity: isInformative ? 1 : 0.35,
+          borderRadius: 1.5,
+        }}
+        title={t.transaction || ""}
+      />
+      <div className="flex flex-col min-w-0">
+        <span
+          className="text-[12.5px] font-semibold truncate"
+          title={t.insider_name || ""}
+        >
+          {t.insider_name || "—"}
+        </span>
+        {dense && t.position && (
+          <span
+            className="text-[10.5px] truncate"
+            style={{ color: "var(--mute)" }}
+          >
+            {t.position}
+          </span>
+        )}
+      </div>
+      {!dense && (
+        <span
+          className="text-[11px] min-w-0 truncate"
+          style={{ color: "var(--mute)" }}
+          title={t.position || ""}
+        >
+          {t.position || ""}
+        </span>
+      )}
+      {!dense && <StarBar stars={t.stars} />}
+      <span
+        className="font-mono text-[12px] tabular-nums text-right"
+        style={{ color: accent }}
+        title={t.transaction || ""}
+      >
+        {t.amount != null ? money(t.amount) : "—"}
+      </span>
+      <span
+        className="text-[11px] font-mono tabular-nums text-right"
+        style={{ color: "var(--mute)" }}
+      >
+        {fmtInsiderDate(t.date)}
+      </span>
+      {t.form_url ? (
+        <a
+          href={t.form_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="text-[12px]"
+          style={{ color: "var(--mute)", textDecoration: "none" }}
+          title="View SEC Form 4 filing"
+        >
+          ↗
+        </a>
+      ) : (
+        <span style={{ width: 12 }} />
+      )}
+    </div>
+  );
+}
+
+export function InsidersCard({
+  row,
+  bare = false,
+  dense = false,
+  narrow = false,
+}: {
+  row: InsidersRow | null;
+  bare?: boolean;
+  dense?: boolean;
+  narrow?: boolean;
+}) {
+  const [page, setPage] = useState(0);
+  const txns = row?.transactions ?? [];
+  const pageCount = Math.max(1, Math.ceil(txns.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const start = safePage * PAGE_SIZE;
+  const visible = txns.slice(start, start + PAGE_SIZE);
+
+  // Last 6 months of bucketed activity (chronological); narrow panels show
+  // last 3 so the per-bar labels stay readable.
+  const monthCount = narrow ? 3 : 6;
+  const monthly = (row?.monthly ?? []).slice(-monthCount);
+
+  const body =
+    row == null ? (
+      <p className="text-[13px]" style={{ color: "var(--mute)" }}>
+        No insider data available for this symbol.
+      </p>
+    ) : (
+      <div className="flex flex-col gap-3">
+        {/* Net flow + confidence signal. `trend` is a signed $ amount
+            (not a 0-1 score), so render it with compact $ formatting.
+            `confidence_signal.score` is a label string ("Negative
+            Sentiment" / "NA"), not a number. */}
+        <div className="flex items-baseline gap-3 flex-wrap">
+          <div className="flex flex-col gap-0.5">
+            <span
+              className="uppercase"
+              style={{
+                fontSize: 10.5,
+                color: "color-mix(in oklab, var(--mute) 70%, var(--text-2))",
+                letterSpacing: "0.06em",
+                fontWeight: 500,
+              }}
+            >
+              Net 12-mo flow
+            </span>
+            <span
+              className="font-mono tabular-nums"
+              style={{
+                fontSize: 22,
+                fontWeight: 600,
+                lineHeight: 1,
+                letterSpacing: "-0.01em",
+                color: signedColor(row.trend),
+              }}
+              title="Net insider $ flow over the trailing year"
+            >
+              {row.trend != null
+                ? `${row.trend < 0 ? "−" : row.trend > 0 ? "+" : ""}$${compact(Math.abs(row.trend))}`
+                : "—"}
+            </span>
+          </div>
+          {row.confidence_signal.score && (
+            <span
+              className="ml-2 uppercase"
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                letterSpacing: "0.05em",
+                padding: "2px 7px",
+                borderRadius: 999,
+                color: scoreChipColor(row.confidence_signal.score),
+                background: "color-mix(in oklch, currentColor 14%, transparent)",
+                border: "1px solid color-mix(in oklch, currentColor 35%, transparent)",
+                whiteSpace: "nowrap",
+              }}
+              title="Tipranks confidence signal"
+            >
+              {row.confidence_signal.score}
+            </span>
+          )}
+          {row.confidence_signal.stock_score != null && (
+            <div className="flex flex-col gap-0.5 ml-auto text-right">
+              <span
+                className="text-[10px] uppercase"
+                style={{ color: "var(--mute)", letterSpacing: "0.04em" }}
+              >
+                Stock · sector
+              </span>
+              <span className="font-mono text-[12px] tabular-nums">
+                {row.confidence_signal.stock_score.toFixed(2)} ·{" "}
+                {row.confidence_signal.sector_score != null
+                  ? row.confidence_signal.sector_score.toFixed(2)
+                  : "—"}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Transaction type counts */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-0.5">
+            <span
+              className="uppercase"
+              style={{
+                fontSize: 10.5,
+                color: "color-mix(in oklab, var(--mute) 70%, var(--text-2))",
+                letterSpacing: "0.06em",
+                fontWeight: 500,
+              }}
+            >
+              Discretionary
+            </span>
+            <span className="font-mono text-[13px] tabular-nums">
+              {row.discretionary_transactions ?? 0}
+            </span>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <span
+              className="uppercase"
+              style={{
+                fontSize: 10.5,
+                color: "color-mix(in oklab, var(--mute) 70%, var(--text-2))",
+                letterSpacing: "0.06em",
+                fontWeight: 500,
+              }}
+            >
+              Uninformative
+            </span>
+            <span
+              className="font-mono text-[13px] tabular-nums"
+              style={{ color: "var(--mute)" }}
+            >
+              {row.uninformative_transactions ?? 0}
+            </span>
+          </div>
+        </div>
+
+        {/* Monthly buy/sell bars */}
+        {monthly.length > 0 && (
+          <div className="flex flex-col gap-1">
+            <span
+              className="uppercase"
+              style={{
+                fontSize: 10.5,
+                color: "color-mix(in oklab, var(--mute) 70%, var(--text-2))",
+                letterSpacing: "0.06em",
+                fontWeight: 500,
+              }}
+            >
+              Last {monthCount} months (buys vs sells)
+            </span>
+            <div
+              className={`grid gap-2 ${narrow ? "grid-cols-3" : "grid-cols-6"}`}
+            >
+              {monthly.map((m) => (
+                <div
+                  key={`${m.year}-${m.month}`}
+                  className="flex flex-col gap-0.5"
+                  title={`Buy $${compact(m.buy_amount ?? 0)} · Sell $${compact(m.sell_amount ?? 0)}`}
+                >
+                  <MonthlyBar buy={m.buy_amount} sell={m.sell_amount} />
+                  <span
+                    className="text-[9.5px] text-center"
+                    style={{ color: "var(--mute)" }}
+                  >
+                    <MonthShortLabel m={m.month} y={m.year} />
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Recent transactions list */}
+        {txns.length > 0 && (
+          <div className="flex flex-col gap-0.5">
+            <span
+              className="uppercase"
+              style={{
+                fontSize: 10.5,
+                color: "color-mix(in oklab, var(--mute) 70%, var(--text-2))",
+                letterSpacing: "0.06em",
+                fontWeight: 500,
+              }}
+            >
+              Recent transactions
+            </span>
+            {visible.map((t, i) => (
+              <TxnRow
+                key={`${t.expert_uid ?? t.insider_name}-${start + i}`}
+                t={t}
+                rank={i}
+                dense={dense}
+              />
+            ))}
+            {txns.length > PAGE_SIZE && (
+              <CardPager
+                label={`${start + 1}–${start + visible.length} of ${txns.length}`}
+                canPrev={safePage > 0}
+                canNext={safePage < pageCount - 1}
+                onPrev={() => setPage(safePage - 1)}
+                onNext={() => setPage(safePage + 1)}
+              />
+            )}
+          </div>
+        )}
+      </div>
+    );
+
+  if (bare) return body;
+
+  return (
+    <div
+      style={{
+        padding: "16px 18px",
+        background: "var(--panel)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--r-lg)",
+        boxShadow: "0 0 0 1px var(--hairline), 0 1px 1px rgba(0,0,0,0.25)",
+      }}
+    >
+      {body}
+    </div>
+  );
+}
+
+export function InsidersCardSkeleton({ bare = false }: { bare?: boolean } = {}) {
+  const body = (
+    <div className="animate-pulse flex flex-col gap-3">
+      <div
+        className="h-6 w-20 rounded"
+        style={{ background: "var(--panel-2)" }}
+      />
+      <div className="grid grid-cols-6 gap-2">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div
+            key={i}
+            className="h-3 rounded"
+            style={{ background: "var(--panel-2)" }}
+          />
+        ))}
+      </div>
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div
+          key={i}
+          className="h-6 w-full rounded"
+          style={{ background: "var(--panel-2)" }}
+        />
+      ))}
+    </div>
+  );
+  if (bare) return body;
+  return (
+    <div
+      style={{
+        padding: "16px 18px",
+        background: "var(--panel)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--r-lg)",
+        boxShadow: "0 0 0 1px var(--hairline), 0 1px 1px rgba(0,0,0,0.25)",
+      }}
+    >
+      {body}
+    </div>
+  );
+}

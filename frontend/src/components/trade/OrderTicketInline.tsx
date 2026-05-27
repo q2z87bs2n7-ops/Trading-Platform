@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import { useAccount } from "../../data/hooks";
 import {
@@ -6,6 +6,7 @@ import {
   type OType,
   type TIF,
 } from "../../hooks/useOrderTicket";
+import { useContainerNarrow } from "../../hooks/useContainerNarrow";
 import { money } from "../../lib/format";
 import ErrorBanner from "../ErrorBanner";
 import {
@@ -16,6 +17,8 @@ import {
   TIF_LABEL,
   TYPE_LABEL,
 } from "./OrderSheet";
+
+const NARROW_W = 300;
 
 function Label({ children }: { children: React.ReactNode }) {
   return (
@@ -60,6 +63,8 @@ function priceInput(
 export default function OrderTicketInline({ symbol }: { symbol: string }) {
   const t = useOrderTicket(symbol);
   const { data: account } = useAccount();
+  const ref = useRef<HTMLDivElement>(null);
+  const narrow = useContainerNarrow(ref, NARROW_W);
 
   const dollars = t.amountMode === "dollars" && t.notionalEligible;
   const bp =
@@ -78,7 +83,7 @@ export default function OrderTicketInline({ symbol }: { symbol: string }) {
   }, [t.submit.isSuccess]);
 
   return (
-    <div className="flex flex-col gap-3">
+    <div ref={ref} className={`flex flex-col ${narrow ? "gap-2" : "gap-3"}`}>
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-[15px] font-semibold">{t.symbol || "—"}</span>
         {t.quote && (
@@ -102,7 +107,7 @@ export default function OrderTicketInline({ symbol }: { symbol: string }) {
               onClick={() => t.setSide(s)}
               className="text-[14px] font-semibold cursor-pointer capitalize"
               style={{
-                padding: "10px",
+                padding: narrow ? "7px" : "10px",
                 borderRadius: "var(--r)",
                 border: `1.5px solid ${active ? color : "var(--border)"}`,
                 background: active ? color : "transparent",
@@ -249,7 +254,7 @@ export default function OrderTicketInline({ symbol }: { symbol: string }) {
         onClick={() => t.trySubmit()}
         className="w-full text-[14px] font-semibold cursor-pointer border-0"
         style={{
-          padding: "12px",
+          padding: narrow ? "9px" : "12px",
           borderRadius: "var(--r)",
           background: t.side === "buy" ? "var(--pos)" : "var(--neg)",
           color: "white",

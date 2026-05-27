@@ -2,12 +2,13 @@
  * TVChartWidget — the bare TradingView Charting Library widget for the
  * Workspace canvas: TV's own native header / toolbars / settings, our datafeed,
  * theme sync, and two-way symbol sync. Deliberately none of the TVPlatform
- * chrome (ChartTopBar / IndicatorPillsRow / ChartBlotter / TradeBar / broker),
- * and it does NOT register the global TV handle (that singleton belongs to
+ * chrome (TradeBar / broker), and it does NOT register the global TV
+ * handle (that singleton belongs to
  * Chart-mode's ChartBot) so multiple chart panels stay independent.
  */
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
+import type { DockviewPanelApi } from "dockview-core";
 
 import { useTheme } from "../hooks/useTheme";
 import { createDatafeed } from "../lib/tv-datafeed";
@@ -20,6 +21,10 @@ declare const TradingView: {
 interface Props {
   symbol: string;
   onSymbolChange?: (s: string) => void;
+  // Dockview panel API — used to nudge TV's iframe autosize on
+  // visibility/dimension changes (TV's RO misses display:none → visible
+  // when the size hasn't changed, leaving the chart stuck).
+  panelApi?: DockviewPanelApi;
 }
 
 function normalizeSymbol(raw: string): string {
@@ -49,7 +54,7 @@ function applyDensity(w: TVWidgetInstance, small: boolean) {
   });
 }
 
-export default function TVChartWidget({ symbol, onSymbolChange }: Props) {
+export default function TVChartWidget({ symbol, onSymbolChange, panelApi }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetRef = useRef<TVWidgetInstance | null>(null);
   const readyRef = useRef(false);
@@ -62,6 +67,23 @@ export default function TVChartWidget({ symbol, onSymbolChange }: Props) {
   useEffect(() => {
     themeRef.current = theme;
   }, [theme]);
+
+  // Re-skin the live widget in place. changeTheme applies TV's standard
+  // palette, so re-assert our custom pane background afterwards.
+  const applyTheme = useCallback((t: "light" | "dark") => {
+    const w = widgetRef.current;
+    if (!w) return;
+    w.changeTheme(t, { disableUndo: true })
+      .then(() => {
+        w.applyOverrides({
+          "paneProperties.background": t === "dark" ? "#0a0c10" : "#ffffff",
+          "paneProperties.backgroundType": "solid",
+        });
+      })
+      .catch(() => {
+        /* widget tearing down */
+      });
+  }, []);
 
   // The widget is built once; route symbol-out through a ref so it always hits
   // the latest callback.
@@ -115,6 +137,11 @@ export default function TVChartWidget({ symbol, onSymbolChange }: Props) {
 
       widget.onChartReady(() => {
         readyRef.current = true;
+        // With use_localstorage_for_settings on, TV can restore a previous
+        // session's palette, and a theme toggle can land mid-load — both
+        // leave the initial colours out of sync until a manual toggle.
+        // Re-assert the current app theme now that the chart is ready.
+        applyTheme(themeRef.current);
         if (smallRef.current !== null) {
           try {
             applyDensity(widget, smallRef.current);
@@ -176,21 +203,38 @@ export default function TVChartWidget({ symbol, onSymbolChange }: Props) {
     return () => ro.disconnect();
   }, []);
 
+  // Dockview hides inactive panels with display:none. iframes stop laying out
+  // while hidden; on re-show at the same size, TV's internal ResizeObserver
+  // never fires and the chart stays stuck at the old (often collapsed) size.
+  // Nudge the container by 1px on visibility/dimensions changes to force the
+  // iframe autosize to re-measure.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || !panelApi) return;
+    const nudge = () => {
+      requestAnimationFrame(() => {
+        if (!containerRef.current) return;
+        containerRef.current.style.height = "calc(100% - 1px)";
+        requestAnimationFrame(() => {
+          if (!containerRef.current) return;
+          containerRef.current.style.height = "100%";
+        });
+      });
+    };
+    const d1 = panelApi.onDidVisibilityChange((e) => {
+      if (e.isVisible) nudge();
+    });
+    const d2 = panelApi.onDidDimensionsChange(() => nudge());
+    return () => {
+      d1.dispose();
+      d2.dispose();
+    };
+  }, [panelApi]);
+
   // Re-skin in place on theme toggle once the chart is ready.
   useEffect(() => {
-    const w = widgetRef.current;
-    if (!w || !readyRef.current) return;
-    w.changeTheme(theme, { disableUndo: true })
-      .then(() => {
-        w.applyOverrides({
-          "paneProperties.background": theme === "dark" ? "#0a0c10" : "#ffffff",
-          "paneProperties.backgroundType": "solid",
-        });
-      })
-      .catch(() => {
-        /* widget tearing down */
-      });
-  }, [theme]);
+    if (readyRef.current) applyTheme(theme);
+  }, [theme, applyTheme]);
 
   // Push external symbol changes (from the linked workspace channel) into the
   // running widget; bail if it's already there to avoid a refire loop.

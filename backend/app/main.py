@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 
 from alpaca.common.exceptions import APIError
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
@@ -14,6 +14,7 @@ from . import db
 from . import indices as market_indices
 from . import market_news
 from . import stream as quote_stream
+from . import tipranks
 from .ai import router as ai_router
 from .config import get_settings
 from .schemas import (
@@ -108,7 +109,34 @@ def health() -> dict:
 @app.get("/api/config")
 def config() -> dict:
     s = get_settings()
-    return {"symbols": s.symbols, "feed": s.alpaca_data_feed, "paper": s.alpaca_paper}
+    return {
+        "symbols": s.symbols,
+        "feed": s.alpaca_data_feed,
+        "paper": s.alpaca_paper,
+        # Surface the active Anthropic model + tool-loop cap so the AI
+        # disabled-state notices can render real per-turn cost estimates
+        # against published Anthropic pricing.
+        "anthropic_model": s.anthropic_model,
+        "ai_max_tool_iterations": s.ai_max_tool_iterations,
+    }
+
+
+@app.get("/api/status")
+def status() -> dict:
+    """Lightweight client poll: app version + the maintenance/force-stop
+    switches. Fails open — a DB blip must never strand everyone."""
+    flags = {
+        "maintenance": False,
+        "message": "",
+        "force_stop": False,
+        "force_stop_message": "",
+    }
+    if db.db_enabled():
+        try:
+            flags = db.get_app_flags()
+        except db.DbUnavailable:
+            pass
+    return {"version": _version, **flags}
 
 
 @app.get("/api/account", dependencies=[Depends(require_configured)])
@@ -199,7 +227,8 @@ def asset(symbol: str) -> dict:
 
 
 @app.get("/api/asset-profile/{symbol:path}", dependencies=[Depends(require_configured)])
-def asset_profile(symbol: str) -> dict:
+def asset_profile(symbol: str, response: Response) -> dict:
+    response.headers["Cache-Control"] = "public, max-age=3600"
     # Full catalogue enrichment for one symbol (FMP for stocks, CoinGecko for
     # crypto) — every column, with NULL keys dropped so a stock row never carries
     # empty crypto fields and vice versa. Powers the Workspace Profile widget.
@@ -225,6 +254,20 @@ def bars(
     return {"symbol": symbol.upper(), "bars": alpaca.get_bars(symbol, timeframe, limit)}
 
 
+@app.get("/api/bars/batch", dependencies=[Depends(require_configured)])
+def bars_batch(
+    symbols: str = Query("", description="Comma-separated symbol list."),
+    timeframe: str = Query("1Day"),
+    limit: int = Query(30, ge=1, le=200),
+) -> dict:
+    """Last-N bars across N symbols in one round-trip.
+
+    Powers the watchlist sparkline cards — previously a synthetic curve,
+    now real daily closes batched into a single request."""
+    syms = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+    return {"bars": alpaca.get_bars_batch(syms, timeframe, limit)}
+
+
 @app.get("/api/news", dependencies=[Depends(require_configured)])
 def news(
     symbol: str = Query(..., min_length=1),
@@ -246,24 +289,114 @@ def indices_snapshot() -> dict:
 
 
 @app.get("/api/calendar/earnings")
-def earnings_calendar(include: str = Query("")) -> dict:
+def earnings_calendar(response: Response, include: str = Query("")) -> dict:
     """Curated whole-market earnings calendar (FMP). No Alpaca keys required.
     `include` is a comma-separated symbol list (the user's positions / orders /
     watchlist) that is always kept regardless of market cap."""
+    response.headers["Cache-Control"] = "public, max-age=3600"
     syms = {s.strip().upper() for s in include.split(",") if s.strip()}
     return {"earnings": calendar_fmp.get_earnings_calendar(syms), "as_of": int(time.time())}
 
 
 @app.get("/api/calendar/earnings/{symbol}")
-def symbol_earnings(symbol: str) -> dict:
+def symbol_earnings(symbol: str, response: Response) -> dict:
     """Recent + upcoming earnings for one ticker (FMP). No Alpaca keys required."""
+    response.headers["Cache-Control"] = "public, max-age=3600"
     return {"symbol": symbol.upper(), "earnings": calendar_fmp.get_symbol_earnings(symbol)}
 
 
 @app.get("/api/calendar/economic")
-def economic_calendar() -> dict:
+def economic_calendar(response: Response) -> dict:
     """US high/medium-impact macro calendar (FMP). No Alpaca keys required."""
+    response.headers["Cache-Control"] = "public, max-age=3600"
     return {"economic": calendar_fmp.get_economic_calendar(), "as_of": int(time.time())}
+
+
+@app.get("/api/research/trending")
+def research_trending(response: Response) -> dict:
+    """Top trending stocks by analyst coverage (Tipranks). Equities only."""
+    response.headers["Cache-Control"] = "public, max-age=900"
+    return {"trending": tipranks.get_trending_stocks(), "as_of": int(time.time())}
+
+
+@app.get("/api/research/smart-score/{symbol:path}")
+def research_smart_score(symbol: str, response: Response) -> dict:
+    """Tipranks SmartScore composite (1–10) + component breakdown for one symbol."""
+    response.headers["Cache-Control"] = "public, max-age=3600"
+    return {
+        "symbol": symbol.upper(),
+        "smart_score": tipranks.get_smart_score(symbol),
+        "as_of": int(time.time()),
+    }
+
+
+@app.get("/api/research/sentiment/{symbol:path}")
+def research_sentiment(symbol: str, response: Response) -> dict:
+    """Combined blogger + news + investor sentiment (Tipranks). Three upstream
+    calls fanned in. Stocks only."""
+    response.headers["Cache-Control"] = "public, max-age=1800"
+    return {
+        "symbol": symbol.upper(),
+        "sentiment": tipranks.get_sentiment_signals(symbol),
+        "as_of": int(time.time()),
+    }
+
+
+@app.get("/api/research/analysts/{symbol:path}")
+def research_analysts(symbol: str, response: Response) -> dict:
+    """Per-analyst ratings list for one symbol (Tipranks). Stocks only."""
+    response.headers["Cache-Control"] = "public, max-age=3600"
+    return {
+        "symbol": symbol.upper(),
+        "analysts": tipranks.get_analyst_ratings(symbol),
+        "as_of": int(time.time()),
+    }
+
+
+@app.get("/api/research/hedge-funds/{symbol:path}")
+def research_hedge_funds(symbol: str, response: Response) -> dict:
+    """Hedge-fund signal + 13F quarterly trend + per-fund holdings (Tipranks)."""
+    response.headers["Cache-Control"] = "public, max-age=21600"
+    return {
+        "symbol": symbol.upper(),
+        "hedge_funds": tipranks.get_hedge_funds(symbol),
+        "as_of": int(time.time()),
+    }
+
+
+@app.get("/api/research/insiders/{symbol:path}")
+def research_insiders(symbol: str, response: Response) -> dict:
+    """Insider Form-4 transactions + monthly history + confidence (Tipranks)."""
+    response.headers["Cache-Control"] = "public, max-age=14400"
+    return {
+        "symbol": symbol.upper(),
+        "insiders": tipranks.get_insiders(symbol),
+        "as_of": int(time.time()),
+    }
+
+
+@app.get("/api/research/related-tickers/{symbol:path}")
+def research_related_tickers(symbol: str, response: Response) -> dict:
+    """Tickers also held by investors who hold ``symbol`` (Tipranks). Four
+    lists — overall + per-age-cohort (youngest / midRange / eldest)."""
+    response.headers["Cache-Control"] = "public, max-age=1800"
+    return {
+        "symbol": symbol.upper(),
+        "related": tipranks.get_related_tickers(symbol),
+        "as_of": int(time.time()),
+    }
+
+
+@app.get("/api/research/holder-demographics/{symbol:path}")
+def research_holder_demographics(symbol: str, response: Response) -> dict:
+    """Per-cohort behavioural profile of the stock's holder base
+    (eldest / midRange / youngest) + sector & best-investor benchmark footer."""
+    response.headers["Cache-Control"] = "public, max-age=1800"
+    return {
+        "symbol": symbol.upper(),
+        "demographics": tipranks.get_holder_demographics(symbol),
+        "as_of": int(time.time()),
+    }
 
 
 @app.get("/api/movers", dependencies=[Depends(require_configured)])
@@ -432,19 +565,74 @@ def seed_assets(force: bool = Query(False), base: bool = Query(True)) -> dict:
     return run_seed(force=force, base=base)
 
 
-@app.post("/api/_dev/enrich-stocks", dependencies=[Depends(require_configured)])
-def enrich_stocks(
-    symbols: str = Query(""),
-    limit: int = Query(0, ge=0, le=20000),
-    force: bool = Query(False),
-) -> dict:
-    """Enrich us_equity rows from FMP. Dev tool; Render-only. Either an explicit
-    list, or the next ``limit`` un-enriched stocks (options-listed first) for a
-    universe backfill:
-    curl -X POST 'https://<render-url>/api/_dev/enrich-stocks?limit=2500'"""
-    syms = [s.strip().upper() for s in symbols.split(",") if s.strip()]
-    from .seed import enrich_stocks as _enrich
-    return _enrich(symbols=syms or None, limit=limit, force=force)
+# --- Per-widget refresh routines (background; re-pull already-enriched rows) ---
+# Each routine "completes a card": every DB value that widget shows is re-fetched.
+# All return immediately and run in a daemon thread on Render. ?include_missing=
+# true also onboards rows that card hasn't enriched yet (new instruments).
+
+@app.post("/api/_dev/refresh-profile-stocks", dependencies=[Depends(require_configured)])
+def refresh_profile_stocks(include_missing: bool = Query(False)) -> dict:
+    """Refresh the **Profile** card's stock fields (FMP /profile) for enriched
+    stocks; ?include_missing=true also onboards un-enriched ones. Render-only:
+    curl -X POST 'https://<render-url>/api/_dev/refresh-profile-stocks'"""
+    from .seed import refresh_profile_stocks as _r
+    return _r(include_missing=include_missing)
+
+
+@app.post("/api/_dev/refresh-profile-crypto", dependencies=[Depends(require_configured)])
+def refresh_profile_crypto() -> dict:
+    """Refresh the **Profile** card's crypto fields (CoinGecko) for crypto rows.
+    Render-only:
+    curl -X POST 'https://<render-url>/api/_dev/refresh-profile-crypto'"""
+    from .seed import refresh_profile_crypto as _r
+    return _r()
+
+
+@app.post("/api/_dev/refresh-fundamentals", dependencies=[Depends(require_configured)])
+def refresh_fundamentals(include_missing: bool = Query(False)) -> dict:
+    """Refresh the **Fundamentals** card (FMP statements) for stocks that already
+    carry fundamentals; ?include_missing=true also fills gaps. Render-only:
+    curl -X POST 'https://<render-url>/api/_dev/refresh-fundamentals'"""
+    from .seed import refresh_fundamentals as _r
+    return _r(include_missing=include_missing)
+
+
+@app.post("/api/_dev/refresh-all-stocks", dependencies=[Depends(require_configured)])
+def refresh_all_stocks(include_missing: bool = Query(False)) -> dict:
+    """Refresh ALL stock enrichment in one background flow — Profile (FMP
+    /profile) + Fundamentals (FMP statements); superset of the per-card stock
+    routines. ?include_missing=true also onboards new stocks. Render-only:
+    curl -X POST 'https://<render-url>/api/_dev/refresh-all-stocks'"""
+    from .seed import refresh_all_stocks as _r
+    return _r(include_missing=include_missing)
+
+
+@app.post("/api/_dev/refresh-alpaca", dependencies=[Depends(require_configured)])
+def refresh_alpaca() -> dict:
+    """Background refresh of Alpaca base identity + trading status for the whole
+    catalogue (tradability, active/inactive, options, crypto increments) — also
+    onboards new listings. Render-only:
+    curl -X POST 'https://<render-url>/api/_dev/refresh-alpaca'"""
+    from .seed import refresh_alpaca as _r
+    return _r()
+
+
+@app.get("/api/_dev/new-symbols", dependencies=[Depends(require_configured)])
+def new_symbols() -> dict:
+    """Fast read-only check for new listings / IPOs: Alpaca symbols not yet in the
+    catalogue. No writes. Render-only:
+    curl 'https://<render-url>/api/_dev/new-symbols'"""
+    from .seed import check_new_symbols as _c
+    return _c()
+
+
+@app.post("/api/_dev/refresh-all-crypto", dependencies=[Depends(require_configured)])
+def refresh_all_crypto() -> dict:
+    """Refresh ALL crypto enrichment (CoinGecko) in one background flow.
+    Render-only:
+    curl -X POST 'https://<render-url>/api/_dev/refresh-all-crypto'"""
+    from .seed import refresh_all_crypto as _r
+    return _r()
 
 
 @app.get("/api/stream")
