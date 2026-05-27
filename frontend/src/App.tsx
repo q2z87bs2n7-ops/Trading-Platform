@@ -15,6 +15,7 @@ import Orders from "./components/Orders";
 import Activities from "./components/Activities";
 import { HeaderEquityReadout, HeaderStatusInline } from "./components/TopBar";
 import DiscoverPage from "./components/DiscoverPage";
+import ForexDiscoverPage from "./components/ForexDiscoverPage";
 import AssetClassSplash from "./components/AssetClassSplash";
 import AllocationDonut from "./components/AllocationDonut";
 import PortfolioHero from "./components/PortfolioHero";
@@ -38,11 +39,11 @@ import { useMobile } from "./hooks/useMobile";
 const Workspace = lazy(() => import("./components/Workspace"));
 
 type PlatformMode = "discover" | "portfolio" | "chart" | "workspace";
-type AssetClassMode = "stocks" | "crypto";
+type AssetClassMode = "stocks" | "crypto" | "forex";
 
 function readAssetClassMode(): AssetClassMode | null {
   const raw = localStorage.getItem("asset_class_mode");
-  if (raw === "stocks" || raw === "crypto") return raw;
+  if (raw === "stocks" || raw === "crypto" || raw === "forex") return raw;
   return null;
 }
 
@@ -357,7 +358,7 @@ export default function App() {
   useEffect(() => {
     function onSwitch(e: Event) {
       const detail = (e as CustomEvent<{ silo?: AssetClassMode }>).detail;
-      if (detail?.silo === "stocks" || detail?.silo === "crypto") {
+      if (detail?.silo === "stocks" || detail?.silo === "crypto" || detail?.silo === "forex") {
         switchAssetClass(detail.silo);
       }
     }
@@ -408,7 +409,13 @@ export default function App() {
           "--accent-2": "var(--pos)",
           "--accent-bg": "var(--pos-bg)",
         } as React.CSSProperties)
-      : undefined;
+      : activeClass === "forex"
+        ? ({
+            "--accent": "oklch(72% 0.18 55)",
+            "--accent-2": "oklch(72% 0.18 55)",
+            "--accent-bg": "oklch(72% 0.18 55 / 0.12)",
+          } as React.CSSProperties)
+        : undefined;
 
   if (booted || status?.force_stop)
     return <MaintenancePage message={status?.force_stop_message} terminal />;
@@ -468,7 +475,7 @@ export default function App() {
                   className="text-[14px] font-semibold truncate inline-flex items-center gap-1"
                   style={{ letterSpacing: "-0.005em" }}
                 >
-                  {activeClass === "crypto" ? "Crypto" : "Stocks"}
+                  {activeClass === "crypto" ? "Crypto" : activeClass === "forex" ? "Forex" : "Stocks"}
                   <span
                     aria-hidden
                     style={{ color: "var(--mute)", fontSize: 10 }}
@@ -527,8 +534,11 @@ export default function App() {
       </header>
       )}
 
-      {/* Discover — one surface, parameterized by the active asset class */}
-      {mode === "discover" && (
+      {/* Discover — parameterized by active asset class; forex gets its own surface */}
+      {mode === "discover" && activeClass === "forex" && (
+        <ForexDiscoverPage />
+      )}
+      {mode === "discover" && activeClass !== "forex" && (
         <DiscoverPage
           assetClass={activeClass}
           selected={selected}
@@ -609,9 +619,10 @@ export default function App() {
         </div>
       )}
 
-      {/* Floating Buy/Sell bar — Discover + Portfolio. Chart mode mounts
-         its own TradeBar inside TVPlatform so it ships with TV's chrome. */}
-      {(mode === "discover" || mode === "portfolio") && (
+      {/* Floating Buy/Sell bar — Discover + Portfolio (Alpaca silos only).
+         Chart mode mounts its own TradeBar inside TVPlatform. Forex has no
+         Alpaca order entry, so it's suppressed there. */}
+      {(mode === "discover" || mode === "portfolio") && activeClass !== "forex" && (
         <TradeBar symbol={selected} />
       )}
 

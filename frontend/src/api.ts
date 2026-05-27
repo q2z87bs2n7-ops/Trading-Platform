@@ -3,6 +3,10 @@ import type {
   Activity,
   Asset,
   AssetProfile,
+  FxcmAccount,
+  FxcmBar,
+  FxcmPrice,
+  FxcmPosition,
   Bar,
   CalendarDay,
   EarningsResponse,
@@ -420,3 +424,34 @@ export function streamBars(
   };
   return () => es.close();
 }
+
+// ── FXCM bridge API (/api/fxcm/*) ────────────────────────────────────────────
+
+export const getFxcmHealth = () =>
+  getJSON<{ status: string; account: string }>("/api/fxcm/health");
+
+export const getFxcmAccount = () =>
+  getJSON<FxcmAccount>("/api/fxcm/account");
+
+export const getFxcmPrices = (instrument?: string) =>
+  getJSON<FxcmPrice[]>(
+    `/api/fxcm/prices${instrument ? `?instrument=${encodeURIComponent(instrument)}` : ""}`,
+  );
+
+export const getFxcmWatchlist = () =>
+  getJSON<FxcmPrice[]>("/api/fxcm/watchlist");
+
+export const getFxcmPositions = () =>
+  getJSON<FxcmPosition[]>("/api/fxcm/positions");
+
+export const getFxcmHistory = (
+  instrument: string,
+  timeframe = "H1",
+  dateFrom?: string,
+  dateTo?: string,
+) => {
+  const params = new URLSearchParams({ instrument, timeframe });
+  if (dateFrom) params.set("date_from", dateFrom);
+  if (dateTo) params.set("date_to", dateTo);
+  return getJSON<FxcmBar[]>(`/api/fxcm/history?${params}`);
+};

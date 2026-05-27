@@ -16,6 +16,7 @@ from . import market_news
 from . import stream as quote_stream
 from . import tipranks
 from .ai import router as ai_router
+from .fxcm import router as fxcm_router
 from .config import get_settings
 from .schemas import (
     AssetOut,
@@ -58,6 +59,7 @@ app.add_middleware(
 )
 
 app.include_router(ai_router.router)
+app.include_router(fxcm_router)
 
 
 # --- Error boundary --------------------------------------------------------

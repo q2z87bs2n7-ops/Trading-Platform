@@ -628,6 +628,59 @@ export interface HolderDemographicsResponse {
   as_of?: number;
 }
 
+// FXCM bridge types (ForexConnect via /api/fxcm/*).
+// The bridge exposes raw ForexConnect table rows enriched with instrument metadata.
+
+export interface FxcmAccount {
+  account_id?: string | number;
+  balance?: number;
+  equity?: number;
+  usedmargin?: number;
+  day_pl?: number;
+  [key: string]: unknown;
+}
+
+export interface FxcmPrice {
+  offer_id?: string | number;
+  instrument: string;
+  bid?: number;
+  ask?: number;
+  high?: number;
+  low?: number;
+  digits?: number;
+  trading_status?: string;
+  // Instrument metadata merged by the bridge
+  display_name?: string;
+  type?: string;
+  currency?: string;
+  session?: string;
+  timezone?: string;
+  description?: string;
+  [key: string]: unknown;
+}
+
+export interface FxcmBar {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  ask_open: number;
+  volume: number;
+}
+
+export interface FxcmPosition {
+  trade_id?: string | number;
+  account_id?: string | number;
+  offer_id?: string | number;
+  amount?: number;
+  buy_sell?: string;
+  open_rate?: number;
+  close?: number;
+  pl?: number;
+  [key: string]: unknown;
+}
+
 // Benzinga ticker news via Alpaca /api/news
 export interface NewsItem {
   id: number;

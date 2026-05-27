@@ -3,7 +3,7 @@ import { useMobile } from "../hooks/useMobile";
 import { isCryptoPosition } from "../lib/asset-class";
 import { money, pct } from "../lib/format";
 
-type AssetClassMode = "stocks" | "crypto";
+type AssetClassMode = "stocks" | "crypto" | "forex";
 
 const timeHM = (ts: number) =>
   new Date(ts * 1000).toLocaleTimeString(undefined, {
@@ -306,33 +306,45 @@ export default function AssetClassSplash({
         {onClose && <AccountOverview />}
 
         {/* Silo summary cards — whole card is the affordance, no inner CTA. */}
-        <div
-          className={`grid w-full gap-${isMobile ? "2.5" : "[18px]"} ${
-            isMobile ? "grid-cols-1" : "grid-cols-2"
-          }`}
-          style={isMobile ? undefined : { gap: 18 }}
-        >
+        <div className="flex flex-col w-full gap-[14px]">
+          <div
+            className={`grid w-full ${isMobile ? "grid-cols-1" : "grid-cols-2"}`}
+            style={{ gap: 14 }}
+          >
+            <SiloCard
+              name="Stocks"
+              dot="var(--pos)"
+              positions={stockPos.length}
+              equity={stockEquity}
+              dayPl={stockDay}
+              dayPlPct={stockDayPct}
+              subStatus={stockSub}
+              active={currentClass === "stocks"}
+              onClick={() => onSelect("stocks")}
+            />
+            <SiloCard
+              name="Crypto"
+              dot="var(--accent)"
+              positions={cryptoPos.length}
+              equity={cryptoEquity}
+              dayPl={cryptoDay}
+              dayPlPct={cryptoDayPct}
+              subStatus="24/7"
+              active={currentClass === "crypto"}
+              onClick={() => onSelect("crypto")}
+            />
+          </div>
+          {/* Forex — full-width card; separate FXCM bridge, no Alpaca positions */}
           <SiloCard
-            name="Stocks"
-            dot="var(--pos)"
-            positions={stockPos.length}
-            equity={stockEquity}
-            dayPl={stockDay}
-            dayPlPct={stockDayPct}
-            subStatus={stockSub}
-            active={currentClass === "stocks"}
-            onClick={() => onSelect("stocks")}
-          />
-          <SiloCard
-            name="Crypto"
-            dot="var(--accent)"
-            positions={cryptoPos.length}
-            equity={cryptoEquity}
-            dayPl={cryptoDay}
-            dayPlPct={cryptoDayPct}
-            subStatus="24/7"
-            active={currentClass === "crypto"}
-            onClick={() => onSelect("crypto")}
+            name="Forex"
+            dot="oklch(72% 0.18 55)"
+            positions={0}
+            equity={0}
+            dayPl={0}
+            dayPlPct={0}
+            subStatus="FXCM demo · 24/5"
+            active={currentClass === "forex"}
+            onClick={() => onSelect("forex")}
           />
         </div>
 

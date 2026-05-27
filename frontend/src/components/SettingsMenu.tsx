@@ -64,11 +64,13 @@ function Toggle({
   );
 }
 
-type AssetClassMode = "stocks" | "crypto";
+type AssetClassMode = "stocks" | "crypto" | "forex";
 
 function readSilo(): AssetClassMode {
   const raw = localStorage.getItem("asset_class_mode");
-  return raw === "crypto" ? "crypto" : "stocks";
+  if (raw === "crypto") return "crypto";
+  if (raw === "forex") return "forex";
+  return "stocks";
 }
 
 // Silo switcher row — matches the ToggleRow rhythm (title + description on
@@ -106,9 +108,9 @@ function SiloRow({ onClose }: { onClose: () => void }) {
           border: "1px solid var(--border)",
         }}
       >
-        {(["stocks", "crypto"] as AssetClassMode[]).map((s) => {
+        {(["stocks", "crypto", "forex"] as AssetClassMode[]).map((s) => {
           const active = s === current;
-          const tint = s === "stocks" ? "var(--pos)" : "var(--accent)";
+          const tint = s === "stocks" ? "var(--pos)" : s === "forex" ? "oklch(72% 0.18 55)" : "var(--accent)";
           return (
             <button
               key={s}
