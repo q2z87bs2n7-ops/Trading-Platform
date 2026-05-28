@@ -66,7 +66,8 @@ def fetch_profile_raw(fmp_ticker: str) -> dict | None:
 # Non-US entries try bare ticker first (covers US ADRs like ASML, SAP, TSM)
 # then fall back to the exchange-suffixed form for local-only listings.
 _FXCM_SUFFIX_TO_FMP_EXCHANGE: dict[str, str | None] = {
-    "us": None,
+    "us":  None,
+    "ext": None,   # FXCM 24-hour US stock CFD variant — same underlying as .us
     "ca": "TO",
     "de": "DE",
     "fr": "PA",
@@ -80,7 +81,7 @@ _FXCM_SUFFIX_TO_FMP_EXCHANGE: dict[str, str | None] = {
     "ch": "SW",
 }
 
-_CFD_SUFFIX_RE = re.compile(r"^(.+)\.([a-z]{2})$")
+_CFD_SUFFIX_RE = re.compile(r"^(.+)\.([a-z]{2,3})$")
 
 
 def fxcm_stock_to_fmp_candidates(fxcm_name: str) -> list[str]:
