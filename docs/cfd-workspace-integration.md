@@ -41,8 +41,51 @@ that gap and brings CFD to parity.
    This requires a new helper `cfdUnderlying(symbol) → { symbol, assetClass } |
    null` that the research-widget adapters consult before fetching.
 
-## Current-state facts (verified at spec time — re-verify if stale)
+## Data model update — FXCM instruments now live in `assets` (2026-05, post-Phase 2)
 
+**Important for Phase 3 planning.** The `fxcm_instruments` table is now
+**empty/legacy** — all ~516 FXCM instruments were migrated into the **`assets`**
+table under a `source='fxcm'` discriminator, alongside Alpaca's ~13.8k rows. Do
+**not** query `fxcm_instruments`.
+
+- **New `asset_class` values (FXCM-only):** `forex | stock_cfd | index | metal |
+  commodity | cfd_other`. (These are DB-side; the frontend Workspace
+  `AssetClass` stays `stocks | crypto | cfd` — the silo, not the instrument
+  subtype.)
+- **New `assets` columns (NULL for Alpaca rows):** `source`, `fxcm_type`,
+  `fxcm_display_name`, `fxcm_underlying_unit`, `fxcm_alternatives`,
+  `fxcm_session`, `fxcm_timezone`, `fmp_ticker`.
+- **FMP enrichment is live on stock CFDs:** 255 / 369 `stock_cfd` rows have FMP
+  profile data in the **standard enrichment columns** (description, logo_url,
+  sector, market_cap, industry, country, is_adr, ceo, employees, beta, …).
+  `fmp_ticker` records which ticker resolved (bare ADR first, e.g. `ASML` for
+  `ASML.nl`, falling back to exchange-suffixed `ASML.AS`).
+- **`GET /api/asset-profile/{symbol:path}`** (`db.get_asset_profile`) queries
+  `assets` with **no source filter**, so it already returns enrichment for FXCM
+  stock CFDs — e.g. `/api/asset-profile/RBLX.us` works **today, no backend
+  change**. → The **Profile** and **Fundamentals** widgets can serve stock CFDs
+  by calling asset-profile with the **raw CFD symbol** (no underlying-strip
+  needed) and rendering in the stocks layout.
+- **Search:** FXCM rows have `tradable=NULL` → excluded from `search_assets`
+  (the Alpaca/crypto search). CFD lookup goes through
+  `GET /api/fxcm/search-instruments` (queries `assets WHERE source='fxcm'`) —
+  which is exactly what `AssetSearch source="fxcm"` (wired in Phase 2) already
+  uses. Do **not** use `search_assets` for CFD.
+
+**Phase 3 consequence — revised research-widget approach:** the original
+`cfdUnderlying()` suffix-strip plan is **mostly superseded for Profile /
+Fundamentals** — pass the raw CFD symbol straight to `/api/asset-profile` and
+render as stocks. A resolver is still needed for the **Tipranks** widgets
+(SmartScore / Sentiment / Analyst Ratings / Hedge Funds / Insiders / Related
+Tickers / Holder Demographics), which hit `/api/research/*` by **US** ticker:
+those only work for `.us` stock CFDs whose `fmp_ticker` is a bare US symbol;
+everything else (non-US stock CFDs, FX, index, metal, commodity) shows the
+notice. Knowing a CFD symbol's subtype client-side needs the instrument's
+`asset_class`/`fxcm_type` — surface it via the boot classifier cache
+(`lib/asset-class.ts`, fed from the FXCM instrument list) or a small lookup;
+don't assume the suffix alone.
+
+## Current-state facts (verified at spec time — re-verify if stale)
 - `VERSION` was `1.6.8` when this spec was written. Each `claude/` commit bumps
   **Z** (see `CLAUDE.md` workflow rules).
 - `AssetClass = "stocks" | "crypto"` — `frontend/src/lib/workspace/registry.tsx`
@@ -72,7 +115,7 @@ that gap and brings CFD to parity.
 | `Orders.tsx` | ❌ no | Alpaca-only. CFD has a separate `FxcmOrders.tsx` blotter (standalone; takes `bare`, no `symbol`/`dense` yet). |
 | `Watchlist.tsx` | ❌ no | stocks/crypto only; CFD uses `useFxcmWatchlistQuery` + FXCM add/remove. |
 | `OrderTicketInline.tsx` | ❌ no | Alpaca-only; **no inline CFD ticket exists** — only `FxcmOrderSheet` (a modal). New layer-2 component required. |
-| Research widgets (Profile/Fundamentals/SmartScore/Trending/Sentiment/Analysts/HedgeFunds/Insiders/RelatedTickers/HolderDemographics) | partial | Stocks-only data; per Decision #2, resolve via `cfdUnderlying()`. |
+| Research widgets (Profile/Fundamentals/SmartScore/Trending/Sentiment/Analysts/HedgeFunds/Insiders/RelatedTickers/HolderDemographics) | partial | Profile/Fundamentals work for stock CFDs via `/api/asset-profile` (raw symbol). Tipranks widgets need US-ticker resolution. See "Data model update". |
 
 ### FXCM hooks available (`frontend/src/data/hooks.ts`)
 
@@ -198,19 +241,27 @@ daily-bars sparkline) and the Cards/List/Auto toggle.
       `FxcmOrderSheet` (extract a shared hook if the sheet has inline-able
       state). Then **`TradeWidget`** branches to it when `cfd`. This is the one
       genuinely new component.
-- [ ] **`cfdUnderlying(symbol)` helper** (`lib/asset-class.ts` or a new
-      `lib/cfd-underlying.ts`): returns `{ symbol, assetClass } | null`.
-      - Stock CFD (suffix `.us`/`.de`/`.hk`/… or `instrument_type == 8`) → strip
-        suffix → `{ symbol: "AAPL", assetClass: "stocks" }`. Reuse the suffix
-        parsing already in `lib/fxcm-countries.ts` (it splits the `.cc` suffix).
-      - Crypto CFD → `{ symbol, assetClass: "crypto" }`.
-      - else → `null`.
-- [ ] **Research-widget adapters** (`registry.tsx`): when `assetClass === "cfd"`,
-      resolve `const u = cfdUnderlying(symbol)`; if `u` fetch against
-      `u.symbol`/`u.assetClass`, else render the existing notice. Touches:
-      Profile, Fundamentals, SmartScore, Sentiment, Analysts, HedgeFunds,
-      Insiders, RelatedTickers, HolderDemographics, Trending, Earnings, News.
-      (Trending has no symbol input — leave it notice-only in CFD.)
+- [ ] **Profile / Fundamentals widgets in CFD** (simplest — no resolver):
+      `/api/asset-profile/{symbol:path}` already returns FMP enrichment for stock
+      CFDs (see "Data model update"). Pass the **raw CFD symbol** (e.g. `RBLX.us`)
+      and render in the **stocks** layout when the instrument is a `stock_cfd`;
+      `AssetProfile`/`Fundamentals` already show a graceful notice when a row has
+      no data (covers the 114/369 stock CFDs without FMP, and all FX/index/metal/
+      commodity). Drop the `CfdPending` guard on these two.
+- [ ] **Instrument-subtype lookup** (`lib/asset-class.ts`): the adapters need to
+      know whether a CFD symbol is a `stock_cfd` (→ research-capable) vs
+      FX/index/metal/commodity (→ notice). Surface `fxcm_type`/`asset_class`
+      through the boot classifier cache (already fed from the FXCM instrument
+      list) — e.g. `cfdSubtype(symbol) → "stock_cfd" | "forex" | …`. Avoid relying
+      on the suffix alone.
+- [ ] **Tipranks widgets** (SmartScore, Sentiment, Analyst Ratings, Hedge Funds,
+      Insiders, Related Tickers, Holder Demographics): hit `/api/research/*` by
+      **US ticker**. Resolve via `fmp_ticker` (or strip a `.us` suffix); enable
+      only when that yields a bare US symbol, else keep the notice. Most relevant
+      for `.us` stock CFDs. Trending has no symbol input — notice-only in CFD.
+- [ ] **News / Earnings in CFD**: News can use the resolved underlying ticker
+      for stock CFDs (else the market feed); Earnings only makes sense for stock
+      CFDs (else the crypto-style "no earnings" notice).
 - [ ] **Per-silo Add-menu gating**: filter `WIDGET_CATALOG` by silo so CFD only
       surfaces widgets that make sense (charts, trade, account, positions,
       orders, activity, watchlist, news, + the research widgets since they now
@@ -285,8 +336,8 @@ an account panel" while in (or naming) the CFD silo builds a CFD canvas.
 3. Orders/FxcmOrders widget branch.
 4. Watchlist CFD branch.
 5. Header/channel AssetSearch source=fxcm.
-6. Mini-chart→CfdPriceChart + cfdUnderlying helper.
-7. Research-widget underlying resolution.
+6. Mini-chart→CfdPriceChart + instrument-subtype lookup (`cfdSubtype`).
+7. Profile/Fundamentals via asset-profile + Tipranks US-ticker resolution.
 8. Per-silo Add-menu gating + CFD preset.
 9. AI control parity (backend + detectors).
 
