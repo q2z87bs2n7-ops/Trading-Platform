@@ -280,21 +280,55 @@ chart shows the selected instrument; a Profile/Fundamentals widget linked to a
 `EUR/USD` shows the notice; a SmartScore widget on `RBLX.us` shows Tipranks data
 and on `EUR/USD` the notice.
 
-## Phase 4 — AI / Ask-anything control parity
+## Phase 4 — AI / Ask-anything control parity — ✅ LANDED
 
-- [ ] `tools_workspace.py`: `_SILO_PROP` enum → `["stocks", "crypto", "cfd"]`;
-      update the description. Confirm no other backend silo gate rejects `cfd`.
-- [ ] `detectors.ts`: teach `watchSilo()` to detect CFD intent (FXCM symbols via
-      the `isCfdSymbol` cache / fiat-pair regex), returning `"cfd"` when the
-      requested symbols are CFD instruments. Keep stocks/crypto behaviour.
-- [ ] Keep the placeable-widget enum synced across the five sources of truth
-      (above) — no new widget ids are strictly required (CFD reuses the existing
-      ids), but if a `cfdchart` id is added in Phase 3 it must be added here too.
-- [ ] `App.tsx` controller bridge (`enterWorkspace`): it already switches silos
-      via `switchAssetClass(silo)`; confirm it accepts `"cfd"`.
+- [x] `tools_workspace.py`: `_SILO_PROP` enum → `["stocks", "crypto", "cfd"]`
+      (+ description note). `router.py` `_queue_workspace_directive` silo filter
+      widened to accept `cfd`; `AskRequest.asset_class` Literal widened; the
+      `ai_ask` system prompt got a **CFD-silo branch** (use FXCM instruments,
+      default Workspace tools to the active CFD canvas, skip the Alpaca read
+      tools).
+- [x] **The real silo now reaches the AI/controller.** `App.tsx` `getEnv` and
+      the `AskBar` prop pass `activeClass` (was the coerced `alpacaSilo`), so
+      Workspace directives target the CFD canvas and the bot is told it's in CFD.
+      `postAiAsk` + ask-intent `AssetClass` widened to `cfd`.
+- [x] `detectors.ts`: `watchSilo()` keeps a CFD watch in the CFD silo (the local
+      parser's symbol universe doesn't carry FXCM instruments, so CFD layout
+      requests otherwise fall through to the backend AI — which is now
+      CFD-aware).
+- [x] `controller.ts`: `set_channel` preserves raw symbol case in CFD (stock-CFD
+      suffix); the controller already accepted `cfd` (`Silo = AssetClass`).
+- [x] `App.tsx` `enterWorkspace` already switches silos via `switchAssetClass`,
+      which accepts `cfd`.
 
-**Verify Phase 4:** Ask-anything "watch EUR/USD, GBP/USD and gold with charts and
-an account panel" while in (or naming) the CFD silo builds a CFD canvas.
+**Known limitation (documented, low priority):** the AskBar capability-hint
+chips and the local order/trade intents are still stocks/crypto-flavoured in the
+CFD silo (the `=== "crypto"` branches treat `cfd` as the stocks default). They're
+cosmetic — the workspace-control apply path is correct. Deeper CFD-aware local
+intent parsing (FXCM symbol universe, silo-correct order intents) is a follow-up.
+
+**Verify Phase 4 (runtime — pending):** Ask-anything "build me EUR/USD and
+GBP/USD charts with an account panel" while in the CFD silo builds a CFD canvas
+(charts on the FXCM datafeed, FXCM account).
+
+## ChartBot (Chart-mode violet AI panel) — ✅ LANDED
+
+Not a numbered phase, but the second AI surface. Made silo-aware so it behaves
+in the CFD silo:
+
+- [x] `ChartContext` (frontend `ai-client.ts` + backend `router.py`) gains
+      `asset_class`; `App` passes `activeClass` to `ChatPanel` → `useChatSession`
+      → `postChat`.
+- [x] `prompt.build_system(symbol, resolution, asset_class)` appends a CFD note
+      to the **volatile** (non-cached) chart-context block: this is an FXCM CFD
+      instrument, the Alpaca data tools don't cover it, so work from the on-screen
+      chart + drawing tools + general knowledge. The frozen cached block (and its
+      Anthropic prefix cache) is untouched. ChartBot's drawing/annotation tools
+      operate on the TV chart regardless of silo, so they work in CFD as-is.
+
+**Verify ChartBot:** in CFD Chart mode, ask ChartBot to "draw a trendline" or
+"what's the setup here" — it annotates / discusses the FXCM chart without trying
+to pull Alpaca quotes.
 
 ---
 
