@@ -577,13 +577,6 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
 
   return (
     <div className="max-w-[1280px] mx-auto px-4 pt-4 pb-20">
-      {/* Header */}
-      <div className="mb-4">
-        <h2 className="text-[18px] font-semibold" style={{ letterSpacing: "-0.01em" }}>
-          CFDs
-        </h2>
-      </div>
-
       {isMobile ? (
         <>
           {/* Mobile: watchlist as horizontal CardsRow above the main flow. */}
