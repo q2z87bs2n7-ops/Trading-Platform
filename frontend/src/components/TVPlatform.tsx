@@ -164,7 +164,7 @@ export default function TVPlatform({ symbol, onSymbolChange, assetClass }: Props
         }),
 
         broker_factory: (host: Parameters<typeof createBroker>[0]) => {
-          brokerRef = createBroker(host, () => {});
+          brokerRef = createBroker(host, () => {}, () => assetClassRef.current ?? "");
           return brokerRef;
         },
         broker_config: {

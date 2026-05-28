@@ -97,7 +97,15 @@ interface TVHost {
   ): Promise<boolean>;
 }
 
-export function createBroker(host: TVHost, onUpdate: () => void) {
+export function createBroker(
+  host: TVHost,
+  onUpdate: () => void,
+  // Optional getter so the live silo flows through without re-creating
+  // the broker. Returns "" for stocks/crypto (Alpaca path); "forex" short-
+  // circuits all Alpaca polling — the forex silo's order/position UI lives
+  // in ForexDiscoverPage, not the TV account manager.
+  getAssetClass: () => string = () => "",
+) {
   // Expose host to the AI dispatcher (propose_order calls
   // host.showOrderDialog to stage trades into the order ticket).
   setTVBrokerHost(host);
@@ -111,6 +119,7 @@ export function createBroker(host: TVHost, onUpdate: () => void) {
   const buyingPowerWV = host.factory.createWatchedValue<number>(0);
 
   async function refreshAccount() {
+    if (getAssetClass() === "forex") return;
     try {
       const data = await apiFetch("/api/account");
       equityWV.setValue(parseFloat(data.equity ?? "0"));
@@ -131,6 +140,7 @@ export function createBroker(host: TVHost, onUpdate: () => void) {
   const positionCache = new Map<string, string>();
 
   async function pushOrdersAndPositions() {
+    if (getAssetClass() === "forex") return;
     try {
       const data = await apiFetch("/api/orders?status=all&limit=100");
       for (const o of data.orders ?? []) {
@@ -249,6 +259,7 @@ export function createBroker(host: TVHost, onUpdate: () => void) {
     // Map Alpaca fill activities; returns empty array on error so the panel
     // still loads even when activities are unavailable.
     async executions(_symbol: string) {
+      if (getAssetClass() === "forex") return [];
       try {
         const data = await apiFetch("/api/activities?type=FILL&limit=50");
         return (data.activities ?? [])
@@ -268,12 +279,14 @@ export function createBroker(host: TVHost, onUpdate: () => void) {
 
     // --- Positions ---
     async positions() {
+      if (getAssetClass() === "forex") return [];
       const data = await apiFetch("/api/positions");
       return (data.positions ?? []).map(toTVPosition);
     },
 
     // --- Orders ---
     async orders() {
+      if (getAssetClass() === "forex") return [];
       const data = await apiFetch("/api/orders?status=open");
       return (data.orders ?? []).map(toTVOrder);
     },
