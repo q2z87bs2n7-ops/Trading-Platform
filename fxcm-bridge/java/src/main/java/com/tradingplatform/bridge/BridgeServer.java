@@ -8,7 +8,9 @@ import java.io.*;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyStore;
 import java.security.SecureRandom;
+import java.security.Security;
 import java.security.cert.X509Certificate;
 import java.util.*;
 import java.util.concurrent.*;
@@ -47,12 +49,41 @@ public class BridgeServer {
                 public void checkClientTrusted(X509Certificate[] c, String a) {}
                 public void checkServerTrusted(X509Certificate[] c, String a) {}
             }};
+
+            // Cover HttpsURLConnection and SSLContext.getDefault() callers.
             SSLContext sc = SSLContext.getInstance("TLS");
             sc.init(null, tm, new SecureRandom());
             SSLContext.setDefault(sc);
             HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
             HttpsURLConnection.setDefaultHostnameVerifier((h, s) -> true);
+
+            // FCLite internally creates SSLContexts via
+            //   SSLContext.getInstance("TLS").init(null, null, null)
+            // which resolves TrustManagers from the JSSE TrustManagerFactory
+            // (PKIX / SunX509), not from SSLContext.getDefault(). Override
+            // both factory algorithms so every new SSLContext also trusts all.
+            Security.insertProviderAt(new java.security.Provider(
+                    "TrustAllProvider", "1.0", "trust-all for FXCM price servers") {
+                { put("TrustManagerFactory.PKIX",    TrustAllTMF.class.getName());
+                  put("TrustManagerFactory.SunX509", TrustAllTMF.class.getName()); }
+            }, 1);
+
         } catch (Exception e) { LOG.warning("SSL bypass failed: " + e.getMessage()); }
+    }
+
+    /** TrustManagerFactory SPI that trusts every certificate. Registered as
+     *  the PKIX and SunX509 provider so FCLite's internal SSLContext.init()
+     *  calls resolve to this instead of the JDK's cacerts-backed factory. */
+    public static final class TrustAllTMF extends TrustManagerFactorySpi {
+        @Override protected void engineInit(KeyStore ks) {}
+        @Override protected void engineInit(ManagerFactoryParameters p) {}
+        @Override protected TrustManager[] engineGetTrustManagers() {
+            return new TrustManager[]{new X509TrustManager() {
+                public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
+                public void checkClientTrusted(X509Certificate[] c, String a) {}
+                public void checkServerTrusted(X509Certificate[] c, String a) {}
+            }};
+        }
     }
 
     public static void main(String[] args) throws Exception {
