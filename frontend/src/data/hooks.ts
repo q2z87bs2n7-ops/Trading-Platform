@@ -47,6 +47,27 @@ export const usePositions = () =>
     refetchInterval: 15000,
   });
 
+// FXCM account/positions for the splash card. Polled gently — the splash is
+// a transient overlay, not a constantly-mounted surface, and ForexDiscoverPage
+// owns the fast (3s) loop when the silo is active.
+export const useFxcmAccount = (enabled = true) =>
+  useQuery({
+    queryKey: qk.fxcmAccount,
+    queryFn: api.getFxcmAccount,
+    refetchInterval: 30_000,
+    retry: 0, // bridge offline returns 503; don't hammer it
+    enabled,
+  });
+
+export const useFxcmPositions = (enabled = true) =>
+  useQuery({
+    queryKey: qk.fxcmPositions,
+    queryFn: api.getFxcmPositions,
+    refetchInterval: 30_000,
+    retry: 0,
+    enabled,
+  });
+
 export const useOrders = (status = "all", limit = 25) =>
   useQuery({
     queryKey: qk.orders(status, limit),

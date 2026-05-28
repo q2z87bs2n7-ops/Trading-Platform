@@ -1,4 +1,4 @@
-import { useAccount, useClock, usePositions } from "../data/hooks";
+import { useAccount, useClock, useFxcmAccount, useFxcmPositions, usePositions } from "../data/hooks";
 import { useMobile } from "../hooks/useMobile";
 import { isCryptoPosition } from "../lib/asset-class";
 import { money, pct } from "../lib/format";
@@ -247,6 +247,15 @@ export default function AssetClassSplash({
   const cryptoDayPct =
     cryptoEquity - cryptoDay > 0 ? cryptoDay / (cryptoEquity - cryptoDay) : 0;
 
+  // FXCM only fetched in the Hub overlay (onClose set) — the first-time
+  // landing splash is the picker, not the dashboard.
+  const fxcmAccount = useFxcmAccount(!!onClose);
+  const fxcmPositions = useFxcmPositions(!!onClose);
+  const fxcmEquity = fxcmAccount.data?.equity ?? 0;
+  const fxcmDay = fxcmAccount.data?.day_pl ?? 0;
+  const fxcmDayPct = fxcmEquity - fxcmDay > 0 ? fxcmDay / (fxcmEquity - fxcmDay) : 0;
+  const fxcmPosCount = fxcmPositions.data?.length ?? 0;
+
   const clk = clock.data;
   const stockSub = clk
     ? clk.is_open
@@ -334,14 +343,14 @@ export default function AssetClassSplash({
               onClick={() => onSelect("crypto")}
             />
           </div>
-          {/* Forex — full-width card; separate FXCM bridge, no Alpaca positions */}
+          {/* Forex — full-width card; backed by the FXCM bridge (not Alpaca) */}
           <SiloCard
             name="Forex"
             dot="oklch(72% 0.18 55)"
-            positions={0}
-            equity={0}
-            dayPl={0}
-            dayPlPct={0}
+            positions={fxcmPosCount}
+            equity={fxcmEquity}
+            dayPl={fxcmDay}
+            dayPlPct={fxcmDayPct}
             subStatus="FXCM demo · 24/5"
             active={currentClass === "forex"}
             onClick={() => onSelect("forex")}

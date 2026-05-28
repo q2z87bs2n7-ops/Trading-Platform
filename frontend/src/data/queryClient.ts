@@ -42,6 +42,8 @@ export const qk = {
   watchlist: ["watchlist"] as const,
   cryptoWatchlist: ["watchlist", "crypto"] as const,
   cryptoTickers: ["cryptoTickers"] as const,
+  fxcmAccount: ["fxcm", "account"] as const,
+  fxcmPositions: ["fxcm", "positions"] as const,
   indices: ["indices"] as const,
   earningsCalendar: (include: string) =>
     ["earningsCalendar", include] as const,

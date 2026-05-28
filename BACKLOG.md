@@ -45,9 +45,6 @@ the full reference). Outstanding:
   `connected = false` on disconnect, kick off `session.connect()` from a
   background thread with exponential backoff. Render's container-restart
   covers the coarse case but a finer recovery is cheap to add.
-- **Account hub FXCM card** — splash's Forex card shows placeholder zeros.
-  Wire to `getFxcmAccount()` + `getFxcmPositions()` for real balance / open
-  count parity with the Alpaca cards.
 - **Bridge-side `/api/fxcm/instruments` field normalisation** — the endpoint
   returns raw FCLite `InstrumentInfo` (`Name` / `OfferId` / `Status`, PascalCase)
   while `/watchlist`, `/prices`, `/positions` all use snake_case. Currently
