@@ -53,7 +53,7 @@ import {
   HolderDemographicsCardSkeleton,
 } from "../../components/research/HolderDemographicsCard";
 import ErrorBanner from "../../components/ErrorBanner";
-import { isCryptoSymbol, isStockCfdSymbol } from "../asset-class";
+import { cfdUsUnderlying, isCryptoSymbol, isStockCfdSymbol } from "../asset-class";
 import {
   useEarningsCalendar,
   useMarketNews,
@@ -93,6 +93,26 @@ export const SYMBOL_CHANNELS: Channel[] = ["main", "blue", "green", "amber"];
 // lookups. Stocks/crypto symbols are upper-cased as before.
 const normSym = (raw: string, ac: AssetClass): string =>
   ac === "cfd" ? raw : raw.toUpperCase();
+
+// Resolves the symbol a per-stock research widget (Tipranks: SmartScore /
+// Sentiment / Analyst Ratings / Hedge Funds / Insiders / Related Tickers /
+// Holder Demographics) should fetch, and whether the instrument is supported.
+// Stocks use the symbol as-is. Crypto is always blocked (Tipranks is US-equity
+// only). In the CFD silo only US stock CFDs (.us) resolve to a bare US ticker
+// (RBLX.us → RBLX); FX / indices / metals / commodities / non-US CFDs block.
+function cfdResearch(
+  symbol: string,
+  assetClass: AssetClass,
+): { research: string; blocked: boolean } {
+  if (assetClass === "crypto" || isCryptoSymbol(symbol)) {
+    return { research: symbol, blocked: true };
+  }
+  if (assetClass === "cfd") {
+    const u = cfdUsUnderlying(symbol);
+    return { research: u ?? "", blocked: !u };
+  }
+  return { research: symbol, blocked: false };
+}
 
 // Live, non-serialized state shared by the canvas. Channel→symbol flows through
 // here (runtime); only the per-panel channel *assignment* is persisted, in the
@@ -632,15 +652,29 @@ function NewsWidget(props: IDockviewPanelProps) {
   const [channel, setChannel] = useChannel(props, "none");
   const isCrypto = assetClass === "crypto";
   const symbol = channel === "none" ? "" : getSymbol(channel);
-  const ticker = newsTicker(channel, symbol, isCrypto);
-  const useMarket = channel === "none" && !isCrypto;
+  // CFD: only stock CFDs carry per-symbol (underlying-ticker) news; FX, indices,
+  // metals and commodities fall back to the market feed.
+  const cfdTicker =
+    assetClass === "cfd" && channel !== "none" ? cfdUsUnderlying(symbol) : null;
+  const ticker =
+    assetClass === "cfd" ? cfdTicker ?? "" : newsTicker(channel, symbol, isCrypto);
+  const useMarket =
+    (channel === "none" && !isCrypto) ||
+    (assetClass === "cfd" && channel !== "none" && !cfdTicker);
   const ref = useRef<HTMLDivElement>(null);
   const compact = useContainerNarrow(ref, NEWS_COMPACT_W);
 
   const market = useMarketNews(12, useMarket);
   const perSymbol = useNews(ticker, 12, ticker.length > 0);
 
-  const label = channel === "none" ? (isCrypto ? "Crypto" : "Market") : symbol;
+  const label =
+    channel === "none"
+      ? isCrypto
+        ? "Crypto"
+        : "Market"
+      : assetClass === "cfd" && !cfdTicker
+        ? "Market"
+        : symbol;
 
   return (
     <WidgetShell
@@ -876,6 +910,12 @@ function EarningsWidget(props: IDockviewPanelProps) {
   // Crypto has no earnings — skip the fetch and show a clear notice instead of
   // the backend's bare "not found".
   const isCrypto = !isMarket && isCryptoSymbol(symbol);
+  // CFD per-symbol earnings exist only for US stock CFDs — resolve to the
+  // underlying ticker; FX/index/metal/commodity (and non-US CFDs) have none.
+  const cfdSym =
+    !isMarket && assetClass === "cfd" ? cfdUsUnderlying(symbol) : null;
+  const blocked = isCrypto || (!isMarket && assetClass === "cfd" && !cfdSym);
+  const fetchSym = cfdSym ?? symbol;
   const ref = useRef<HTMLDivElement>(null);
   const dense = useContainerNarrow(ref, EARNINGS_DENSE_W);
   // Very narrow → also suppress the year suffix in the date column so the
@@ -883,7 +923,10 @@ function EarningsWidget(props: IDockviewPanelProps) {
   const tight = useContainerNarrow(ref, EARNINGS_TIGHT_W);
 
   const market = useEarningsCalendar(isMarket);
-  const perSymbol = useSymbolEarnings(symbol, !isMarket && !isCrypto);
+  const perSymbol = useSymbolEarnings(
+    fetchSym,
+    !isMarket && !blocked && fetchSym.length > 0,
+  );
   const active = isMarket ? market : perSymbol;
 
   return (
@@ -902,10 +945,10 @@ function EarningsWidget(props: IDockviewPanelProps) {
     >
       <div ref={ref} style={{ height: "100%" }}>
         <Pane pad>
-          {isCrypto ? (
+          {blocked ? (
             <p className="text-[13px]" style={{ color: "var(--mute)" }}>
-              Crypto assets don’t report earnings. Link this widget to a stock,
-              or switch it to Market.
+              No earnings for this instrument. Link a stock or US stock CFD, or
+              switch it to Market.
             </p>
           ) : (
             <>
@@ -937,10 +980,10 @@ function TrendingResearchWidget(props: IDockviewPanelProps) {
   const { setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "main");
   const target = channel === "none" ? "main" : channel;
-  const isCrypto = assetClass === "crypto";
+  const blocked = assetClass === "crypto" || assetClass === "cfd";
   const ref = useRef<HTMLDivElement>(null);
   const dense = useContainerNarrow(ref, TRENDING_DENSE_W);
-  const trending = useTrendingResearch(!isCrypto);
+  const trending = useTrendingResearch(!blocked);
 
   return (
     <WidgetShell
@@ -955,7 +998,7 @@ function TrendingResearchWidget(props: IDockviewPanelProps) {
     >
       <div ref={ref} style={{ height: "100%" }}>
         <Pane pad>
-          {isCrypto ? (
+          {blocked ? (
             <p className="text-[13px]" style={{ color: "var(--mute)" }}>
               Trending research is stocks-only.
             </p>
@@ -988,8 +1031,8 @@ function SmartScoreWidget(props: IDockviewPanelProps) {
   const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "main");
   const symbol = normSym(getSymbol(channel), assetClass);
-  const isCrypto = assetClass === "crypto" || isCryptoSymbol(symbol);
-  const score = useSmartScore(symbol, !isCrypto && symbol.length > 0);
+  const { research, blocked } = cfdResearch(symbol, assetClass);
+  const score = useSmartScore(research, !blocked && research.length > 0);
 
   return (
     <WidgetShell
@@ -1006,7 +1049,7 @@ function SmartScoreWidget(props: IDockviewPanelProps) {
       }
     >
       <Pane pad>
-        {isCrypto ? (
+        {blocked ? (
           <p className="text-[13px]" style={{ color: "var(--mute)" }}>
             SmartScore is stocks-only. Link this widget to a stock symbol.
           </p>
@@ -1030,8 +1073,8 @@ function SentimentWidget(props: IDockviewPanelProps) {
   const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "main");
   const symbol = normSym(getSymbol(channel), assetClass);
-  const isCrypto = assetClass === "crypto" || isCryptoSymbol(symbol);
-  const sent = useSentiment(symbol, !isCrypto && symbol.length > 0);
+  const { research, blocked } = cfdResearch(symbol, assetClass);
+  const sent = useSentiment(research, !blocked && research.length > 0);
 
   return (
     <WidgetShell
@@ -1048,7 +1091,7 @@ function SentimentWidget(props: IDockviewPanelProps) {
       }
     >
       <Pane pad>
-        {isCrypto ? (
+        {blocked ? (
           <p className="text-[13px]" style={{ color: "var(--mute)" }}>
             Sentiment is stocks-only. Link this widget to a stock symbol.
           </p>
@@ -1070,10 +1113,10 @@ function AnalystRatingsWidget(props: IDockviewPanelProps) {
   const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "main");
   const symbol = normSym(getSymbol(channel), assetClass);
-  const isCrypto = assetClass === "crypto" || isCryptoSymbol(symbol);
+  const { research, blocked } = cfdResearch(symbol, assetClass);
   const ref = useRef<HTMLDivElement>(null);
   const dense = useContainerNarrow(ref, ANALYSTS_DENSE_W);
-  const ratings = useAnalystRatings(symbol, !isCrypto && symbol.length > 0);
+  const ratings = useAnalystRatings(research, !blocked && research.length > 0);
 
   return (
     <WidgetShell
@@ -1091,7 +1134,7 @@ function AnalystRatingsWidget(props: IDockviewPanelProps) {
     >
       <div ref={ref} style={{ height: "100%" }}>
         <Pane pad>
-          {isCrypto ? (
+          {blocked ? (
             <p className="text-[13px]" style={{ color: "var(--mute)" }}>
               Analyst ratings are stocks-only. Link this widget to a stock.
             </p>
@@ -1123,11 +1166,11 @@ function HedgeFundsWidget(props: IDockviewPanelProps) {
   const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "main");
   const symbol = normSym(getSymbol(channel), assetClass);
-  const isCrypto = assetClass === "crypto" || isCryptoSymbol(symbol);
+  const { research, blocked } = cfdResearch(symbol, assetClass);
   const ref = useRef<HTMLDivElement>(null);
   const dense = useContainerNarrow(ref, HEDGEFUNDS_DENSE_W);
   const narrow = useContainerNarrow(ref, HEDGEFUNDS_NARROW_W);
-  const data = useHedgeFunds(symbol, !isCrypto && symbol.length > 0);
+  const data = useHedgeFunds(research, !blocked && research.length > 0);
 
   return (
     <WidgetShell
@@ -1145,7 +1188,7 @@ function HedgeFundsWidget(props: IDockviewPanelProps) {
     >
       <div ref={ref} style={{ height: "100%" }}>
         <Pane pad>
-          {isCrypto ? (
+          {blocked ? (
             <p className="text-[13px]" style={{ color: "var(--mute)" }}>
               Hedge-fund flow is stocks-only. Link this widget to a stock.
             </p>
@@ -1174,11 +1217,11 @@ function InsidersWidget(props: IDockviewPanelProps) {
   const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "main");
   const symbol = normSym(getSymbol(channel), assetClass);
-  const isCrypto = assetClass === "crypto" || isCryptoSymbol(symbol);
+  const { research, blocked } = cfdResearch(symbol, assetClass);
   const ref = useRef<HTMLDivElement>(null);
   const dense = useContainerNarrow(ref, INSIDERS_DENSE_W);
   const narrow = useContainerNarrow(ref, INSIDERS_NARROW_W);
-  const data = useInsiders(symbol, !isCrypto && symbol.length > 0);
+  const data = useInsiders(research, !blocked && research.length > 0);
 
   return (
     <WidgetShell
@@ -1196,7 +1239,7 @@ function InsidersWidget(props: IDockviewPanelProps) {
     >
       <div ref={ref} style={{ height: "100%" }}>
         <Pane pad>
-          {isCrypto ? (
+          {blocked ? (
             <p className="text-[13px]" style={{ color: "var(--mute)" }}>
               Insider activity is stocks-only. Link this widget to a stock.
             </p>
@@ -1227,11 +1270,11 @@ function RelatedTickersWidget(props: IDockviewPanelProps) {
   const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "main");
   const symbol = normSym(getSymbol(channel), assetClass);
-  const isCrypto = assetClass === "crypto" || isCryptoSymbol(symbol);
+  const { research, blocked } = cfdResearch(symbol, assetClass);
   const ref = useRef<HTMLDivElement>(null);
   const dense = useContainerNarrow(ref, RELATED_TICKERS_DENSE_W);
   const narrow = useContainerNarrow(ref, RELATED_TICKERS_NARROW_W);
-  const data = useRelatedTickers(symbol, !isCrypto && symbol.length > 0);
+  const data = useRelatedTickers(research, !blocked && research.length > 0);
 
   return (
     <WidgetShell
@@ -1249,7 +1292,7 @@ function RelatedTickersWidget(props: IDockviewPanelProps) {
     >
       <div ref={ref} style={{ height: "100%" }}>
         <Pane pad>
-          {isCrypto ? (
+          {blocked ? (
             <p className="text-[13px]" style={{ color: "var(--mute)" }}>
               Related tickers are stocks-only. Link this widget to a stock.
             </p>
@@ -1283,10 +1326,10 @@ function HolderDemographicsWidget(props: IDockviewPanelProps) {
   const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "main");
   const symbol = normSym(getSymbol(channel), assetClass);
-  const isCrypto = assetClass === "crypto" || isCryptoSymbol(symbol);
+  const { research, blocked } = cfdResearch(symbol, assetClass);
   const ref = useRef<HTMLDivElement>(null);
   const narrow = useContainerNarrow(ref, HOLDER_DEMOGRAPHICS_NARROW_W);
-  const data = useHolderDemographics(symbol, !isCrypto && symbol.length > 0);
+  const data = useHolderDemographics(research, !blocked && research.length > 0);
 
   return (
     <WidgetShell
@@ -1304,7 +1347,7 @@ function HolderDemographicsWidget(props: IDockviewPanelProps) {
     >
       <div ref={ref} style={{ height: "100%" }}>
         <Pane pad>
-          {isCrypto ? (
+          {blocked ? (
             <p className="text-[13px]" style={{ color: "var(--mute)" }}>
               Holder demographics are stocks-only.
             </p>
