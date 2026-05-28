@@ -162,7 +162,27 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
     `MobileHeader`. The market clock surfaces stocks-only (Alpaca clock
     is equities-only); crypto shows a static `Open · 24/7`. BP no longer
     surfaces in any header — it lives in the hero (`buying_power` for
-    stocks, `non_marginable_buying_power` for crypto).
+    stocks, `non_marginable_buying_power` for crypto). **Forex/FXCM**
+    runs the same Portfolio shell with silo-specific bodies: `ForexPortfolioHero`
+    shows `equity` + day-chip + a 3-stat grid (Free margin · Total P/L ·
+    Open orders) — **no sparkline** (FCLite doesn't yet expose
+    closed-trade timestamps, so per-silo P/L history can't be rebuilt FIFO
+    like `alpaca/pnl.py` does; see BACKLOG). `AllocationDonut` reuses the
+    shared component with `market_value = used_margin` aliased server-side
+    in `backend/app/fxcm.py`. `Positions` switches to a netted-per-instrument
+    view (client-side aggregation across per-trade FCLite rows; per-type
+    digit precision — JPY 3dp, FX 5dp, metals 4dp, indices 1dp, stock-CFDs
+    2dp); close opens `FxcmClosePositionCard` (partial-close UI looping
+    `useFxcmClosePosition` greedily across the underlying trade_ids).
+    `Orders` swaps to a sibling **`FxcmOrders`** blotter (the FXCM order
+    model — `OM`/`SE`/`LE` only, no TIF, no notional — diverges enough that
+    folding it into `Orders.tsx` would have been ugly); modify hits the new
+    `PATCH /api/fxcm/order/{id}` route via `FxcmModifyOrderCard`. `Activities`
+    sources rows from `/api/fxcm/closed_trades`, normalising each to
+    `activity_type: "TRADE_CLOSE"` so the existing `describe()` helper
+    renders them unchanged. The `TradeBar` is still suppressed in forex mode
+    (Alpaca-only order entry); forex order entry lives in `FxcmOrderSheet`
+    mounted from `ForexDiscoverPage`.
   - **Chart** — `TVPlatform.tsx` wraps the full TradingView Charting
     Library (`frontend/public/charting_library/`, committed — private
     repo only) using **TV's native chrome**: the native header (symbol
@@ -262,7 +282,7 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
   `AI_CHAT_ENABLED`; require `ANTHROPIC_API_KEY`),
   fxcm/health, fxcm/account, fxcm/prices, fxcm/watchlist, fxcm/positions,
   fxcm/orders, fxcm/summary, fxcm/closed_trades, fxcm/instruments,
-  fxcm/instruments/{name:path}, fxcm/history, fxcm/order (POST/DELETE),
+  fxcm/instruments/{name:path}, fxcm/history, fxcm/order (POST/DELETE/PATCH),
   fxcm/close (POST) — these proxy to the in-container FXCM bridge on
   127.0.0.1:3001; return 503 when the JVM isn't responding. `/api/indices` and
   `/api/market-news` hit Yahoo Finance directly via `requests` (no yfinance,

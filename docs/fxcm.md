@@ -307,7 +307,8 @@ exposed at `/api/fxcm/*`.
 | `GET /history` | `GET /api/fxcm/history` | OHLCV bars; params: `instrument`, `timeframe`, `from`, `to` |
 | `POST /order` | `POST /api/fxcm/order` | Place order |
 | `DELETE /order/{id}` | `DELETE /api/fxcm/order/{id}` | Cancel pending order |
-| `POST /close` | `POST /api/fxcm/close` | Close open trade by `trade_id` |
+| `PATCH /order/{id}` | `PATCH /api/fxcm/order/{id}` | Modify pending entry order — body `{rate?, stop?, limit?}`; `0` = leave unchanged (FCLite `ChangeOrderRequest`, wired reflectively) |
+| `POST /close` | `POST /api/fxcm/close` | Close open trade — body `{trade_id, amount}`; `amount: 0` = full close |
 | `GET /debug` | `GET /api/fxcm/debug` | Raw snapshot counts (dev only) |
 
 ### `/api/fxcm/instruments` response shape (mind the casing)
@@ -335,6 +336,24 @@ is backlogged.
 short-circuits to `[]` for any other value and returns everything for both
 `forex` and unset. The `?tradable=true` filter does work (intersects against
 the offers manager).
+
+### Enriched row fields (Portfolio screen)
+
+`/positions`, `/orders`, and `/closed_trades` were extended for the Portfolio
+screen build. New (all optional — bridge falls back silently when a getter
+isn't present in the FCLite build):
+
+- **`/positions`** rows now carry `bid`, `ask`, `mid`, `live_pl`, `digits`,
+  `open_time`. The FastAPI proxy in `backend/app/fxcm.py` additionally
+  aliases `market_value = used_margin` so the shared `AllocationDonut`
+  reads a uniform shape. `live_pl` currently mirrors `gross_pl` (the
+  FCLite-maintained "fresh as of this call" value) — a from-mid pip
+  recompute was prototyped and pulled because cross-pair currency
+  conversion needs more work; the raw `bid`/`ask`/`mid` are present so a
+  frontend recompute is straightforward when needed.
+- **`/orders`** rows now carry `stop`, `limit`, `digits`, `created_time`.
+- **`/closed_trades`** rows now carry `open_time`, `close_time` (ISO 8601;
+  absent if the SDK build's `ClosedPosition` doesn't expose the getter).
 
 ### Order placement body
 
@@ -475,12 +494,18 @@ Forex trading still happens via `ForexDiscoverPage` + `FxcmOrderSheet`.
 ## What's Shipped
 
 - FCLite Java bridge with persistent session (login, manager loading)
-- All read + write routes (read: account/prices/positions/orders/closed_trades/watchlist/instruments/history; write: order/close)
+- All read + write routes (read: account/prices/positions/orders/closed_trades/watchlist/instruments/history; write: order/close + `PATCH /order/{id}` modify)
 - FastAPI proxy at `/api/fxcm/*`
 - Frontend forex silo end-to-end: orange accent, splash card (live FXCM
   equity / day P/L / positions on the Account Hub overlay),
   ForexDiscoverPage (account hero, live watchlist, FxcmPositions panel,
   FXCM-country-filtered economic calendar), FxcmOrderSheet
+- **Forex Portfolio screen** — `ForexPortfolioHero` (equity + day-chip +
+  Free margin / Total P/L / Open orders; no sparkline), shared
+  `AllocationDonut` over per-instrument used-margin, netted-per-instrument
+  `Positions` view + `FxcmClosePositionCard` (partial close loops over
+  underlying trade_ids), sibling `FxcmOrders` blotter + `FxcmModifyOrderCard`,
+  `Activities` mapping FXCM closed trades into the shared feed
 - Render deployment co-located with FastAPI (`backend/Dockerfile` multi-stage, `backend/entrypoint.sh` dual-process)
 - FXCM-aware classifier + TV datafeed forex branches for the chart
 
