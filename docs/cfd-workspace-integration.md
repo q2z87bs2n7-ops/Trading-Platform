@@ -107,31 +107,49 @@ a smell.
 
 ---
 
-## Phase 1 — CFD as a first-class Workspace silo (the unblock)
+## Phase 1 — CFD as a first-class Workspace silo (the unblock) — ✅ LANDED
 
 Smallest change that makes the CFD canvas correct. After this phase the
-CFD-ready widgets (Chart, Positions, Activity) already work; the others fall
-through to their existing not-supported behaviour until Phase 2.
+CFD-ready widgets (Chart, Positions, Activity) work; the others render an
+interim `CfdPending` notice (no wrong-silo data) until Phases 2–3.
 
-- [ ] `registry.tsx`: `export type AssetClass = "stocks" | "crypto" | "cfd";`
-- [ ] `App.tsx` (~line 603): pass `assetClass={activeClass}` (not `alpacaSilo`)
-      to `<Workspace>`. Confirm `activeClass` is in scope there (it is).
-- [ ] `Workspace.tsx`: add `cfd` to `CHANNEL_DEFAULTS`
+- [x] `registry.tsx`: `export type AssetClass = "stocks" | "crypto" | "cfd";`
+- [x] `App.tsx`: pass `assetClass={activeClass}` (not `alpacaSilo`) to
+      `<Workspace>`.
+- [x] `Workspace.tsx`: added `cfd` to `CHANNEL_DEFAULTS`
       (`{ main: "EUR/USD", blue: "GBP/USD", green: "XAU/USD", amber: "US30" }`)
       and to `loadChannels` empty seed (`{ stocks: {}, crypto: {}, cfd: {} }`).
-- [ ] Verify the orange/amber CFD accent (`oklch(72% 0.18 55)`, set on the app
-      shell in `App.tsx` `siloAccent`) carries into the full-bleed canvas. The
-      Workspace `+ Add widget` / Apply buttons use `var(--accent)`; in CFD they
-      should read amber.
-- [ ] Typecheck: `cd frontend && npx tsc -b`. The `AssetClass` widening will
-      surface every exhaustive switch / `Record<AssetClass, …>` that now misses
-      a `cfd` arm — fix each (the `SiloChannels` record, any `satisfies`
-      Record). This is the compiler doing the audit for you.
+- [x] **TVChartWidget**: threaded an `assetClass` prop → `createDatafeed({
+      getAssetClass, getSearchAssetClass })` (mirrors `TVPlatform`). Without this
+      the Chart widget defaulted `getAssetClass` to `""` and never routed to
+      FXCM — the spec's "Chart shows EUR/USD via FXCM" goal needed it. The
+      `ChartWidget` adapter passes `assetClass` from `useWorkspace()`.
+- [x] **Interim `CfdPending` guards** (new tiny helper in `registry.tsx`): the
+      Alpaca-only widgets render a "not wired for CFD yet" notice when
+      `assetClass === "cfd"` instead of passing `cfd` through (which would show
+      *stock* data — the wrong-silo bug). The ternary's false branch narrows the
+      type back to `stocks|crypto`, so the feature-component signatures are
+      untouched (Phases 2–3 widen them properly and delete the guard). Guarded:
+      **Orders, Account, Watchlist, Profile, Fundamentals, Mini chart, Trade
+      ticket**.
+- [x] Typecheck clean (`npx tsc -b`, exit 0). `npm install` was needed first
+      (fresh container).
 
-**Verify Phase 1:** CFD silo → Workspace pill → canvas shows CFD defaults; a
-Chart widget on Main shows EUR/USD via the FXCM datafeed; Positions widget shows
-FXCM positions; switching back to stocks/crypto still shows their own layouts
-(separate persistence slot).
+**Verify Phase 1 (runtime — pending user sanity-check):** CFD silo → Workspace
+pill → canvas shows CFD defaults; a Chart widget on Main shows EUR/USD via the
+FXCM datafeed; Positions/Activity widgets show FXCM data; the guarded widgets
+show the interim notice; switching back to stocks/crypto still shows their own
+layouts (separate persistence slot).
+
+**Known interim gaps after Phase 1 (handled in 2–3):**
+- The research/market widgets **not** guarded (News, Earnings, Trending,
+  SmartScore, Sentiment, Analyst Ratings, Hedge Funds, Insiders, Related
+  Tickers, Holder Demographics) will attempt their normal fetch for a CFD
+  symbol (e.g. `EUR/USD`) and likely show an error/empty state. These are
+  market-data, not wrong-silo *account* data, so they were left for Phase 3
+  (underlying resolution + per-silo Add-menu gating). Acceptable interim.
+- The amber CFD accent on the canvas chrome is inherited from `App.tsx`
+  `siloAccent` on the `.app` wrapper — verify visually at sanity-check.
 
 ## Phase 2 — CFD branches in shared feature components (additive)
 

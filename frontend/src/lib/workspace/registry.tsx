@@ -66,7 +66,7 @@ import {
   useTrendingResearch,
 } from "../../data/hooks";
 
-export type AssetClass = "stocks" | "crypto";
+export type AssetClass = "stocks" | "crypto" | "cfd";
 
 // CMC-style link channels. "none" unlinks a widget so it shows whole-account
 // (unfiltered) info. "main" is bound to the app's selected symbol (so the rest
@@ -351,6 +351,18 @@ export function TabWithChannel(props: IDockviewPanelHeaderProps) {
   );
 }
 
+// Interim placeholder for widgets whose CFD branch hasn't landed yet (Phases
+// 2–3 of docs/cfd-workspace-integration.md). Renders instead of passing "cfd"
+// to an Alpaca-only feature component, which would otherwise show stock data in
+// the CFD canvas (the wrong-silo bug this integration fixes).
+function CfdPending({ kind }: { kind: string }) {
+  return (
+    <p className="text-[13px]" style={{ color: "var(--mute)" }}>
+      {kind} isn’t wired for the CFD workspace yet.
+    </p>
+  );
+}
+
 // Fills the panel below a header and lets the embedded surface scroll.
 function Pane({ children, pad }: { children: React.ReactNode; pad?: boolean }) {
   return (
@@ -435,7 +447,12 @@ function ChartWidget(props: IDockviewPanelProps) {
         />
       }
     >
-      <TVChartWidget symbol={symbol} onSymbolChange={setSymbol} panelApi={props.api} />
+      <TVChartWidget
+        symbol={symbol}
+        onSymbolChange={setSymbol}
+        assetClass={assetClass}
+        panelApi={props.api}
+      />
     </WidgetShell>
   );
 }
@@ -463,7 +480,13 @@ function MiniChartWidget(props: IDockviewPanelProps) {
       }
     >
       <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-        <PriceChart symbol={symbol} responsive />
+        {assetClass === "cfd" ? (
+          <div style={{ padding: 12 }}>
+            <CfdPending kind="Mini chart" />
+          </div>
+        ) : (
+          <PriceChart symbol={symbol} responsive />
+        )}
       </div>
     </WidgetShell>
   );
@@ -561,7 +584,11 @@ function OrdersWidget(props: IDockviewPanelProps) {
     >
       <div ref={ref} style={{ height: "100%" }}>
         <Pane pad>
-          <Orders assetClass={assetClass} symbol={symbol} dense={dense} mid={mid} bare />
+          {assetClass === "cfd" ? (
+            <CfdPending kind="Orders" />
+          ) : (
+            <Orders assetClass={assetClass} symbol={symbol} dense={dense} mid={mid} bare />
+          )}
         </Pane>
       </div>
     </WidgetShell>
@@ -590,7 +617,7 @@ function ActivityWidget(props: IDockviewPanelProps) {
     >
       <div ref={ref} style={{ height: "100%" }}>
         <Pane pad>
-          <Activities bare symbol={symbol} dense={dense} />
+          <Activities bare symbol={symbol} dense={dense} assetClass={assetClass} />
         </Pane>
       </div>
     </WidgetShell>
@@ -694,13 +721,17 @@ function WatchlistWidget(props: IDockviewPanelProps) {
       }
     >
       <Pane pad>
-        <Watchlist
-          assetClass={assetClass}
-          selected={getSymbol(target)}
-          onSelect={(s) => setSymbol(target, s)}
-          mode={mode}
-          onModeChange={setMode}
-        />
+        {assetClass === "cfd" ? (
+          <CfdPending kind="Watchlist" />
+        ) : (
+          <Watchlist
+            assetClass={assetClass}
+            selected={getSymbol(target)}
+            onSelect={(s) => setSymbol(target, s)}
+            mode={mode}
+            onModeChange={setMode}
+          />
+        )}
       </Pane>
     </WidgetShell>
   );
@@ -724,7 +755,11 @@ function AccountWidget(_props: IDockviewPanelProps) {
       }
     >
       <Pane pad>
-        <AccountPanel assetClass={assetClass} />
+        {assetClass === "cfd" ? (
+          <CfdPending kind="Account" />
+        ) : (
+          <AccountPanel assetClass={assetClass} />
+        )}
       </Pane>
     </WidgetShell>
   );
@@ -753,7 +788,11 @@ function TradeWidget(props: IDockviewPanelProps) {
       }
     >
       <Pane pad>
-        <OrderTicketInline symbol={sym} />
+        {assetClass === "cfd" ? (
+          <CfdPending kind="Trade ticket" />
+        ) : (
+          <OrderTicketInline symbol={sym} />
+        )}
       </Pane>
     </WidgetShell>
   );
@@ -784,7 +823,11 @@ function ProfileWidget(props: IDockviewPanelProps) {
     >
       <div ref={ref} style={{ height: "100%" }}>
         <Pane pad>
-          <AssetProfile symbol={symbol} assetClass={assetClass} dense={dense} />
+          {assetClass === "cfd" ? (
+            <CfdPending kind="Profile" />
+          ) : (
+            <AssetProfile symbol={symbol} assetClass={assetClass} dense={dense} />
+          )}
         </Pane>
       </div>
     </WidgetShell>
@@ -817,7 +860,11 @@ function FundamentalsWidget(props: IDockviewPanelProps) {
     >
       <div ref={ref} style={{ height: "100%" }}>
         <Pane pad>
-          <Fundamentals symbol={symbol} assetClass={assetClass} dense={dense} wide={wide} />
+          {assetClass === "cfd" ? (
+            <CfdPending kind="Fundamentals" />
+          ) : (
+            <Fundamentals symbol={symbol} assetClass={assetClass} dense={dense} wide={wide} />
+          )}
         </Pane>
       </div>
     </WidgetShell>
