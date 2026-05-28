@@ -151,34 +151,40 @@ layouts (separate persistence slot).
 - The amber CFD accent on the canvas chrome is inherited from `App.tsx`
   `siloAccent` on the `.app` wrapper — verify visually at sanity-check.
 
-## Phase 2 — CFD branches in shared feature components (additive)
+## Phase 2 — CFD branches in shared feature components (additive) — ✅ LANDED
 
-- [ ] **`AccountPanel.tsx`**: widen `assetClass` to include `"cfd"`; add a CFD
-      branch using `useFxcmAccount` (gate `enabled` on `cfd`). Render equity,
-      day P/L, used margin, free margin (mirror `CfdPortfolioHero`'s figures).
-      Keep the stocks/crypto path byte-for-byte unchanged.
-- [ ] **`FxcmOrders.tsx`**: add additive `bare`, `dense`, `symbol` props so it
-      can render inside a panel (borderless, hairline row dividers) and filter by
-      the linked instrument. Default-off keeps the Portfolio screen unchanged.
-- [ ] **`OrdersWidget`** (`registry.tsx`): render `<FxcmOrders bare … />` when
-      `assetClass === "cfd"`, else the existing `<Orders>`. (Adapter-level
-      branch — the feature components stay separate, mirroring the
-      `CfdPriceChart` vs `PriceChart` sibling precedent.)
-- [ ] **`Watchlist.tsx`**: add a `cfd` branch — `useFxcmWatchlistQuery` for the
-      list, `useFxcmWatchlistAdd`/`Remove` for mutations, `digits`/`fmtSpread`
-      precision from the `/prices` row. The SparkCard sparkline needs CFD bars
-      (`/api/fxcm/history` / `useFxcmBars`) or fall back to the **List** row view
-      (simpler — recommended for v1; cards can come later). Keep the
-      Cards/List/Auto toggle.
-- [ ] **`LinkHeader` + channel-chip `AssetSearch`** (`registry.tsx` +
-      `Workspace.tsx` `ChannelChip`): pass `source="fxcm"` and the right
-      `assetClass` when the silo is CFD so symbol pickers search FXCM
-      instruments, not Alpaca.
+- [x] **`AccountPanel.tsx`**: split into per-silo sub-components
+      (`AlpacaAccountPanel` / `CfdAccountPanel`) so each calls only its own hook
+      (React hooks rule — `useAccount` has no `enabled` flag). CFD branch reads
+      `useFxcmAccount` + `useFxcmOrders`: equity, day P/L (basis = equity −
+      day_pl), balance, used/free margin, total P/L, open-order count. Shared
+      `Equity` headline extracted; Alpaca path unchanged.
+- [x] **`FxcmOrders.tsx`**: additive `bare` (drop card chrome) + `dense` (force
+      stacked cards via `useMobile() || dense`) props. `symbol` filter already
+      existed. Default-off keeps the Portfolio screen unchanged.
+- [x] **`OrdersWidget`** (`registry.tsx`): renders `<FxcmOrders symbol dense
+      bare />` when `cfd`, else `<Orders>`.
+- [x] **`Watchlist.tsx`**: split into `AlpacaWatchlist` / `CfdWatchlist`.
+      `CfdWatchlist` uses `useFxcmWatchlistQuery` + `useFxcmWatchlistAdd/Remove`,
+      `AssetSearch source="fxcm"`, `useFxcmDisplayNames` labels, and renders a
+      **List** of `CfdWatchlistRow`s (display name · mid price at per-instrument
+      `digits` · live spread via `fmtSpread`). **List-only for v1** — the
+      SparkCard grid + Cards/List toggle are deferred (needs per-instrument
+      daily bars via `useFxcmBars`); see Phase 3 / BACKLOG.
+- [x] **`LinkHeader` + channel-chip `AssetSearch`** (`registry.tsx` +
+      `Workspace.tsx` `ChannelChip`): pass `source={cfd ? "fxcm" : "alpaca"}` so
+      symbol pickers search FXCM instruments in the CFD silo.
 
-**Verify Phase 2:** Account widget shows FXCM equity/margin; Orders widget shows
-the FXCM blotter and filters by channel; Watchlist widget lists the FXCM
-watchlist and add/remove round-trips; every header search in CFD returns FXCM
-instruments.
+**Interim guards removed:** Orders, Account, Watchlist now render real CFD data.
+Still `CfdPending` (Phase 3): Profile, Fundamentals, Mini chart, Trade ticket.
+
+**Verify Phase 2 (runtime — pending):** Account widget shows FXCM
+equity/margin; Orders widget shows the FXCM blotter and filters by channel;
+Watchlist widget lists the FXCM watchlist (List view) and add/remove
+round-trips; header + channel-chip search in CFD returns FXCM instruments.
+
+**Deferred to Phase 3 / BACKLOG:** CFD Watchlist **Cards** view (SparkCard +
+daily-bars sparkline) and the Cards/List/Auto toggle.
 
 ## Phase 3 — CFD widgets, research resolution & per-silo menu
 

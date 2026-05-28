@@ -5,6 +5,10 @@ import {
   useAddToWatchlist,
   useBarsBatch,
   useCryptoWatchlist,
+  useFxcmDisplayNames,
+  useFxcmWatchlistAdd,
+  useFxcmWatchlistQuery,
+  useFxcmWatchlistRemove,
   useRemoveFromCryptoWatchlist,
   useRemoveFromWatchlist,
   useSnapshots,
@@ -12,7 +16,7 @@ import {
 } from "../data/hooks";
 import { useLiveQuotes } from "../data/useLiveQuotes";
 import { useContainerNarrow, useContainerTall } from "../hooks/useContainerNarrow";
-import { fmtCryptoPrice, pct } from "../lib/format";
+import { cfdDigits, fmtCryptoPrice, fmtSpread, pct } from "../lib/format";
 import type { Snapshot } from "../types";
 import { AssetSearch } from "./AssetSearch";
 import { SparkCard, SparkCardSkeleton } from "./discover/SparkCard";
@@ -43,6 +47,33 @@ export type WatchlistMode = "auto" | "cards" | "list";
  * + watchlist hooks.
  */
 export default function Watchlist({
+  assetClass,
+  selected,
+  onSelect,
+  mode = "auto",
+  onModeChange,
+}: {
+  assetClass: "stocks" | "crypto" | "cfd";
+  selected?: string;
+  onSelect: (symbol: string) => void;
+  mode?: WatchlistMode;
+  onModeChange?: (m: WatchlistMode) => void;
+}) {
+  if (assetClass === "cfd") {
+    return <CfdWatchlist selected={selected} onSelect={onSelect} />;
+  }
+  return (
+    <AlpacaWatchlist
+      assetClass={assetClass}
+      selected={selected}
+      onSelect={onSelect}
+      mode={mode}
+      onModeChange={onModeChange}
+    />
+  );
+}
+
+function AlpacaWatchlist({
   assetClass,
   selected,
   onSelect,
@@ -164,6 +195,144 @@ export default function Watchlist({
             );
           })}
         </div>
+      )}
+    </div>
+  );
+}
+
+// CFD silo watchlist — the FXCM Endpoints-suite list, enriched with live
+// bid/ask by the 3 s poll. List-only for v1: the SparkCard grid needs
+// per-instrument daily bars (deferred — see docs/cfd-workspace-integration.md).
+// Add via the FXCM instrument search (DB-backed); hover-✕ removes. Shows the
+// mid price (per-instrument `digits`) and the live spread in points.
+function CfdWatchlist({
+  selected,
+  onSelect,
+}: {
+  selected?: string;
+  onSelect: (symbol: string) => void;
+}) {
+  const wl = useFxcmWatchlistQuery(true);
+  const add = useFxcmWatchlistAdd();
+  const remove = useFxcmWatchlistRemove();
+  const dn = useFxcmDisplayNames();
+  const rows = wl.data ?? [];
+
+  return (
+    <div className="flex flex-col gap-2">
+      <AssetSearch
+        assetClass="us_equity"
+        source="fxcm"
+        align="left"
+        fluid
+        disabled={add.isPending}
+        onChoose={(v) => add.mutate(v, { onSuccess: () => onSelect(v) })}
+      />
+
+      {wl.isPending ? (
+        <div className="flex flex-col gap-1">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <RowSkeleton key={i} />
+          ))}
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="text-[12px] p-2" style={{ color: "var(--mute)" }}>
+          No instruments. Add one above (e.g. EUR/USD).
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1">
+          {rows.map((p) => {
+            const bid = p.bid ?? 0;
+            const ask = p.ask ?? 0;
+            const mid = bid && ask ? (bid + ask) / 2 : bid || ask;
+            const digits = p.digits ?? cfdDigits(p.instrument);
+            return (
+              <CfdWatchlistRow
+                key={p.instrument}
+                label={dn(p.instrument)}
+                price={mid}
+                digits={digits}
+                spread={fmtSpread(bid, ask, p.point_size)}
+                selected={p.instrument === selected}
+                onSelect={() => onSelect(p.instrument)}
+                onRemove={() => remove.mutate(p.instrument)}
+              />
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CfdWatchlistRow({
+  label,
+  price,
+  digits,
+  spread,
+  selected,
+  onSelect,
+  onRemove,
+}: {
+  label: string;
+  price: number;
+  digits: number;
+  spread: string;
+  selected: boolean;
+  onSelect: () => void;
+  onRemove?: () => void;
+}) {
+  return (
+    <div
+      role="button"
+      onClick={onSelect}
+      className="group relative cursor-pointer flex items-center justify-between bg-panel"
+      style={{
+        padding: "6px 10px",
+        border: `1px solid ${selected ? "var(--accent)" : "var(--border)"}`,
+        borderRadius: "var(--r)",
+        boxShadow: selected ? "0 0 0 2px var(--accent-bg)" : "none",
+        minHeight: 30,
+      }}
+    >
+      <div
+        className="font-semibold font-mono tabular-nums truncate"
+        style={{ fontSize: 12, letterSpacing: "-0.01em" }}
+      >
+        {label}
+      </div>
+      <div className="flex items-baseline gap-3 shrink-0">
+        <span
+          className="font-mono tabular-nums"
+          style={{ fontSize: 12, color: "var(--text)" }}
+        >
+          {price ? price.toFixed(digits) : "—"}
+        </span>
+        <span
+          className="font-mono tabular-nums text-right"
+          style={{ fontSize: 11, color: "var(--mute)", minWidth: 52 }}
+        >
+          {spread}
+        </span>
+      </div>
+      {onRemove && (
+        <button
+          type="button"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          aria-label={`Remove ${label} from watchlist`}
+          className="absolute top-1/2 -translate-y-1/2 right-1 cursor-pointer border-0 text-[11px] leading-none w-5 h-5 grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity"
+          style={{
+            background: "var(--panel-2)",
+            color: "var(--mute)",
+            borderRadius: 4,
+          }}
+        >
+          ✕
+        </button>
       )}
     </div>
   );

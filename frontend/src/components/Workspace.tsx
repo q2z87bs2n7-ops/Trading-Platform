@@ -714,6 +714,7 @@ function ChannelChip({
           >
             <AssetSearch
               assetClass={assetClass === "crypto" ? "crypto" : "us_equity"}
+              source={assetClass === "cfd" ? "fxcm" : "alpaca"}
               align="left"
               autoFocus
               fluid

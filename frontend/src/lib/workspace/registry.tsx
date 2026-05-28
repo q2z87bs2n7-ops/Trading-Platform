@@ -250,6 +250,7 @@ function LinkHeader({
       {searching && canPick ? (
         <AssetSearch
           assetClass={assetClass === "crypto" ? "crypto" : "us_equity"}
+          source={assetClass === "cfd" ? "fxcm" : "alpaca"}
           align="left"
           autoFocus
           fluid
@@ -722,17 +723,13 @@ function WatchlistWidget(props: IDockviewPanelProps) {
       }
     >
       <Pane pad>
-        {assetClass === "cfd" ? (
-          <CfdPending kind="Watchlist" />
-        ) : (
-          <Watchlist
-            assetClass={assetClass}
-            selected={getSymbol(target)}
-            onSelect={(s) => setSymbol(target, s)}
-            mode={mode}
-            onModeChange={setMode}
-          />
-        )}
+        <Watchlist
+          assetClass={assetClass}
+          selected={getSymbol(target)}
+          onSelect={(s) => setSymbol(target, s)}
+          mode={mode}
+          onModeChange={setMode}
+        />
       </Pane>
     </WidgetShell>
   );
