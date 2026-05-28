@@ -24,7 +24,7 @@ from .fxcm_auth import get_access_token
 _log = logging.getLogger(__name__)
 
 BRIDGE_URL = "http://127.0.0.1:3001"
-TIMEOUT    = 10.0
+TIMEOUT    = 25.0
 
 # FXCM Endpoints-suite gateway (demo). Live env would be
 # endpoints.fxcorporate.com (no -demo).

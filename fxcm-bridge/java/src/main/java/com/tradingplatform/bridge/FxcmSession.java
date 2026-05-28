@@ -29,6 +29,7 @@ import com.fxcm.api.interfaces.tradingdata.pricehistory.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.locks.*;
 import java.util.logging.*;
 
 /**
@@ -56,6 +57,10 @@ public class FxcmSession {
 
     // Offer IDs we've subscribed to (positions + orders + watchlist at boot)
     private final Set<String> subscribedOfferIds = Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
+
+    // Serializes getLatestOffersSnapshot calls — FCLite's internal price
+    // session handling is not safe for concurrent snapshot requests.
+    private final ReentrantLock snapshotLock = new ReentrantLock();
 
     static final Map<String, int[]> TIMEFRAME_MAP = new LinkedHashMap<>();
     static {
@@ -168,16 +173,21 @@ public class FxcmSession {
 
     private Offer[] fetchOfferSnapshot(String[] offerIds) throws Exception {
         if (offerIds.length == 0) return new Offer[0];
-        CountDownLatch latch = new CountDownLatch(1);
-        Offer[][] result = {new Offer[0]};
-        offersMgr.getLatestOffersSnapshot(offerIds, new com.fxcm.api.interfaces.tradingdata.offers.IOffersSnapshotCallback() {
-            public void onSuccess(Offer[] offers) { result[0] = offers != null ? offers : new Offer[0]; latch.countDown(); }
-            public void onError(com.fxcm.api.interfaces.errors.IFXConnectLiteError e) {
-                LOG.warning("Offer snapshot error: " + e.getMessage()); latch.countDown();
-            }
-        });
-        if (!latch.await(10, TimeUnit.SECONDS)) LOG.warning("Offer snapshot timeout");
-        return result[0];
+        snapshotLock.lock();
+        try {
+            CountDownLatch latch = new CountDownLatch(1);
+            Offer[][] result = {new Offer[0]};
+            offersMgr.getLatestOffersSnapshot(offerIds, new com.fxcm.api.interfaces.tradingdata.offers.IOffersSnapshotCallback() {
+                public void onSuccess(Offer[] offers) { result[0] = offers != null ? offers : new Offer[0]; latch.countDown(); }
+                public void onError(com.fxcm.api.interfaces.errors.IFXConnectLiteError e) {
+                    LOG.warning("Offer snapshot error: " + e.getMessage()); latch.countDown();
+                }
+            });
+            if (!latch.await(3, TimeUnit.SECONDS)) LOG.warning("Offer snapshot timeout");
+            return result[0];
+        } finally {
+            snapshotLock.unlock();
+        }
     }
 
     private <T extends IDataManager> T loadDataManager(T mgr) throws Exception {
