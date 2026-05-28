@@ -7,6 +7,7 @@ import FxcmOrders from "../../components/FxcmOrders";
 import Activities from "../../components/Activities";
 import TVChartWidget from "../../components/TVChartWidget";
 import PriceChart from "../../components/PriceChart";
+import CfdPriceChart from "../../components/CfdPriceChart";
 import OrderTicketInline from "../../components/trade/OrderTicketInline";
 import AccountPanel from "../../components/AccountPanel";
 import AssetProfile from "../../components/AssetProfile";
@@ -51,7 +52,7 @@ import {
   HolderDemographicsCardSkeleton,
 } from "../../components/research/HolderDemographicsCard";
 import ErrorBanner from "../../components/ErrorBanner";
-import { isCryptoSymbol } from "../asset-class";
+import { isCryptoSymbol, isStockCfdSymbol } from "../asset-class";
 import {
   useEarningsCalendar,
   useMarketNews,
@@ -483,9 +484,7 @@ function MiniChartWidget(props: IDockviewPanelProps) {
     >
       <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
         {assetClass === "cfd" ? (
-          <div style={{ padding: 12 }}>
-            <CfdPending kind="Mini chart" />
-          </div>
+          <CfdPriceChart instrument={symbol} />
         ) : (
           <PriceChart symbol={symbol} responsive />
         )}
@@ -817,8 +816,11 @@ function ProfileWidget(props: IDockviewPanelProps) {
     >
       <div ref={ref} style={{ height: "100%" }}>
         <Pane pad>
-          {assetClass === "cfd" ? (
-            <CfdPending kind="Profile" />
+          {assetClass === "cfd" && !isStockCfdSymbol(symbol) ? (
+            <p className="text-[13px]" style={{ color: "var(--mute)" }}>
+              Profile is available for stock CFDs (e.g. AAPL.us) — not for FX,
+              indices, metals or commodities.
+            </p>
           ) : (
             <AssetProfile symbol={symbol} assetClass={assetClass} dense={dense} />
           )}
@@ -854,8 +856,11 @@ function FundamentalsWidget(props: IDockviewPanelProps) {
     >
       <div ref={ref} style={{ height: "100%" }}>
         <Pane pad>
-          {assetClass === "cfd" ? (
-            <CfdPending kind="Fundamentals" />
+          {assetClass === "cfd" && !isStockCfdSymbol(symbol) ? (
+            <p className="text-[13px]" style={{ color: "var(--mute)" }}>
+              Fundamentals are available for stock CFDs (e.g. AAPL.us) — not for
+              FX, indices, metals or commodities.
+            </p>
           ) : (
             <Fundamentals symbol={symbol} assetClass={assetClass} dense={dense} wide={wide} />
           )}
