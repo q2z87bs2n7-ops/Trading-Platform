@@ -5,6 +5,9 @@ import type { FxcmPrice } from "../../types";
 interface Props {
   instruments: FxcmPrice[];
   defaultInstrument?: string;
+  // Pre-select Buy or Sell — used when opening from the floating TradeBar
+  // (mirrors Alpaca's OrderSheet `defaultSide`). "B" = buy, "S" = sell.
+  defaultSide?: "B" | "S";
   onClose: () => void;
   onSubmitted?: () => void;
 }
@@ -18,9 +21,9 @@ const ORDER_TYPES = [
 ] as const;
 type UiOrderType = (typeof ORDER_TYPES)[number]["value"];
 
-export default function FxcmOrderSheet({ instruments, defaultInstrument, onClose, onSubmitted }: Props) {
+export default function FxcmOrderSheet({ instruments, defaultInstrument, defaultSide, onClose, onSubmitted }: Props) {
   const [instrument, setInstrument] = useState(defaultInstrument || instruments[0]?.instrument || "EUR/USD");
-  const [side, setSide] = useState<"B" | "S">("B");
+  const [side, setSide] = useState<"B" | "S">(defaultSide ?? "B");
   const [orderType, setOrderType] = useState<UiOrderType>("OM");
   const [amount, setAmount] = useState("1000");
   const [rate, setRate] = useState("");

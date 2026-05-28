@@ -1,26 +1,48 @@
 import { useState } from "react";
 
+import { useFxcmPrices } from "../../data/hooks";
 import { useLiveQuotes } from "../../data/useLiveQuotes";
 import { useMobile } from "../../hooks/useMobile";
+import { fmtCfdPrice } from "../../lib/format";
 import OrderSheet from "./OrderSheet";
+import FxcmOrderSheet from "./FxcmOrderSheet";
 
 const money = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD" });
 
 interface Props {
   symbol: string;
+  // "cfd" routes through the FXCM data path + FxcmOrderSheet; "stocks" /
+  // "crypto" / undefined keep the long-standing Alpaca behaviour.
+  assetClass?: "stocks" | "crypto" | "cfd";
 }
 
-export default function TradeBar({ symbol }: Props) {
+export default function TradeBar({ symbol, assetClass }: Props) {
   const [open, setOpen] = useState(false);
   const [side, setSide] = useState<"buy" | "sell">("buy");
   // Mobile: the bar collapses to a floating FAB that expands to Buy/Sell,
   // so it doesn't eat a full-width strip or clash with the ChartBot launcher.
   const [expanded, setExpanded] = useState(false);
   const isMobile = useMobile();
-  const symUpper = symbol.trim().toUpperCase();
-  const { quotes } = useLiveQuotes(symUpper ? [symUpper] : []);
+  const isCfd = assetClass === "cfd";
+  // Symbols stay as-is for CFD (EUR/USD, XAU/USD, US30 are case-sensitive on
+  // the FXCM side); the long-standing uppercase normalisation is Alpaca-only.
+  const symUpper = isCfd ? symbol.trim() : symbol.trim().toUpperCase();
+  const { quotes } = useLiveQuotes(!isCfd && symUpper ? [symUpper] : []);
+  const fxcmPrices = useFxcmPrices(isCfd);
   const quote = quotes[symUpper];
+  const fxcmRow = isCfd
+    ? (fxcmPrices.data ?? []).find((p) => p.instrument === symUpper)
+    : undefined;
+  // Live mid for the on-bar price chip — bid/ask average for CFD, Alpaca's
+  // quote.mid for stocks/crypto.
+  const livePrice = isCfd
+    ? fxcmRow?.bid != null && fxcmRow?.ask != null
+      ? (fxcmRow.bid + fxcmRow.ask) / 2
+      : fxcmRow?.bid ?? fxcmRow?.ask
+    : quote?.mid;
+  const fmtPriceChip = (n: number) =>
+    isCfd ? fmtCfdPrice(n, symUpper) : money(n);
 
   function openSheet(s: "buy" | "sell") {
     setSide(s);
@@ -79,7 +101,7 @@ export default function TradeBar({ symbol }: Props) {
                   }}
                 >
                   {symUpper}
-                  {quote ? ` · ${money(quote.mid)}` : ""}
+                  {livePrice != null ? ` · ${fmtPriceChip(livePrice)}` : ""}
                 </span>
               )}
               {pill("buy")}
@@ -127,12 +149,23 @@ export default function TradeBar({ symbol }: Props) {
               ⇅
             </button>
           ))}
-        <OrderSheet
-          open={open}
-          symbol={symUpper}
-          defaultSide={side}
-          onClose={() => setOpen(false)}
-        />
+        {isCfd
+          ? open && (
+              <FxcmOrderSheet
+                instruments={fxcmPrices.data ?? []}
+                defaultInstrument={symUpper}
+                defaultSide={side === "buy" ? "B" : "S"}
+                onClose={() => setOpen(false)}
+              />
+            )
+          : (
+            <OrderSheet
+              open={open}
+              symbol={symUpper}
+              defaultSide={side}
+              onClose={() => setOpen(false)}
+            />
+          )}
       </>
     );
   }
@@ -157,12 +190,12 @@ export default function TradeBar({ symbol }: Props) {
           <span className="font-semibold" style={{ letterSpacing: "-0.005em" }}>
             {symUpper || "—"}
           </span>
-          {quote && (
+          {livePrice != null && (
             <span
               className="font-mono text-[13px] tabular-nums"
               style={{ opacity: 0.85 }}
             >
-              {money(quote.mid)}
+              {fmtPriceChip(livePrice)}
             </span>
           )}
         </div>
@@ -203,12 +236,23 @@ export default function TradeBar({ symbol }: Props) {
           Sell
         </button>
       </div>
-      <OrderSheet
-        open={open}
-        symbol={symUpper}
-        defaultSide={side}
-        onClose={() => setOpen(false)}
-      />
+      {isCfd
+        ? open && (
+            <FxcmOrderSheet
+              instruments={fxcmPrices.data ?? []}
+              defaultInstrument={symUpper}
+              defaultSide={side === "buy" ? "B" : "S"}
+              onClose={() => setOpen(false)}
+            />
+          )
+        : (
+          <OrderSheet
+            open={open}
+            symbol={symUpper}
+            defaultSide={side}
+            onClose={() => setOpen(false)}
+          />
+        )}
     </>
   );
 }

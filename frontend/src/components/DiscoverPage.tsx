@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import * as api from "../api";
 import {
@@ -26,13 +26,14 @@ import { useLiveQuotes } from "../data/useLiveQuotes";
 import { useMarketSummary } from "../hooks/useMarketSummary";
 import { useMobile } from "../hooks/useMobile";
 import { isCryptoPosition } from "../lib/asset-class";
-import { fmtCryptoPrice, pct } from "../lib/format";
+import { fmtCryptoPrice } from "../lib/format";
 import { showToast } from "../lib/toast";
 import type { Snapshot } from "../types";
 import { AssetSearch } from "./AssetSearch";
 import { AddSymbolTile } from "./discover/AddSymbolTile";
 import { CardsRow } from "./discover/CardsRow";
 import { ChartCard } from "./discover/ChartCard";
+import { StickyChartBar } from "./discover/StickyChartBar";
 import { CryptoTicker } from "./discover/CryptoTicker";
 import { DiscoverHero } from "./discover/DiscoverHero";
 import { EarningsCard, EarningsCardSkeleton } from "./discover/EarningsCard";
@@ -156,31 +157,10 @@ export default function DiscoverPage({
   const isMobile = useMobile();
   const [addSheetOpen, setAddSheetOpen] = useState(false);
 
-  // Sticky chart-mini visibility — true once the inline ChartCard has scrolled
-  // past the top of the viewport. Desktop-only (mobile is short enough that
-  // the chart's never far from view, and the slim bar would fight the mobile
-  // header chrome).
+  // Ref attached to the inline ChartCard wrapper — driven by the shared
+  // `StickyChartBar` component (which owns the IntersectionObserver) so the
+  // CFD silo gets identical behaviour without duplicating the JSX.
   const chartCardRef = useRef<HTMLDivElement | null>(null);
-  const [chartOffscreen, setChartOffscreen] = useState(false);
-  useEffect(() => {
-    if (isMobile) {
-      setChartOffscreen(false);
-      return;
-    }
-    const el = chartCardRef.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      ([entry]) => {
-        // Only show when the chart has scrolled OFF the top — not when it
-        // hasn't entered yet from below.
-        const passedTop = entry.boundingClientRect.bottom < 0;
-        setChartOffscreen(!entry.isIntersecting && passedTop);
-      },
-      { threshold: 0 },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, [isMobile, selected]);
   // Watchlist sidebar collapse state — desktop only, persisted so the
   // preference survives reloads.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
@@ -408,7 +388,6 @@ export default function DiscoverPage({
   const selPrice = live[selected]?.mid ?? selQuote?.last_price ?? 0;
   const selPrev = selQuote?.prev_close ?? 0;
   const selDayChange = selPrev > 0 ? (selPrice - selPrev) / selPrev : 0;
-  const selUp = selDayChange >= 0;
 
   const mainContent = (
     <>
@@ -643,66 +622,14 @@ export default function DiscoverPage({
             )}
           </aside>
           <main className="min-w-0">
-            {chartOffscreen && selected && (
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() =>
-                  chartCardRef.current?.scrollIntoView({
-                    behavior: "smooth",
-                    block: "start",
-                  })
-                }
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    chartCardRef.current?.scrollIntoView({
-                      behavior: "smooth",
-                      block: "start",
-                    });
-                  }
-                }}
-                title={`Scroll back to ${selected} chart`}
-                className="cursor-pointer flex items-center gap-3"
-                style={{
-                  position: "sticky",
-                  top: 8,
-                  zIndex: 20,
-                  marginBottom: 12,
-                  padding: "8px 14px",
-                  background: "var(--text)",
-                  color: "var(--bg)",
-                  border: "none",
-                  borderRadius: "var(--r)",
-                  boxShadow: "var(--shadow-lg)",
-                }}
-              >
-                <span className="font-semibold" style={{ fontSize: 13 }}>
-                  {isCrypto ? coinLabel(selected) : selected}
-                </span>
-                <span
-                  className="font-mono tabular-nums"
-                  style={{ fontSize: 13 }}
-                >
-                  {isCrypto ? fmtCryptoPrice(selPrice) : fmtPrice(selPrice)}
-                </span>
-                <span
-                  className="font-mono tabular-nums"
-                  style={{
-                    fontSize: 12,
-                    color: selUp ? "var(--pos)" : "var(--neg)",
-                  }}
-                >
-                  {pct(selDayChange)}
-                </span>
-                <span
-                  className="ml-auto"
-                  style={{ opacity: 0.6, fontSize: 11 }}
-                >
-                  Scroll to chart ↑
-                </span>
-              </div>
-            )}
+            <StickyChartBar
+              chartCardRef={chartCardRef}
+              symbol={selected}
+              price={selPrice}
+              dayChangePct={selDayChange}
+              formatPrice={isCrypto ? fmtCryptoPrice : fmtPrice}
+              label={isCrypto ? coinLabel(selected) : undefined}
+            />
             {heroBlock}
             {aiSummary}
             {mainContent}

@@ -176,11 +176,15 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
     yet; see BACKLOG), netted-per-instrument `Positions`, the
     `FxcmOrders` blotter (FXCM's `OM`/`SE`/`LE` order model diverges
     enough that folding it into `Orders.tsx` would be ugly), and
-    `Activities` sourced from `/api/fxcm/closed_trades`. `TradeBar` is
-    suppressed in CFD mode (Alpaca-only); CFD order entry lives in
-    `FxcmOrderSheet`. CFD digit precision (JPY 3dp · FX 5dp · metals 4dp
-    · indices 1dp · stock-CFDs 2dp) flows from `lib/format.ts → cfdDigits`.
-    Full surface inventory in `docs/fxcm.md`.
+    `Activities` sourced from `/api/fxcm/closed_trades`. `TradeBar` runs
+    in CFD mode too — same component, `assetClass="cfd"` routes its data
+    path through `useFxcmPrices` and its order sheet through
+    `FxcmOrderSheet` (which now takes `defaultSide`). The sticky
+    chart-mini bar at the top of the main column is the shared
+    `discover/StickyChartBar.tsx` (extracted from the old inline JSX in
+    `DiscoverPage.tsx`). CFD digit precision (JPY 3dp · FX 5dp · metals
+    4dp · indices 1dp · stock-CFDs 2dp) flows from
+    `lib/format.ts → cfdDigits`. Full surface inventory in `docs/fxcm.md`.
   - **Chart** — `TVPlatform.tsx` wraps the full TradingView Charting
     Library (`frontend/public/charting_library/`, committed — private
     repo only) using **TV's native chrome**: the native header (symbol

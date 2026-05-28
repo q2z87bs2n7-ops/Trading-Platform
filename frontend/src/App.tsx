@@ -646,11 +646,11 @@ export default function App() {
         </div>
       )}
 
-      {/* Floating Buy/Sell bar — Discover + Portfolio (Alpaca silos only).
-         Chart mode mounts its own TradeBar inside TVPlatform. CFDs have no
-         Alpaca order entry, so it's suppressed there. */}
-      {(mode === "discover" || mode === "portfolio") && activeClass !== "cfd" && (
-        <TradeBar symbol={selected} />
+      {/* Floating Buy/Sell bar — Discover + Portfolio across all silos.
+         Chart mode mounts its own TradeBar inside TVPlatform. CFD routes
+         the same bar to FxcmOrderSheet via the assetClass prop. */}
+      {(mode === "discover" || mode === "portfolio") && (
+        <TradeBar symbol={selected} assetClass={activeClass} />
       )}
 
       {/* Mobile-only floating ✦ Ask launcher. Bottom-left so it sits in the

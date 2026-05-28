@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as api from "../api";
 import type { FxcmAccount, FxcmPosition, FxcmPrice } from "../types";
 import { fmtCfdPrice, money } from "../lib/format";
@@ -11,10 +11,14 @@ import {
   useFxcmWatchlistQuery,
   useFxcmWatchlistRemove,
 } from "../data/hooks";
+// Note: selectedDailyBars below shares its cache key with CfdWatchlistCard's
+// useFxcmBars call, so the React Query layer dedupes when the user picks a
+// watchlist row (no extra network).
 import { AddSymbolTile } from "./discover/AddSymbolTile";
 import { CardsRow } from "./discover/CardsRow";
 import { EconomicCard } from "./discover/EconomicCard";
 import { SparkCard, SparkCardSkeleton } from "./discover/SparkCard";
+import { StickyChartBar } from "./discover/StickyChartBar";
 import { showToast } from "../lib/toast";
 import SectionHeading from "./SectionHeading";
 import FxcmOrderSheet from "./trade/FxcmOrderSheet";
@@ -291,6 +295,9 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
   const [orderSheetOpen, setOrderSheetOpen] = useState(false);
   const [selected, setSelected] = useState<string>("");
   const isMobile = useMobile();
+  // Ref attached to the inline chart card — drives the shared StickyChartBar
+  // at the top of the main column, same UX as stocks/crypto Discover.
+  const chartCardRef = useRef<HTMLDivElement | null>(null);
 
   // Sidebar collapse — shares the same localStorage key as stocks/crypto
   // Discover so the user's preference travels across silos (matching the
@@ -467,10 +474,37 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
     ? "loading…"
     : `${wlSymbols.length} instrument${wlSymbols.length === 1 ? "" : "s"}`;
 
+  // Live mid for the sticky chart bar — bid/ask average, falls back to
+  // whichever side is present.
+  const selectedPrice = priceMap.get(selected);
+  const selBid = selectedPrice?.bid;
+  const selAsk = selectedPrice?.ask;
+  const selMid =
+    selBid != null && selAsk != null
+      ? (selBid + selAsk) / 2
+      : selBid ?? selAsk ?? 0;
+  // Day-% from yesterday's daily close vs current mid — same calc the
+  // CfdPriceChart hero does. Shares the D1 bars cache key with the
+  // watchlist sparklines, so it's free when the symbol is on the list.
+  const { data: selDailyBars } = useFxcmBars(selected, "D1", !!selected);
+  const selPrevClose =
+    selDailyBars && selDailyBars.length >= 2
+      ? selDailyBars[selDailyBars.length - 2].close
+      : 0;
+  const selDayChange =
+    selPrevClose > 0 && selMid > 0 ? (selMid - selPrevClose) / selPrevClose : 0;
+
   // Main column — same on mobile (single-col) and desktop (right of the
   // sidebar). On mobile we ALSO inject the watchlist above as a CardsRow.
   const mainContent = (
     <>
+      <StickyChartBar
+        chartCardRef={chartCardRef}
+        symbol={selected}
+        price={selMid}
+        dayChangePct={selDayChange}
+        formatPrice={(n) => fmtCfdPrice(n, selected)}
+      />
       <FxcmAccountHero account={account} />
 
       {/* Positions */}
@@ -510,6 +544,7 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
       {/* Inline chart */}
       {bridgeOk && selected && (
         <div
+          ref={chartCardRef}
           className="mt-4 p-[20px_24px]"
           style={{
             background: "var(--panel)",

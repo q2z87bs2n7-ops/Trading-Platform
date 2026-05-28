@@ -44,6 +44,7 @@ export const qk = {
   cryptoTickers: ["cryptoTickers"] as const,
   fxcmAccount: ["fxcm", "account"] as const,
   fxcmPositions: ["fxcm", "positions"] as const,
+  fxcmPrices: ["fxcm", "prices"] as const,
   fxcmInstruments: ["fxcm", "instruments"] as const,
   fxcmOrders: ["fxcm", "orders"] as const,
   fxcmClosedTrades: ["fxcm", "closed_trades"] as const,

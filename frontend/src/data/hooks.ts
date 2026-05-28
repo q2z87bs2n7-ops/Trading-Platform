@@ -68,6 +68,19 @@ export const useFxcmPositions = (enabled = true) =>
     enabled,
   });
 
+// All FXCM offer prices (bid/ask/high/low + display metadata) for the CFD
+// silo's TradeBar live tip and the OrderSheet's instrument picker. 3 s poll
+// matches CfdDiscoverPage's existing cadence; React Query dedupes both
+// callers automatically.
+export const useFxcmPrices = (enabled = true) =>
+  useQuery({
+    queryKey: qk.fxcmPrices,
+    queryFn: () => api.getFxcmPrices(),
+    refetchInterval: 3000,
+    retry: 0,
+    enabled,
+  });
+
 export const useFxcmOrders = (enabled = true) =>
   useQuery({
     queryKey: qk.fxcmOrders,
