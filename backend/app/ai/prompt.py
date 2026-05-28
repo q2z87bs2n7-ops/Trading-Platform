@@ -187,9 +187,27 @@ composition of the primitives above — no new tools needed.
 """
 
 
-def build_system(chart_symbol: str, chart_resolution: str) -> list[dict[str, Any]]:
+def build_system(
+    chart_symbol: str,
+    chart_resolution: str,
+    asset_class: str | None = None,
+) -> list[dict[str, Any]]:
     """Return the system field as two text blocks: frozen (cached) +
     chart_context (volatile, not cached)."""
+    context = (
+        f"Current chart context — symbol: {chart_symbol}, "
+        f"resolution: {chart_resolution}. Prefer this symbol "
+        f"unless the user explicitly names a different one."
+    )
+    if asset_class == "cfd":
+        context += (
+            " This is an FXCM CFD instrument (forex, index, metal, commodity or"
+            " stock CFD). The Alpaca data tools (get_quote / get_bars /"
+            " get_fundamentals / get_news / screen_assets etc.) do NOT cover FXCM"
+            " instruments and will return nothing useful — do not call them for"
+            " this symbol. Work from the chart on screen, the drawing/annotation"
+            " tools, and your general market knowledge instead."
+        )
     return [
         {
             "type": "text",
@@ -198,11 +216,7 @@ def build_system(chart_symbol: str, chart_resolution: str) -> list[dict[str, Any
         },
         {
             "type": "text",
-            "text": (
-                f"Current chart context — symbol: {chart_symbol}, "
-                f"resolution: {chart_resolution}. Prefer this symbol "
-                f"unless the user explicitly names a different one."
-            ),
+            "text": context,
         },
     ]
 

@@ -9,9 +9,7 @@ that took several iterations to land — don't undo them),
 (the two AI surfaces), `docs/database.md` (Postgres asset catalogue),
 `docs/tipranks.md` (Tipranks research API — endpoint inventory & auth
 quirks, not yet wired), `docs/fxcm.md` (FXCM ForexConnect integration —
-bridge architecture, SDK patterns, what's built, what's next),
-`docs/cfd-workspace-integration.md` (tracked spec: bringing the CFD silo
-to the Workspace canvas — phased, with handover detail).
+bridge architecture, SDK patterns, what's built, what's next).
 
 ## What this is
 
@@ -214,9 +212,11 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
     Main/blue/green/amber), named layout presets plus user-saved layouts
     ("Save current as…"), and an Ask-anything
     control path. Goes full-bleed and drops the `TopBar` equity strip
-    (account figures live in the Account widget). **Full detail — widget
-    catalogue, channels, toolbar, panel-size fit, and the module-reuse
-    pattern — is in `docs/workspace.md`.**
+    (account figures live in the Account widget). A first-class surface for
+    **all three silos** including CFD (FXCM data across every widget,
+    research widgets resolve stock-CFD underlyings). **Full detail — widget
+    catalogue, channels, toolbar, panel-size fit, the CFD silo, and the
+    module-reuse pattern — is in `docs/workspace.md`.**
 - **Mobile / responsive (≤ 640px).** A single `useMobile()` hook
   (`hooks/useMobile.ts`, `matchMedia("(max-width: 640px)")`) gates the
   phone layouts; it mirrors the CSS `@media (max-width: 640px)` breakpoint

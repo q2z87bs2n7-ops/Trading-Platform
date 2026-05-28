@@ -85,6 +85,7 @@ export interface APIMessage {
 export interface ChartContext {
   symbol: string;
   resolution: string;
+  asset_class?: "stocks" | "crypto" | "cfd";
 }
 
 interface ChatResponse {

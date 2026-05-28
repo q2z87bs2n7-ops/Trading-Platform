@@ -1,7 +1,7 @@
 import type { Channel } from "../workspace/registry";
 import type { SiloedAction } from "../workspace/actions";
 
-export type AssetClass = "stocks" | "crypto";
+export type AssetClass = "stocks" | "crypto" | "cfd";
 
 export type Intent =
   | {

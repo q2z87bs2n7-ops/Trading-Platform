@@ -269,7 +269,7 @@ export interface AiAskMessage {
 export const postAiAsk = (
   message: string,
   history: AiAskMessage[] = [],
-  assetClass?: "stocks" | "crypto",
+  assetClass?: "stocks" | "crypto" | "cfd",
 ): Promise<AiAskResponse> =>
   sendJSON<AiAskResponse>("POST", "/api/ai/ask", {
     message,

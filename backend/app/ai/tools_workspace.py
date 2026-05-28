@@ -37,10 +37,11 @@ WORKSPACE_WIDGET_KINDS = (
 
 _SILO_PROP = {
     "type": "string",
-    "enum": ["stocks", "crypto"],
+    "enum": ["stocks", "crypto", "cfd"],
     "description": (
-        "Target silo. Omit for the user's active silo; set only to target the "
-        "other silo (the app will switch silos first)."
+        "Target silo. Omit for the user's active silo; set only to target a "
+        "different silo (the app will switch silos first). 'cfd' is the FXCM "
+        "silo (forex, indices, metals, commodities, stock CFDs)."
     ),
 }
 

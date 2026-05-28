@@ -45,9 +45,10 @@ const PANEL_WIDTH = 380;
 interface Props {
   symbol: string;
   resolution?: string;
+  assetClass?: "stocks" | "crypto" | "cfd";
 }
 
-export default function ChatPanel({ symbol, resolution = "D" }: Props) {
+export default function ChatPanel({ symbol, resolution = "D", assetClass }: Props) {
   const isMobile = useMobile();
   const enabled = useSettings().chartbotEnabled;
   const hint = useFirstOpenHint("chartbot_convention");
@@ -60,7 +61,7 @@ export default function ChatPanel({ symbol, resolution = "D" }: Props) {
   // opened from the floating violet launcher.
   const [open, setOpen] = useState(false);
   const sheetRef = useRef<HTMLDivElement>(null);
-  const session = useChatSession({ symbol, resolution });
+  const session = useChatSession({ symbol, resolution, asset_class: assetClass });
 
   useEffect(() => {
     localStorage.removeItem(LEGACY_COLLAPSED_KEY);

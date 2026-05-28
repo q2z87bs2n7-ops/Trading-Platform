@@ -77,6 +77,7 @@ function save(turns: RenderedTurn[], apiHistory: APIMessage[]) {
 interface ChartContextLite {
   symbol: string;
   resolution: string;
+  asset_class?: "stocks" | "crypto" | "cfd";
 }
 
 export function useChatSession(chart: ChartContextLite) {
