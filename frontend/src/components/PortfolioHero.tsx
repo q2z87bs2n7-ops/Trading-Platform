@@ -325,6 +325,9 @@ function ForexPortfolioHero({ isMobile }: { isMobile: boolean }) {
   const usableMargin = Number(
     (acct as Record<string, unknown> | undefined)?.usablemargin ?? 0,
   );
+  const usedMargin = Number(
+    (acct as Record<string, unknown> | undefined)?.usedmargin ?? 0,
+  );
   const dayBasis = equity - dayPl;
   const dayPlPct = dayBasis > 0 ? dayPl / dayBasis : 0;
   const dayUp = dayPl >= 0;
@@ -335,6 +338,7 @@ function ForexPortfolioHero({ isMobile }: { isMobile: boolean }) {
   void positions;
 
   const stats: Array<{ label: string; value: string; color?: string }> = [
+    { label: "Used margin", value: money(usedMargin) },
     { label: "Free margin", value: money(usableMargin) },
     {
       label: "Total P/L",
@@ -405,7 +409,7 @@ function ForexPortfolioHero({ isMobile }: { isMobile: boolean }) {
           padding: isMobile ? "12px 16px 16px" : "22px",
           borderLeft: isMobile ? "0" : "1px solid var(--hairline)",
           borderTop: isMobile ? "1px solid var(--hairline)" : "0",
-          gridTemplateColumns: isMobile ? "repeat(3, minmax(0, 1fr))" : "1fr 1fr",
+          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
           gap: isMobile ? "12px 14px" : 14,
           alignContent: "start",
         }}

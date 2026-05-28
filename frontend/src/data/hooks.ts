@@ -100,6 +100,15 @@ function useFxcmTradeInvalidation() {
   };
 }
 
+export function useFxcmSubmitOrder() {
+  const invalidate = useFxcmTradeInvalidation();
+  return useMutation({
+    mutationFn: (order: api.FxcmOrderRequest) => api.submitFxcmOrder(order),
+    onSuccess: () =>
+      invalidate([qk.fxcmOrders, qk.fxcmPositions, qk.fxcmAccount]),
+  });
+}
+
 export function useFxcmCancelOrder() {
   const invalidate = useFxcmTradeInvalidation();
   return useMutation({

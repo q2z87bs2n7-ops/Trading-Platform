@@ -1,5 +1,5 @@
 import { useState } from "react";
-import * as api from "../../api";
+import { useFxcmSubmitOrder } from "../../data/hooks";
 import type { FxcmPrice } from "../../types";
 
 interface Props {
@@ -9,22 +9,26 @@ interface Props {
   onSubmitted?: () => void;
 }
 
+// FXCM's Trading Station collapses Stop/Limit Entry into a single "Entry"
+// type — FCLite still needs SE vs LE on submit, but the choice is derived
+// from rate vs live market: BUY rate > ask → SE, < bid → LE (sell inverse).
 const ORDER_TYPES = [
   { value: "OM", label: "Market" },
-  { value: "SE", label: "Stop Entry" },
-  { value: "LE", label: "Limit Entry" },
+  { value: "EN", label: "Entry" },
 ] as const;
+type UiOrderType = (typeof ORDER_TYPES)[number]["value"];
 
 export default function FxcmOrderSheet({ instruments, defaultInstrument, onClose, onSubmitted }: Props) {
   const [instrument, setInstrument] = useState(defaultInstrument || instruments[0]?.instrument || "EUR/USD");
   const [side, setSide] = useState<"B" | "S">("B");
-  const [orderType, setOrderType] = useState<"OM" | "SE" | "LE">("OM");
+  const [orderType, setOrderType] = useState<UiOrderType>("OM");
   const [amount, setAmount] = useState("1000");
   const [rate, setRate] = useState("");
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const submit = useFxcmSubmitOrder();
+  const submitting = submit.isPending;
 
-  const needsRate = orderType !== "OM";
+  const needsRate = orderType === "EN";
   const selectedPrice = instruments.find((p) => p.instrument === instrument);
   const liveRate = side === "B" ? selectedPrice?.ask : selectedPrice?.bid;
 
@@ -36,24 +40,32 @@ export default function FxcmOrderSheet({ instruments, defaultInstrument, onClose
       return;
     }
     if (needsRate && !rate) {
-      setError("Rate is required for this order type");
+      setError("Rate is required for an entry order");
       return;
     }
-    setSubmitting(true);
+    let bridgeType: "OM" | "SE" | "LE" = "OM";
+    if (orderType === "EN") {
+      const r = parseFloat(rate);
+      const bid = selectedPrice?.bid ?? 0;
+      const ask = selectedPrice?.ask ?? 0;
+      // Stop-entry triggers when price moves with momentum past the rate;
+      // limit-entry triggers when price retraces to the rate. Default to LE
+      // when we have no live quote rather than fabricate a side.
+      if (side === "B") bridgeType = ask && r > ask ? "SE" : "LE";
+      else bridgeType = bid && r < bid ? "SE" : "LE";
+    }
     try {
-      await api.submitFxcmOrder({
+      await submit.mutateAsync({
         instrument,
         buy_sell: side,
         amount: parsedAmount,
-        order_type: orderType,
+        order_type: bridgeType,
         rate: rate ? parseFloat(rate) : undefined,
       });
       onSubmitted?.();
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Order failed");
-    } finally {
-      setSubmitting(false);
     }
   }
 

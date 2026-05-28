@@ -731,17 +731,22 @@ function PortfolioAllocation({
 }) {
   const positions = usePositions();
   const fxcm = useFxcmPositions(activeClass === "forex");
-  // FXCM positions don't carry a stock-shaped Position; map to the minimal
-  // {symbol,market_value} pair AllocationDonut needs. used_margin is the
-  // per-position $ exposure on a forex book.
+  // FXCM returns one row per trade lot. Net per instrument so the donut shows
+  // one slice per pair/CFD (matching the netted Positions blotter), not one
+  // slice per lot. used_margin is the per-position $ exposure on a forex book.
   const siloPositions =
     activeClass === "forex"
-      ? (fxcm.data || []).map((p) => ({
-          symbol: String(p.instrument || ""),
-          market_value: Number(
-            (p.used_margin as number | undefined) ?? p.market_value ?? 0,
-          ),
-        }))
+      ? Array.from(
+          (fxcm.data || []).reduce((acc, p) => {
+            const symbol = String(p.instrument || "");
+            if (!symbol) return acc;
+            const margin = Number(
+              (p.used_margin as number | undefined) ?? p.market_value ?? 0,
+            );
+            acc.set(symbol, (acc.get(symbol) || 0) + margin);
+            return acc;
+          }, new Map<string, number>()),
+        ).map(([symbol, market_value]) => ({ symbol, market_value }))
       : (positions.data?.positions || []).filter((p) =>
           activeClass === "crypto" ? isCryptoPosition(p) : !isCryptoPosition(p),
         );
