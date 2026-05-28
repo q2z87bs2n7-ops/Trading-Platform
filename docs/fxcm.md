@@ -866,6 +866,11 @@ CFD trading still happens via `CfdDiscoverPage` + `FxcmOrderSheet`.
   `GET /api/fxcm/search-instruments` (name + display_name + alternatives
   ILIKE) and shows `display_name` as the label. Replaces the old full-list
   bridge fetch + client-side substring filter.
+- **Workspace integration** — CFD is a first-class Workspace silo across every
+  widget (Chart, Mini chart, Positions, Orders, Activity, Account, Watchlist,
+  Trade, Profile/Fundamentals for stock CFDs, the Tipranks research widgets
+  resolving `.us` underlyings), plus AI/Ask-anything control and a silo-aware
+  ChartBot. Full per-widget reference in `docs/workspace.md` → "CFD silo".
 
 Outstanding work lives in `BACKLOG.md` → "CFDs (FXCM)".
 

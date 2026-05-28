@@ -6,8 +6,29 @@ here; use `git log` for that.
 ## CFDs (FXCM)
 
 Bridge live on Render alongside the relay; Discover, order entry, positions,
-chart, and the FXCM-aware classifier are all shipped (see `docs/fxcm.md` for
-the full reference). Outstanding:
+chart, the FXCM-aware classifier, and the full **Workspace** integration (CFD
+is a first-class silo across every widget) are all shipped (see `docs/fxcm.md`
+and `docs/workspace.md` for the full reference). Outstanding:
+
+- **CFD Workspace Watchlist — Cards view** — the CFD Watchlist widget is
+  **List-only** (mid price + live spread). The SparkCard grid + Cards/List/Auto
+  toggle (as in stocks/crypto) need per-instrument daily bars; wire `useFxcmBars`
+  per row (or a batch FXCM history endpoint) and render through `SparkCard` with
+  CFD `digits` precision.
+- **Local Ask-intent CFD-awareness** — the Workspace *apply* path is CFD-correct
+  (the controller targets the active silo, the backend AI is silo-aware), but the
+  local intent parser (`lib/ask-intent/`) still treats `cfd` as the stocks
+  default: capability-hint chips and the order/trade intents are stock-flavoured
+  in the CFD silo, and the symbol universe doesn't carry FXCM instruments (so CFD
+  watch/build requests fall through to the backend AI). Wire an FXCM symbol
+  universe + `cfd` branches in `detectors.ts` / `symbols.ts` and silo-correct
+  order intents for a fully local CFD parser.
+- **Non-US stock-CFD research** — Profile/Fundamentals work for any FMP-enriched
+  stock CFD, but the Tipranks widgets (SmartScore/Sentiment/Analysts/HedgeFunds/
+  Insiders/RelatedTickers/HolderDemographics) only resolve **`.us`** stock CFDs
+  to a US ticker (`cfdUsUnderlying`). Non-US listings (`.de`/`.hk`/…) show the
+  notice; mapping them via `fmp_ticker` would extend coverage where Tipranks has
+  the name.
 
 - **FCLite push subscription** — the chart's live price line and the
   CfdDiscoverPage watchlist both poll `/api/fxcm/prices` at 3 s.
@@ -41,15 +62,6 @@ the full reference). Outstanding:
   that into a `POST /api/fxcm/subscribe` route so the user can resolve
   subscriptions on demand. Right now the workaround is to leave status-D
   instruments alone or pre-subscribe via the FXCM web UI.
-- **FXCM in the asset catalogue** — 516 FXCM instruments live cache-only in
-  the JVM. To extend `find_symbol`, screener, and Chart search across CFDs,
-  add a `POST /api/_dev/seed-fxcm` routine that upserts from `/api/fxcm/instruments`
-  into `assets` with `asset_class='cfd'` (schema migration needed). Note:
-  `/instruments` returns only `{Name, OfferId, Status}` — enrich during the
-  seed by joining offer-side fields (`display_name`, `type`, `currency`,
-  `session`, `timezone`) from `/prices`, or extend the bridge handler to
-  merge them server-side first.
-
 - **Bridge reconnect on FCLite disconnect** — `FxcmSession.connect()` only
   uses the connection-status listener to fire the initial latch; a later
   `isDisconnected()` does nothing. If FCLite drops mid-run, every route

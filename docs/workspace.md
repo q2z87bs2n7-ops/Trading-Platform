@@ -276,6 +276,54 @@ per-component card border/shadow, since the panel is already a closed-off
 module; rows separate with a hairline in both the table and the narrow
 stacked-card layouts. Account stays clean by construction.
 
+## CFD silo
+
+The Workspace is a first-class surface for the **CFD (FXCM)** silo, not just the
+two Alpaca silos. `AssetClass` is `"stocks" | "crypto" | "cfd"`; `App.tsx` passes
+the real `activeClass` (the standalone `alpacaSilo` coercion is gone here), so a
+CFD user lands in a CFD canvas with its own persistence slot
+(`workspace_layouts_cfd_v2`) and channel defaults (`CHANNEL_DEFAULTS.cfd` —
+EUR/USD · GBP/USD · XAU/USD · US30). Per-widget behaviour in CFD:
+
+- **Chart** — `TVChartWidget` threads `assetClass` into `createDatafeed`
+  (`getAssetClass`/`getSearchAssetClass`), so bars/search route to the FXCM
+  datafeed (mirrors `TVPlatform`). **Mini chart** renders `CfdPriceChart` (the
+  lightweight-charts CFD analogue; `PriceChart` has no CFD branch).
+- **Positions / Activity** — already CFD-capable (`assetClass="cfd"` →
+  `useFxcmPositions` / `useFxcmClosedTrades`). **Orders** routes to `FxcmOrders`
+  (additive `bare`/`dense` props) since FXCM's order model diverges. **Account**
+  → `CfdAccountPanel` (equity, day P/L, balance, used/free margin, total P/L,
+  open orders via `useFxcmAccount`).
+- **Watchlist** — `CfdWatchlist` (the FXCM Endpoints-suite list via
+  `useFxcmWatchlistQuery` + add/remove, `AssetSearch source="fxcm"`,
+  display-name labels). **List-only** in CFD (mid price + live spread); the
+  SparkCard/Cards view is backlogged (needs per-instrument daily bars).
+- **Trade** — `FxcmOrderTicketInline` (Buy/Sell · Market/Entry · amount · rate,
+  reusing `useFxcmSubmitOrder` + the sheet's SE/LE derivation).
+- **Profile / Fundamentals** — work for **stock CFDs**: `/api/asset-profile`
+  serves `source='fxcm'` rows directly (FMP enrichment), and the components key
+  off the DB row's `asset_class`. Gated to stock CFDs (`isStockCfdSymbol` —
+  dot-suffix test, e.g. `RBLX.us`); FX/index/metal/commodity show a notice.
+- **Tipranks widgets** (SmartScore/Sentiment/Analysts/HedgeFunds/Insiders/
+  RelatedTickers/HolderDemographics) — resolve via `cfdResearch()`: **`.us`**
+  stock CFDs map to the bare US ticker (`cfdUsUnderlying`); everything else
+  blocks with the notice. **News** uses the underlying ticker for stock CFDs,
+  else the market feed; **Earnings** resolves per-symbol to the US underlying.
+  **Trending** is notice-only in CFD (as in crypto).
+- **Symbols are case-sensitive in CFD** — stock CFDs carry a lowercase suffix
+  (`RBLX.us`), so symbol derivations go through `normSym(raw, assetClass)` which
+  preserves raw case for `cfd` (and the controller's `set_channel` does the
+  same). Upper-casing would break the classifier cache and API lookups.
+- **AI control** — the Ask-anything Workspace tools accept `silo: "cfd"`
+  (backend `_SILO_PROP`); the controller defaults to the active silo, so the bot
+  builds onto the CFD canvas. ChartBot is silo-aware via `ChartContext.asset_class`
+  → `build_system` (steers off the Alpaca data tools for FXCM instruments). The
+  *local* intent parser still treats `cfd` as the stocks default (backlogged).
+
+No per-silo Add-menu gating: every widget is reachable in CFD with graceful
+notices where an instrument has no data — the same pattern the crypto silo uses
+for its stocks-only research widgets. The **Trader** preset is the CFD first-run.
+
 ## Module pattern (reuse strategy)
 
 Adding surfaces — Workspace widgets, or anything that may live in more than one
