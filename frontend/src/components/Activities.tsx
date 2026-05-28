@@ -1,6 +1,6 @@
-import { useActivities } from "../data/hooks";
+import { useActivities, useFxcmClosedTrades } from "../data/hooks";
 import { useMobile } from "../hooks/useMobile";
-import type { Activity } from "../types";
+import type { Activity, FxcmClosedTrade } from "../types";
 import ErrorBanner from "./ErrorBanner";
 import Pill from "./Pill";
 
@@ -21,6 +21,18 @@ const enumTail = (v: unknown): string =>
 // (TRANS, JNLC). Best-effort describe with whichever fields are
 // populated; never blow up on missing keys.
 function describe(a: Activity): string {
+  if (a.activity_type === "TRADE_CLOSE" && a.symbol) {
+    const side = enumTail(a.side);
+    const qty = str(a.qty);
+    const sym = str(a.symbol);
+    const price = a.price != null ? `@ ${str(a.price)}` : "";
+    const plRaw = a.pl ?? a.gross_pl;
+    const pl =
+      plRaw != null
+        ? ` · P/L ${Number(plRaw) >= 0 ? "+" : ""}${str(plRaw)}`
+        : "";
+    return `${side} ${qty} ${sym} ${price}${pl}`.trim();
+  }
   if (a.symbol) {
     const side = enumTail(a.side);
     const qty = str(a.qty);
@@ -34,6 +46,36 @@ function describe(a: Activity): string {
     str(a.date) ||
     "—"
   );
+}
+
+// Map FXCM closed-trade rows into the heterogeneous Activity shape so the
+// existing describe()/whenOf() helpers handle them with one TRADE_CLOSE branch.
+// Sort newest-first by close_time, rows without a timestamp drift to the end.
+function fxcmRowsToActivities(rows: FxcmClosedTrade[] | undefined): Activity[] {
+  if (!rows) return [];
+  const mapped: Activity[] = rows.map((t) => {
+    const when = t.close_time || t.open_time;
+    return {
+      id: t.trade_id,
+      activity_type: "TRADE_CLOSE",
+      symbol: t.instrument,
+      side: t.buy_sell === "B" ? "BUY" : "SELL",
+      qty: t.amount,
+      price: t.close_rate,
+      transaction_time: when,
+      pl: t.pl,
+      gross_pl: t.gross_pl,
+    } as Activity;
+  });
+  mapped.sort((a, b) => {
+    const ta = a.transaction_time ? Date.parse(String(a.transaction_time)) : NaN;
+    const tb = b.transaction_time ? Date.parse(String(b.transaction_time)) : NaN;
+    if (Number.isNaN(ta) && Number.isNaN(tb)) return 0;
+    if (Number.isNaN(ta)) return 1;
+    if (Number.isNaN(tb)) return -1;
+    return tb - ta;
+  });
+  return mapped.slice(0, 25);
 }
 
 function whenOf(a: Activity): string {
@@ -95,15 +137,23 @@ export default function Activities({
   bare = false,
   symbol,
   dense = false,
-  assetClass: _assetClass,
+  assetClass,
 }: {
   bare?: boolean;
   symbol?: string;
   dense?: boolean;
-  // Wave-1 prop placeholder; Wave-2 swaps the data source for forex.
   assetClass?: "stocks" | "crypto" | "forex";
 }) {
-  const { data, error, isPending } = useActivities(25);
+  const isForex = assetClass === "forex";
+  const alpaca = useActivities(25);
+  const fxcm = useFxcmClosedTrades(isForex);
+  const { data, error, isPending } = isForex
+    ? {
+        data: { activities: fxcmRowsToActivities(fxcm.data) },
+        error: fxcm.error,
+        isPending: fxcm.isPending,
+      }
+    : alpaca;
   const rows = symbol
     ? data?.activities?.filter(
         (a) => String(a.symbol ?? "").toUpperCase() === symbol.toUpperCase(),
