@@ -221,7 +221,7 @@ export default function Fundamentals({
   wide,
 }: {
   symbol: string;
-  assetClass: "stocks" | "crypto";
+  assetClass: "stocks" | "crypto" | "cfd";
   dense?: boolean;
   // Roomy panel — promotes the stat grids from 2-col to 3-col.
   wide?: boolean;

@@ -60,6 +60,23 @@ export function isCfdSymbol(symbol: string): boolean {
 export const isCryptoSymbol = (symbol: string): boolean =>
   !!symbol && symbol.includes("/") && !isCfdSymbol(symbol);
 
+// Stock CFDs are the only FXCM instruments carrying a dot-suffix exchange tag
+// (RBLX.us, ASML.nl, BMW.de) — FX pairs, indices, metals and commodities never
+// do. Used to gate the research widgets (Profile/Fundamentals work for stock
+// CFDs via /api/asset-profile; FX/index/metal/commodity have no such data).
+export const isStockCfdSymbol = (symbol: string): boolean =>
+  isCfdSymbol(symbol) && symbol.includes(".");
+
+// US-listed stock CFDs (.us) map to the bare US ticker Tipranks / FMP know
+// (RBLX.us → RBLX). Returns null for non-US stock CFDs and non-stock CFDs —
+// Tipranks research only covers US equities, so those stay notice-only.
+export function cfdUsUnderlying(symbol: string): string | null {
+  if (isCfdSymbol(symbol) && /\.us$/i.test(symbol)) {
+    return symbol.slice(0, -3).toUpperCase();
+  }
+  return null;
+}
+
 export const isCryptoPosition = (p: Position): boolean =>
   p.asset_class === "crypto" || isCryptoSymbol(p.symbol);
 

@@ -194,7 +194,7 @@ export default function AssetProfile({
   dense,
 }: {
   symbol: string;
-  assetClass: "stocks" | "crypto";
+  assetClass: "stocks" | "crypto" | "cfd";
   dense?: boolean;
 }) {
   const { data: p, isLoading } = useAssetProfile(symbol);
