@@ -6,6 +6,7 @@ import type { Asset } from "../types";
 
 interface Props {
   // API param value: "us_equity" | "crypto", or "" to search all silos.
+  // Ignored when source === "fxcm".
   assetClass: string;
   onChoose: (symbol: string) => void;
   disabled?: boolean;
@@ -17,6 +18,10 @@ interface Props {
   // Let the input fill its container instead of the default fixed inline width
   // (e.g. inside a narrow Workspace widget header).
   fluid?: boolean;
+  // Catalogue to search. Default = Alpaca's /api/assets (us_equity + crypto).
+  // "fxcm" routes through getFxcmInstruments() + client-side filter since the
+  // FXCM bridge has no server-side search.
+  source?: "alpaca" | "fxcm";
 }
 
 // Debounced symbol/name autocomplete over the catalogue. Picking a result (or
@@ -29,6 +34,7 @@ export function AssetSearch({
   variant = "inline",
   align = "right",
   fluid = false,
+  source = "alpaca",
 }: Props) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<Asset[]>([]);
@@ -37,6 +43,7 @@ export function AssetSearch({
   const wrapRef = useRef<HTMLDivElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
   const isCrypto = assetClass === "crypto";
+  const isFxcm = source === "fxcm";
   const sheet = variant === "sheet";
   // Fixed-position coords for the portaled inline dropdown.
   const [pos, setPos] = useState({ top: 0, left: 0, width: 300 });
@@ -51,8 +58,32 @@ export function AssetSearch({
     }
     setLoading(true);
     const t = window.setTimeout(() => {
-      api
-        .searchAssets(term, assetClass)
+      const fetcher = isFxcm
+        ? api.getFxcmInstruments().then((list) => {
+            const Q = term.toUpperCase();
+            const filtered = list.filter((i) =>
+              i.instrument.toUpperCase().includes(Q),
+            );
+            // Prefix matches first, same ranking the chart-tab search uses.
+            filtered.sort((a, b) => {
+              const ap = a.instrument.toUpperCase().startsWith(Q) ? 0 : 1;
+              const bp = b.instrument.toUpperCase().startsWith(Q) ? 0 : 1;
+              if (ap !== bp) return ap - bp;
+              return a.instrument.localeCompare(b.instrument);
+            });
+            // Map FxcmInstrument → Asset shape so the renderer below stays
+            // unchanged. Only `symbol` and `name` are read by the dropdown.
+            return filtered.slice(0, 50).map(
+              (i): Asset => ({
+                symbol: i.instrument,
+                name: i.instrument,
+                asset_class: "cfd",
+                exchange: "FXCM",
+              }) as Asset,
+            );
+          })
+        : api.searchAssets(term, assetClass);
+      fetcher
         .then((r) => {
           setResults(r);
           setOpen(true);
@@ -61,7 +92,7 @@ export function AssetSearch({
         .finally(() => setLoading(false));
     }, 200);
     return () => window.clearTimeout(t);
-  }, [q, assetClass]);
+  }, [q, assetClass, isFxcm]);
 
   useEffect(() => {
     function onDoc(e: MouseEvent) {
@@ -99,7 +130,9 @@ export function AssetSearch({
   }, [open, sheet, align, results.length]);
 
   function choose(symbol: string) {
-    const v = symbol.trim().toUpperCase();
+    // FXCM symbols are case-sensitive in the bridge ("RBLX.us", not "RBLX.US")
+    // — uppercasing breaks them. Alpaca tickers are uppercase already.
+    const v = isFxcm ? symbol.trim() : symbol.trim().toUpperCase();
     if (!v) return;
     onChoose(v);
     setQ("");
@@ -199,15 +232,25 @@ export function AssetSearch({
         onFocus={() => q.trim().length > 0 && setOpen(true)}
         disabled={disabled}
         placeholder={
-          isCrypto
+          isFxcm
             ? sheet
-              ? "Search e.g. BTC/USD"
-              : "+ pair"
-            : sheet
-              ? "Search e.g. Apple or AAPL"
-              : "+ search"
+              ? "Search e.g. EUR/USD, US30"
+              : "+ instrument"
+            : isCrypto
+              ? sheet
+                ? "Search e.g. BTC/USD"
+                : "+ pair"
+              : sheet
+                ? "Search e.g. Apple or AAPL"
+                : "+ search"
         }
-        aria-label={isCrypto ? "Search crypto pairs" : "Search symbols"}
+        aria-label={
+          isFxcm
+            ? "Search FXCM instruments"
+            : isCrypto
+              ? "Search crypto pairs"
+              : "Search symbols"
+        }
         className="font-mono tabular-nums"
         style={{
           background: "var(--panel-2)",

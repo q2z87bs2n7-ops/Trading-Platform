@@ -476,6 +476,12 @@ export const getFxcmPrices = (instrument?: string) =>
 export const getFxcmWatchlist = () =>
   getFxcmJSON<FxcmPrice[]>("/api/fxcm/watchlist");
 
+export const addFxcmWatchlistInstrument = (instrument: string) =>
+  sendFxcmJSON<FxcmPrice[]>("POST", "/api/fxcm/watchlist", { instrument });
+
+export const removeFxcmWatchlistInstrument = (instrument: string) =>
+  sendFxcmJSON<FxcmPrice[]>("DELETE", `/api/fxcm/watchlist/${instrument}`);
+
 export const getFxcmPositions = () =>
   getFxcmJSON<FxcmPosition[]>("/api/fxcm/positions");
 

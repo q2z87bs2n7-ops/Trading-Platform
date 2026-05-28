@@ -3,17 +3,34 @@ import * as api from "../api";
 import type { FxcmAccount, FxcmPosition, FxcmPrice } from "../types";
 import { money } from "../lib/format";
 import { fxcmCountrySet } from "../lib/fxcm-countries";
-import { useEconomicCalendar, useFxcmInstruments } from "../data/hooks";
+import {
+  useEconomicCalendar,
+  useFxcmBars,
+  useFxcmInstruments,
+  useFxcmWatchlistAdd,
+  useFxcmWatchlistQuery,
+  useFxcmWatchlistRemove,
+} from "../data/hooks";
+import { AddSymbolTile } from "./discover/AddSymbolTile";
+import { CardsRow } from "./discover/CardsRow";
 import { EconomicCard } from "./discover/EconomicCard";
+import { SparkCard, SparkCardSkeleton } from "./discover/SparkCard";
+import { showToast } from "../lib/toast";
 import SectionHeading from "./SectionHeading";
 import FxcmOrderSheet from "./trade/FxcmOrderSheet";
 import CfdPriceChart from "./CfdPriceChart";
+import { useMobile } from "../hooks/useMobile";
 
-// CFD-specific price formatter: 5 decimal places for most pairs, 3 for JPY
-function fmtFxPrice(price: number | undefined, symbol?: string): string {
+// CFD-specific price formatter — per-type digit precision. JPY pairs 3dp,
+// metals 4dp, indices 1dp, stock-CFDs 2dp, everything else 5dp.
+function fmtCfdPrice(price: number | undefined, symbol?: string): string {
   if (price == null || isNaN(price)) return "—";
-  const isJpy = symbol?.includes("JPY");
-  return price.toFixed(isJpy ? 3 : 5);
+  const sym = symbol ?? "";
+  if (/\.[a-z]{2,3}$/i.test(sym)) return price.toFixed(2);
+  if (sym.includes("JPY")) return price.toFixed(3);
+  if (/^XA[GU]\//.test(sym)) return price.toFixed(4);
+  if (sym.includes("/")) return price.toFixed(5);
+  return price.toFixed(1);
 }
 
 function fmtPl(pl: number | undefined): string {
@@ -96,63 +113,6 @@ function FxcmAccountHero({ account }: { account: FxcmAccount | null }) {
   );
 }
 
-// ── Price row ──────────────────────────────────────────────────────────────────
-
-function PriceRow({ price, prev }: { price: FxcmPrice; prev?: FxcmPrice }) {
-  const bid = price.bid as number | undefined;
-  const ask = price.ask as number | undefined;
-  const prevBid = prev?.bid as number | undefined;
-  const spread = bid != null && ask != null ? ask - bid : null;
-  const moved = prevBid != null && bid != null && prevBid !== bid;
-  const up = moved && bid! > prevBid!;
-
-  return (
-    <div
-      className="flex items-center px-4 py-3 gap-4"
-      style={{ borderBottom: "1px solid var(--hairline)" }}
-    >
-      <div className="flex flex-col min-w-0 flex-1">
-        <span className="text-[14px] font-semibold" style={{ color: "var(--text)" }}>
-          {price.instrument}
-        </span>
-        {price.display_name && price.display_name !== price.instrument && (
-          <span className="text-[11px]" style={{ color: "var(--mute)" }}>
-            {price.display_name}
-          </span>
-        )}
-      </div>
-      <div className="flex gap-6 tabular-nums text-[13px]">
-        <div className="flex flex-col items-end">
-          <span style={{ color: "var(--mute)", fontSize: 11 }}>Bid</span>
-          <span
-            style={{
-              color: moved ? (up ? "var(--pos)" : "var(--neg)") : "var(--text)",
-              fontWeight: 600,
-              transition: "color 0.4s",
-            }}
-          >
-            {fmtFxPrice(bid, price.instrument)}
-          </span>
-        </div>
-        <div className="flex flex-col items-end">
-          <span style={{ color: "var(--mute)", fontSize: 11 }}>Ask</span>
-          <span style={{ color: "var(--text)", fontWeight: 600 }}>
-            {fmtFxPrice(ask, price.instrument)}
-          </span>
-        </div>
-        {spread != null && (
-          <div className="flex flex-col items-end">
-            <span style={{ color: "var(--mute)", fontSize: 11 }}>Spread</span>
-            <span style={{ color: "var(--mute)" }}>
-              {(spread * (price.instrument?.includes("JPY") ? 1000 : 100000)).toFixed(1)}p
-            </span>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ── Status badge ───────────────────────────────────────────────────────────────
 
 function BridgeStatus({ ok }: { ok: boolean | null }) {
@@ -174,6 +134,57 @@ function BridgeStatus({ ok }: { ok: boolean | null }) {
       />
       {label}
     </span>
+  );
+}
+
+// ── Watchlist card ────────────────────────────────────────────────────────────
+// Per-instrument SparkCard wrapper — pulls D1 bars for the sparkline via its
+// own useFxcmBars query so each card refreshes independently (React Query
+// dedupes + caches automatically). The CFD silo's bridge has no batch bars
+// endpoint, so fan-out per card is the right shape.
+
+function CfdWatchlistCard({
+  instrument,
+  livePrice,
+  selected,
+  onSelect,
+  onRemove,
+}: {
+  instrument: string;
+  livePrice?: FxcmPrice;
+  selected: boolean;
+  onSelect: () => void;
+  onRemove: () => void;
+}) {
+  const { data: bars } = useFxcmBars(instrument, "D1");
+  const closes = useMemo(() => (bars ?? []).map((b) => b.close), [bars]);
+
+  // Live price prefers the polled bid+ask mid; falls back to the last D1
+  // close. Day change derives from the second-to-last D1 close so it's
+  // stable regardless of intraday tick noise.
+  const bid = livePrice?.bid as number | undefined;
+  const ask = livePrice?.ask as number | undefined;
+  const mid =
+    bid != null && ask != null
+      ? (bid + ask) / 2
+      : bid ?? ask ?? closes[closes.length - 1] ?? 0;
+  const prev = closes.length >= 2 ? closes[closes.length - 2] : 0;
+  const changePct = prev > 0 ? (mid - prev) / prev : 0;
+
+  return (
+    <SparkCard
+      symbol={instrument}
+      name={livePrice?.display_name && livePrice.display_name !== instrument
+        ? livePrice.display_name
+        : ""}
+      price={mid}
+      changePct={changePct}
+      selected={selected}
+      onSelect={onSelect}
+      onRemove={onRemove}
+      closes={closes.length >= 2 ? closes : undefined}
+      formatPrice={(n) => fmtCfdPrice(n, instrument)}
+    />
   );
 }
 
@@ -217,8 +228,6 @@ function FxcmPositions({
         const openRate = pos.open ?? pos.open_rate;
         const pl = typeof pos.pl === "number" ? pos.pl : (typeof pos.gross_pl === "number" ? pos.gross_pl : 0);
         const plUp = pl >= 0;
-        const isJpy = instrument.includes("JPY");
-        const dec = isJpy ? 3 : 5;
 
         return (
           <div
@@ -235,11 +244,11 @@ function FxcmPositions({
             <div className="flex gap-4 tabular-nums text-[12px]">
               <div className="flex flex-col items-end">
                 <span style={{ color: "var(--mute)", fontSize: 10 }}>Open</span>
-                <span>{typeof openRate === "number" ? openRate.toFixed(dec) : "—"}</span>
+                <span>{fmtCfdPrice(typeof openRate === "number" ? openRate : undefined, instrument)}</span>
               </div>
               <div className="flex flex-col items-end">
                 <span style={{ color: "var(--mute)", fontSize: 10 }}>Current</span>
-                <span>{currentRate != null ? currentRate.toFixed(dec) : "—"}</span>
+                <span>{fmtCfdPrice(currentRate, instrument)}</span>
               </div>
               <div className="flex flex-col items-end">
                 <span style={{ color: "var(--mute)", fontSize: 10 }}>P&amp;L</span>
@@ -281,14 +290,22 @@ interface CfdDiscoverPageProps {
 export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDiscoverPageProps) {
   const [bridgeOk, setBridgeOk] = useState<boolean | null>(null);
   const [account, setAccount] = useState<FxcmAccount | null>(null);
+  // Live FXCM offers, polled at 3 s. Drives positions enrichment + the order
+  // sheet's instrument picker. The watchlist itself is a separate FXCM-side
+  // resource (see useFxcmWatchlistQuery below).
   const [prices, setPrices] = useState<FxcmPrice[]>([]);
-  const [prevPrices, setPrevPrices] = useState<Map<string, FxcmPrice>>(new Map());
   const [positions, setPositions] = useState<FxcmPosition[]>([]);
   const [orderSheetOpen, setOrderSheetOpen] = useState(false);
-  // Inline chart selection — seeded from the first watchlist row once it
-  // resolves. Watchlist clicks update this; the "Open ↗" button on the
-  // chart card jumps to full Chart mode via onOpenChart.
+  // Inline chart selection. Watchlist clicks update it; the "Open ↗" button
+  // on the chart card jumps to full Chart mode via onOpenChart.
   const [selected, setSelected] = useState<string>("");
+  const isMobile = useMobile();
+
+  // User's FXCM watchlist (Endpoints-suite, JWT-backed). Find-or-create on
+  // the backend resolves which one to pin; we just speak in instrument names.
+  const watchlist = useFxcmWatchlistQuery(!!bridgeOk);
+  const addMut = useFxcmWatchlistAdd();
+  const removeMut = useFxcmWatchlistRemove();
 
   // Economic calendar — filtered to every country represented in the FXCM
   // product list (not just our watchlist pairs), so adding indices / stock
@@ -314,14 +331,14 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
       }
 
       try {
-        const [acct, wl, pos] = await Promise.all([
+        const [acct, pr, pos] = await Promise.all([
           api.getFxcmAccount(),
-          api.getFxcmWatchlist(),
+          api.getFxcmPrices(),
           api.getFxcmPositions(),
         ]);
         if (!cancelled) {
           setAccount(acct);
-          setPrices(wl);
+          setPrices(pr);
           setPositions(pos);
         }
       } catch { /* non-fatal — leave blank hero */ }
@@ -331,21 +348,18 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
     return () => { cancelled = true; };
   }, []);
 
-  // Live price + position polling
+  // Live price + position polling — 3 s. Uses /api/fxcm/prices for the full
+  // offer feed (positions enrichment + order sheet picker need all symbols,
+  // not just the watchlist subset).
   useEffect(() => {
     if (!bridgeOk) return;
     const tick = async () => {
       try {
-        const [wl, pos] = await Promise.all([
-          api.getFxcmWatchlist(),
+        const [pr, pos] = await Promise.all([
+          api.getFxcmPrices(),
           api.getFxcmPositions(),
         ]);
-        setPrices((prev) => {
-          const map = new Map<string, FxcmPrice>();
-          for (const p of prev) map.set(p.instrument, p);
-          setPrevPrices(map);
-          return wl;
-        });
+        setPrices(pr);
         setPositions(pos);
       } catch { /* bridge went away — leave last data visible */ }
     };
@@ -353,38 +367,56 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
     return () => clearInterval(id);
   }, [bridgeOk]);
 
-  const priceMap = new Map<string, FxcmPrice>();
-  for (const p of prices) priceMap.set(p.instrument, p);
+  const priceMap = useMemo(() => {
+    const m = new Map<string, FxcmPrice>();
+    for (const p of prices) m.set(p.instrument, p);
+    return m;
+  }, [prices]);
+
+  const wlSymbols = useMemo(
+    () => (watchlist.data ?? []).map((p) => p.instrument),
+    [watchlist.data],
+  );
 
   async function handleClosePosition(tradeId: string | number) {
     await api.closeFxcmPosition(tradeId);
-    // Refresh positions after close
     try {
       const pos = await api.getFxcmPositions();
       setPositions(pos);
     } catch { /* leave stale */ }
   }
 
-  // Seed the inline chart with the first watchlist row once prices land,
-  // mirroring how stocks/crypto Discover auto-picks the first watchlist
-  // symbol on first load.
+  // Seed the inline chart with the first watchlist symbol once it resolves,
+  // mirroring how stocks/crypto Discover auto-picks the first row on load.
   useEffect(() => {
-    if (!selected && prices.length > 0) {
-      setSelected(prices[0].instrument);
+    if (!selected && wlSymbols.length > 0) {
+      setSelected(wlSymbols[0]);
     }
-  }, [prices, selected]);
+  }, [wlSymbols, selected]);
 
-  function handleSelectPair(instrument: string) {
+  function handleSelectSymbol(instrument: string) {
     setSelected(instrument);
-    // Bubble the choice up so App-level state stays in sync (e.g. for the
-    // header chart-mode prefetch). No jump to Chart mode here — the user
-    // navigates there explicitly via "Open ↗" on the chart card.
+    // Bubble up so App-level state stays in sync (e.g. for the header
+    // chart-mode prefetch). No jump to Chart mode here — explicit via
+    // "Open ↗" on the chart card.
     onSelectSymbol?.(instrument);
   }
 
   function handleOpenChart() {
     if (selected) onSelectSymbol?.(selected);
     onOpenChart?.();
+  }
+
+  function handleAdd(instrument: string) {
+    addMut.mutate(instrument, {
+      onError: (e) => showToast(`Couldn't add ${instrument}: ${(e as Error).message}`, "error"),
+    });
+  }
+
+  function handleRemove(instrument: string) {
+    removeMut.mutate(instrument, {
+      onError: (e) => showToast(`Couldn't remove ${instrument}: ${(e as Error).message}`, "error"),
+    });
   }
 
   return (
@@ -453,59 +485,55 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
         </div>
       )}
 
-      {/* Watchlist */}
-      <div
-        style={{
-          background: "var(--panel)",
-          border: "1px solid var(--border)",
-          borderRadius: "var(--r)",
-          boxShadow: "var(--shadow-sm)",
-          overflow: "hidden",
-        }}
-      >
-        <div
-          className="px-4 py-3 flex items-center justify-between"
-          style={{ borderBottom: "1px solid var(--hairline)" }}
-        >
-          <span className="text-[13px] font-semibold">Major pairs</span>
-          <span className="text-[11.5px]" style={{ color: "var(--mute)" }}>
-            Live · {POLL_INTERVAL_MS / 1000}s
-          </span>
+      {/* Watchlist — SparkCard grid + AddSymbolTile, mirroring stocks/crypto
+         Discover. Per-card sparkline pulls D1 bars from /api/fxcm/history. */}
+      {bridgeOk && (
+        <div className="flex flex-col gap-3">
+          <SectionHeading
+            label="Watchlist"
+            ctxRight={
+              watchlist.isPending
+                ? "loading…"
+                : `${wlSymbols.length} instrument${wlSymbols.length === 1 ? "" : "s"}`
+            }
+          />
+          {watchlist.isPending ? (
+            <CardsRow>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <SparkCardSkeleton key={i} />
+              ))}
+            </CardsRow>
+          ) : (
+            <CardsRow>
+              {wlSymbols.map((sym) => (
+                <CfdWatchlistCard
+                  key={sym}
+                  instrument={sym}
+                  livePrice={priceMap.get(sym)}
+                  selected={sym === selected}
+                  onSelect={() => handleSelectSymbol(sym)}
+                  onRemove={() => handleRemove(sym)}
+                />
+              ))}
+              <AddSymbolTile
+                assetClass="cfd"
+                isCrypto={false}
+                isMobile={isMobile}
+                disabled={addMut.isPending}
+                source="fxcm"
+                onChoose={handleAdd}
+                onMobileTap={() => {
+                  /* TODO: mobile add-sheet — Phase 2; desktop inline works
+                     today and falls through to no-op on mobile. */
+                }}
+              />
+            </CardsRow>
+          )}
         </div>
-
-        {bridgeOk === false ? (
-          <div className="px-4 py-8 text-center text-[13px]" style={{ color: "var(--mute)" }}>
-            FXCM bridge is unreachable. Try again in a moment.
-          </div>
-        ) : prices.length === 0 ? (
-          <div className="px-4 py-8 text-center text-[13px]" style={{ color: "var(--mute)" }}>
-            {bridgeOk === null ? "Connecting to bridge…" : "No price data yet"}
-          </div>
-        ) : (
-          prices.map((p) => (
-            <div
-              key={p.instrument}
-              onClick={() => handleSelectPair(p.instrument)}
-              style={{
-                cursor: "pointer",
-                background:
-                  p.instrument === selected
-                    ? "var(--accent-bg)"
-                    : undefined,
-              }}
-            >
-              <PriceRow price={p} prev={prevPrices.get(p.instrument)} />
-            </div>
-          ))
-        )}
-      </div>
+      )}
 
       {/* Inline chart — mirrors stocks/crypto Discover's ChartCard, pulling
-         OHLCV from /api/fxcm/history and the live tip from the parent's
-         /api/fxcm/prices poll. Click a watchlist row above to switch.
-         Outer wrapper mirrors `ChartCard` (mt-6, var(--r-lg), shadow-sm,
-         p-[20px_24px]) so the nested panel-in-panel look matches stocks
-         and crypto Discover. */}
+         OHLCV from /api/fxcm/history and the live tip from /api/fxcm/prices. */}
       {bridgeOk && selected && (
         <div
           className="p-[20px_24px]"
@@ -549,13 +577,13 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
         </div>
       )}
 
-      {/* Order sheet */}
+      {/* Order sheet — sources from the full /api/fxcm/prices feed so the
+         picker covers every instrument, not just the watchlist subset. */}
       {orderSheetOpen && (
         <FxcmOrderSheet
           instruments={prices}
           onClose={() => setOrderSheetOpen(false)}
           onSubmitted={() => {
-            // Refresh positions after order
             api.getFxcmPositions().then(setPositions).catch(() => {});
           }}
         />

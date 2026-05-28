@@ -172,6 +172,7 @@ export function SparkCard({
   dense = false,
   compact = false,
   closes,
+  formatPrice,
 }: {
   symbol: string;
   name: string;
@@ -192,6 +193,10 @@ export function SparkCard({
    *  Mini chart; otherwise fall back to the symbol-seeded synthetic SVG
    *  so first paint isn't blank while /api/bars/batch is in flight. */
   closes?: number[];
+  /** Override price formatter — used by the CFD silo so FX pairs render
+   *  at 5dp / JPY at 3dp / metals at 4dp / indices at 1dp instead of the
+   *  default $-formatted ladder for stocks/crypto. */
+  formatPrice?: (n: number) => string;
 }) {
   const up = changePct >= 0;
   const stroke = up ? "var(--pos)" : "var(--neg)";
@@ -248,7 +253,11 @@ export function SparkCard({
         className="font-mono font-medium tabular-nums"
         style={{ fontSize: dense ? 13 : 16, marginTop: dense ? 2 : 8 }}
       >
-        {isCrypto ? fmtCryptoPrice(price) : fmtPrice(price)}
+        {formatPrice
+          ? formatPrice(price)
+          : isCrypto
+            ? fmtCryptoPrice(price)
+            : fmtPrice(price)}
       </div>
       <div
         className="font-mono tabular-nums"

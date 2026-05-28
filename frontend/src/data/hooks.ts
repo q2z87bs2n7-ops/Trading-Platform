@@ -128,6 +128,40 @@ export function useFxcmModifyOrder() {
   });
 }
 
+// FXCM watchlist — proxies to the Endpoints-suite per-user watchlist.
+// 3 s refetch mirrors the CfdDiscoverPage cadence so live bid/ask stays
+// fresh; the server already pulls the latest /prices on each call.
+export const useFxcmWatchlistQuery = (enabled = true) =>
+  useQuery({
+    queryKey: qk.fxcmWatchlist,
+    queryFn: api.getFxcmWatchlist,
+    refetchInterval: 3000,
+    retry: 0,
+    enabled,
+  });
+
+export function useFxcmWatchlistAdd() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (instrument: string) => api.addFxcmWatchlistInstrument(instrument),
+    onSuccess: (data) => {
+      // Server returns the updated, enriched watchlist — seed the cache
+      // so the UI doesn't blink while the next refetch runs.
+      qc.setQueryData(qk.fxcmWatchlist, data);
+    },
+  });
+}
+
+export function useFxcmWatchlistRemove() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (instrument: string) => api.removeFxcmWatchlistInstrument(instrument),
+    onSuccess: (data) => {
+      qc.setQueryData(qk.fxcmWatchlist, data);
+    },
+  });
+}
+
 export function useFxcmClosePosition() {
   const invalidate = useFxcmTradeInvalidation();
   return useMutation({

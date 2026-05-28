@@ -16,14 +16,18 @@ export function AddSymbolTile({
   disabled,
   onChoose,
   onMobileTap,
+  source = "alpaca",
 }: {
-  assetClass: "us_equity" | "crypto";
+  // Ignored when source === "fxcm"; harmless to pass anything.
+  assetClass: "us_equity" | "crypto" | "cfd";
   isCrypto: boolean;
   isMobile: boolean;
   disabled: boolean;
   onChoose: (symbol: string) => void;
   onMobileTap: () => void;
+  source?: "alpaca" | "fxcm";
 }) {
+  const isFxcm = source === "fxcm";
   const [searching, setSearching] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -111,7 +115,11 @@ export function AddSymbolTile({
           align="left"
           fluid
           autoFocus
-          assetClass={assetClass}
+          // assetClass is ignored when source==="fxcm"; pass "" so the
+          // Alpaca search call site (when source==="alpaca") still gets a
+          // valid value for crypto/equity routing.
+          assetClass={isFxcm ? "" : assetClass}
+          source={source}
           onChoose={handleChoose}
           disabled={disabled}
         />
@@ -119,7 +127,9 @@ export function AddSymbolTile({
         <button
           type="button"
           onClick={() => setSearching(true)}
-          aria-label={`Add ${isCrypto ? "pair" : "symbol"} to watchlist`}
+          aria-label={`Add ${
+            isFxcm ? "instrument" : isCrypto ? "pair" : "symbol"
+          } to watchlist`}
           className="flex flex-col items-center justify-center gap-1 cursor-pointer w-full h-full"
           style={{
             background: "transparent",
@@ -132,7 +142,7 @@ export function AddSymbolTile({
           <span style={{ fontSize: 22, lineHeight: 1, fontWeight: 400 }}>
             +
           </span>
-          <span>Add {isCrypto ? "pair" : "symbol"}</span>
+          <span>Add {isFxcm ? "instrument" : isCrypto ? "pair" : "symbol"}</span>
         </button>
       )}
     </div>
