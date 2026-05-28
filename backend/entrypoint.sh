@@ -18,7 +18,16 @@ cleanup() {
 }
 trap cleanup INT TERM
 
+# JVM heap tuned for a 512MB container. Defaults would grab ~25% as max
+# heap plus ~150MB of metaspace/code-cache/native, pushing the container
+# to ~99% RSS. The bridge is a single FXCM session + a few instruments,
+# almost entirely I/O bound — 192MB heap + SerialGC is several x what it
+# actually uses.
 java -Djdk.net.hosts.file=/app/jvm-hosts.txt \
+     -Xms64m -Xmx192m \
+     -XX:MaxMetaspaceSize=96m \
+     -XX:ReservedCodeCacheSize=32m \
+     -XX:+UseSerialGC \
      -jar /app/fxcm-bridge.jar &
 BRIDGE_PID=$!
 
