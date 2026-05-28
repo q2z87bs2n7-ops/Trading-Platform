@@ -284,6 +284,10 @@ const WORKSPACE_WIDGETS: Record<string, WidgetId> = {
 function watchSilo(syms: string[], ctx: RouteContext): AssetClass {
   const crypto = syms.filter((s) => isCryptoToken(s, ctx.symbolUniverse)).length;
   if (crypto === syms.length) return "crypto";
+  // In the CFD silo the symbol universe doesn't carry FXCM instruments, so a
+  // CFD watch stays in CFD rather than mis-inferring stocks. Crypto-only watches
+  // still route to crypto (handled above).
+  if (ctx.assetClass === "cfd") return "cfd";
   if (crypto === 0) return "stocks";
   return ctx.assetClass;
 }

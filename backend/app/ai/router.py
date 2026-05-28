@@ -92,7 +92,7 @@ def _ws_append(
     if acc is None:
         return
     silo = args.get("silo")
-    if silo in ("stocks", "crypto"):
+    if silo in ("stocks", "crypto", "cfd"):
         directive["silo"] = silo
     acc.append(directive)
 
@@ -610,7 +610,7 @@ class AskRequest(BaseModel):
     # follow-ups in the same modal session can resolve.
     history: list[dict[str, Any]] = Field(default_factory=list)
     # Active silo so the model steers to the right symbols / news / tools.
-    asset_class: Literal["stocks", "crypto"] | None = None
+    asset_class: Literal["stocks", "crypto", "cfd"] | None = None
     # Optional viewport hint so the model can size custom Workspace grids to the
     # user's screen (the frontend still computes responsive columns).
     viewport: dict[str, int] | None = None
@@ -643,7 +643,18 @@ def ai_ask(req: AskRequest) -> AskResponse:
 
     now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     context = f"Current time: {now_utc}."
-    if req.asset_class:
+    if req.asset_class == "cfd":
+        context += (
+            " The user is in the CFD silo (FXCM: forex, indices, metals,"
+            " commodities, stock CFDs). Default Workspace actions and instrument"
+            " references to CFD — use FXCM instrument names (e.g. EUR/USD,"
+            " XAU/USD, US30, RBLX.us) and omit the silo arg on Workspace tools so"
+            " they target the active CFD canvas. The Alpaca read tools"
+            " (get_positions / get_orders / get_account / get_movers / find_symbol)"
+            " cover the Alpaca silos only and won't return FXCM data — don't call"
+            " them for CFD instruments."
+        )
+    elif req.asset_class:
         active = "crypto" if req.asset_class == "crypto" else "stocks (US equities)"
         other = "stocks (US equities)" if req.asset_class == "crypto" else "crypto"
         context += (

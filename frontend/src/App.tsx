@@ -409,7 +409,7 @@ export default function App() {
         if (silo && silo !== activeClass) switchAssetClass(silo);
         switchMode("workspace");
       },
-      getEnv: () => ({ mode, assetClass: alpacaSilo, isMobile }),
+      getEnv: () => ({ mode, assetClass: activeClass, isMobile }),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, activeClass, isMobile]);
@@ -688,7 +688,7 @@ export default function App() {
          and the global Cmd+K / Ctrl+K hotkey toggles it. */}
       <AskBar
         open={askOpen}
-        assetClass={alpacaSilo}
+        assetClass={activeClass}
         onClose={() => setAskOpen(false)}
         onOpenInWorkspace={(sym) => {
           setSelected(sym);

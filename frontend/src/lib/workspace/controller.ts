@@ -101,7 +101,9 @@ export async function applyWorkspaceActions(
     try {
       switch (a.kind) {
         case "set_channel": {
-          const sym = a.symbol.toUpperCase();
+          // CFD stock CFDs carry a case-sensitive lowercase suffix (RBLX.us);
+          // only upper-case for the Alpaca silos.
+          const sym = targetSilo === "cfd" ? a.symbol : a.symbol.toUpperCase();
           h.setChannelSymbol(a.channel, sym);
           applied.push(`Set ${a.channel} → ${sym}`);
           break;
