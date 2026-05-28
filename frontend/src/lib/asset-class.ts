@@ -67,14 +67,15 @@ export const isCryptoSymbol = (symbol: string): boolean =>
 export const isStockCfdSymbol = (symbol: string): boolean =>
   isCfdSymbol(symbol) && symbol.includes(".");
 
-// US-listed stock CFDs (.us) map to the bare US ticker Tipranks / FMP know
-// (RBLX.us → RBLX). Returns null for non-US stock CFDs and non-stock CFDs —
-// Tipranks research only covers US equities, so those stay notice-only.
+// US-listed stock CFDs map to the bare US ticker Tipranks / FMP know
+// (RBLX.us → RBLX). Two suffixes are US shares: `.us` (regular session) and
+// `.ext` (the 24-hour US share product) — both resolve to the same underlying.
+// Returns null for non-US stock CFDs and non-stock CFDs — Tipranks research
+// only covers US equities, so those stay notice-only.
 export function cfdUsUnderlying(symbol: string): string | null {
-  if (isCfdSymbol(symbol) && /\.us$/i.test(symbol)) {
-    return symbol.slice(0, -3).toUpperCase();
-  }
-  return null;
+  if (!isCfdSymbol(symbol)) return null;
+  const m = /^(.+)\.(?:us|ext)$/i.exec(symbol);
+  return m ? m[1].toUpperCase() : null;
 }
 
 export const isCryptoPosition = (p: Position): boolean =>
