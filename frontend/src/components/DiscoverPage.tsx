@@ -127,7 +127,7 @@ export default function DiscoverPage({
   // Earnings + economic calendars are stocks-only (no crypto earnings; macro
   // shown in the equities silo).
   const earnings = useEarningsCalendar(!isCrypto);
-  const economic = useEconomicCalendar(!isCrypto);
+  const economic = useEconomicCalendar([], !isCrypto);
 
   // Tipranks trending stocks — equities only (no crypto coverage).
   const trending = useTrendingResearch(!isCrypto);

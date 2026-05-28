@@ -190,8 +190,10 @@ export const getEarningsCalendar = (include: string[] = []) =>
 export const getSymbolEarnings = (symbol: string) =>
   getJSON<EarningsResponse>(`/api/calendar/earnings/${symbol}`);
 
-export const getEconomicCalendar = () =>
-  getJSON<EconomicResponse>("/api/calendar/economic");
+export const getEconomicCalendar = (countries?: readonly string[]) => {
+  const qs = countries && countries.length > 0 ? `?countries=${countries.join(",")}` : "";
+  return getJSON<EconomicResponse>(`/api/calendar/economic${qs}`);
+};
 
 export const getTrendingResearch = () =>
   getJSON<TrendingResearchResponse>("/api/research/trending");

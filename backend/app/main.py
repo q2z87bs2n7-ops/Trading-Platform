@@ -308,10 +308,20 @@ def symbol_earnings(symbol: str, response: Response) -> dict:
 
 
 @app.get("/api/calendar/economic")
-def economic_calendar(response: Response) -> dict:
-    """US high/medium-impact macro calendar (FMP). No Alpaca keys required."""
+def economic_calendar(response: Response, countries: str = "") -> dict:
+    """High/medium-impact macro calendar (FMP).
+
+    ``?countries=US,GB,DE,...`` (comma-separated ISO 3166-1 alpha-2 codes,
+    plus ``EU`` for the eurozone aggregate). Empty = US default for the
+    long-standing stocks Discover card; the forex card passes the country
+    set derived from the FXCM instrument list.
+    """
     response.headers["Cache-Control"] = "public, max-age=3600"
-    return {"economic": calendar_fmp.get_economic_calendar(), "as_of": int(time.time())}
+    parsed = [c.strip().upper() for c in countries.split(",") if c.strip()] if countries else None
+    return {
+        "economic": calendar_fmp.get_economic_calendar(parsed),
+        "as_of": int(time.time()),
+    }
 
 
 @app.get("/api/research/trending")

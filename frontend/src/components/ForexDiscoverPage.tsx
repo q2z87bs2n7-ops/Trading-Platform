@@ -1,7 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import * as api from "../api";
 import type { FxcmAccount, FxcmPosition, FxcmPrice } from "../types";
 import { money } from "../lib/format";
+import { fxcmCountrySet } from "../lib/fxcm-countries";
+import { useEconomicCalendar, useFxcmInstruments } from "../data/hooks";
+import { EconomicCard } from "./discover/EconomicCard";
+import SectionHeading from "./SectionHeading";
 import FxcmOrderSheet from "./trade/FxcmOrderSheet";
 
 // Forex-specific price formatter: 5 decimal places for most pairs, 3 for JPY
@@ -281,6 +285,16 @@ export default function ForexDiscoverPage({ onSelectSymbol, onOpenChart }: Forex
   const [positions, setPositions] = useState<FxcmPosition[]>([]);
   const [orderSheetOpen, setOrderSheetOpen] = useState(false);
 
+  // Economic calendar — filtered to every country represented in the FXCM
+  // product list (not just our watchlist pairs), so adding indices / stock
+  // CFDs / new pairs to the bridge widens coverage automatically.
+  const instruments = useFxcmInstruments(!!bridgeOk);
+  const countries = useMemo(
+    () => fxcmCountrySet((instruments.data ?? []).map((i) => i.instrument)),
+    [instruments.data],
+  );
+  const economic = useEconomicCalendar(countries, countries.length > 0);
+
   // Health check + initial load
   useEffect(() => {
     let cancelled = false;
@@ -457,6 +471,14 @@ export default function ForexDiscoverPage({ onSelectSymbol, onOpenChart }: Forex
           ))
         )}
       </div>
+
+      {/* Economic calendar — filtered to every country in the FXCM universe */}
+      {bridgeOk && economic.data?.economic && economic.data.economic.length > 0 && (
+        <div className="flex flex-col gap-3">
+          <SectionHeading label="Economic calendar" />
+          <EconomicCard rows={economic.data.economic} />
+        </div>
+      )}
 
       {/* Offline notice */}
       {bridgeOk === false && (

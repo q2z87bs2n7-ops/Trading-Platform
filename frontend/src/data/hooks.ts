@@ -68,6 +68,19 @@ export const useFxcmPositions = (enabled = true) =>
     enabled,
   });
 
+// Full FXCM instrument list. Long stale window — the universe rarely changes;
+// the classifier boot effect already fetches once for symbol classification,
+// this hook lets downstream surfaces (economic-calendar country filter, search)
+// share the same cache.
+export const useFxcmInstruments = (enabled = true) =>
+  useQuery({
+    queryKey: qk.fxcmInstruments,
+    queryFn: () => api.getFxcmInstruments(),
+    staleTime: 60 * 60_000, // 1h
+    retry: 0,
+    enabled,
+  });
+
 export const useOrders = (status = "all", limit = 25) =>
   useQuery({
     queryKey: qk.orders(status, limit),
@@ -204,10 +217,13 @@ export const useSymbolEarnings = (symbol: string, enabled = true) =>
     staleTime: 300_000,
   });
 
-export const useEconomicCalendar = (enabled = true) =>
+export const useEconomicCalendar = (
+  countries: readonly string[] = [],
+  enabled = true,
+) =>
   useQuery({
-    queryKey: qk.economicCalendar,
-    queryFn: api.getEconomicCalendar,
+    queryKey: qk.economicCalendar(countries),
+    queryFn: () => api.getEconomicCalendar(countries),
     refetchInterval: 300_000,
     staleTime: 120_000,
     enabled,

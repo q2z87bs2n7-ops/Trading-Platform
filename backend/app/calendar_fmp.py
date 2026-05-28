@@ -126,8 +126,14 @@ def get_symbol_earnings(symbol: str) -> list[dict]:
         return []
 
 
-def get_economic_calendar() -> list[dict]:
-    """US high/medium-impact macro releases for the next week."""
+def get_economic_calendar(countries: list[str] | None = None) -> list[dict]:
+    """High/medium-impact macro releases for the next week.
+
+    countries: ISO 3166-1 alpha-2 codes (or "EU" for the eurozone aggregate).
+    None or empty falls back to ``["US"]`` for the long-standing stocks card.
+    The FMP feed itself is cached unfiltered — countries narrowing happens
+    in-memory, so per-silo lists don't multiply the network cost.
+    """
     global _economic, _economic_ts
     if not fmp.configured():
         return []
@@ -143,10 +149,11 @@ def get_economic_calendar() -> list[dict]:
         except Exception as exc:
             _log.warning("economic calendar fetch failed: %s", exc)
 
+    country_set = set(countries) if countries else {"US"}
     rows = [
         _norm_economic(r)
         for r in _economic
-        if r.get("country") == "US" and r.get("impact") in ("High", "Medium")
+        if r.get("country") in country_set and r.get("impact") in ("High", "Medium")
     ]
     rows.sort(key=lambda r: r["date"] or "")
     return rows

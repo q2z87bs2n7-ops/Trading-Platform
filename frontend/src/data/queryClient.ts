@@ -44,11 +44,13 @@ export const qk = {
   cryptoTickers: ["cryptoTickers"] as const,
   fxcmAccount: ["fxcm", "account"] as const,
   fxcmPositions: ["fxcm", "positions"] as const,
+  fxcmInstruments: ["fxcm", "instruments"] as const,
   indices: ["indices"] as const,
   earningsCalendar: (include: string) =>
     ["earningsCalendar", include] as const,
   symbolEarnings: (symbol: string) => ["symbolEarnings", symbol] as const,
-  economicCalendar: ["economicCalendar"] as const,
+  economicCalendar: (countries: readonly string[] = []) =>
+    ["economicCalendar", countries.join(",")] as const,
   trendingResearch: ["trendingResearch"] as const,
   smartScore: (symbol: string) => ["smartScore", symbol] as const,
   sentiment: (symbol: string) => ["sentiment", symbol] as const,
