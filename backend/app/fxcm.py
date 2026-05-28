@@ -162,3 +162,18 @@ async def cancel_order(order_id: str):
 @router.post("/close")
 async def close_position(req: CloseRequest):
     return await _post("/close", req.dict())
+
+
+@router.get("/subscribe")
+async def subscribe_instruments(symbols: str, persist: bool = False):
+    return await _get("/subscribe", params={"symbols": symbols, "persist": str(persist).lower()})
+
+
+@router.get("/unsubscribe")
+async def unsubscribe_instruments(symbols: str, persist: bool = False):
+    return await _get("/unsubscribe", params={"symbols": symbols, "persist": str(persist).lower()})
+
+
+@router.get("/subscribed")
+async def subscribed_instruments():
+    return await _get("/subscribed")

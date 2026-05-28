@@ -399,6 +399,96 @@ public class FxcmSession {
         ordersMgr.removeOrder(orderId);
     }
 
+    /**
+     * Subscribe to one or more instruments by symbol.
+     * @param symbols  e.g. ["XAU/USD", "US30"]
+     * @param persist  if true uses AndStoreOnServer (survives session restart)
+     * @return map with ok:true or ok:false + error + failedSymbols
+     */
+    Map<String,Object> subscribeInstruments(String[] symbols, boolean persist) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final String[]   errorMsg     = {null};
+        final String[][] failedSyms   = {null};
+
+        ISubscribeInstrumentsCallback cb = new ISubscribeInstrumentsCallback() {
+            public void onSuccess() { latch.countDown(); }
+            public void onError(String msg, String[] failed) {
+                errorMsg[0]   = msg;
+                failedSyms[0] = failed;
+                latch.countDown();
+            }
+        };
+
+        if (persist) instrumentsMgr.subscribeInstrumentsAndStoreOnServer(symbols, cb);
+        else         instrumentsMgr.subscribeInstruments(symbols, cb);
+
+        if (!latch.await(15, TimeUnit.SECONDS)) {
+            Map<String,Object> r = new LinkedHashMap<>();
+            r.put("ok", false); r.put("error", "timeout");
+            return r;
+        }
+
+        Map<String,Object> r = new LinkedHashMap<>();
+        if (errorMsg[0] == null) {
+            r.put("ok", true);
+        } else {
+            r.put("ok", false);
+            r.put("error", errorMsg[0]);
+            if (failedSyms[0] != null) r.put("failed_symbols", Arrays.asList(failedSyms[0]));
+        }
+        return r;
+    }
+
+    /**
+     * Unsubscribe from one or more instruments by symbol.
+     * @param persist  if true uses AndStoreOnServer
+     */
+    Map<String,Object> unsubscribeInstruments(String[] symbols, boolean persist) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final String[]   errorMsg   = {null};
+        final String[][] failedSyms = {null};
+
+        ISubscribeInstrumentsCallback cb = new ISubscribeInstrumentsCallback() {
+            public void onSuccess() { latch.countDown(); }
+            public void onError(String msg, String[] failed) {
+                errorMsg[0]   = msg;
+                failedSyms[0] = failed;
+                latch.countDown();
+            }
+        };
+
+        if (persist) instrumentsMgr.unsubscribeInstrumentsAndStoreOnServer(symbols, cb);
+        else         instrumentsMgr.unsubscribeInstruments(symbols, cb);
+
+        if (!latch.await(15, TimeUnit.SECONDS)) {
+            Map<String,Object> r = new LinkedHashMap<>();
+            r.put("ok", false); r.put("error", "timeout");
+            return r;
+        }
+
+        Map<String,Object> r = new LinkedHashMap<>();
+        if (errorMsg[0] == null) {
+            r.put("ok", true);
+        } else {
+            r.put("ok", false);
+            r.put("error", errorMsg[0]);
+            if (failedSyms[0] != null) r.put("failed_symbols", Arrays.asList(failedSyms[0]));
+        }
+        return r;
+    }
+
+    /** Returns the symbols of all currently-subscribed instruments. */
+    List<String> getSubscribedInstruments() {
+        Instrument[] instruments = instrumentsMgr.getSubscribedInstruments();
+        if (instruments == null) return Collections.emptyList();
+        List<String> result = new ArrayList<>();
+        for (Instrument inst : instruments) {
+            String sym = safe(inst::getSymbol);
+            if (sym != null) result.add(sym);
+        }
+        return result;
+    }
+
     void closePosition(String tradeId, int amount) throws Exception {
         OpenPosition pos = positionsMgr.getOpenPosition(tradeId);
         int closeAmount = amount > 0 ? amount : (pos != null ? pos.getAmount() : 0);
