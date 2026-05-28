@@ -11,6 +11,7 @@ app.fxcm.com uses) with a JWT minted by fxcm_auth.py. See the
 """
 
 import asyncio
+import logging
 import time
 from typing import Any, Optional
 
@@ -19,6 +20,8 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from .fxcm_auth import get_access_token
+
+_log = logging.getLogger(__name__)
 
 BRIDGE_URL = "http://127.0.0.1:3001"
 TIMEOUT    = 10.0
@@ -201,6 +204,40 @@ async def modify_order(order_id: str, req: ChangeOrderRequest):
 @router.post("/close")
 async def close_position(req: CloseRequest):
     return await _post("/close", req.dict())
+
+
+async def subscribe_watchlist_at_boot() -> None:
+    """Push the user's watchlist offer IDs to the bridge at FastAPI startup.
+
+    Runs as a background task so it doesn't block the server from accepting
+    requests. Polls the bridge health until ready (up to 30 s), then resolves
+    the watchlist from the Endpoints suite and pushes the offer IDs via
+    POST /subscribe. Best-effort — any failure is logged and ignored; the
+    frontend's 3-second watchlist poll catches up within one cycle anyway.
+    """
+    for _ in range(15):
+        try:
+            await _get("/health")
+            break
+        except HTTPException:
+            await asyncio.sleep(2)
+    else:
+        _log.warning("fxcm boot subscribe: bridge not ready after 30 s, skipping")
+        return
+
+    try:
+        wl_id = await _resolve_watchlist_id()
+        wl = await _endpoints_request("GET", f"/watchlist/id/{wl_id}")
+        offer_ids = wl.get("offerIds") or []
+        if not offer_ids:
+            return
+        global _last_subscribed_offer_ids
+        current_ids = frozenset(int(oid) for oid in offer_ids)
+        _last_subscribed_offer_ids = current_ids
+        await _post("/subscribe", {"offer_ids": [str(i) for i in current_ids]})
+        _log.info("fxcm boot subscribe: pushed %d watchlist offer IDs to bridge", len(current_ids))
+    except Exception as exc:
+        _log.warning("fxcm boot subscribe failed: %s", exc)
 
 
 # ── Watchlist (Endpoints-suite, JWT-backed) ───────────────────────────────────

@@ -1,6 +1,7 @@
 import asyncio
 import os
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from alpaca.common.exceptions import APIError
@@ -16,7 +17,7 @@ from . import market_news
 from . import stream as quote_stream
 from . import tipranks
 from .ai import router as ai_router
-from .fxcm import router as fxcm_router
+from .fxcm import router as fxcm_router, subscribe_watchlist_at_boot
 from .config import get_settings
 from .schemas import (
     AssetOut,
@@ -49,7 +50,15 @@ def _read_version() -> str:
 
 
 _version = _read_version()
-app = FastAPI(title="Trading Platform API", version=_version)
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    asyncio.create_task(subscribe_watchlist_at_boot())
+    yield
+
+
+app = FastAPI(title="Trading Platform API", version=_version, lifespan=_lifespan)
 
 app.add_middleware(
     CORSMiddleware,
