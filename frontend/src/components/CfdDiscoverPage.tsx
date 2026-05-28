@@ -427,52 +427,51 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
   // and desktop (2-col, watchlist in sidebar).
 
   function renderWatchlistCards(sidebar: boolean) {
-    const Container: React.FC<{ children: React.ReactNode }> = ({ children }) =>
-      sidebar ? (
-        <div
-          className="grid gap-2 pb-1"
-          style={{ gridTemplateColumns: "minmax(0, 1fr)" }}
-        >
-          {children}
-        </div>
-      ) : (
-        <CardsRow>{children}</CardsRow>
-      );
+    // Inline the container shape per render — declaring a Container
+    // sub-component here would give React a new function identity on
+    // every parent render, unmounting + remounting the children (and
+    // their state — `searching` on AddSymbolTile in particular). The
+    // CFD 3s prices/positions poll re-renders the parent often enough
+    // that the add-instrument text box would close ~1s after opening.
+    const children = watchlist.isPending
+      ? Array.from({ length: 4 }).map((_, i) => (
+          <SparkCardSkeleton key={`skel-${i}`} />
+        ))
+      : [
+          ...wlSymbols.map((sym) => (
+            <CfdWatchlistCard
+              key={sym}
+              instrument={sym}
+              livePrice={priceMap.get(sym)}
+              selected={sym === selected}
+              onSelect={() => handleSelectSymbol(sym)}
+              onRemove={() => handleRemove(sym)}
+            />
+          )),
+          <AddSymbolTile
+            key="__add"
+            assetClass="cfd"
+            isCrypto={false}
+            isMobile={isMobile}
+            disabled={addMut.isPending}
+            source="fxcm"
+            onChoose={handleAdd}
+            onMobileTap={() => {
+              /* Mobile add-sheet — Phase 2; desktop inline path is the
+                 primary flow today. */
+            }}
+          />,
+        ];
 
-    if (watchlist.isPending) {
-      return (
-        <Container>
-          {Array.from({ length: sidebar ? 4 : 4 }).map((_, i) => (
-            <SparkCardSkeleton key={i} />
-          ))}
-        </Container>
-      );
-    }
-    return (
-      <Container>
-        {wlSymbols.map((sym) => (
-          <CfdWatchlistCard
-            key={sym}
-            instrument={sym}
-            livePrice={priceMap.get(sym)}
-            selected={sym === selected}
-            onSelect={() => handleSelectSymbol(sym)}
-            onRemove={() => handleRemove(sym)}
-          />
-        ))}
-        <AddSymbolTile
-          assetClass="cfd"
-          isCrypto={false}
-          isMobile={isMobile}
-          disabled={addMut.isPending}
-          source="fxcm"
-          onChoose={handleAdd}
-          onMobileTap={() => {
-            /* Mobile add-sheet — Phase 2; desktop inline path is the
-               primary flow today. */
-          }}
-        />
-      </Container>
+    return sidebar ? (
+      <div
+        className="grid gap-2 pb-1"
+        style={{ gridTemplateColumns: "minmax(0, 1fr)" }}
+      >
+        {children}
+      </div>
+    ) : (
+      <CardsRow>{children}</CardsRow>
     );
   }
 
