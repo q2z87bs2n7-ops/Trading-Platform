@@ -8,9 +8,13 @@ import java.io.*;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.logging.*;
+import javax.net.ssl.*;
+import javax.net.ssl.HttpsURLConnection;
 
 /**
  * FCLite bridge — exposes a local HTTP API on port 3001.
@@ -39,8 +43,24 @@ public class BridgeServer {
     // FCLite session — set after successful login
     static volatile FxcmSession session = null;
 
+    static void trustAllSsl() {
+        try {
+            TrustManager[] tm = new TrustManager[]{new X509TrustManager() {
+                public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
+                public void checkClientTrusted(X509Certificate[] c, String a) {}
+                public void checkServerTrusted(X509Certificate[] c, String a) {}
+            }};
+            SSLContext sc = SSLContext.getInstance("TLS");
+            sc.init(null, tm, new SecureRandom());
+            SSLContext.setDefault(sc);
+            HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+            HttpsURLConnection.setDefaultHostnameVerifier((h, s) -> true);
+        } catch (Exception e) { LOG.warning("SSL bypass failed: " + e.getMessage()); }
+    }
+
     public static void main(String[] args) throws Exception {
         setupLogging();
+        trustAllSsl();
 
         LOG.info("Connecting to FXCM via FCLite...");
         session = new FxcmSession(FXCM_USER, FXCM_PASS, FXCM_URL, FXCM_CONN);
@@ -197,9 +217,9 @@ public class BridgeServer {
 
     // ── HTTP helpers ──────────────────────────────────────────────────────────
 
-    @FunctionalInterface interface Handler { Object handle(HttpExchange ex) throws Exception; }
+    @FunctionalInterface interface RouteHandler { Object handle(HttpExchange ex) throws Exception; }
 
-    static void handle(HttpExchange ex, Handler h) throws IOException {
+    static void handle(HttpExchange ex, RouteHandler h) throws IOException {
         try {
             Object result = h.handle(ex);
             sendJson(ex, 200, result);
@@ -250,7 +270,7 @@ public class BridgeServer {
     static void setupLogging() {
         Logger root = Logger.getLogger("");
         root.setLevel(Level.INFO);
-        for (Handler h : root.getHandlers()) {
+        for (java.util.logging.Handler h : root.getHandlers()) {
             if (h instanceof ConsoleHandler) {
                 h.setFormatter(new SimpleFormatter() {
                     @Override public String format(LogRecord r) {
