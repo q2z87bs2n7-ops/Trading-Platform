@@ -25,15 +25,27 @@ container.
 
 ## Architecture
 
+Two integration surfaces, both terminating at the same FXCM demo account:
+
 ```
 Browser
   ↓  /api/fxcm/*  (FastAPI proxy)
 backend/app/fxcm.py
-  ↓  http://127.0.0.1:3001  (httpx async, TIMEOUT=10s)
-fxcm-bridge/java/target/fxcm-bridge-1.0.0.jar  (FCLite Java bridge, port 3001)
-  ↓  FCLite SDK (Apache HC5 + Tyrus WebSocket)
-FXCM demo servers  (pdemo2.fxcorporate.com, mdt*prices.fxcorporate.com)
+  │
+  ├─→  http://127.0.0.1:3001  (market data / trade execution)
+  │    fxcm-bridge/java/target/fxcm-bridge-1.0.0.jar
+  │    FCLite SDK (Apache HC5 + Tyrus WebSocket)
+  │    → pdemo2.fxcorporate.com, mdt*prices.fxcorporate.com
+  │
+  └─→  https://endpoints-demo.fxcm.com         (auth, JWT mint)
+       https://endpoints-demo.fxcorporate.com  (watchlist API)
+       backend/app/fxcm_auth.py mints / caches the Bearer
 ```
+
+The bridge owns the streaming session (prices, bars, positions, orders);
+the Endpoints suite owns the user-side persisted **watchlist** (multiple
+watchlists per user, FXCM-side storage). See "Watchlist API
+(Endpoints suite)" below for the full spec.
 
 ### Why FCLite Java?
 
@@ -56,7 +68,8 @@ to Linux (Render), unlike the old Python 3.7 + C++ ForexConnect wheel
 | `fxcm-bridge/java/src/main/java/org/apache/hc/client5/http/ssl/DefaultHostnameVerifier.java` | No-op hostname verifier override (see SSL section below) |
 | `fxcm-bridge/java/pom.xml` | Maven build config — FCLite dep + shade plugin |
 | `fxcm-bridge/java/target/fxcm-bridge-1.0.0.jar` | Built fat JAR (all deps bundled) |
-| `backend/app/fxcm.py` | FastAPI proxy router at `/api/fxcm/*` |
+| `backend/app/fxcm.py` | FastAPI proxy router at `/api/fxcm/*` (bridge calls + watchlist Endpoints-suite proxy) |
+| `backend/app/fxcm_auth.py` | JWT mint + cache for the Endpoints suite (`/iam/authenticate`, 60s lifetime, re-mint every ~50s) |
 | `frontend/src/components/CfdDiscoverPage.tsx` | CFD Discover page |
 | `frontend/src/components/CfdPriceChart.tsx` | Inline lightweight-charts panel on CFD Discover (FXCM history + live-tip) |
 | `frontend/src/api.ts` | FXCM API functions (`getFxcm*` block). Hit Render directly via `STREAM_BASE` — Vercel has no bridge. |
@@ -299,7 +312,7 @@ exposed at `/api/fxcm/*`.
 | `GET /health` | `GET /api/fxcm/health` | Bridge + connection status |
 | `GET /account` | `GET /api/fxcm/account` | Account balance/equity/margin |
 | `GET /prices` | `GET /api/fxcm/prices` | All offers (live bid/ask); `?instrument=EUR/USD` or `?type=forex` to filter |
-| `GET /watchlist` | `GET /api/fxcm/watchlist` | 8 major pairs subset |
+| ~~`GET /watchlist`~~ | `GET /api/fxcm/watchlist` | **No longer proxies to the bridge — see "Watchlist API (Endpoints suite)" below.** The bridge's `GET /watchlist` handler with its hardcoded `DEFAULT_WATCHLIST` of 8 majors is dead code, kept for now. |
 | `GET /positions` | `GET /api/fxcm/positions` | Open trades |
 | `GET /orders` | `GET /api/fxcm/orders` | Pending orders |
 | `GET /summary` | `GET /api/fxcm/summary` | — (proxied but not yet implemented in bridge) |
@@ -391,6 +404,192 @@ Response: array of `FxcmBar`:
 ```json
 [{"time":"2026-05-27T10:00:00","open":1.08341,"high":1.08412,"low":1.08290,"close":1.08385,"ask_open":1.08360,"volume":1423}]
 ```
+
+## Watchlist API (Endpoints suite, JWT-backed)
+
+This is a **separate FXCM surface** from the FCLite bridge. FCLite gives us
+market data + trade execution; the Endpoints suite (`endpoints-demo.fxcm.com`
+for auth, `endpoints-demo.fxcorporate.com` for the watchlist itself) is a
+REST API behind FXCM's `api-gateway` with OAuth-ish JWT auth — the same
+service `app.fxcm.com` uses. Both surfaces live on the same FXCM demo
+account (`D161665432`); they just speak different protocols.
+
+| Surface | Host (demo) | Auth | Used for |
+|---|---|---|---|
+| FCLite | (FCLite WebSocket via `pdemo2.fxcorporate.com`) | username/password handshake at JVM startup | Quotes, history, positions, orders, instrument list |
+| Endpoints suite — IAM | `endpoints-demo.fxcm.com` | none for `/iam/authenticate`; cookies + CSRF for `/iam/refresh` | JWT mint + refresh |
+| Endpoints suite — Watchlist API | `endpoints-demo.fxcorporate.com` | `Authorization: Bearer <accessToken>` | User-side persisted watchlists |
+
+Live (non-demo) hosts have the same shape minus the `-demo` suffix:
+`endpoints.fxcm.com` + `endpoints.fxcorporate.com`. Not wired today — change
+the two constants in `backend/app/fxcm_auth.py` and `backend/app/fxcm.py` to
+promote.
+
+### Auth flow
+
+The web app's flow has three steps; we implement only the first to keep
+state minimal.
+
+```
+mint (initial):  POST /iam/authenticate   body: {appName, loginId, password,
+                                                  tradingSessionId,
+                                                  tradingSessionSubId}
+                                          → {accessToken (60s JWT),
+                                             refreshToken (30d JWT)}
+
+refresh (rolling): POST /iam/refresh        body: (empty)
+                   cookie: refresh-token + XSRF-TOKEN
+                   x-xsrf-token: <matches XSRF-TOKEN cookie value>
+                   x-cookie-domain: fxcm.com
+                                          → {accessToken, refreshToken}
+                                            (cookies rotated)
+
+use:    Authorization: Bearer <accessToken>  on every
+        endpoints-demo.fxcorporate.com/* call
+```
+
+**Our implementation in `backend/app/fxcm_auth.py`:**
+- Cache the accessToken in a module-level singleton with a 10s safety
+  buffer. Concurrent first requests share one mint via an `asyncio.Lock`.
+- Re-mint via `/iam/authenticate` every ~50s rather than implementing the
+  refresh-token rolling flow at `/iam/refresh`. Trade-off chosen for a
+  single-user paper app: 1 extra HTTP request per minute vs. ~50 LOC of
+  cookie-jar + CSRF echo state. Refresh is documented above for when
+  multi-user / live trading work needs it.
+- Reads credentials from the same `FXCM_USER` / `FXCM_PASS` env vars the
+  Java bridge uses (defaults to demo `D161665432` / hardcoded password if
+  unset, same as `BridgeServer.java`).
+- Parses the JWT `exp` claim to compute lifetime — doesn't trust any
+  server-supplied `expires_in` (the response has none).
+
+### JWT payload reference
+
+Decoded payload of an `accessToken` (between the two `.`s of the JWT):
+
+```json
+{
+  "sub":                   "D161665432",            // demo account ID
+  "TradingSessionSubID":   "MINIDEMO",
+  "SSOToken":              "036EA8CC679268C0214B8E5B11898C4593D7C93A",
+  "TradingSessionID":      "FXCM",
+  "UserID":                "1665432",
+  "iss":                   "https://fxcm.com",
+  "UserKind":              "20",
+  "iat":                   1779955305,
+  "exp":                   1779955365,              // 60s lifetime
+  "jti":                   "c5865aa2-..."
+}
+```
+
+`refreshToken` adds an outer `SID` (server-side session id, stable across
+rolls) and has `exp = iat + 2592000` (30 days).
+
+The `SSOToken` rotates on each mint. It's also what FCLite's
+`session.getSSOToken()` would return — same value space, but FCLite uses
+its own SSO token for its own session. We don't bridge the two.
+
+### Watchlist API spec (Endpoints suite)
+
+Base: `https://endpoints-demo.fxcorporate.com`. Every endpoint needs
+`Authorization: Bearer <accessToken>` and (per the captured CORS preflight)
+the `Origin: https://app.fxcm.com` header.
+
+| Route | Method | Purpose | Body | Errors |
+|---|---|---|---|---|
+| `/` | `POST` | Create a watchlist (PWADEV-3190) | `WatchlistInput` | `409 code=2`: name taken |
+| `/id/{id}` | `GET` | Fetch watchlist by ID | — | `404 code=1`: not found |
+| `/name/{name}` | `GET` | Fetch watchlist by name | — | `404 code=1`: not found |
+| `/id/{id}` | `PUT` | Full update (rename, etc.) (PWADEV-3290) | `WatchlistInput` | `404 code=1`, `409 code=2` |
+| `/id/{id}` | `DELETE` | Delete a watchlist | — | `404 code=1` |
+| `/id/{id}?mode=ADD\|REMOVE\|REPLACE` | `PATCH` | Mutate `offerIds` only (PWADEV-1258). **⚠️ Documented but not implemented on the demo backend — returns `{"code":0,"message":"Request method 'PATCH' not supported"}`.** `app.fxcm.com` itself does read-modify-write with `PUT /id/{id}` (full doc replace) instead. Our proxy does the same. | `{"offerIds": [int]}` | n/a (unsupported) |
+| `/sort` | `PUT` | Reorder all of a user's watchlists | `[<id1>, <id2>, ...]` | `404 code=1` |
+| `/watchlist` | `GET` | (Implicit list-all — not in the spec doc but the web app uses it.) | — | — |
+
+#### Data models
+
+`WatchlistOutput` — returned by `GET / POST / PUT / PATCH`:
+
+```json
+{
+  "id":        "string",      // unique watchlist ID
+  "loginId":   "string",      // FXCM user's login ID
+  "name":      "string",
+  "offerIds":  [ "integer" ], // FCLite OfferId per instrument
+  "shared":    "boolean",
+  "sortOrder": "integer"      // appears to be epoch-ms of creation
+}
+```
+
+`WatchlistInput` — sent on `POST` / `PUT`:
+
+```json
+{
+  "name":      "string",
+  "offerIds":  [ "integer" ],
+  "shared":    "boolean",
+  "sortOrder": "integer"
+}
+```
+
+`Error` — uniform error body:
+
+```json
+{ "code": "integer", "message": "string" }
+```
+
+#### Subscription virtualization (frontend concern)
+
+The Endpoints suite returns the **full** `offerIds` list for a watchlist
+on every fetch. Per FXCM's spec doc the **frontend** is responsible for
+limiting active market-data subscriptions (the FCLite `subscribeOffer`
+call) to instruments **currently visible** — sending the whole list at
+once causes performance issues. We don't currently subscribe at all
+beyond what FCLite already streams by default; revisit if/when a
+"subscribe on demand" flow lands.
+
+### Our proxy mapping (`backend/app/fxcm.py`)
+
+We pin to one watchlist per user (single-user app) and expose a singular
+surface that mirrors the old hardcoded-subset shape so callers don't
+change.
+
+| Our route | What it does | FXCM call(s) |
+|---|---|---|
+| `GET /api/fxcm/watchlist` | Returns the user's pinned watchlist enriched with live bid/ask + display_name (same `FxcmPrice[]` shape as `/api/fxcm/prices`). | `GET /watchlist/id/{id}` → translate offerIds to symbols → intersect with `/api/fxcm/prices` (bridge) |
+| `POST /api/fxcm/watchlist` body `{"instrument": "XAU/USD"}` | Add an instrument by symbol. Read-modify-write: server resolves the offerId via the FCLite `/instruments` cache, GETs the current watchlist, appends the new offerId, PUTs the full document back. Skipped if the offerId is already present. | `GET /watchlist/id/{id}` then `PUT /watchlist/id/{id}` with new `offerIds` |
+| `DELETE /api/fxcm/watchlist/{instrument:path}` | Remove an instrument by symbol. Same read-modify-write shape as add. | `GET /watchlist/id/{id}` then `PUT /watchlist/id/{id}` with filtered `offerIds` |
+
+#### Find-or-create
+
+The watchlist ID is resolved lazily on first request and cached in memory:
+
+```
+on resolve:
+  if cached:        return it
+  list = GET /watchlist          (full list across the user's account)
+  if list non-empty: cache list[0].id; return
+  else:             POST / body {"name":"Trading Platform", "offerIds":[],
+                                  "shared": false, "sortOrder": now_ms}
+                    cache returned id; return
+```
+
+If the user deletes the pinned watchlist on FXCM's side, our `GET /watchlist`
+404s; the route catches that, calls `_reset_watchlist_id()`, and re-resolves
+on the retry. Self-healing.
+
+#### offerId ↔ symbol map
+
+The Endpoints suite speaks in `offerIds` (integers, e.g. `1` = EUR/USD,
+`80619` = some stock CFD). FCLite's `/instruments` exposes the same
+`OfferId` per `Name`. We pull the full list once per hour into a Python
+`dict` and translate at the proxy boundary:
+
+- On `GET`: offerId → symbol (so the response shape matches `FxcmPrice[]`)
+- On `POST` / `DELETE`: symbol → offerId (so the user-facing API speaks
+  symbols, not magic numbers)
+
+On a cache miss (e.g. the user adds a symbol that FCLite saw for the
+first time today), the map auto-refreshes once before failing with 404.
 
 ## Frontend Integration
 
@@ -530,9 +729,18 @@ CFD trading still happens via `CfdDiscoverPage` + `FxcmOrderSheet`.
 - FastAPI proxy at `/api/fxcm/*`
 - Frontend CFD silo end-to-end: orange accent, splash card (live FXCM
   equity / day P/L / positions on the Account Hub overlay),
-  CfdDiscoverPage (account hero, live watchlist, FxcmPositions panel,
-  inline `CfdPriceChart` for the selected instrument, FXCM-country-filtered
+  CfdDiscoverPage (account hero, FXCM-side watchlist as SparkCard grid +
+  AddSymbolTile mirroring stocks/crypto, FxcmPositions panel, inline
+  `CfdPriceChart` for the selected instrument, FXCM-country-filtered
   economic calendar), FxcmOrderSheet
+- **FXCM-side watchlist CRUD** — `backend/app/fxcm_auth.py` mints + caches
+  a 60s JWT from `/iam/authenticate` (re-mints every ~50s). `fxcm.py`
+  proxies the Endpoints-suite watchlist API at
+  `endpoints-demo.fxcorporate.com` — find-or-create resolution, offerId
+  ↔ symbol translation via the FCLite `/instruments` table, GET (enriched
+  with live bid/ask) / POST (add) / DELETE (remove). Frontend's
+  AddSymbolTile + SparkCard pattern works against it identically to
+  stocks/crypto.
 - **CFD Portfolio screen** — `CfdPortfolioHero` (equity + day-chip +
   Free margin / Total P/L / Open orders; no sparkline), shared
   `AllocationDonut` over per-instrument used-margin, netted-per-instrument

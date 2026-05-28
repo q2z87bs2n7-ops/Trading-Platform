@@ -183,9 +183,20 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
     `activity_type: "TRADE_CLOSE"` so the existing `describe()` helper
     renders them unchanged. The `TradeBar` is still suppressed in CFD mode
     (Alpaca-only order entry); CFD order entry lives in `FxcmOrderSheet`
-    mounted from `CfdDiscoverPage`. **CFD Discover** also mounts an inline
-    `CfdPriceChart` (single-column, between the watchlist and the economic
-    calendar) — a `lightweight-charts` candle panel sourcing OHLCV from
+    mounted from `CfdDiscoverPage`. **CFD Discover** mirrors the stocks
+    layout exactly: 2-col `.discover-grid` shell (260px sticky watchlist
+    sidebar + main column), shared `discover_sidebar_collapsed_v1`
+    localStorage key. The watchlist is rendered as a vertical stack of
+    `SparkCard`s (`CfdWatchlistCard` wrapper fetches its own D1 sparkline
+    via `useFxcmBars`) ending with the shared `AddSymbolTile`
+    (`source="fxcm"` switches the picker to FXCM-instrument client-side
+    filter via `getFxcmInstruments()`). Add/remove flow through
+    `useFxcmWatchlistAdd` / `useFxcmWatchlistRemove` → `/api/fxcm/watchlist`
+    (Endpoints-suite, JWT-backed; see `docs/fxcm.md`). Mobile collapses to
+    single-col with the watchlist as a horizontal `CardsRow` above the
+    main flow. The main column hosts the FXCM account hero, positions
+    panel, the inline
+    `CfdPriceChart` (a `lightweight-charts` candle panel sourcing OHLCV from
     `/api/fxcm/history` via `useFxcmBars` (per-timeframe `from`/`to` window
     since the bridge requires explicit dates; 60 s refetch on intraday, 5 min
     on daily), with the live tip riding the page's existing 3 s
@@ -297,11 +308,20 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
   watchlist, movers,
   most-active, indices, market-news, crypto/tickers, ai/chat, ai/ask (last two gated by
   `AI_CHAT_ENABLED`; require `ANTHROPIC_API_KEY`),
-  fxcm/health, fxcm/account, fxcm/prices, fxcm/watchlist, fxcm/positions,
+  fxcm/health, fxcm/account, fxcm/prices, fxcm/positions,
   fxcm/orders, fxcm/summary, fxcm/closed_trades, fxcm/instruments,
   fxcm/instruments/{name:path}, fxcm/history, fxcm/order (POST/DELETE/PATCH),
-  fxcm/close (POST) — these proxy to the in-container FXCM bridge on
-  127.0.0.1:3001; return 503 when the JVM isn't responding. `/api/indices` and
+  fxcm/close (POST), fxcm/watchlist (GET/POST/DELETE-by-{instrument:path}) —
+  most of these proxy to the in-container FXCM bridge on 127.0.0.1:3001
+  (return 503 when the JVM isn't responding). **The fxcm/watchlist surface
+  is the exception** — it doesn't touch the bridge at all, instead
+  proxying to FXCM's Endpoints suite (`endpoints-demo.fxcorporate.com`)
+  with a JWT minted by `backend/app/fxcm_auth.py` (POST /iam/authenticate,
+  60s lifetime, re-minted ~50s by the same in-memory cache). Find-or-create
+  resolves which FXCM-side watchlist to pin on first call; mutations
+  translate symbol ↔ FCLite offerId via the bridge's `/instruments`
+  table. Full spec + auth flow in `docs/fxcm.md` → "Watchlist API
+  (Endpoints suite)". `/api/indices` and
   `/api/market-news` hit Yahoo Finance directly via `requests` (no yfinance,
   no C extensions — Python 3.14 safe). `/api/calendar/{earnings,economic}`
   are **FMP-backed**, live-proxied with an in-process cache (`calendar_fmp.py`,

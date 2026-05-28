@@ -39,6 +39,17 @@ function fmtPl(pl: number | undefined): string {
   return `${sign}${money(pl)}`;
 }
 
+// Inline chevron — mirrors DiscoverPage.tsx's ChevronGlyph so the collapse
+// affordance reads identically across silos.
+function ChevronGlyph({ dir }: { dir: "left" | "right" }) {
+  const d = dir === "left" ? "M9 4 5 8l4 4" : "M5 4l4 4-4 4";
+  return (
+    <svg width={12} height={12} viewBox="0 0 14 16" aria-hidden focusable="false">
+      <path d={d} fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 // ── Account hero ───────────────────────────────────────────────────────────────
 
 function FxcmAccountHero({ account }: { account: FxcmAccount | null }) {
@@ -140,8 +151,8 @@ function BridgeStatus({ ok }: { ok: boolean | null }) {
 // ── Watchlist card ────────────────────────────────────────────────────────────
 // Per-instrument SparkCard wrapper — pulls D1 bars for the sparkline via its
 // own useFxcmBars query so each card refreshes independently (React Query
-// dedupes + caches automatically). The CFD silo's bridge has no batch bars
-// endpoint, so fan-out per card is the right shape.
+// dedupes + caches automatically). The bridge has no batch bars endpoint,
+// so fan-out per card is the right shape.
 
 function CfdWatchlistCard({
   instrument,
@@ -159,9 +170,6 @@ function CfdWatchlistCard({
   const { data: bars } = useFxcmBars(instrument, "D1");
   const closes = useMemo(() => (bars ?? []).map((b) => b.close), [bars]);
 
-  // Live price prefers the polled bid+ask mid; falls back to the last D1
-  // close. Day change derives from the second-to-last D1 close so it's
-  // stable regardless of intraday tick noise.
   const bid = livePrice?.bid as number | undefined;
   const ask = livePrice?.ask as number | undefined;
   const mid =
@@ -290,26 +298,34 @@ interface CfdDiscoverPageProps {
 export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDiscoverPageProps) {
   const [bridgeOk, setBridgeOk] = useState<boolean | null>(null);
   const [account, setAccount] = useState<FxcmAccount | null>(null);
-  // Live FXCM offers, polled at 3 s. Drives positions enrichment + the order
-  // sheet's instrument picker. The watchlist itself is a separate FXCM-side
-  // resource (see useFxcmWatchlistQuery below).
   const [prices, setPrices] = useState<FxcmPrice[]>([]);
   const [positions, setPositions] = useState<FxcmPosition[]>([]);
   const [orderSheetOpen, setOrderSheetOpen] = useState(false);
-  // Inline chart selection. Watchlist clicks update it; the "Open ↗" button
-  // on the chart card jumps to full Chart mode via onOpenChart.
   const [selected, setSelected] = useState<string>("");
   const isMobile = useMobile();
 
-  // User's FXCM watchlist (Endpoints-suite, JWT-backed). Find-or-create on
-  // the backend resolves which one to pin; we just speak in instrument names.
+  // Sidebar collapse — shares the same localStorage key as stocks/crypto
+  // Discover so the user's preference travels across silos (matching the
+  // existing UX: collapse on stocks → collapse on CFD).
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      localStorage.getItem("discover_sidebar_collapsed_v1") === "1",
+  );
+  function toggleSidebar() {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("discover_sidebar_collapsed_v1", next ? "1" : "0");
+      } catch { /* private-mode quotas etc. */ }
+      return next;
+    });
+  }
+
   const watchlist = useFxcmWatchlistQuery(!!bridgeOk);
   const addMut = useFxcmWatchlistAdd();
   const removeMut = useFxcmWatchlistRemove();
 
-  // Economic calendar — filtered to every country represented in the FXCM
-  // product list (not just our watchlist pairs), so adding indices / stock
-  // CFDs / new pairs to the bridge widens coverage automatically.
   const instruments = useFxcmInstruments(!!bridgeOk);
   const countries = useMemo(
     () => fxcmCountrySet((instruments.data ?? []).map((i) => i.instrument)),
@@ -317,10 +333,8 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
   );
   const economic = useEconomicCalendar(countries, countries.length > 0);
 
-  // Health check + initial load
   useEffect(() => {
     let cancelled = false;
-
     async function init() {
       try {
         await api.getFxcmHealth();
@@ -329,7 +343,6 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
         if (!cancelled) setBridgeOk(false);
         return;
       }
-
       try {
         const [acct, pr, pos] = await Promise.all([
           api.getFxcmAccount(),
@@ -341,16 +354,12 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
           setPrices(pr);
           setPositions(pos);
         }
-      } catch { /* non-fatal — leave blank hero */ }
+      } catch { /* non-fatal */ }
     }
-
     init();
     return () => { cancelled = true; };
   }, []);
 
-  // Live price + position polling — 3 s. Uses /api/fxcm/prices for the full
-  // offer feed (positions enrichment + order sheet picker need all symbols,
-  // not just the watchlist subset).
   useEffect(() => {
     if (!bridgeOk) return;
     const tick = async () => {
@@ -386,8 +395,6 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
     } catch { /* leave stale */ }
   }
 
-  // Seed the inline chart with the first watchlist symbol once it resolves,
-  // mirroring how stocks/crypto Discover auto-picks the first row on load.
   useEffect(() => {
     if (!selected && wlSymbols.length > 0) {
       setSelected(wlSymbols[0]);
@@ -396,9 +403,6 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
 
   function handleSelectSymbol(instrument: string) {
     setSelected(instrument);
-    // Bubble up so App-level state stays in sync (e.g. for the header
-    // chart-mode prefetch). No jump to Chart mode here — explicit via
-    // "Open ↗" on the chart card.
     onSelectSymbol?.(instrument);
   }
 
@@ -419,42 +423,73 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
     });
   }
 
-  return (
-    <div className="max-w-[900px] mx-auto px-4 pt-4 pb-20 flex flex-col gap-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex flex-col gap-0.5">
-          <h2 className="text-[18px] font-semibold" style={{ letterSpacing: "-0.01em" }}>
-            CFDs
-          </h2>
-          <span className="text-[12px]" style={{ color: "var(--mute)" }}>
-            FXCM ForexConnect — demo account
-          </span>
-        </div>
-        <div className="flex items-center gap-3">
-          {bridgeOk && (
-            <button
-              type="button"
-              onClick={() => setOrderSheetOpen(true)}
-              className="text-[12.5px] font-semibold px-3 py-1.5 rounded-card border-0 cursor-pointer"
-              style={{
-                background: "var(--accent)",
-                color: "var(--bg)",
-              }}
-            >
-              + New Order
-            </button>
-          )}
-          <BridgeStatus ok={bridgeOk} />
-        </div>
-      </div>
+  // Render helpers shared between mobile (single-col, watchlist as CardsRow)
+  // and desktop (2-col, watchlist in sidebar).
 
-      {/* Account hero */}
+  function renderWatchlistCards(sidebar: boolean) {
+    const Container: React.FC<{ children: React.ReactNode }> = ({ children }) =>
+      sidebar ? (
+        <div
+          className="grid gap-2 pb-1"
+          style={{ gridTemplateColumns: "minmax(0, 1fr)" }}
+        >
+          {children}
+        </div>
+      ) : (
+        <CardsRow>{children}</CardsRow>
+      );
+
+    if (watchlist.isPending) {
+      return (
+        <Container>
+          {Array.from({ length: sidebar ? 4 : 4 }).map((_, i) => (
+            <SparkCardSkeleton key={i} />
+          ))}
+        </Container>
+      );
+    }
+    return (
+      <Container>
+        {wlSymbols.map((sym) => (
+          <CfdWatchlistCard
+            key={sym}
+            instrument={sym}
+            livePrice={priceMap.get(sym)}
+            selected={sym === selected}
+            onSelect={() => handleSelectSymbol(sym)}
+            onRemove={() => handleRemove(sym)}
+          />
+        ))}
+        <AddSymbolTile
+          assetClass="cfd"
+          isCrypto={false}
+          isMobile={isMobile}
+          disabled={addMut.isPending}
+          source="fxcm"
+          onChoose={handleAdd}
+          onMobileTap={() => {
+            /* Mobile add-sheet — Phase 2; desktop inline path is the
+               primary flow today. */
+          }}
+        />
+      </Container>
+    );
+  }
+
+  const watchlistCountCtx = watchlist.isPending
+    ? "loading…"
+    : `${wlSymbols.length} instrument${wlSymbols.length === 1 ? "" : "s"}`;
+
+  // Main column — same on mobile (single-col) and desktop (right of the
+  // sidebar). On mobile we ALSO inject the watchlist above as a CardsRow.
+  const mainContent = (
+    <>
       <FxcmAccountHero account={account} />
 
       {/* Positions */}
       {bridgeOk && (
         <div
+          className="mt-4"
           style={{
             background: "var(--panel)",
             border: "1px solid var(--border)",
@@ -485,58 +520,10 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
         </div>
       )}
 
-      {/* Watchlist — SparkCard grid + AddSymbolTile, mirroring stocks/crypto
-         Discover. Per-card sparkline pulls D1 bars from /api/fxcm/history. */}
-      {bridgeOk && (
-        <div className="flex flex-col gap-3">
-          <SectionHeading
-            label="Watchlist"
-            ctxRight={
-              watchlist.isPending
-                ? "loading…"
-                : `${wlSymbols.length} instrument${wlSymbols.length === 1 ? "" : "s"}`
-            }
-          />
-          {watchlist.isPending ? (
-            <CardsRow>
-              {Array.from({ length: 6 }).map((_, i) => (
-                <SparkCardSkeleton key={i} />
-              ))}
-            </CardsRow>
-          ) : (
-            <CardsRow>
-              {wlSymbols.map((sym) => (
-                <CfdWatchlistCard
-                  key={sym}
-                  instrument={sym}
-                  livePrice={priceMap.get(sym)}
-                  selected={sym === selected}
-                  onSelect={() => handleSelectSymbol(sym)}
-                  onRemove={() => handleRemove(sym)}
-                />
-              ))}
-              <AddSymbolTile
-                assetClass="cfd"
-                isCrypto={false}
-                isMobile={isMobile}
-                disabled={addMut.isPending}
-                source="fxcm"
-                onChoose={handleAdd}
-                onMobileTap={() => {
-                  /* TODO: mobile add-sheet — Phase 2; desktop inline works
-                     today and falls through to no-op on mobile. */
-                }}
-              />
-            </CardsRow>
-          )}
-        </div>
-      )}
-
-      {/* Inline chart — mirrors stocks/crypto Discover's ChartCard, pulling
-         OHLCV from /api/fxcm/history and the live tip from /api/fxcm/prices. */}
+      {/* Inline chart */}
       {bridgeOk && selected && (
         <div
-          className="p-[20px_24px]"
+          className="mt-4 p-[20px_24px]"
           style={{
             background: "var(--panel)",
             border: "1px solid var(--border)",
@@ -552,9 +539,9 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
         </div>
       )}
 
-      {/* Economic calendar — filtered to every country in the FXCM universe */}
+      {/* Economic calendar */}
       {bridgeOk && economic.data?.economic && economic.data.economic.length > 0 && (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 mt-6">
           <SectionHeading label="Economic calendar" />
           <EconomicCard rows={economic.data.economic} />
         </div>
@@ -563,7 +550,7 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
       {/* Offline notice */}
       {bridgeOk === false && (
         <div
-          className="rounded-card p-4 text-[12.5px]"
+          className="rounded-card p-4 text-[12.5px] mt-4"
           style={{
             background: "var(--neg-bg)",
             border: "1px solid color-mix(in oklch, var(--neg) 30%, transparent)",
@@ -572,8 +559,150 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
         >
           <strong>Bridge offline.</strong> The FXCM FCLite bridge isn't
           responding. The Render service may be restarting or the FXCM
-          session may have dropped — refresh in a minute. If it persists,
-          check the Render logs.
+          session may have dropped — refresh in a minute.
+        </div>
+      )}
+    </>
+  );
+
+  return (
+    <div className="max-w-[1280px] mx-auto px-4 pt-4 pb-20">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col gap-0.5">
+          <h2 className="text-[18px] font-semibold" style={{ letterSpacing: "-0.01em" }}>
+            CFDs
+          </h2>
+          <span className="text-[12px]" style={{ color: "var(--mute)" }}>
+            FXCM ForexConnect — demo account
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          {bridgeOk && (
+            <button
+              type="button"
+              onClick={() => setOrderSheetOpen(true)}
+              className="text-[12.5px] font-semibold px-3 py-1.5 rounded-card border-0 cursor-pointer"
+              style={{ background: "var(--accent)", color: "var(--bg)" }}
+            >
+              + New Order
+            </button>
+          )}
+          <BridgeStatus ok={bridgeOk} />
+        </div>
+      </div>
+
+      {isMobile ? (
+        <>
+          {/* Mobile: watchlist as horizontal CardsRow above the main flow. */}
+          {bridgeOk && (
+            <div className="flex flex-col gap-2 mb-4">
+              <span
+                className="flex items-center gap-2 font-semibold"
+                style={{
+                  fontSize: 11.5,
+                  color: "var(--text-2)",
+                  letterSpacing: "0.04em",
+                  textTransform: "uppercase",
+                }}
+              >
+                <span>Watchlist</span>
+                <span
+                  className="font-medium normal-case"
+                  style={{ fontSize: 12, color: "var(--mute)", letterSpacing: 0, textTransform: "none" }}
+                >
+                  {watchlistCountCtx}
+                </span>
+              </span>
+              {renderWatchlistCards(false)}
+            </div>
+          )}
+          {mainContent}
+        </>
+      ) : (
+        <div
+          className={`discover-grid items-start${sidebarCollapsed ? " is-collapsed" : ""}`}
+        >
+          <aside
+            className={sidebarCollapsed ? undefined : "themed-scroll"}
+            style={{
+              position: "sticky",
+              top: 16,
+              alignSelf: "start",
+              maxHeight: "calc(100vh - 32px)",
+              overflowY: sidebarCollapsed ? "hidden" : "auto",
+            }}
+          >
+            {sidebarCollapsed ? (
+              <button
+                type="button"
+                onClick={toggleSidebar}
+                aria-label="Show watchlist"
+                title="Show watchlist"
+                className="cursor-pointer flex items-center justify-center"
+                style={{
+                  width: 32,
+                  height: 56,
+                  background: "var(--panel)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--r)",
+                  color: "var(--mute)",
+                }}
+              >
+                <ChevronGlyph dir="right" />
+              </button>
+            ) : (
+              <>
+                <div
+                  className="flex items-center justify-between gap-2"
+                  style={{ marginBottom: 8 }}
+                >
+                  <span
+                    className="flex items-center gap-2 font-semibold"
+                    style={{
+                      fontSize: 11.5,
+                      color: "var(--text-2)",
+                      letterSpacing: "0.04em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    <span>Watchlist</span>
+                    <span
+                      className="font-medium normal-case"
+                      style={{
+                        fontSize: 12,
+                        color: "var(--mute)",
+                        letterSpacing: 0,
+                        textTransform: "none",
+                      }}
+                    >
+                      {watchlistCountCtx}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={toggleSidebar}
+                    aria-label="Hide watchlist"
+                    title="Hide watchlist"
+                    className="cursor-pointer flex items-center justify-center"
+                    style={{
+                      width: 22,
+                      height: 22,
+                      background: "var(--panel)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 4,
+                      color: "var(--text-2)",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <ChevronGlyph dir="left" />
+                  </button>
+                </div>
+                {renderWatchlistCards(true)}
+              </>
+            )}
+          </aside>
+          <main className="min-w-0">{mainContent}</main>
         </div>
       )}
 

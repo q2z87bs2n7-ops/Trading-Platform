@@ -369,6 +369,29 @@ async def watchlist():
     return [r for r in rows if r]
 
 
+async def _put_offer_ids(wl_id: str, new_offer_ids: list[int]) -> None:
+    """Full-update the pinned watchlist with a new offerIds list.
+
+    The Watchlist API spec doc lists `PATCH ?mode=ADD|REMOVE|REPLACE` for
+    partial mutations, but the live FXCM demo backend rejects PATCH with
+    "Request method 'PATCH' not supported" — app.fxcm.com itself uses
+    full PUTs with the complete offerIds list (read-modify-write). We
+    do the same.
+    """
+    # Pull current shape — we have to preserve name / shared / sortOrder
+    # since PUT is a full-document replace per the WatchlistInput schema.
+    current = await _endpoints_request("GET", f"/watchlist/id/{wl_id}")
+    if not isinstance(current, dict):
+        raise HTTPException(502, "FXCM watchlist GET returned unexpected shape")
+    body = {
+        "name":      current.get("name") or "Trading Platform",
+        "offerIds":  new_offer_ids,
+        "shared":    bool(current.get("shared", False)),
+        "sortOrder": int(current.get("sortOrder") or time.time() * 1000),
+    }
+    await _endpoints_request("PUT", f"/watchlist/id/{wl_id}", json=body)
+
+
 @router.post("/watchlist")
 async def watchlist_add(req: WatchlistAddRequest):
     """Add an instrument to the user's watchlist by symbol."""
@@ -382,12 +405,11 @@ async def watchlist_add(req: WatchlistAddRequest):
         raise HTTPException(404, f"Unknown FXCM instrument: {req.instrument}")
 
     wl_id = await _resolve_watchlist_id()
-    await _endpoints_request(
-        "PATCH",
-        f"/watchlist/id/{wl_id}",
-        params={"mode": "ADD"},
-        json={"offerIds": [offer_id]},
-    )
+    current = await _endpoints_request("GET", f"/watchlist/id/{wl_id}")
+    existing = [int(o) for o in (current.get("offerIds") or [])]
+    if offer_id not in existing:
+        existing.append(offer_id)
+        await _put_offer_ids(wl_id, existing)
     # Return the updated enriched view so the client doesn't need a
     # second round-trip.
     return await watchlist()
@@ -402,10 +424,9 @@ async def watchlist_remove(instrument: str):
         raise HTTPException(404, f"Unknown FXCM instrument: {instrument}")
 
     wl_id = await _resolve_watchlist_id()
-    await _endpoints_request(
-        "PATCH",
-        f"/watchlist/id/{wl_id}",
-        params={"mode": "REMOVE"},
-        json={"offerIds": [offer_id]},
-    )
+    current = await _endpoints_request("GET", f"/watchlist/id/{wl_id}")
+    existing = [int(o) for o in (current.get("offerIds") or [])]
+    new_ids = [o for o in existing if o != offer_id]
+    if new_ids != existing:
+        await _put_offer_ids(wl_id, new_ids)
     return await watchlist()

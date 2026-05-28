@@ -26,9 +26,21 @@ the full reference). Outstanding:
   already on the wire; `CfdDiscoverPage` and the chart status row hardcode
   100000/1000 for non-JPY/JPY. Replace with `digits`-derived multiplier so
   exotic-precision instruments display correctly.
-- **Watchlist customisation** — bridge's `DEFAULT_WATCHLIST` is a hardcoded
-  set of 8 major pairs. Persist user picks in localStorage (simple) or via
-  a new `/api/fxcm/watchlist-prefs` endpoint.
+- **JWT refresh-token rolling flow** — `backend/app/fxcm_auth.py` currently
+  re-mints via `/iam/authenticate` every ~50s. FXCM also exposes
+  `POST /iam/refresh` (cookies + CSRF echo) that mints a fresh 60s
+  accessToken from a 30-day refreshToken — saves 1 req/min to FXCM at the
+  cost of a stateful cookie jar in the proxy. Worth wiring when multi-user
+  or live-trading scope makes the saved requests material. Spec
+  documented in `docs/fxcm.md` → "Auth flow".
+- **FXCM-side subscription resolution** — many FXCM instruments have
+  `Status: "D"` (not subscribed) on our demo account. They appear in
+  search/watchlist add but their bars/prices/history calls bridge through
+  to a "not subscribed" error from FCLite. FCLite SDK exposes
+  `instrumentsManager.subscribeInstruments([symbols], callback)` — wire
+  that into a `POST /api/fxcm/subscribe` route so the user can resolve
+  subscriptions on demand. Right now the workaround is to leave status-D
+  instruments alone or pre-subscribe via the FXCM web UI.
 - **FXCM in the asset catalogue** — 516 FXCM instruments live cache-only in
   the JVM. To extend `find_symbol`, screener, and Chart search across CFDs,
   add a `POST /api/_dev/seed-fxcm` routine that upserts from `/api/fxcm/instruments`
