@@ -710,6 +710,26 @@ def seed_fxcm_instruments() -> dict:
     return {"upserted": count, "skipped_no_metadata": skipped, "account_instruments": len(account_names)}
 
 
+@app.post("/api/_dev/enrich-fxcm-stocks", dependencies=[Depends(require_configured)])
+def enrich_fxcm_stocks(force: bool = Query(False)) -> dict:
+    """FMP-enrich FXCM stock_cfd rows (profile: logo, sector, market cap, etc.).
+    Run after seed-fxcm-instruments.  ``force=true`` re-enriches already-enriched
+    rows.  Synchronous — runs in the request thread (stock CFDs are a small set).
+    Render-only:
+    curl -X POST 'https://<render-url>/api/_dev/enrich-fxcm-stocks'"""
+    from .seed import enrich_fxcm_stocks as _e
+    return _e(force=force)
+
+
+@app.post("/api/_dev/refresh-fxcm-stocks", dependencies=[Depends(require_configured)])
+def refresh_fxcm_stocks() -> dict:
+    """Re-enrich all FXCM stock_cfd rows from FMP in a background thread.
+    Render-only:
+    curl -X POST 'https://<render-url>/api/_dev/refresh-fxcm-stocks'"""
+    from .seed import refresh_fxcm_stocks as _r
+    return _r()
+
+
 @app.get("/api/stream")
 async def stream(
     request: Request,

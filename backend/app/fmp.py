@@ -9,6 +9,7 @@ profile response (separate endpoint) and stay null for now.
 from __future__ import annotations
 
 import math
+import re
 
 import requests
 
@@ -42,6 +43,68 @@ def fetch_profile(symbol: str) -> dict | None:
     r.raise_for_status()
     arr = r.json() or []
     return arr[0] if arr else None
+
+
+def fetch_profile_raw(fmp_ticker: str) -> dict | None:
+    """Fetch a profile using the ticker exactly as given — no dot-to-dash
+    substitution.  Used for exchange-suffixed tickers like ``SAP.DE`` or
+    ``ASML.AS`` where the ``.`` is part of the FMP symbol, not an Alpaca
+    class-share separator."""
+    r = requests.get(
+        f"{_BASE}/profile",
+        params={"symbol": fmp_ticker, "apikey": get_settings().fmp_api_key},
+        headers=_HEADERS,
+        timeout=15,
+    )
+    r.raise_for_status()
+    arr = r.json() or []
+    return arr[0] if arr else None
+
+
+# FXCM stock CFD suffix → FMP exchange suffix.
+# None means no suffix (bare ticker is the primary form, e.g. .us → RBLX).
+# Non-US entries try bare ticker first (covers US ADRs like ASML, SAP, TSM)
+# then fall back to the exchange-suffixed form for local-only listings.
+_FXCM_SUFFIX_TO_FMP_EXCHANGE: dict[str, str | None] = {
+    "us": None,
+    "ca": "TO",
+    "de": "DE",
+    "fr": "PA",
+    "it": "MI",
+    "es": "MC",
+    "uk": "L",
+    "hk": "HK",
+    "jp": "T",
+    "au": "AX",
+    "nl": "AS",
+    "ch": "SW",
+}
+
+_CFD_SUFFIX_RE = re.compile(r"^(.+)\.([a-z]{2})$")
+
+
+def fxcm_stock_to_fmp_candidates(fxcm_name: str) -> list[str]:
+    """Return an ordered list of FMP tickers to try for a FXCM stock CFD symbol.
+
+    Returns an empty list when ``fxcm_name`` is not a stock CFD (no ``.cc``
+    suffix, e.g. forex pairs, indices).  The first candidate is always the bare
+    ticker (covers US ADRs); non-``.us`` symbols get a second candidate with
+    the home-exchange suffix as a fallback for local-only listings.
+
+    Examples::
+        fxcm_stock_to_fmp_candidates("RBLX.us")  -> ["RBLX"]
+        fxcm_stock_to_fmp_candidates("ASML.nl")  -> ["ASML", "ASML.AS"]
+        fxcm_stock_to_fmp_candidates("BAYER.de") -> ["BAYER", "BAYER.DE"]
+        fxcm_stock_to_fmp_candidates("EUR/USD")  -> []
+    """
+    m = _CFD_SUFFIX_RE.match(fxcm_name)
+    if not m:
+        return []
+    base, cc = m.group(1), m.group(2)
+    fmp_sfx = _FXCM_SUFFIX_TO_FMP_EXCHANGE.get(cc)
+    if fmp_sfx is None:
+        return [base]
+    return [base, f"{base}.{fmp_sfx}"]
 
 
 def _get(path: str, params: dict) -> list:

@@ -280,6 +280,82 @@ def check_new_symbols() -> dict:
     }
 
 
+def enrich_fxcm_stocks(force: bool = False) -> dict:
+    """FMP-enrich FXCM stock_cfd rows.  Tries the bare ticker first (covers US
+    ADRs like ASML, SAP), then the home-exchange suffix (ASML.AS, SAP.DE) as a
+    fallback for local-only listings.  Skips already-enriched rows unless
+    ``force``."""
+    if not db.db_enabled():
+        return {"error": "DATABASE_URL not configured"}
+    if not fmp.configured():
+        return {"error": "FMP_API_KEY not configured"}
+
+    symbols = db.unenriched_fxcm_stock_symbols() if not force else _all_fxcm_stock_symbols()
+    if not symbols:
+        return {"fxcm_stocks_enriched": 0, "not_found": 0, "failed": 0, "duration_seconds": 0}
+
+    t0 = time.monotonic()
+    enriched = not_found = failed = 0
+
+    for sym in symbols:
+        candidates = fmp.fxcm_stock_to_fmp_candidates(sym)
+        if not candidates:
+            not_found += 1
+            continue
+        data: dict | None = None
+        used_ticker: str | None = None
+        for ticker in candidates:
+            try:
+                data = fmp.fetch_profile_raw(ticker) if "." in ticker else fmp.fetch_profile(ticker)
+                if data:
+                    used_ticker = ticker
+                    break
+            except Exception as exc:
+                _log.warning("enrich-fxcm-stocks: FMP error for %s (%s): %s", sym, ticker, exc)
+        if not data:
+            _log.info("enrich-fxcm-stocks: no FMP profile for %s", sym)
+            not_found += 1
+            time.sleep(fmp.CALL_DELAY)
+            continue
+        try:
+            row = fmp.map_stock_enrichment(sym, data)
+            row["fmp_ticker"] = used_ticker
+            db.upsert_fxcm_stock_enrichment(row)
+            enriched += 1
+            _log.info("enrich-fxcm-stocks: enriched %s via %s", sym, used_ticker)
+        except Exception as exc:
+            _log.warning("enrich-fxcm-stocks: DB write failed for %s: %s", sym, exc)
+            failed += 1
+        time.sleep(fmp.CALL_DELAY)
+
+    return {
+        "requested":            len(symbols),
+        "fxcm_stocks_enriched": enriched,
+        "not_found":            not_found,
+        "failed":               failed,
+        "duration_seconds":     round(time.monotonic() - t0, 1),
+    }
+
+
+def _all_fxcm_stock_symbols() -> list[str]:
+    return db.fxcm_stock_symbols(only_unenriched=False)
+
+
+def refresh_fxcm_stocks() -> dict:
+    """Re-enrich all FXCM stock_cfd rows (re-pulls FMP for every row already
+    enriched, in a background thread)."""
+    if not db.db_enabled():
+        return {"error": "DATABASE_URL not configured"}
+    if not fmp.configured():
+        return {"error": "FMP_API_KEY not configured"}
+
+    return _start_background(
+        "refresh-fxcm-stocks",
+        lambda: len(_all_fxcm_stock_symbols()),
+        lambda: enrich_fxcm_stocks(force=True),
+    )
+
+
 def refresh_all_crypto() -> dict:
     """Refresh ALL crypto enrichment (CoinGecko) in one background flow. Crypto's
     only enrichment source is the **Profile** card, so this matches

@@ -617,48 +617,65 @@ def screen_assets(*, asset_class="us_equity", sector=None, industry=None,
     return out
 
 
-# ---- fxcm_instruments table -------------------------------------------------
+# ---- fxcm instruments (now stored in assets, source='fxcm') -----------------
+
+_FXCM_TYPE_TO_ASSET_CLASS: dict[str, str] = {
+    "forex":     "forex",
+    "stock":     "stock_cfd",
+    "index":     "index",
+    "metal":     "metal",
+    "commodity": "commodity",
+}
+
 
 def get_fxcm_display_names() -> dict[str, str]:
-    """Return {name: display_name} for all rows in fxcm_instruments where
-    display_name is non-null and differs from name. Callers fall back to
-    the raw name when a key is absent."""
+    """Return {symbol: fxcm_display_name} for FXCM rows where the display name
+    differs from the raw symbol. Callers fall back to the raw symbol when absent."""
     with _connect() as conn:
         cur = conn.cursor()
         cur.execute(
-            "SELECT name, display_name FROM fxcm_instruments "
-            "WHERE display_name IS NOT NULL AND display_name <> name"
+            "SELECT symbol, fxcm_display_name FROM assets "
+            "WHERE source = 'fxcm' AND fxcm_display_name IS NOT NULL "
+            "  AND fxcm_display_name <> symbol"
         )
         return {row[0]: row[1] for row in cur.fetchall()}
 
 
 def get_fxcm_underlying_units() -> dict[str, str]:
-    """Return {name: underlying_unit} for FXCM instruments where underlying_unit is non-null."""
+    """Return {symbol: fxcm_underlying_unit} for FXCM rows where the unit is set."""
     with _connect() as conn:
         cur = conn.cursor()
         cur.execute(
-            "SELECT name, underlying_unit FROM fxcm_instruments "
-            "WHERE underlying_unit IS NOT NULL AND underlying_unit <> ''"
+            "SELECT symbol, fxcm_underlying_unit FROM assets "
+            "WHERE source = 'fxcm' AND fxcm_underlying_unit IS NOT NULL "
+            "  AND fxcm_underlying_unit <> ''"
         )
         return {row[0]: row[1] for row in cur.fetchall()}
 
 
 def search_fxcm_instruments(q: str, limit: int = 50) -> list[dict]:
-    """Search FXCM instruments by name, display_name, or alternatives (case-insensitive)."""
+    """Search FXCM instruments by symbol, display name, or alternatives.
+    Returns rows with keys {name, display_name, description, type} to preserve
+    the shape the frontend and API layer expect."""
     with _connect() as conn:
         cur = conn.cursor()
         pattern = f"%{q}%"
         prefix = f"{q}%"
         cur.execute(
             """
-            SELECT name, display_name, description, type
-            FROM fxcm_instruments
-            WHERE name ILIKE %s
-               OR display_name ILIKE %s
-               OR EXISTS (SELECT 1 FROM unnest(alternatives) alt WHERE alt ILIKE %s)
+            SELECT symbol, fxcm_display_name, description, fxcm_type
+            FROM assets
+            WHERE source = 'fxcm'
+              AND (
+                symbol ILIKE %s
+                OR fxcm_display_name ILIKE %s
+                OR EXISTS (
+                    SELECT 1 FROM unnest(fxcm_alternatives) alt WHERE alt ILIKE %s
+                )
+              )
             ORDER BY
-                CASE WHEN name ILIKE %s OR display_name ILIKE %s THEN 0 ELSE 1 END,
-                name
+                CASE WHEN symbol ILIKE %s OR fxcm_display_name ILIKE %s THEN 0 ELSE 1 END,
+                symbol
             LIMIT %s
             """,
             (pattern, pattern, pattern, prefix, prefix, limit),
@@ -670,45 +687,118 @@ def search_fxcm_instruments(q: str, limit: int = 50) -> list[dict]:
 
 
 def upsert_fxcm_instruments(rows: list[dict]) -> int:
-    """Upsert FXCM instrument metadata; returns count of rows processed."""
+    """Upsert FXCM instrument metadata into assets; returns count of rows processed."""
     if not rows:
         return 0
     with _connect() as conn:
         cur = conn.cursor()
         for r in rows:
+            asset_class = _FXCM_TYPE_TO_ASSET_CLASS.get(r.get("type") or "", "cfd_other")
             cur.execute(
                 """
-                INSERT INTO fxcm_instruments
-                    (name, display_name, description, type, currency,
-                     session, timezone, underlying_unit, alternatives, seeded_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, now())
-                ON CONFLICT (name) DO UPDATE SET
-                    display_name    = excluded.display_name,
-                    description     = excluded.description,
-                    type            = excluded.type,
-                    currency        = excluded.currency,
-                    session         = excluded.session,
-                    timezone        = excluded.timezone,
-                    underlying_unit = excluded.underlying_unit,
-                    alternatives    = excluded.alternatives,
-                    seeded_at       = now()
+                INSERT INTO assets (
+                    symbol, name, asset_class, source,
+                    description, fxcm_type, fxcm_display_name, fxcm_underlying_unit,
+                    fxcm_alternatives, fxcm_session, fxcm_timezone, seeded_at
+                ) VALUES (%s, %s, %s, 'fxcm', %s, %s, %s, %s, %s, %s, %s, now())
+                ON CONFLICT (symbol) DO UPDATE SET
+                    source               = 'fxcm',
+                    asset_class          = excluded.asset_class,
+                    name                 = excluded.name,
+                    description          = COALESCE(excluded.description, assets.description),
+                    fxcm_type            = excluded.fxcm_type,
+                    fxcm_display_name    = excluded.fxcm_display_name,
+                    fxcm_underlying_unit = excluded.fxcm_underlying_unit,
+                    fxcm_alternatives    = excluded.fxcm_alternatives,
+                    fxcm_session         = excluded.fxcm_session,
+                    fxcm_timezone        = excluded.fxcm_timezone,
+                    seeded_at            = now()
                 """,
                 (
-                    r["name"], r.get("display_name"), r.get("description"),
-                    r.get("type"), r.get("currency"), r.get("session"),
-                    r.get("timezone"), r.get("underlying_unit"),
+                    r["name"],
+                    r.get("display_name") or r["name"],
+                    asset_class,
+                    r.get("description"),
+                    r.get("type"),
+                    r.get("display_name"),
+                    r.get("underlying_unit"),
                     r.get("alternatives") or [],
+                    r.get("session"),
+                    r.get("timezone"),
                 ),
             )
     return len(rows)
 
 
-def all_symbols() -> set[str]:
-    """Every symbol currently in the catalogue (all classes) — used to diff
-    against Alpaca's live list when checking for new listings."""
+def fxcm_stock_symbols(only_unenriched: bool = False) -> list[str]:
+    """All FXCM stock_cfd symbols.  ``only_unenriched=True`` filters to rows
+    not yet FMP-enriched (used by the initial enrich pass)."""
+    where = "source = 'fxcm' AND asset_class = 'stock_cfd'"
+    if only_unenriched:
+        where += " AND enrichment_source IS NULL"
     with _connect() as conn:
         cur = conn.cursor()
-        cur.execute("SELECT symbol FROM assets")
+        cur.execute(f"SELECT symbol FROM assets WHERE {where} ORDER BY symbol")
+        return [row[0] for row in cur.fetchall()]
+
+
+def unenriched_fxcm_stock_symbols() -> list[str]:
+    """FXCM stock_cfd rows that have not yet been FMP-enriched."""
+    return fxcm_stock_symbols(only_unenriched=True)
+
+
+def upsert_fxcm_stock_enrichment(e: dict) -> None:
+    """Write FMP profile enrichment + resolved fmp_ticker for one stock_cfd row."""
+    with _connect() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            UPDATE assets SET
+                description         = %s,
+                website             = %s,
+                logo_url            = %s,
+                market_cap          = %s,
+                sector              = %s,
+                industry            = %s,
+                country             = %s,
+                city                = %s,
+                state               = %s,
+                ipo_date            = %s,
+                isin                = %s,
+                cik                 = %s,
+                is_etf              = %s,
+                is_adr              = %s,
+                is_fund             = %s,
+                is_actively_trading = %s,
+                ceo                 = %s,
+                employees           = %s,
+                phone               = %s,
+                beta                = %s,
+                fmp_ticker          = %s,
+                enrichment_source   = 'fmp',
+                enriched_at         = now()
+            WHERE symbol = %s AND source = 'fxcm'
+            """,
+            (
+                e.get("description"), e.get("website"), e.get("logo_url"),
+                e.get("market_cap"), e.get("sector"), e.get("industry"),
+                e.get("country"), e.get("city"), e.get("state"),
+                e.get("ipo_date"), e.get("isin"), e.get("cik"),
+                e.get("is_etf"), e.get("is_adr"), e.get("is_fund"),
+                e.get("is_actively_trading"), e.get("ceo"), e.get("employees"),
+                e.get("phone"), e.get("beta"),
+                e.get("fmp_ticker"), e["symbol"],
+            ),
+        )
+
+
+def all_symbols() -> set[str]:
+    """Every Alpaca symbol in the catalogue — used to diff against Alpaca's
+    live list when checking for new listings.  FXCM rows are excluded so they
+    don't mask genuinely new Alpaca tickers."""
+    with _connect() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT symbol FROM assets WHERE source = 'alpaca'")
         return {row[0] for row in cur.fetchall()}
 
 
