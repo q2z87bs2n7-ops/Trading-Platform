@@ -15,12 +15,12 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
-    <repositories>
-        <repository>
-            <id>fxcm-public</id>
-            <url>https://fxcorporate.com/public-maven</url>
-        </repository>
-    </repositories>
+    <!-- FCLite is served from https://fxcorporate.com/public-maven/ using a
+         non-Maven path layout (com.fxcm.api/ stays dot-separated). Maven
+         can't resolve it as a <repository>; the Dockerfile curls the jar +
+         pom directly and seeds Maven's local repo via install:install-file
+         before this pom is built. All other transitive deps (httpclient5,
+         tyrus, bouncycastle, jackson, ...) come from Maven Central. -->
 
     <dependencies>
         <!-- FCLite Java SDK -->

@@ -15,6 +15,10 @@ frontend/dist/
 *.tsbuildinfo
 npm-debug.log*
 
+# Java / Maven (FXCM bridge)
+fxcm-bridge/java/target/
+fxcm-bridge/java/dependency-reduced-pom.xml
+
 # Editor / OS
 .DS_Store
 .vscode/

@@ -7,6 +7,18 @@
 # ── Stage 1: build the FCLite fat JAR ────────────────────────────────────────
 FROM maven:3.9-eclipse-temurin-17 AS jbuild
 WORKDIR /build
+
+# Pre-seed the local Maven repo with FCLite — fxcorporate.com serves it from a
+# non-standard path layout (com.fxcm.api/ stays dotted, not com/fxcm/api/), so
+# Maven can't resolve it via <repository>. curl + install:install-file is the
+# clean workaround. All FCLite transitive deps (tyrus, bouncycastle, ...) live
+# on Maven Central.
+ARG FCLITE_VERSION=1.3.3
+ARG FCLITE_BASE=https://fxcorporate.com/public-maven/com.fxcm.api/forex-connect-lite/${FCLITE_VERSION}
+RUN curl -fsSL -o /tmp/fcl.jar "${FCLITE_BASE}/forex-connect-lite-${FCLITE_VERSION}.jar" \
+ && curl -fsSL -o /tmp/fcl.pom "${FCLITE_BASE}/forex-connect-lite-${FCLITE_VERSION}.pom" \
+ && mvn -B install:install-file -Dfile=/tmp/fcl.jar -DpomFile=/tmp/fcl.pom
+
 COPY fxcm-bridge/java/pom.xml ./pom.xml
 COPY fxcm-bridge/java/src ./src
 RUN mvn -B -f pom.xml package -DskipTests
