@@ -1,8 +1,8 @@
 # FXCM ForexConnect Integration
 
-Comprehensive reference for the FXCM forex silo POC. Read before touching the
+Comprehensive reference for the FXCM forex silo. Read before touching the
 bridge, the backend proxy, or the frontend Forex Discover page. This doc is
-intentionally long so another agent can pick up cold.
+intentionally detailed so another agent can pick up cold.
 
 ## Overview
 
@@ -12,10 +12,10 @@ The platform supports three trading silos:
 |------|-------------|---------|
 | Stocks | Alpaca REST + WebSocket | Vercel + Render |
 | Crypto | Alpaca REST + WebSocket | Vercel + Render |
-| **Forex** | **FXCM ForexConnect SDK** | **Local sidecar only** |
+| **Forex** | **FXCM FCLite Java SDK** | **Local sidecar only (for now)** |
 
 The Forex silo is a **POC** running against a hardcoded FXCM demo account. It
-is **local-only** — the bridge runs on the developer's machine; it is not
+is **local-only** — the bridge runs on the developer's machine; it is not yet
 deployed to Vercel or Render. The frontend handles the bridge being offline
 gracefully (shows an offline notice instead of crashing).
 
@@ -26,75 +26,255 @@ Browser
   ↓  /api/fxcm/*  (FastAPI proxy)
 backend/app/fxcm.py
   ↓  http://127.0.0.1:3001  (httpx async, TIMEOUT=10s)
-fxcm-bridge/bridge.py  (Flask + ForexConnect, Python 3.7)
-  ↓  ForexConnect SDK
-FXCM demo server  (www.fxcorporate.com)
+fxcm-bridge/java/target/fxcm-bridge-1.0.0.jar  (FCLite Java bridge, port 3001)
+  ↓  FCLite SDK (Apache HC5 + Tyrus WebSocket)
+FXCM demo servers  (pdemo2.fxcorporate.com, mdt*prices.fxcorporate.com)
 ```
 
-### Why the sidecar?
+### Why FCLite Java?
 
-`forexconnect` is a C++ native extension. The only available PyPI wheel is
-`forexconnect==1.6.43` targeting **CPython 3.7** (`cp37-win_amd64`). The
-main backend runs Python 3.11 on the developer machine and Python 3.14 on
-Vercel — both incompatible. The solution is an **embedded Python 3.7
-sidecar** using the Python 3.7 embeddable ZIP extracted to
-`fxcm-bridge/python37/`.
+The FXCM REST API (`api-demo.fxcm.com`) does not resolve on the corporate
+network. FCLite is FXCM's cross-platform Java SDK that uses the ForexConnect
+protocol over WebSocket — it resolves via `api-demo.fxcm.com` (redirected via
+JVM hosts file) to `pdemo2.fxcorporate.com`, which does resolve.
+
+FCLite runs on any JVM (Java 8+), is platform-neutral, and is cloud-deployable
+to Linux (Render), unlike the old Python 3.7 + C++ ForexConnect wheel
+(Windows CP37 only).
 
 ## File Locations
 
 | Path | Description |
 |------|-------------|
-| `fxcm-bridge/bridge.py` | Flask HTTP bridge (ForexConnect session, all routes) |
-| `fxcm-bridge/python37/` | Python 3.7 embeddable runtime |
-| `fxcm-bridge/python37/python37._pth` | `import site` must be uncommented to activate site-packages |
-| `fxcm-bridge/python37/Lib/site-packages/forexconnect/` | ForexConnect SDK (installed via pip) |
-| `fxcm-bridge/python37/Lib/site-packages/flask/` | Flask (installed via pip) |
+| `fxcm-bridge/java/` | Maven project for the FCLite bridge |
+| `fxcm-bridge/java/src/main/java/com/tradingplatform/bridge/BridgeServer.java` | HTTP server (port 3001), all route handlers |
+| `fxcm-bridge/java/src/main/java/com/tradingplatform/bridge/FxcmSession.java` | FCLite session wrapper (login, managers, all data methods) |
+| `fxcm-bridge/java/src/main/java/org/apache/hc/client5/http/ssl/DefaultHostnameVerifier.java` | No-op hostname verifier override (see SSL section below) |
+| `fxcm-bridge/java/pom.xml` | Maven build config — FCLite dep + shade plugin |
+| `fxcm-bridge/java/target/fxcm-bridge-1.0.0.jar` | Built fat JAR (all deps bundled) |
 | `backend/app/fxcm.py` | FastAPI proxy router at `/api/fxcm/*` |
 | `frontend/src/components/ForexDiscoverPage.tsx` | Forex Discover page |
 | `frontend/src/api.ts` | FXCM API functions (bottom of file, `getFxcm*`) |
 | `frontend/src/types.ts` | FXCM types (`FxcmAccount`, `FxcmPrice`, `FxcmBar`, `FxcmPosition`) |
 
+## Building the Bridge
+
+```powershell
+# Requires: JDK 8+ (JDK 25 installed at C:\jdk25\jdk-25.0.3+9) + Maven 3.x
+$env:JAVA_HOME = "C:\jdk25\jdk-25.0.3+9"
+$env:Path = "$env:JAVA_HOME\bin;C:\maven\apache-maven-3.9.16\bin;$env:Path"
+
+cd C:\Users\cmischel\Trading-Platform\fxcm-bridge\java
+mvn package -DskipTests
+```
+
+Produces `target\fxcm-bridge-1.0.0.jar` — a fat JAR with all dependencies
+bundled, including the FCLite SDK and Apache HttpClient 5.
+
 ## Starting the Bridge
 
 ```powershell
-# From the repo root (PowerShell):
-Start-Process -FilePath "fxcm-bridge\python37\python.exe" `
-              -ArgumentList "fxcm-bridge\bridge.py" `
-              -WorkingDirectory (Get-Location) `
-              -WindowStyle Normal
-```
-
-Or in the background:
-
-```powershell
-Start-Process -FilePath "fxcm-bridge\python37\python.exe" `
-              -ArgumentList "fxcm-bridge\bridge.py" `
-              -WorkingDirectory (Get-Location) `
-              -WindowStyle Hidden
+# From any directory — requires the JVM hosts file (see DNS section)
+& "C:\jdk25\jdk-25.0.3+9\bin\java.exe" `
+    -Djdk.net.hosts.file=C:\Temp\jvm-hosts.txt `
+    -jar "C:\Users\cmischel\Trading-Platform\fxcm-bridge\java\target\fxcm-bridge-1.0.0.jar"
 ```
 
 The bridge logs `"FXCM connected — account D161665432"` when ready. It
 listens on `http://127.0.0.1:3001`.
 
-**Verify:** `Invoke-RestMethod http://127.0.0.1:3001/health` → `{"status":"ok","account":"D161665432"}`
+**Verify:** `curl http://127.0.0.1:3001/health` → `{"status":"ok","account":"D161665432"}`
+
+## DNS Workaround (jvm-hosts.txt)
+
+FCLite 1.3.3 hardcodes `api-demo.fxcm.com` for demo connections. This
+hostname no longer resolves in public DNS. The fix is the JVM hosts file
+(`-Djdk.net.hosts.file`) which overrides DNS for the entire JVM process.
+
+**Note:** `-Djdk.net.hosts.file` replaces the JVM's DNS entirely — it is not
+additive. Hosts not in this file will not resolve, so all FXCM servers must be
+listed.
+
+`C:\Temp\jvm-hosts.txt` content:
+```
+204.8.240.52 api-demo.fxcm.com
+204.8.241.37 pdemo2.fxcorporate.com
+204.8.241.31 mdt4prices.fxcorporate.com
+204.8.241.21 mdt1prices.fxcorporate.com
+204.8.240.16 mdt2prices.fxcorporate.com
+204.8.240.24 mdt3prices.fxcorporate.com
+```
+
+The IPs were resolved from `www.fxcorporate.com/Hosts.jsp` (the endpoint FXCM's
+own PWA uses for server discovery — visible via browser DevTools Network tab).
+
+## SSL / Hostname Verification
+
+FCLite uses Apache HttpClient 5 (HC5) internally. After the DNS redirect,
+`api-demo.fxcm.com` resolves to `204.8.240.52` (a `*.fxcorporate.com` server)
+but the TLS certificate is for `*.fxcorporate.com`, not `api-demo.fxcm.com`.
+HC5's default `DefaultHostnameVerifier` rejects this mismatch.
+
+**Fix:** `fxcm-bridge/java/src/main/java/org/apache/hc/client5/http/ssl/DefaultHostnameVerifier.java`
+is a no-op `HostnameVerifier` placed in the project source tree. The Maven shade
+plugin gives project source classes priority over transitive dependency classes,
+so this override wins over HC5's real `DefaultHostnameVerifier` in the fat JAR.
+
+The override accepts a `PublicSuffixMatcher` constructor argument (the exact
+signature HC5 uses when constructing it) to avoid `NoSuchMethodError`. The
+`httpclient5:5.1` dependency is declared as `compile` scope in `pom.xml` so
+the `PublicSuffixMatcher` type is resolvable at compile time and HC5 classes are
+included in the fat JAR.
 
 ## Credentials
 
-Hardcoded in `bridge.py` as constants — this is intentional for the POC:
+Hardcoded in `BridgeServer.java` as constants — intentional for the POC:
 
-```python
-FXCM_USER = "D161665432"   # TSII demo account login
-FXCM_PASS = "Qak5i"        # TSII demo account password
-FXCM_URL  = "www.fxcorporate.com/Hosts.jsp"
-FXCM_ENV  = "Demo"
-PORT      = 3001
+```java
+static final String FXCM_USER = env("FXCM_USER", "D161665432");
+static final String FXCM_PASS = env("FXCM_PASS", "Qak5i");
+static final String FXCM_URL  = env("FXCM_URL",  "https://api-demo.fxcm.com");
+static final String FXCM_CONN = env("FXCM_CONN", "Demo");
 ```
 
-**Why not env vars:** It's a local demo account, not commercial — the POC
-deliberately hard-codes so there's no `.env` dependency for the bridge. If
-you move to a real/live account, extract these to env vars before committing.
+All four can be overridden via environment variables. Do not commit real/live
+FXCM credentials to git.
 
-Do not commit real FXCM live credentials to git.
+## FCLite SDK Patterns
+
+FCLite JAR: `com.fxcm.api:forex-connect-lite:1.3.3`. Key patterns learned from
+decompiling the JAR:
+
+### Connecting
+
+```java
+FXConnectLiteSession session = FXConnectLiteSessionFactory.create("app-name");
+
+// Subscribe to connection status BEFORE calling login
+CountDownLatch latch = new CountDownLatch(1);
+session.subscribeConnectionStatusChange(status -> {
+    if (status.isConnected()) { connected = true; latch.countDown(); }
+});
+
+// 5-param login — username/password only, NO OAuth
+session.login(user, pass, url, conn, new ILoginCallback() {
+    public void onLoginError(LoginError err) { /* handle */ }
+    public void onTradingTerminalRequest(ITradingTerminalSelector sel, ITradingTerminal[] terms) {
+        if (terms != null && terms.length > 0) sel.selectTerminal(terms[0]);
+    }
+    public void onPinCodeRequest(IPinCodeSetter setter) {}
+});
+
+latch.await(30, TimeUnit.SECONDS);
+```
+
+### Loading data managers
+
+All managers except `IAccountsManager` implement `IDataManager` and use the
+`subscribeStateChange` + `refresh()` + `CountDownLatch` pattern:
+
+```java
+<T extends IDataManager> T loadDataManager(T mgr) throws Exception {
+    CountDownLatch latch = new CountDownLatch(1);
+    mgr.subscribeStateChange(state -> {
+        if (state.isReady()) latch.countDown();
+    });
+    mgr.refresh();
+    latch.await(15, TimeUnit.SECONDS);
+    return mgr;
+}
+
+IOffersManager offersMgr = loadDataManager(session.getOffersManager());
+IOpenPositionsManager positionsMgr = loadDataManager(session.getOpenPositionsManager());
+IOrdersManager ordersMgr = loadDataManager(session.getOrdersManager());
+IClosedPositionsManager closedMgr = loadDataManager(session.getClosedPositionsManager());
+IInstrumentsManager instrumentsMgr = loadDataManager(session.getInstrumentsManager());
+```
+
+`IAccountsManager` is loaded separately (no `subscribeStateChange`):
+```java
+final AccountInfo[] accounts = new AccountInfo[1];
+CountDownLatch latch = new CountDownLatch(1);
+session.getAccountsManager().getAccountsSnapshot(accs -> {
+    if (accs != null && accs.length > 0) accounts[0] = accs[0];
+    latch.countDown();
+});
+latch.await(15, TimeUnit.SECONDS);
+```
+
+### Symbol lookup
+
+`OfferInfo` has no `getSymbol()` — use `instrumentsMgr`:
+
+```java
+String symbol = instrumentsMgr.getInstrumentByOfferId(offer.getOfferId()).getSymbol();
+```
+
+### Price history
+
+`IPriceHistoryResponse` uses indexed access, not iteration:
+
+```java
+IPriceHistoryResponse response = session.getHistoryManager().getHistory(
+    Timeframe.create(TimeframeUnit.Hour, 1),  // H1
+    instrument, dtFrom, dtTo
+);
+for (int i = 0; i < response.getCount(); i++) {
+    double open   = response.getBidOpen(i);
+    double high   = response.getBidHigh(i);
+    double low    = response.getBidLow(i);
+    double close  = response.getBidClose(i);
+    double askOpen = response.getAskOpen(i);
+    int    volume = response.getVolume(i);
+    Date   date   = response.getDate(i);
+}
+```
+
+Timeframe constants (int values from `TimeframeUnit`):
+`TimeframeUnit.Minute`, `TimeframeUnit.Hour`, `TimeframeUnit.Day`,
+`TimeframeUnit.Week`, `TimeframeUnit.Month`.
+
+FXCM timeframe strings: `t1 m1 m5 m15 m30 H1 H4 D1 W1 M1` (used in API
+query params; mapped to `Timeframe.create()` calls in `FxcmSession.java`).
+
+### Placing an order
+
+`createOpenMarketOrder()` and `createEntryOrder()` return void. Capture the
+new order ID via `IOrderChangeListener.onAdd()`:
+
+```java
+final String[] orderId = {null};
+CountDownLatch latch = new CountDownLatch(1);
+IOrderChangeListener listener = new IOrderChangeListener() {
+    public void onAdd(OrderInfo order) { orderId[0] = order.getOrderId(); latch.countDown(); }
+    public void onChange(OrderInfo o) {}
+    public void onDelete(OrderInfo o) {}
+};
+ordersMgr.subscribeOrderChange(listener);
+try {
+    // market order
+    ordersMgr.createOpenMarketOrderRequest(instrument, accountId, buySell, amount)
+             .send();
+    latch.await(10, TimeUnit.SECONDS);
+} finally {
+    ordersMgr.unsubscribeOrderChange(listener);
+}
+return orderId[0];
+```
+
+### Cancelling an order
+
+```java
+ordersMgr.removeOrder(orderId);  // String, no request builder
+```
+
+### Closing a position
+
+```java
+CloseMarketOrderRequestBuilder builder =
+    positionsMgr.createCloseMarketOrderRequest(tradeId, accountId, amount);
+builder.send();
+```
 
 ## Bridge Routes
 
@@ -104,31 +284,20 @@ exposed at `/api/fxcm/*`.
 | Bridge route | FastAPI route | Description |
 |---|---|---|
 | `GET /health` | `GET /api/fxcm/health` | Bridge + connection status |
-| `GET /account` | `GET /api/fxcm/account` | First row of ForexConnect ACCOUNTS table |
-| `GET /prices` | `GET /api/fxcm/prices` | All offers (live bid/ask) + instrument metadata; `?instrument=EUR/USD` or `?type=forex` to filter |
-| `GET /watchlist` | `GET /api/fxcm/watchlist` | 8 major pairs, enriched, ordered |
-| `GET /positions` | `GET /api/fxcm/positions` | Open trades (ForexConnect TRADES table) |
-| `GET /orders` | `GET /api/fxcm/orders` | Pending orders (ORDERS table) |
-| `GET /summary` | `GET /api/fxcm/summary` | Summary table (aggregated exposure by instrument) |
-| `GET /closed_trades` | `GET /api/fxcm/closed_trades` | Closed trades history |
-| `GET /watchlist` | `GET /api/fxcm/watchlist` | Major pairs with enriched metadata |
-| `GET /instruments` | `GET /api/fxcm/instruments` | Full instrument cache; `?type=forex` / `?tradable=true` |
-| `GET /instruments/{name}` | `GET /api/fxcm/instruments/{name:path}` | Single instrument by name (e.g. `EUR/USD`) |
-| `GET /history` | `GET /api/fxcm/history` | OHLCV bars; params: `instrument`, `timeframe`, `date_from`, `date_to` |
-| `POST /order` | `POST /api/fxcm/order` | Place order (market/stop/limit) |
+| `GET /account` | `GET /api/fxcm/account` | Account balance/equity/margin |
+| `GET /prices` | `GET /api/fxcm/prices` | All offers (live bid/ask); `?instrument=EUR/USD` or `?type=forex` to filter |
+| `GET /watchlist` | `GET /api/fxcm/watchlist` | 8 major pairs subset |
+| `GET /positions` | `GET /api/fxcm/positions` | Open trades |
+| `GET /orders` | `GET /api/fxcm/orders` | Pending orders |
+| `GET /summary` | `GET /api/fxcm/summary` | — (proxied but not yet implemented in bridge) |
+| `GET /closed_trades` | `GET /api/fxcm/closed_trades` | Closed trade history |
+| `GET /instruments` | `GET /api/fxcm/instruments` | All instruments; `?type=forex` / `?tradable=true` |
+| `GET /instruments/{name}` | `GET /api/fxcm/instruments/{name:path}` | Single instrument (e.g. `EUR/USD`) |
+| `GET /history` | `GET /api/fxcm/history` | OHLCV bars; params: `instrument`, `timeframe`, `from`, `to` |
+| `POST /order` | `POST /api/fxcm/order` | Place order |
 | `DELETE /order/{id}` | `DELETE /api/fxcm/order/{id}` | Cancel pending order |
 | `POST /close` | `POST /api/fxcm/close` | Close open trade by `trade_id` |
-
-### History timeframes
-
-ForexConnect accepts: `t1 m1 m5 m15 m30 H1 H4 D1 W1 M1`
-
-Example: `GET /api/fxcm/history?instrument=EUR/USD&timeframe=H1&date_from=2026-05-01&date_to=2026-05-27`
-
-Response is an array of `FxcmBar`:
-```json
-[{"time":"2026-05-27T10:00:00","open":1.08341,"high":1.08412,"low":1.08290,"close":1.08385,"ask_open":1.08360,"volume":1423}]
-```
+| `GET /debug` | `GET /api/fxcm/debug` | Raw snapshot counts (dev only) |
 
 ### Order placement body
 
@@ -138,7 +307,7 @@ Response is an array of `FxcmBar`:
   "buy_sell": "B",
   "amount": 1000,
   "order_type": "OM",
-  "rate": 0,
+  "rate": 1.0800,
   "stop": 0,
   "limit": 0
 }
@@ -146,143 +315,27 @@ Response is an array of `FxcmBar`:
 
 `buy_sell`: `"B"` = buy, `"S"` = sell.
 `order_type`: `"OM"` = market, `"SE"` = stop entry, `"LE"` = limit entry.
-`rate`: opening rate for non-market orders. `stop`/`limit`: protective stop /
-take-profit rates (0 = none).
+`rate`: opening rate for non-market orders (ignored for market). `stop`/`limit`:
+protective stop / take-profit rates (0 = none).
 
-## Instrument Metadata Cache
-
-The bridge fetches instrument metadata at startup from the FXCM public
-endpoint:
+### History example
 
 ```
-https://endpoints.fxcorporate.com/symbol/data?type=alt&platform=mobile&locale=enu
+GET /api/fxcm/history?instrument=EUR/USD&timeframe=H1&from=2026-05-01&to=2026-05-27
 ```
 
-Response shape: `{"Version": "...", "Symbols": [{...}]}` — parse
-`data.get("Symbols", data)` to handle both shapes (the bridge does this).
-
-Key fields per symbol: `Name`, `DisplayName`, `Type` (forex/stock/index/
-commodity/fund/bond/spot), `Currency`, `Session`, `Timezone`, `UnderlyingUnit`,
-`AmountMode`, `Alternatives`, `Description`.
-
-The cache is an in-memory dict `{name: metadata}`, refreshed every 24 h via
-`threading.Timer`. The `GET /prices` and `GET /watchlist` routes merge this
-metadata into each price row.
-
-As of May 2026 the endpoint returns **737 instruments**.
-
-## ForexConnect SDK Patterns
-
-The `forexconnect` Python wrapper is thin. Key patterns:
-
-### Connecting
-
-```python
-from forexconnect import ForexConnect
-fc = ForexConnect()
-fc.__enter__()
-fc.login(user, password, url, env)   # env="Demo" or "Real"
-# ... use fc ...
-fc.logout()
-fc.__exit__(None, None, None)
+Response: array of `FxcmBar`:
+```json
+[{"time":"2026-05-27T10:00:00","open":1.08341,"high":1.08412,"low":1.08290,"close":1.08385,"ask_open":1.08360,"volume":1423}]
 ```
-
-### Reading a table
-
-```python
-reader = fc.get_table_reader(fc.ACCOUNTS)   # or fc.OFFERS, fc.TRADES, fc.ORDERS, fc.SUMMARY, fc.CLOSED_TRADES
-for row in reader:
-    cols = row.columns        # .size is a PROPERTY not a method
-    n = cols.size             # NOT cols.size()
-    d = {}
-    for i in range(n):
-        col = cols.get(i)     # col.id is the column name string
-        val = row.get_cell(i) # returns int, float, str, or datetime.datetime
-        if isinstance(val, datetime.datetime):
-            val = val.isoformat() if val.year > 1900 else None
-        d[col.id] = val
-```
-
-**Critical:** Empty tables raise `TypeError` when iterated (they iterate as
-`None`). Wrap `for row in reader` in `try/except TypeError: pass`.
-
-### get_history (bars)
-
-```python
-history = fc.get_history(instrument, timeframe_string, dt_from, dt_to)
-# timeframe_string must be a plain string: "m1", "H1", "D1" etc.
-# Do NOT use fc.get_timeframe() — it returns a C++ type incompatible with get_history.
-
-# history is a numpy structured array with fields:
-# Date, BidOpen, BidHigh, BidLow, BidClose, AskOpen, AskHigh, AskLow, AskClose, Volume
-for row in history:
-    ts = row['Date'].astype('datetime64[s]').astype(datetime.datetime)
-    bar = {
-        "time":   ts.isoformat(),
-        "open":   float(row['BidOpen']),
-        "high":   float(row['BidHigh']),
-        "low":    float(row['BidLow']),
-        "close":  float(row['BidClose']),
-        "volume": int(row['Volume']),
-    }
-```
-
-### Placing an order
-
-```python
-# Look up offer_id first (required, must match the live OFFERS table)
-reader = fc.get_table_reader(fc.OFFERS)
-for row in reader:
-    d = {cols.get(i).id: row.get_cell(i) for i in range(cols.size)}
-    if d.get("instrument") == target_instrument:
-        offer_id = d["offer_id"]
-        break
-
-acct_rows = _read_table(fc.ACCOUNTS)
-account_id = str(acct_rows[0]["account_id"])
-
-request_factory = fc.create_order_request(
-    order_type="OM",    # OM=market, SE=stop entry, LE=limit entry, CM=close market
-    offer_id=offer_id,
-    account_id=account_id,
-    buy_sell="B",       # "B" or "S"
-    amount=1000,
-    rate=0,
-    stop=0,
-    limit=0,
-    order_id="",
-)
-resp = fc.send_request(request_factory)
-```
-
-### Closing a trade
-
-```python
-req = fc.create_order_request(
-    order_type="CM",   # close market
-    offer_id="", account_id="", buy_sell="", amount=0,
-    rate=0, stop=0, limit=0, order_id="",
-    trade_id=trade_id,
-)
-fc.send_request(req)
-```
-
-## Instrument Type Values
-
-The FXCM instrument metadata endpoint uses these `Type` strings (case-insensitive
-filter via `?type=` on the `/instruments` route):
-
-`forex`, `stock`, `index`, `commodity`, `fund`, `bond`, `spot`
 
 ## Frontend Integration
 
 ### Silo routing
 
 `App.tsx`:
-- `AssetClassMode` is now `"stocks" | "crypto" | "forex"` (all three files that
-  define it locally: `App.tsx`, `AssetClassSplash.tsx`, `SettingsMenu.tsx`).
-- When `activeClass === "forex"`, `mode === "discover"` renders
-  `<ForexDiscoverPage />` instead of `<DiscoverPage>`.
+- `AssetClassMode` includes `"forex"`.
+- When `activeClass === "forex"` and `mode === "discover"`, renders `<ForexDiscoverPage />`.
 - `TradeBar` is suppressed in forex mode (no Alpaca order entry).
 - Forex accent: `oklch(72% 0.18 55)` (orange/amber).
 
@@ -290,71 +343,55 @@ filter via `?type=` on the `/instruments` route):
 
 `frontend/src/components/ForexDiscoverPage.tsx`
 
-- Checks bridge health on mount (`getFxcmHealth()`). If offline, shows the
-  offline notice + bridge startup command.
+- Checks bridge health on mount (`getFxcmHealth()`). If offline, shows an offline notice.
 - Polls `/api/fxcm/watchlist` every 3 s for live bid/ask.
 - Price rows colour bid green/red on uptick/downtick (prev vs current comparison
   held in `prevPrices` Map).
 - Spread displayed in pips (multiplied by 100,000 for most pairs, 1,000 for JPY).
 - Account hero shows equity, balance, used margin, free margin.
 
-### `isCryptoSymbol` conflict
+### `isCryptoSymbol` slash conflict
 
 `lib/asset-class.ts` uses `symbol.includes("/")` to fast-detect crypto. Forex
 pairs (EUR/USD, GBP/USD …) also contain a slash. **This is not a bug in the
-current POC** because forex symbols never enter the Alpaca flows (no Alpaca
-order tickets, no Alpaca position fetches). If forex symbols ever reach
-`useOrderTicket` or the TradingView datafeed, the slash detection will
-misclassify them as crypto and apply wrong constraints. Track this before
-deepening the Chart-mode integration.
+current POC** because forex symbols never enter the Alpaca flows. If forex
+symbols ever reach `useOrderTicket` or the TradingView datafeed, the slash
+detection will misclassify them as crypto. Track this before deepening the
+Chart-mode integration.
 
-## Known Gotchas and Landmines
+## Known Gotchas
 
-See also `docs/landmines.md` → "FXCM bridge" section.
+### DNS / network
 
-### Python 3.7 embeddable on Windows
+- `api-demo.fxcm.com` does not resolve in DNS — use the JVM hosts file workaround.
+- `-Djdk.net.hosts.file` replaces the JVM's resolver entirely (not additive). All
+  FXCM servers must be in the file or they will fail to connect.
+- On Linux (Render), the system `/etc/hosts` can be written directly — the JVM
+  hosts file trick is only needed on Windows without admin rights.
 
-- Group policy blocks `pip.exe` directly — always use `python -m pip`.
-- Corporate SSL interception breaks pip's certificate check — add:
-  `--trusted-host pypi.org --trusted-host files.pythonhosted.org --trusted-host bootstrap.pypa.io`
-- Group policy blocks running `uvicorn.exe` etc — run as a python module:
-  `python.exe -c "import uvicorn; uvicorn.run(...)"`
-- The Python 3.7 embeddable ZIP has `import site` commented out in
-  `python37._pth` by default — **must be uncommented** to activate
-  site-packages (and thus the installed wheels). Already done in this repo.
-- `forexconnect` package: only `from forexconnect import ForexConnect` works.
-  There is no `LoginParams` class, no `get_accounts()` method — read tables via
-  `get_table_reader(fc.ACCOUNTS)`.
+### SSL / hostname
 
-### Corporate network (Fiserv / TRADU environment)
+- FCLite uses Apache HttpClient 5 (HC5) internally — `SSLContext.setDefault()`
+  and `HttpsURLConnection.setDefaultSSLSocketFactory()` do NOT affect it.
+- The `DefaultHostnameVerifier` override in project source is the correct fix.
+  It works because Maven shade gives project source priority over transitive deps.
+- The override constructor must accept `PublicSuffixMatcher` (not `Object`) to
+  match the exact signature HC5 uses — otherwise `NoSuchMethodError` at runtime.
+- `httpclient5:5.1` must be `compile` scope (not `provided`) so HC5 classes land
+  in the fat JAR — without them, `NoClassDefFoundError: HttpClientConnectionManager`.
 
-- `api-demo.fxcm.com` and `api.fxcm.com` DNS does **not** resolve on this
-  network — this is why the FXCM REST API approach was ruled out.
-- `www.fxcorporate.com` (ForexConnect protocol) **does** resolve.
-- SSL certificate verification fails through the corporate proxy — the bridge
-  disables SSL verification for the instrument metadata fetch via
-  `ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE`.
+### FCLite API quirks
 
-### ForexConnect API quirks
+- `OfferInfo` has no `getSymbol()` — always use `instrumentsMgr.getInstrumentByOfferId(offerId).getSymbol()`.
+- `IPriceHistoryResponse` is not iterable — use `getCount()` + indexed `getBidOpen(i)` etc.
+- `IAccountsManager` does not extend `IDataManager` — load with `getAccountsSnapshot(callback)`.
+- `createOpenMarketOrder()` returns void — capture order ID via `IOrderChangeListener.onAdd()`.
+- `ordersMgr.removeOrder(orderId)` is the cancellation method (not `deleteOrder`).
 
-- `cols.size` is a **property**, not a method. Calling it as `cols.size()` raises
-  `TypeError: 'int' object is not callable`.
-- `get_history()` accepts a **plain string** timeframe (`"H1"`, `"m1"`) — do NOT
-  pass the result of `fc.get_timeframe()` (returns a C++ type that causes a
-  second TypeError inside `get_history`).
-- `get_history()` returns a **numpy structured array** — access fields as
-  `row['Date']`, `row['BidOpen']` etc., not as attributes.
-- Date conversion: `row['Date'].astype('datetime64[s]').astype(datetime.datetime)`
-- Empty tables (Trades, Orders, ClosedTrades) raise `TypeError` when iterated
-  (they return `None` from the iterator). Wrap in `try/except TypeError: pass`.
-- The public instrument endpoint returns `{"Version": "...", "Symbols": [...]}`,
-  not a bare list — parse via `data.get("Symbols", data)`.
+## What's Implemented
 
-## What's Implemented (POC)
-
-- [x] Python 3.7 Flask bridge with persistent ForexConnect session
-- [x] Instrument metadata cache (737 instruments, 24h refresh)
-- [x] All read routes (account, prices, positions, orders, summary, closed trades, watchlist, instruments, history)
+- [x] FCLite Java bridge with persistent session (login, manager loading, reconnect)
+- [x] All read routes (account, prices, positions, orders, closed trades, watchlist, instruments, history)
 - [x] Order placement (market) and cancellation
 - [x] Trade close
 - [x] FastAPI proxy router (`/api/fxcm/*`)
@@ -363,54 +400,37 @@ See also `docs/landmines.md` → "FXCM bridge" section.
 
 ## What's NOT Implemented (Next Steps)
 
-See also `BACKLOG.md` → "Forex (FXCM)" for the prioritised list. High-level:
+See also `BACKLOG.md` → "Forex (FXCM)".
 
-1. **Order entry UI** — the bridge has `/order` + `/close`; no frontend order
-   ticket exists yet. The Alpaca `OrderSheet` is not reusable (it hardwires
-   Alpaca schemas). A new `FxcmOrderSheet` is needed.
+1. **Order entry UI** — bridge has `/order` + `/close`; no frontend order ticket yet.
 
-2. **Positions panel** — `/api/fxcm/positions` returns open trades; no frontend
-   table or card list yet. Could reuse the existing Positions component with an
-   adapter layer.
+2. **Positions panel** — `/api/fxcm/positions` data exists; no frontend table yet.
 
-3. **Chart integration** — `/api/fxcm/history` returns OHLCV bars compatible
-   with TradingView's bar format. The TV datafeed (`lib/tv-datafeed.ts`) needs a
-   branch for forex symbols that calls `getFxcmHistory` instead of `/api/bars`.
-   The `isCryptoSymbol` slash conflict must be resolved first.
+3. **Chart integration** — `/api/fxcm/history` returns OHLCV bars compatible with
+   TradingView's format. The TV datafeed needs a forex branch. Resolve the
+   `isCryptoSymbol` slash conflict first.
 
-4. **Closed trades / P&L** — `/api/fxcm/closed_trades` is wired; no frontend
-   history table yet.
+4. **Real-time price updates** — currently 3s polling. FCLite supports push callbacks
+   for genuine real-time quotes.
 
-5. **Real-time price updates** — currently polling every 3 s. ForexConnect
-   supports a subscriber / callback model for push updates; the bridge could use
-   `fc.subscribe_rate(offer_id, callback)` and SSE-push to the frontend for
-   genuine real-time quotes.
+5. **Render deployment** — the bridge is local-only. To deploy:
+   - Add Java build step to `backend/Dockerfile` (or a separate Render service).
+   - On Linux, add FXCM servers to `/etc/hosts` instead of using the JVM hosts file.
+   - The `DefaultHostnameVerifier` override and fat JAR approach work identically on Linux.
 
-6. **Bridge process management** — no auto-start / health restart. The frontend
-   shows the offline notice when it's not running; a startup script or task
-   scheduler entry would improve DX.
+6. **Credentials in env** — already env-var ready (`FXCM_USER`, `FXCM_PASS`, `FXCM_URL`,
+   `FXCM_CONN`); hardcoded defaults are for the demo POC only.
 
-7. **Credentials in env** — currently hardcoded constants. Extract to environment
-   variables if moving to a live account.
-
-8. **Spread-to-pip denominator** — currently hardcoded (100,000 for non-JPY,
-   1,000 for JPY). Use the `digits` field from the OFFERS table instead (the
-   bridge exposes it; the frontend ignores it today).
-
-9. **Account metrics** — the ACCOUNTS table columns vary by account type; field
-   names like `balance`, `equity`, `usedmargin`, `day_pl` may differ or be absent.
-   Map these defensively in the frontend hero (already done with `?? 0` guards).
-
-10. **DB seeding of FXCM instruments** — 737 instruments are currently cache-only.
-    If the asset-catalogue approach (Supabase `assets` table) should extend to
-    forex, a `seed-fxcm-instruments` routine is needed in `backend/app/seed.py`.
+7. **Spread pip denominator** — hardcoded in frontend. Use the `digits` field from the
+   offers data instead.
 
 ## Running the Full Stack Locally (with Forex)
 
-```bash
+```powershell
 # Terminal 1 — FXCM bridge
-# (From repo root, PowerShell)
-& "fxcm-bridge\python37\python.exe" "fxcm-bridge\bridge.py"
+& "C:\jdk25\jdk-25.0.3+9\bin\java.exe" `
+    -Djdk.net.hosts.file=C:\Temp\jvm-hosts.txt `
+    -jar "C:\Users\cmischel\Trading-Platform\fxcm-bridge\java\target\fxcm-bridge-1.0.0.jar"
 
 # Terminal 2 — FastAPI backend
 cd backend
@@ -425,10 +445,7 @@ Open http://localhost:5173, pick **Forex** from the splash or Settings → Marke
 
 ## Relation to Other Docs
 
-- `CLAUDE.md` — Workflow rules, architecture overview, hard rules; updated to
-  include Forex silo.
-- `docs/landmines.md` — Hard-won runtime gotchas; FXCM section added.
-- `BACKLOG.md` — Deferred Forex work, prioritised.
-- `README.md` — Setup instructions; FXCM step added.
-- `BACKEND_REVIEW.md` / `FRONTEND_REVIEW.md` — Historical code-quality reviews
-  predating the FXCM integration; not re-reviewed.
+- `CLAUDE.md` — Workflow rules, architecture overview; FXCM bridge described under "Four runtime targets".
+- `docs/landmines.md` — Runtime gotchas; FXCM section documents the HC5 SSL / JVM DNS issues.
+- `BACKLOG.md` — Deferred Forex work.
+- `README.md` — Setup instructions include the bridge build/run step.

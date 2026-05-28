@@ -486,13 +486,14 @@ Watchlists are not in localStorage — server-side via `/api/watchlist`.
    frontend only; talks to the Vercel prod backend. Auto-publishes to
    `gh-pages` on every `claude/**` push. Cannot trigger a Vercel
    deploy.
-4. **FXCM bridge — local sidecar** (`fxcm-bridge/bridge.py`). Python
-   3.7 Flask process on port 3001, started manually on the developer's
-   machine. **Not deployed to Vercel or Render** — it cannot be: the
-   `forexconnect` wheel is Windows CP37 only, and FXCM's ForexConnect
-   protocol requires a persistent TCP connection incompatible with
-   serverless. The FastAPI proxy returns 503 when the bridge is not
-   running; the frontend shows an offline notice. See `docs/fxcm.md`.
+4. **FXCM bridge — local sidecar** (`fxcm-bridge/java/`). FCLite Java
+   fat JAR on port 3001, started manually on the developer's machine.
+   **Not yet deployed to Vercel or Render** — requires a persistent TCP
+   connection incompatible with serverless, and the DNS/SSL workarounds
+   need adapting for Linux (see `docs/fxcm.md`). The FastAPI proxy
+   returns 503 when the bridge is not running; the frontend shows an
+   offline notice. Run: `java -Djdk.net.hosts.file=C:\Temp\jvm-hosts.txt
+   -jar fxcm-bridge\java\target\fxcm-bridge-1.0.0.jar`. See `docs/fxcm.md`.
 
 ## Two AI surfaces (teal Ask anything vs violet ChartBot)
 

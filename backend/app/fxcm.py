@@ -1,8 +1,8 @@
 """
-Thin proxy layer between FastAPI and the local FXCM ForexConnect bridge.
-The bridge (fxcm-bridge/bridge.py) runs as a sidecar on port 3001 and
-owns the persistent ForexConnect session.  We just forward calls and
-return clean JSON to the frontend.
+Thin proxy layer between FastAPI and the local FXCM FCLite bridge.
+The bridge (fxcm-bridge/java/) runs as a sidecar on port 3001 and owns
+the persistent FCLite session.  We just forward calls and return clean
+JSON to the frontend.  Returns 503 when the bridge is not running.
 """
 
 import logging
