@@ -290,11 +290,17 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
   fxcm/health, fxcm/account, fxcm/prices, fxcm/positions,
   fxcm/orders, fxcm/summary, fxcm/closed_trades, fxcm/instruments,
   fxcm/instruments/{name:path}, fxcm/history, fxcm/order (POST/DELETE/PATCH),
-  fxcm/close (POST), fxcm/watchlist (GET/POST/DELETE-by-{instrument:path}) —
+  fxcm/close (POST), fxcm/watchlist (GET/POST/DELETE-by-{instrument:path}),
+  fxcm/display-names (GET), fxcm/underlying-units (GET),
+  fxcm/search-instruments (GET, `?q=`) —
   most of these proxy to the in-container FXCM bridge on 127.0.0.1:3001
-  (return 503 when the JVM isn't responding). **The fxcm/watchlist surface
-  is the exception** — it doesn't touch the bridge at all, instead
-  proxying to FXCM's Endpoints suite (`endpoints-demo.fxcorporate.com`)
+  (return 503 when the JVM isn't responding). **Three endpoints are DB-only
+  and never touch the bridge:** `fxcm/display-names`, `fxcm/underlying-units`,
+  and `fxcm/search-instruments` — all three query the `fxcm_instruments`
+  Postgres table and are served from Vercel (via `API_BASE`) not Render
+  (`STREAM_BASE`), so they work even when the bridge is offline. **The
+  fxcm/watchlist surface** doesn't touch the bridge either — it proxies
+  to FXCM's Endpoints suite (`endpoints-demo.fxcorporate.com`)
   with a JWT minted by `backend/app/fxcm_auth.py` (POST /iam/authenticate,
   60s lifetime, re-minted ~50s by the same in-memory cache). Find-or-create
   resolves which FXCM-side watchlist to pin on first call; mutations

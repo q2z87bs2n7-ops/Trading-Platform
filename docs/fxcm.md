@@ -72,7 +72,7 @@ to Linux (Render), unlike the old Python 3.7 + C++ ForexConnect wheel
 | `backend/app/fxcm_auth.py` | JWT mint + cache for the Endpoints suite (`/iam/authenticate`, 60s lifetime, re-mint every ~50s) |
 | `frontend/src/components/CfdDiscoverPage.tsx` | CFD Discover page |
 | `frontend/src/components/CfdPriceChart.tsx` | Inline lightweight-charts panel on CFD Discover (FXCM history + live-tip) |
-| `frontend/src/api.ts` | FXCM API functions (`getFxcm*` block). Hit Render directly via `STREAM_BASE` — Vercel has no bridge. |
+| `frontend/src/api.ts` | FXCM API functions (`getFxcm*` block). Bridge-dependent calls use `STREAM_BASE` (Render). DB-only calls (`getFxcmDisplayNames`, `getFxcmUnderlyingUnits`, `searchFxcmInstruments`) use `API_BASE` (Vercel). |
 | `frontend/src/types.ts` | FXCM types (`FxcmAccount`, `FxcmPrice`, `FxcmBar`, `FxcmPosition`, `FxcmInstrument`) |
 | `frontend/src/lib/asset-class.ts` | FXCM-aware `isCfdSymbol` / `isCryptoSymbol`; cache populated at boot by App.tsx |
 | `frontend/src/lib/tv-datafeed.ts` | TV datafeed CFD branches (search/resolve/bars/quotes) |
@@ -337,6 +337,25 @@ exposed at `/api/fxcm/*`.
 | `PATCH /order/{id}` | `PATCH /api/fxcm/order/{id}` | Modify pending entry order — body `{rate?, stop?, limit?}`; `0` = leave unchanged (FCLite `ChangeOrderRequest`, wired reflectively) |
 | `POST /close` | `POST /api/fxcm/close` | Close open trade — body `{trade_id, amount}`; `amount: 0` = full close |
 | `GET /debug` | `GET /api/fxcm/debug` | Raw snapshot counts (dev only) |
+
+### DB-only endpoints (no bridge required)
+
+These three routes live on the same `/api/fxcm/*` router but query the
+`fxcm_instruments` Postgres table directly — they never call the bridge
+and return `{}` / `[]` gracefully when the DB is unreachable. Critically,
+they are fetched via **`API_BASE` (Vercel)** by the frontend, not via
+`STREAM_BASE` (Render), because Render's `DATABASE_URL` is not guaranteed
+to be set. Vercel always has `DATABASE_URL`.
+
+| FastAPI route | Description |
+|---|---|
+| `GET /api/fxcm/display-names` | `{name: display_name}` map for instruments where `display_name` differs from the raw name (e.g. `"XAU/USD" → "Gold"`). Used by `useFxcmDisplayNames()` hook (`staleTime: Infinity`). |
+| `GET /api/fxcm/underlying-units` | `{name: underlying_unit}` map (e.g. `"XAU/USD" → "oz"`). Used by `useFxcmUnderlyingUnit()` hook. Falls back to `"units"` when a key is absent. |
+| `GET /api/fxcm/search-instruments?q=<term>` | Case-insensitive ILIKE search across `name`, `display_name`, and `alternatives[]`. Returns `[{name, display_name, description, type}]`, ranked: prefix matches first. Used by `AssetSearch` (`source="fxcm"`) — replaces the old full-list bridge fetch + client-side filter. |
+
+The `fxcm_instruments` table is seeded once via `POST /api/_dev/seed-fxcm-instruments`
+(Render-only, requires bridge to get the account's instrument list). Schema in
+`backend/sql/004_fxcm_instruments.sql`.
 
 ### Selective subscription
 
@@ -672,7 +691,7 @@ first time today), the map auto-refreshes once before failing with 404.
 
 `frontend/src/components/CfdDiscoverPage.tsx`
 
-- Checks bridge health on mount (`getFxcmHealth()`). If offline, shows an offline notice.
+- No page-level header — the silo title ("CFDs") and bridge status badge were removed; the `BridgeStatus` component is gone. Bridge health is still checked on mount (`getFxcmHealth()`) to gate data-fetch hooks; if offline, shows an inline offline notice.
 - Polls `/api/fxcm/watchlist` every 3 s for live bid/ask.
 - Price rows colour bid green/red on uptick/downtick (prev vs current comparison
   held in `prevPrices` Map).
@@ -745,7 +764,7 @@ reaching Alpaca routes.
 
 | Method | CFD branch | Notes |
 |---|---|---|
-| `searchSymbols` | `api.getFxcmInstruments()` + client-side filter | The bridge silently ignores `?search=`, and `/api/fxcm/instruments` returns raw PascalCase (`Name`/`OfferId`/`Status`). Route through `api.getFxcmInstruments()` for the lowercase normalisation, then substring-filter client-side (prefix matches first, capped at 50). All status codes — incl. `D` ("not subscribed", not "disabled") — stay in results. |
+| `searchSymbols` | `api.getFxcmInstruments()` + client-side filter | The bridge silently ignores `?search=`, and `/api/fxcm/instruments` returns raw PascalCase (`Name`/`OfferId`/`Status`). Route through `api.getFxcmInstruments()` for the lowercase normalisation, then substring-filter client-side (prefix matches first, capped at 50). All status codes — incl. `D` ("not subscribed", not "disabled") — stay in results. Note: the **watchlist** `AssetSearch` now uses `searchFxcmInstruments` (DB-backed, searches name/display_name/alternatives ILIKE) instead of this bridge path — see "DB-only endpoints" above. |
 | `resolveSymbol` | Local hardcoded shape | CFD symbols aren't in Alpaca's catalogue. `pricescale` derived from `cfdPriceScale(symbol)` (JPY: 1000, else 100000) — still hardcoded; switch to `digits` from the offers row when wiring that backlog item. |
 | `getBars` | `/api/fxcm/history` | TV resolutions map via `FXCM_RESOLUTION_MAP` (`"1"→"m1"`, `"60"→"H1"`, `"D"→"D1"`, …). Bar `time` is a naive ISO string (no zone) but the bridge's timestamps are UTC — append `Z` before `Date.parse` or every candle shifts by the user's TZ offset. |
 | `subscribeBars` | **no-op** | Bridge has no SSE bar stream; the historical bars stay static between fetches, the live price line still moves via `subscribeQuotes`. Real-time bar updates are a backlog item. |
@@ -826,6 +845,27 @@ CFD trading still happens via `CfdDiscoverPage` + `FxcmOrderSheet`.
   `Activities` mapping FXCM closed trades into the shared feed
 - Render deployment co-located with FastAPI (`backend/Dockerfile` multi-stage, `backend/entrypoint.sh` dual-process)
 - FXCM-aware classifier + TV datafeed CFD branches for the chart
+
+- **Display names** — `fxcm_instruments` Postgres table (seeded once via
+  `POST /api/_dev/seed-fxcm-instruments`) stores `display_name` (e.g. "Gold"
+  for XAU/USD), `underlying_unit` (e.g. "oz"), and `alternatives[]` for
+  search. `useFxcmDisplayNames()` and `useFxcmUnderlyingUnit()` hooks fetch
+  once per session (`staleTime: Infinity`) via Vercel (`API_BASE`). Display
+  names propagate to every CFD symbol surface: watchlist, positions, orders,
+  activities, order sheets, close cards, chart header. Raw `name` (e.g.
+  "XAU/USD") is always used for API calls; `display_name` is display-only.
+- **CFD header status** — header and mobile header show "Open · 24/5" for
+  the CFD silo (was incorrectly showing the Alpaca stock-market clock). Fixed
+  by passing `activeClass` (not `alpacaSilo`) to `HeaderStatusInline` /
+  `MobileHeader`; both components now handle `assetClass === "cfd"`.
+- **CFD Discover page cleanup** — removed "+ New Order" button, "Bridge
+  connected" badge, and the "FXCM ForexConnect — demo account" subtitle from
+  the page header (all were clutter not present in the stocks/crypto silos).
+  The `BridgeStatus` component is gone.
+- **DB-backed CFD search** — `AssetSearch` with `source="fxcm"` queries
+  `GET /api/fxcm/search-instruments` (name + display_name + alternatives
+  ILIKE) and shows `display_name` as the label. Replaces the old full-list
+  bridge fetch + client-side substring filter.
 
 Outstanding work lives in `BACKLOG.md` → "CFDs (FXCM)".
 
