@@ -31,7 +31,7 @@ interface Props {
   onSymbolChange?: (s: string) => void;
   // Drives TV's symbol-search results to the active silo only — without it,
   // searching "BTC" in stocks mode surfaces crypto pairs and vice versa.
-  assetClass?: "stocks" | "crypto" | "forex";
+  assetClass?: "stocks" | "crypto" | "cfd";
 }
 
 // We lean on TV's native header (symbol search, resolutions, chart type,
@@ -279,7 +279,7 @@ export default function TVPlatform({ symbol, onSymbolChange, assetClass }: Props
           overflow: "hidden",
         }}
       />
-      {assetClass !== "forex" && <TradeBar symbol={symbol || "AAPL"} />}
+      {assetClass !== "cfd" && <TradeBar symbol={symbol || "AAPL"} />}
     </div>
   );
 }

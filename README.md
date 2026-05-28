@@ -1,23 +1,23 @@
 # Trading Platform
 
 A paper-trading dashboard built on the [Alpaca](https://alpaca.markets/) API,
-with a **Forex silo** powered by the FXCM ForexConnect API.
+with a **CFD silo** powered by the FXCM ForexConnect API.
 
 **Scope:** full **paper** trading — account/portfolio summary, a live-quote
 watchlist, candlestick charts, asset search, market clock, and the full
 order path (market/limit/stop/stop-limit/trailing, bracket/OCO, replace,
 cancel, close positions) with a positions/orders/activities blotter.
-Supports **US equities**, **crypto**, and **forex** (FXCM demo, local
-sidecar) in separate silos. Alpaca silos are paper-only — there is no live
-Alpaca trading path.
+Supports **US equities**, **crypto**, and **CFDs** (FXCM demo, local
+sidecar — forex, indices, metals, commodities, stock CFDs) in separate silos.
+Alpaca silos are paper-only — there is no live Alpaca trading path.
 
 On the **first session only**, an **asset class splash** is shown as the
-landing screen — pick Stocks, Crypto, or Forex to enter. Subsequent loads
+landing screen — pick Stocks, Crypto, or CFDs to enter. Subsequent loads
 land straight on the last-used silo's Discover. The splash doubles as an
 **Account Hub** (re-opened from the header brand mark) showing a whole-account
 overview: total equity, day P/L, buying power, and a stocks-vs-crypto-vs-cash
 split. The active silo tints the accent (green for Stocks, blue for Crypto,
-orange for Forex). All silos share the same mode toggle (Workspace is desktop-only):
+orange for CFDs). All silos share the same mode toggle (Workspace is desktop-only):
 
 - **Discover** (default)
   - *Stocks* — silo holdings + allocation donut (green), indices marquee
@@ -28,7 +28,7 @@ orange for Forex). All silos share the same mode toggle (Workspace is desktop-on
   - *Crypto* — live crypto price marquee, holdings + allocation hero (crypto
     positions only, blue), crypto watchlist sparkline cards, inline chart, BTC
     news. No movers/most-active (Alpaca has no crypto screener).
-  - *Forex* — FXCM account hero (equity / balance / margin) and live major-pair
+  - *CFDs* — FXCM account hero (equity / balance / margin) and live major-pair
     watchlist (bid/ask, spread in pips, 3 s polling). Requires the local FXCM
     bridge to be running; shows an offline notice otherwise. POC stage — order
     entry and Chart integration are in the backlog.
@@ -194,10 +194,10 @@ Auth is via query-string params despite the `X-` prefixed names. See
 `docs/tipranks.md` for the endpoint inventory, cache TTLs (15min → 6h
 depending on update cadence), and the per-widget surfaces.
 
-### 1e. FXCM Forex silo
+### 1e. FXCM CFD silo
 
 In **prod**, the bridge co-runs with the Render relay automatically — no
-local setup needed to use the Forex silo from the deployed app. Set
+local setup needed to use the CFD silo from the deployed app. Set
 `FXCM_USER` / `FXCM_PASS` in the Render dashboard if you want to point at
 a different demo account; unset = hardcoded fallback. CORS already admits
 the Vercel origin.
@@ -316,7 +316,7 @@ paid Alpaca data plan for the full consolidated tape.
 - Keys live only in `backend/.env`, which is gitignored. Never commit it.
 - Default watchlist symbols are configurable via `DEFAULT_SYMBOLS` in `.env`.
 - Browser state is in `localStorage`: `asset_class_mode` (stocks / crypto /
-  forex — the silo the app boots into post-splash; also highlights the active
+  cfd — the silo the app boots into post-splash; also highlights the active
   card in the Account Hub), `splash_seen_v1` (set once the user has picked a
   silo; clearing it restores the first-time landing), `platform_mode_v1`
   (last-used mode pill), `theme` (light / dark), `chartbot_session` (256 KB

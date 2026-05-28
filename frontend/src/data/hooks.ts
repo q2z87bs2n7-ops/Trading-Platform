@@ -48,7 +48,7 @@ export const usePositions = () =>
   });
 
 // FXCM account/positions for the splash card. Polled gently — the splash is
-// a transient overlay, not a constantly-mounted surface, and ForexDiscoverPage
+// a transient overlay, not a constantly-mounted surface, and CfdDiscoverPage
 // owns the fast (3s) loop when the silo is active.
 export const useFxcmAccount = (enabled = true) =>
   useQuery({

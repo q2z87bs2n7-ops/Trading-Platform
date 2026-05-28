@@ -64,14 +64,21 @@ function Toggle({
   );
 }
 
-type AssetClassMode = "stocks" | "crypto" | "forex";
+type AssetClassMode = "stocks" | "crypto" | "cfd";
 
 function readSilo(): AssetClassMode {
   const raw = localStorage.getItem("asset_class_mode");
   if (raw === "crypto") return "crypto";
-  if (raw === "forex") return "forex";
+  // Legacy "forex" still resolves to the CFD silo (pre-rename localStorage).
+  if (raw === "cfd" || raw === "forex") return "cfd";
   return "stocks";
 }
+
+const SILO_LABEL: Record<AssetClassMode, string> = {
+  stocks: "Stocks",
+  crypto: "Crypto",
+  cfd: "CFDs",
+};
 
 // Silo switcher row — matches the ToggleRow rhythm (title + description on
 // the left, control on the right) so it reads as a peer of the AI toggles
@@ -108,9 +115,9 @@ function SiloRow({ onClose }: { onClose: () => void }) {
           border: "1px solid var(--border)",
         }}
       >
-        {(["stocks", "crypto", "forex"] as AssetClassMode[]).map((s) => {
+        {(["stocks", "crypto", "cfd"] as AssetClassMode[]).map((s) => {
           const active = s === current;
-          const tint = s === "stocks" ? "var(--pos)" : s === "forex" ? "oklch(72% 0.18 55)" : "var(--accent)";
+          const tint = s === "stocks" ? "var(--pos)" : s === "cfd" ? "oklch(72% 0.18 55)" : "var(--accent)";
           return (
             <button
               key={s}
@@ -118,7 +125,7 @@ function SiloRow({ onClose }: { onClose: () => void }) {
               role="radio"
               aria-checked={active}
               onClick={() => switchTo(s)}
-              className="text-[12px] font-semibold cursor-pointer border-0 capitalize transition-colors"
+              className="text-[12px] font-semibold cursor-pointer border-0 transition-colors"
               style={{
                 background: active ? tint : "transparent",
                 color: active ? "white" : "var(--text-2)",
@@ -126,7 +133,7 @@ function SiloRow({ onClose }: { onClose: () => void }) {
                 padding: "5px 14px",
               }}
             >
-              {s}
+              {SILO_LABEL[s]}
             </button>
           );
         })}

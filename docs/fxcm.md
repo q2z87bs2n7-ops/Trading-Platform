@@ -1,8 +1,9 @@
 # FXCM ForexConnect Integration
 
-Comprehensive reference for the FXCM forex silo. Read before touching the
-bridge, the backend proxy, or the frontend Forex Discover page. This doc is
-intentionally detailed so another agent can pick up cold.
+Comprehensive reference for the FXCM CFD silo (forex, indices, metals,
+commodities, stock CFDs). Read before touching the bridge, the backend proxy,
+or the frontend CFD Discover page. This doc is intentionally detailed so
+another agent can pick up cold.
 
 ## Overview
 
@@ -12,9 +13,9 @@ The platform supports three trading silos:
 |------|-------------|---------|
 | Stocks | Alpaca REST + WebSocket | Vercel + Render |
 | Crypto | Alpaca REST + WebSocket | Vercel + Render |
-| **Forex** | **FXCM FCLite Java SDK** | **Render (co-runs with FastAPI)** |
+| **CFDs** | **FXCM FCLite Java SDK** | **Render (co-runs with FastAPI)** |
 
-The Forex silo is a **POC** running against a hardcoded FXCM demo account.
+The CFD silo is a **POC** running against a hardcoded FXCM demo account.
 The FCLite Java bridge ships **in the same Render container** as the FastAPI
 relay (multi-stage build in `backend/Dockerfile`, boot orchestrated by
 `backend/entrypoint.sh`). The frontend still handles the bridge being offline
@@ -56,13 +57,13 @@ to Linux (Render), unlike the old Python 3.7 + C++ ForexConnect wheel
 | `fxcm-bridge/java/pom.xml` | Maven build config — FCLite dep + shade plugin |
 | `fxcm-bridge/java/target/fxcm-bridge-1.0.0.jar` | Built fat JAR (all deps bundled) |
 | `backend/app/fxcm.py` | FastAPI proxy router at `/api/fxcm/*` |
-| `frontend/src/components/ForexDiscoverPage.tsx` | Forex Discover page |
+| `frontend/src/components/CfdDiscoverPage.tsx` | CFD Discover page |
 | `frontend/src/api.ts` | FXCM API functions (`getFxcm*` block). Hit Render directly via `STREAM_BASE` — Vercel has no bridge. |
 | `frontend/src/types.ts` | FXCM types (`FxcmAccount`, `FxcmPrice`, `FxcmBar`, `FxcmPosition`, `FxcmInstrument`) |
-| `frontend/src/lib/asset-class.ts` | FXCM-aware `isForexSymbol` / `isCryptoSymbol`; cache populated at boot by App.tsx |
-| `frontend/src/lib/tv-datafeed.ts` | TV datafeed forex branches (search/resolve/bars/quotes) |
-| `frontend/src/lib/tv-broker.ts` | TV broker — Alpaca routes short-circuited in forex mode |
-| `frontend/src/components/trade/FxcmOrderSheet.tsx` | Forex order ticket (Alpaca's OrderSheet is not reusable) |
+| `frontend/src/lib/asset-class.ts` | FXCM-aware `isCfdSymbol` / `isCryptoSymbol`; cache populated at boot by App.tsx |
+| `frontend/src/lib/tv-datafeed.ts` | TV datafeed CFD branches (search/resolve/bars/quotes) |
+| `frontend/src/lib/tv-broker.ts` | TV broker — Alpaca routes short-circuited in CFD mode |
+| `frontend/src/components/trade/FxcmOrderSheet.tsx` | CFD order ticket (Alpaca's OrderSheet is not reusable) |
 | `backend/Dockerfile`, `backend/entrypoint.sh`, `backend/jvm-hosts.txt` | Render build / boot / DNS |
 
 ## Building the Bridge (local)
@@ -326,7 +327,7 @@ Unlike every other FXCM endpoint, `/instruments` returns the raw FCLite
 ```
 
 `Status`: `T` = tradable, `V` = visible (priced), `D` = disabled. Roughly
-516 entries across forex pairs, indices, metals, commodities, and stock
+516 entries across fiat-forex pairs, indices, metals, commodities, and stock
 CFDs. `frontend/src/api.ts → getFxcmInstruments()` normalises to lowercase
 `{instrument, offer_id, status}` at the API boundary so callers see the same
 shape as `/watchlist` / `/prices` / `/positions`. Bridge-side normalisation
@@ -390,14 +391,15 @@ Response: array of `FxcmBar`:
 ### Silo routing
 
 `App.tsx`:
-- `AssetClassMode` includes `"forex"`.
-- When `activeClass === "forex"` and `mode === "discover"`, renders `<ForexDiscoverPage />`.
-- `TradeBar` is suppressed in forex mode (no Alpaca order entry).
-- Forex accent: `oklch(72% 0.18 55)` (orange/amber).
+- `AssetClassMode` includes `"cfd"`. Legacy `"forex"` localStorage values
+  are migrated to `"cfd"` on read.
+- When `activeClass === "cfd"` and `mode === "discover"`, renders `<CfdDiscoverPage />`.
+- `TradeBar` is suppressed in CFD mode (no Alpaca order entry).
+- CFD accent: `oklch(72% 0.18 55)` (orange/amber).
 
-### ForexDiscoverPage
+### CfdDiscoverPage
 
-`frontend/src/components/ForexDiscoverPage.tsx`
+`frontend/src/components/CfdDiscoverPage.tsx`
 
 - Checks bridge health on mount (`getFxcmHealth()`). If offline, shows an offline notice.
 - Polls `/api/fxcm/watchlist` every 3 s for live bid/ask.
@@ -417,6 +419,7 @@ Response: array of `FxcmBar`:
 
 ### FXCM-aware classifier (`lib/asset-class.ts`)
 
+
 Crypto and FXCM symbols both use BASE/QUOTE form (BTC/USD vs EUR/USD vs
 XAU/USD). FXCM also serves non-pair symbols (US30, NAS100, SPX500, stock
 CFDs like RBLX.us). Slash alone is ambiguous — the classifier is two-tier:
@@ -425,39 +428,40 @@ CFDs like RBLX.us). Slash alone is ambiguous — the classifier is two-tier:
    `registerFxcmSymbols(symbols)`. Authoritative; covers indices, metals,
    commodities, stock CFDs.
 2. **ISO 4217 fiat regex** fallback for the synchronous pre-boot path.
-   Catches every common forex pair (`<fiat>/<fiat>`) before the bridge
+   Catches every common fiat-forex pair (`<fiat>/<fiat>`) before the bridge
    fetch resolves.
 
 ```ts
-isForexSymbol("EUR/USD") // true (regex)
-isForexSymbol("XAU/USD") // true after boot (cache); false pre-boot (benign)
+isCfdSymbol("EUR/USD") // true (regex)
+isCfdSymbol("XAU/USD") // true after boot (cache); false pre-boot (benign)
 isCryptoSymbol("BTC/USD") // true (slash, not in cache, not fiat/fiat)
 isCryptoSymbol("EUR/USD") // false
 ```
 
-`isCryptoSymbol(s)` is just `s.includes("/") && !isForexSymbol(s)`. The
+`isCryptoSymbol(s)` is just `s.includes("/") && !isCfdSymbol(s)`. The
 backend mirror in `alpaca/client.py` keeps only the ISO-fiat check (no
-cache) — it's a safety net since frontend silo gating already prevents
-FXCM symbols from reaching Alpaca routes.
+cache, named `is_forex` since it strictly detects fiat/fiat pairs) — it's a
+safety net since frontend silo gating already prevents FXCM symbols from
+reaching Alpaca routes.
 
-### Chart-mode forex (TV datafeed)
+### Chart-mode CFD (TV datafeed)
 
-`lib/tv-datafeed.ts` branches on `getAssetClass() === "forex"` in six places
+`lib/tv-datafeed.ts` branches on `getAssetClass() === "cfd"` in six places
 — all FXCM symbol types flow through correctly regardless of shape:
 
-| Method | Forex branch | Notes |
+| Method | CFD branch | Notes |
 |---|---|---|
 | `searchSymbols` | `/api/fxcm/instruments?search=` | Bridge fuzzy-matches client-side; passes through TV's search UI. |
-| `resolveSymbol` | Local hardcoded shape | Forex/CFD symbols aren't in Alpaca's catalogue. `pricescale` derived from `forexPriceScale(symbol)` (JPY: 1000, else 100000) — still hardcoded; switch to `digits` from the offers row when wiring that backlog item. |
+| `resolveSymbol` | Local hardcoded shape | CFD symbols aren't in Alpaca's catalogue. `pricescale` derived from `cfdPriceScale(symbol)` (JPY: 1000, else 100000) — still hardcoded; switch to `digits` from the offers row when wiring that backlog item. |
 | `getBars` | `/api/fxcm/history` | TV resolutions map via `FXCM_RESOLUTION_MAP` (`"1"→"m1"`, `"60"→"H1"`, `"D"→"D1"`, …). |
 | `subscribeBars` | **no-op** | Bridge has no SSE bar stream; the historical bars stay static between fetches, the live price line still moves via `subscribeQuotes`. Real-time bar updates are a backlog item. |
 | `getQuotes` | `/api/fxcm/prices` (one call, filter client-side) | Cheaper than per-symbol fetches. |
-| `subscribeQuotes` | 3s `setInterval` polling `/api/fxcm/prices`, diff-only emission | Mirrors `ForexDiscoverPage`'s cadence. Replace with FCLite push subscription when that lands. |
+| `subscribeQuotes` | 3s `setInterval` polling `/api/fxcm/prices`, diff-only emission | Mirrors `CfdDiscoverPage`'s cadence. Replace with FCLite push subscription when that lands. |
 
 `tv-broker.ts` short-circuits every Alpaca-bound route (`/api/account`,
 `/api/orders`, `/api/positions`, `/api/activities`) when `getAssetClass()`
-returns `"forex"` — the TV account manager stays empty in forex mode.
-Forex trading still happens via `ForexDiscoverPage` + `FxcmOrderSheet`.
+returns `"cfd"` — the TV account manager stays empty in CFD mode.
+CFD trading still happens via `CfdDiscoverPage` + `FxcmOrderSheet`.
 
 ## Known Gotchas
 
@@ -496,20 +500,20 @@ Forex trading still happens via `ForexDiscoverPage` + `FxcmOrderSheet`.
 - FCLite Java bridge with persistent session (login, manager loading)
 - All read + write routes (read: account/prices/positions/orders/closed_trades/watchlist/instruments/history; write: order/close + `PATCH /order/{id}` modify)
 - FastAPI proxy at `/api/fxcm/*`
-- Frontend forex silo end-to-end: orange accent, splash card (live FXCM
+- Frontend CFD silo end-to-end: orange accent, splash card (live FXCM
   equity / day P/L / positions on the Account Hub overlay),
-  ForexDiscoverPage (account hero, live watchlist, FxcmPositions panel,
+  CfdDiscoverPage (account hero, live watchlist, FxcmPositions panel,
   FXCM-country-filtered economic calendar), FxcmOrderSheet
-- **Forex Portfolio screen** — `ForexPortfolioHero` (equity + day-chip +
+- **CFD Portfolio screen** — `CfdPortfolioHero` (equity + day-chip +
   Free margin / Total P/L / Open orders; no sparkline), shared
   `AllocationDonut` over per-instrument used-margin, netted-per-instrument
   `Positions` view + `FxcmClosePositionCard` (partial close loops over
   underlying trade_ids), sibling `FxcmOrders` blotter + `FxcmModifyOrderCard`,
   `Activities` mapping FXCM closed trades into the shared feed
 - Render deployment co-located with FastAPI (`backend/Dockerfile` multi-stage, `backend/entrypoint.sh` dual-process)
-- FXCM-aware classifier + TV datafeed forex branches for the chart
+- FXCM-aware classifier + TV datafeed CFD branches for the chart
 
-Outstanding work lives in `BACKLOG.md` → "Forex (FXCM)".
+Outstanding work lives in `BACKLOG.md` → "CFDs (FXCM)".
 
 ## Render Deployment
 
@@ -572,7 +576,7 @@ container should know:
    `FXCM connected — account ...` → `Bridge listening on http://127.0.0.1:3001`
    → `Uvicorn running on http://0.0.0.0:10000`.
 
-## Running the Full Stack Locally (with Forex)
+## Running the Full Stack Locally (with CFDs)
 
 ```bash
 # Terminal 1 — FXCM bridge (see "Starting the Bridge (local)" above)
@@ -586,7 +590,7 @@ cd backend && python -m uvicorn app.main:app --reload --port 8000
 cd frontend && npm run dev
 ```
 
-Open http://localhost:5173, pick **Forex** from the splash. If you'd rather
+Open http://localhost:5173, pick **CFDs** from the splash. If you'd rather
 not run the bridge locally, leave `VITE_STREAM_BASE` pointed at the Render
 relay and the deployed bridge handles FXCM calls.
 
@@ -594,5 +598,5 @@ relay and the deployed bridge handles FXCM calls.
 
 - `CLAUDE.md` — Workflow rules, architecture overview; FXCM bridge described under "Four runtime targets".
 - `docs/landmines.md` — Runtime gotchas; FXCM section documents the HC5 SSL / JVM DNS issues.
-- `BACKLOG.md` — Deferred Forex work.
+- `BACKLOG.md` — Deferred CFD work.
 - `README.md` — Setup instructions include the bridge build/run step.

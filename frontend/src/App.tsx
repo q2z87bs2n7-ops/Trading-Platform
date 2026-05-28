@@ -17,7 +17,7 @@ import FxcmOrders from "./components/FxcmOrders";
 import Activities from "./components/Activities";
 import { HeaderEquityReadout, HeaderStatusInline } from "./components/TopBar";
 import DiscoverPage from "./components/DiscoverPage";
-import ForexDiscoverPage from "./components/ForexDiscoverPage";
+import CfdDiscoverPage from "./components/CfdDiscoverPage";
 import AssetClassSplash from "./components/AssetClassSplash";
 import AllocationDonut from "./components/AllocationDonut";
 import PortfolioHero from "./components/PortfolioHero";
@@ -41,11 +41,13 @@ import { useMobile } from "./hooks/useMobile";
 const Workspace = lazy(() => import("./components/Workspace"));
 
 type PlatformMode = "discover" | "portfolio" | "chart" | "workspace";
-type AssetClassMode = "stocks" | "crypto" | "forex";
+type AssetClassMode = "stocks" | "crypto" | "cfd";
 
 function readAssetClassMode(): AssetClassMode | null {
   const raw = localStorage.getItem("asset_class_mode");
-  if (raw === "stocks" || raw === "crypto" || raw === "forex") return raw;
+  if (raw === "stocks" || raw === "crypto" || raw === "cfd") return raw;
+  // Legacy: pre-rename the CFD silo was stored as "forex". Treat it as "cfd".
+  if (raw === "forex") return "cfd";
   return null;
 }
 
@@ -245,7 +247,7 @@ export default function App() {
 
   // Populate the FXCM symbol cache so isCryptoSymbol can distinguish FXCM
   // non-fiat instruments (XAU/USD, US30, ...) from crypto pairs. Fire-and-forget;
-  // ISO-fiat fallback in asset-class.ts covers common forex pairs pre-boot.
+  // ISO-fiat fallback in asset-class.ts covers common CFD pairs pre-boot.
   useEffect(() => {
     api.getFxcmInstruments()
       .then((list) => registerFxcmSymbols(list.map((i) => i.instrument).filter(Boolean)))
@@ -267,8 +269,8 @@ export default function App() {
   const { theme, toggle: toggleTheme } = useTheme();
 
   const activeClass: AssetClassMode = assetClassMode ?? "stocks";
-  // Alpaca-backed components only understand "stocks" | "crypto"; forex falls
-  // back to stocks so those surfaces stay functional when the silo is forex.
+  // Alpaca-backed components only understand "stocks" | "crypto"; the CFD silo
+  // falls back to stocks so those surfaces stay functional when CFD is active.
   const alpacaSilo: "stocks" | "crypto" = activeClass === "crypto" ? "crypto" : "stocks";
   const symbols = (activeClass === "crypto" ? cryptoWl?.symbols : wl?.symbols) ?? [];
 
@@ -372,7 +374,7 @@ export default function App() {
   useEffect(() => {
     function onSwitch(e: Event) {
       const detail = (e as CustomEvent<{ silo?: AssetClassMode }>).detail;
-      if (detail?.silo === "stocks" || detail?.silo === "crypto" || detail?.silo === "forex") {
+      if (detail?.silo === "stocks" || detail?.silo === "crypto" || detail?.silo === "cfd") {
         switchAssetClass(detail.silo);
       }
     }
@@ -423,7 +425,7 @@ export default function App() {
           "--accent-2": "var(--pos)",
           "--accent-bg": "var(--pos-bg)",
         } as React.CSSProperties)
-      : activeClass === "forex"
+      : activeClass === "cfd"
         ? ({
             "--accent": "oklch(72% 0.18 55)",
             "--accent-2": "oklch(72% 0.18 55)",
@@ -489,7 +491,7 @@ export default function App() {
                   className="text-[14px] font-semibold truncate inline-flex items-center gap-1"
                   style={{ letterSpacing: "-0.005em" }}
                 >
-                  {activeClass === "crypto" ? "Crypto" : activeClass === "forex" ? "Forex" : "Stocks"}
+                  {activeClass === "crypto" ? "Crypto" : activeClass === "cfd" ? "CFDs" : "Stocks"}
                   <span
                     aria-hidden
                     style={{ color: "var(--mute)", fontSize: 10 }}
@@ -548,14 +550,14 @@ export default function App() {
       </header>
       )}
 
-      {/* Discover — parameterized by active asset class; forex gets its own surface */}
-      {mode === "discover" && activeClass === "forex" && (
-        <ForexDiscoverPage
+      {/* Discover — parameterized by active asset class; CFDs get their own surface */}
+      {mode === "discover" && activeClass === "cfd" && (
+        <CfdDiscoverPage
           onSelectSymbol={(s) => setSelected(s)}
           onOpenChart={() => switchMode("chart")}
         />
       )}
-      {mode === "discover" && activeClass !== "forex" && (
+      {mode === "discover" && activeClass !== "cfd" && (
         <DiscoverPage
           assetClass={activeClass}
           selected={selected}
@@ -569,7 +571,7 @@ export default function App() {
           <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
             <TVPlatform
               symbol={
-                activeClass === "forex"
+                activeClass === "cfd"
                   ? (selected || "EUR/USD")
                   : selected
               }
@@ -577,7 +579,7 @@ export default function App() {
               assetClass={activeClass}
             />
           </div>
-          <ChatPanel symbol={selected || (activeClass === "crypto" ? "BTC/USD" : activeClass === "forex" ? "EUR/USD" : "AAPL")} />
+          <ChatPanel symbol={selected || (activeClass === "crypto" ? "BTC/USD" : activeClass === "cfd" ? "EUR/USD" : "AAPL")} />
         </div>
       )}
 
@@ -630,7 +632,7 @@ export default function App() {
           <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
             <section>
               <SectionHeading label="Orders" />
-              {activeClass === "forex" ? (
+              {activeClass === "cfd" ? (
                 <FxcmOrders />
               ) : (
                 <Orders assetClass={activeClass} />
@@ -645,9 +647,9 @@ export default function App() {
       )}
 
       {/* Floating Buy/Sell bar — Discover + Portfolio (Alpaca silos only).
-         Chart mode mounts its own TradeBar inside TVPlatform. Forex has no
+         Chart mode mounts its own TradeBar inside TVPlatform. CFDs have no
          Alpaca order entry, so it's suppressed there. */}
-      {(mode === "discover" || mode === "portfolio") && activeClass !== "forex" && (
+      {(mode === "discover" || mode === "portfolio") && activeClass !== "cfd" && (
         <TradeBar symbol={selected} />
       )}
 
@@ -730,12 +732,12 @@ function PortfolioAllocation({
   activeClass: AssetClassMode;
 }) {
   const positions = usePositions();
-  const fxcm = useFxcmPositions(activeClass === "forex");
+  const fxcm = useFxcmPositions(activeClass === "cfd");
   // FXCM returns one row per trade lot. Net per instrument so the donut shows
   // one slice per pair/CFD (matching the netted Positions blotter), not one
-  // slice per lot. used_margin is the per-position $ exposure on a forex book.
+  // slice per lot. used_margin is the per-position $ exposure on a CFD book.
   const siloPositions =
-    activeClass === "forex"
+    activeClass === "cfd"
       ? Array.from(
           (fxcm.data || []).reduce((acc, p) => {
             const symbol = String(p.instrument || "");

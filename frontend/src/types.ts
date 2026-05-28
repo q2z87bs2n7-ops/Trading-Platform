@@ -630,6 +630,7 @@ export interface HolderDemographicsResponse {
 
 // FXCM bridge types (ForexConnect via /api/fxcm/*).
 // The bridge exposes raw ForexConnect table rows enriched with instrument metadata.
+// (ForexConnect is FXCM's product name — the silo on the frontend is "cfd".)
 
 export interface FxcmAccount {
   account_id?: string | number;
@@ -685,7 +686,7 @@ export interface FxcmPosition {
   ask?: number;
   mid?: number;
   live_pl?: number;
-  // Alias for used_margin so AllocationDonut (keyed on market_value) can render forex.
+  // Alias for used_margin so AllocationDonut (keyed on market_value) can render CFDs.
   market_value?: number;
   digits?: number;
   open_time?: string;

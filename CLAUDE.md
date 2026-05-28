@@ -14,12 +14,13 @@ bridge architecture, SDK patterns, what's built, what's next).
 ## What this is
 
 A serious hobby-grade paper-trading platform on the
-[Alpaca](https://alpaca.markets/) API, with a third **Forex silo** powered by
+[Alpaca](https://alpaca.markets/) API, with a third **CFD silo** powered by
 the FXCM ForexConnect API. Full paper trading on Alpaca: orders
 (market/limit/stop/stop-limit/trailing, bracket/OCO), cancel/replace,
 close positions, portfolio & P/L, persisted watchlists, asset search,
-real-time streaming. Supports **US equities**, **crypto**, and **forex
-(FXCM demo account)** in three separate silos. Alpaca silos are paper-only
+real-time streaming. Supports **US equities**, **crypto**, and **CFDs
+(FXCM demo account — forex, indices, metals, commodities, stock CFDs)**
+in three separate silos. Alpaca silos are paper-only
 — there is no live trading path. The FXCM silo is a POC against a demo
 account via an FCLite Java bridge that co-runs with the relay on Render.
 
@@ -58,7 +59,7 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
 - **Frontend:** React 18 + TypeScript + Vite, single-page (no router).
   On the **first session only** `AssetClassSplash.tsx` is shown as the
   landing screen, prompting the user to pick **Stocks**, **Crypto**, or
-  **Forex**. Once a silo is picked, `localStorage('splash_seen_v1')='1'`
+  **CFDs**. Once a silo is picked, `localStorage('splash_seen_v1')='1'`
   is set and every subsequent load lands straight on the last-used silo's
   Discover. `localStorage('asset_class_mode')` is now **load-bearing** — it
   selects the silo the app boots into (was previously just a last-used
@@ -66,14 +67,14 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
   **Account Hub**: a whole-account overview (total equity, day P/L,
   buying power, stocks-vs-crypto-vs-cash split) that is intentionally the
   *only* cross-silo balance surface — every other balance view is filtered
-  to the active silo. The forex card pulls live FXCM equity / day P/L /
+  to the active silo. The CFD card pulls live FXCM equity / day P/L /
   position count via `useFxcmAccount` + `useFxcmPositions` (30 s poll,
   `retry: 0`); both hooks are gated on the Hub overlay (`!!onClose`) so
   the first-time landing splash doesn't hit the bridge. Switching silo also runs through the brand button
   → hub on desktop (the standalone stocks/crypto pill is gone); mobile
   keeps the inline toggle for fast access. Per-silo accent: stocks
   recolours the `--accent` tokens to green (`--pos`), crypto keeps the
-  default blue, forex uses orange/amber (`oklch(72% 0.18 55)`);
+  default blue, CFD uses orange/amber (`oklch(72% 0.18 55)`);
   `--pos`/`--neg` P/L colours are untouched. The header
   pill switches between four modes
   (persisted across reloads via `localStorage('platform_mode_v1')`;
@@ -127,7 +128,7 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
       view stays chronological), **economic calendar**
       (`discover/EconomicCard.tsx`, high/medium-impact, day-paginated —
       defaults to today, falls back to the next day with events; US-only on
-      stocks Discover, FXCM-derived country set on Forex Discover (see
+      stocks Discover, FXCM-derived country set on CFD Discover (see
       `lib/fxcm-countries.ts`); rows for
       the ~95 mapped recurring releases deep-link to the corresponding
       **FRED series page** in a new tab via `lib/economic-fred-map.ts`
@@ -162,8 +163,8 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
     `MobileHeader`. The market clock surfaces stocks-only (Alpaca clock
     is equities-only); crypto shows a static `Open · 24/7`. BP no longer
     surfaces in any header — it lives in the hero (`buying_power` for
-    stocks, `non_marginable_buying_power` for crypto). **Forex/FXCM**
-    runs the same Portfolio shell with silo-specific bodies: `ForexPortfolioHero`
+    stocks, `non_marginable_buying_power` for crypto). **CFD/FXCM**
+    runs the same Portfolio shell with silo-specific bodies: `CfdPortfolioHero`
     shows `equity` + day-chip + a 3-stat grid (Free margin · Total P/L ·
     Open orders) — **no sparkline** (FCLite doesn't yet expose
     closed-trade timestamps, so per-silo P/L history can't be rebuilt FIFO
@@ -180,9 +181,9 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
     `PATCH /api/fxcm/order/{id}` route via `FxcmModifyOrderCard`. `Activities`
     sources rows from `/api/fxcm/closed_trades`, normalising each to
     `activity_type: "TRADE_CLOSE"` so the existing `describe()` helper
-    renders them unchanged. The `TradeBar` is still suppressed in forex mode
-    (Alpaca-only order entry); forex order entry lives in `FxcmOrderSheet`
-    mounted from `ForexDiscoverPage`.
+    renders them unchanged. The `TradeBar` is still suppressed in CFD mode
+    (Alpaca-only order entry); CFD order entry lives in `FxcmOrderSheet`
+    mounted from `CfdDiscoverPage`.
   - **Chart** — `TVPlatform.tsx` wraps the full TradingView Charting
     Library (`frontend/public/charting_library/`, committed — private
     repo only) using **TV's native chrome**: the native header (symbol
@@ -297,7 +298,7 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
   off the same array). When the DB is unreachable it degrades to those `include`
   symbols only. FMP economic times are **UTC**. `/api/calendar/economic` accepts
   `?countries=US,GB,DE,...` (ISO 3166-1 alpha-2, plus `EU` for the eurozone
-  aggregate); empty defaults to US-only. The Forex Discover card passes the
+  aggregate); empty defaults to US-only. The CFD Discover card passes the
   countries it derives from the FXCM instrument universe via
   `lib/fxcm-countries.ts`, so any new symbol the bridge surfaces widens
   calendar coverage automatically. `/api/news` and `/api/most-active` are
@@ -481,7 +482,7 @@ new surface. Full rules, precedents, and examples: `docs/workspace.md` →
 
 | Key | Writer | Read by | Notes |
 | --- | ------ | ------- | ----- |
-| `asset_class_mode` | `App.tsx` | `App.tsx` | `"stocks" \| "crypto" \| "forex"`. **Load-bearing** — the silo the app boots into on subsequent loads (post-splash). Also highlights the active card in the Account Hub. |
+| `asset_class_mode` | `App.tsx` | `App.tsx` | `"stocks" \| "crypto" \| "cfd"`. **Load-bearing** — the silo the app boots into on subsequent loads (post-splash). Also highlights the active card in the Account Hub. Legacy `"forex"` values are migrated to `"cfd"` on read. |
 | `platform_mode_v1` | `App.tsx` | `App.tsx` | `"discover" \| "portfolio" \| "chart" \| "workspace"`. The header-pill mode the app boots into. A mobile reload that rehydrates `workspace` falls back to `discover` (workspace is desktop-only). |
 | `splash_seen_v1` | `App.tsx` | `App.tsx` | `"1"` once the user has picked a silo from the splash. Subsequent loads skip the splash and land on the `asset_class_mode` silo. Clearing this key restores the first-time landing. |
 | `theme` | `hooks/useTheme.ts` + `index.html` bootstrap | both | `"light" \| "dark"`. Defaults to OS preference. |

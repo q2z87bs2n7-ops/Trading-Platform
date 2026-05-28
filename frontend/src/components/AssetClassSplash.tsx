@@ -3,7 +3,7 @@ import { useMobile } from "../hooks/useMobile";
 import { isCryptoPosition } from "../lib/asset-class";
 import { money, pct } from "../lib/format";
 
-type AssetClassMode = "stocks" | "crypto" | "forex";
+type AssetClassMode = "stocks" | "crypto" | "cfd";
 
 const timeHM = (ts: number) =>
   new Date(ts * 1000).toLocaleTimeString(undefined, {
@@ -343,17 +343,17 @@ export default function AssetClassSplash({
               onClick={() => onSelect("crypto")}
             />
           </div>
-          {/* Forex — full-width card; backed by the FXCM bridge (not Alpaca) */}
+          {/* CFDs — full-width card; backed by the FXCM bridge (not Alpaca) */}
           <SiloCard
-            name="Forex"
+            name="CFDs"
             dot="oklch(72% 0.18 55)"
             positions={fxcmPosCount}
             equity={fxcmEquity}
             dayPl={fxcmDay}
             dayPlPct={fxcmDayPct}
             subStatus="FXCM demo · 24/5"
-            active={currentClass === "forex"}
-            onClick={() => onSelect("forex")}
+            active={currentClass === "cfd"}
+            onClick={() => onSelect("cfd")}
           />
         </div>
 

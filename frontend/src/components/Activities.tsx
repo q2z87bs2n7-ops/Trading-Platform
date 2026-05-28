@@ -142,12 +142,12 @@ export default function Activities({
   bare?: boolean;
   symbol?: string;
   dense?: boolean;
-  assetClass?: "stocks" | "crypto" | "forex";
+  assetClass?: "stocks" | "crypto" | "cfd";
 }) {
-  const isForex = assetClass === "forex";
+  const isCfd = assetClass === "cfd";
   const alpaca = useActivities(25);
-  const fxcm = useFxcmClosedTrades(isForex);
-  const { data, error, isPending } = isForex
+  const fxcm = useFxcmClosedTrades(isCfd);
+  const { data, error, isPending } = isCfd
     ? {
         data: { activities: fxcmRowsToActivities(fxcm.data) },
         error: fxcm.error,

@@ -309,7 +309,7 @@ export default function Positions({
 }: {
   variant?: "strip" | "table";
   onSelect?: (symbol: string) => void;
-  assetClass?: "stocks" | "crypto" | "forex";
+  assetClass?: "stocks" | "crypto" | "cfd";
   symbol?: string;
   dense?: boolean;
   // Only meaningful with `dense`/mobile (i.e. card layout). Tightens row
@@ -317,9 +317,9 @@ export default function Positions({
   compact?: boolean;
   bare?: boolean;
 } = {}) {
-  if (assetClass === "forex") {
+  if (assetClass === "cfd") {
     return (
-      <ForexPositions
+      <CfdPositions
         variant={variant}
         onSelect={onSelect}
         symbol={symbol}
@@ -613,7 +613,7 @@ function AlpacaPositions({
   );
 }
 
-// ── Forex (FXCM) ────────────────────────────────────────────────────────────
+// ── CFDs (FXCM) ─────────────────────────────────────────────────────────────
 // Netted per-instrument view: aggregate raw per-trade rows from
 // /api/fxcm/positions into single rows that mirror Alpaca's layout.
 
@@ -729,7 +729,7 @@ function netFxcmPositions(rows: FxcmPosition[]): NettedFxcmRow[] {
   return out;
 }
 
-function ForexPositions({
+function CfdPositions({
   variant,
   onSelect,
   symbol,
@@ -791,7 +791,7 @@ function ForexPositions({
               color: "var(--mute)",
             }}
           >
-            No open forex positions.
+            No open CFD positions.
           </div>
         )}
         {!isPending &&

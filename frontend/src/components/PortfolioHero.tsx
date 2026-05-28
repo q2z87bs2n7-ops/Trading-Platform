@@ -18,7 +18,7 @@ const money = (n: number) =>
 
 const pct = (n: number) => `${n >= 0 ? "+" : ""}${(n * 100).toFixed(2)}%`;
 
-type AssetClass = "stocks" | "crypto" | "forex";
+type AssetClass = "stocks" | "crypto" | "cfd";
 
 const TERMINAL = new Set([
   "filled",
@@ -38,7 +38,7 @@ const isLive = (o: Order) => !TERMINAL.has(o.status.toLowerCase());
 // curve here defaults to ALL.
 export default function PortfolioHero({ assetClass }: { assetClass: AssetClass }) {
   const isMobile = useMobile();
-  if (assetClass === "forex") return <ForexPortfolioHero isMobile={isMobile} />;
+  if (assetClass === "cfd") return <CfdPortfolioHero isMobile={isMobile} />;
   return <AlpacaPortfolioHero assetClass={assetClass} isMobile={isMobile} />;
 }
 
@@ -291,10 +291,10 @@ function AlpacaPortfolioHero({
   );
 }
 
-// FXCM forex silo: no per-symbol P/L history (bridge doesn't expose it), so
+// FXCM CFD silo: no per-symbol P/L history (bridge doesn't expose it), so
 // the curve slot is intentionally empty — kept as a fixed-height spacer so
 // the right-side stat grid keeps the same baseline as stocks/crypto.
-function ForexPortfolioHero({ isMobile }: { isMobile: boolean }) {
+function CfdPortfolioHero({ isMobile }: { isMobile: boolean }) {
   const account = useFxcmAccount(true);
   const positions = useFxcmPositions(true);
   const orders = useFxcmOrders(true);
@@ -366,7 +366,7 @@ function ForexPortfolioHero({ isMobile }: { isMobile: boolean }) {
           className="text-[12px]"
           style={{ color: "var(--mute)", letterSpacing: "0.02em" }}
         >
-          Forex holdings
+          CFD holdings
         </span>
         <div
           className="font-mono font-semibold tabular-nums"

@@ -11,7 +11,7 @@ import { isCryptoSymbol } from "./asset-class";
 import type { FxcmBar, FxcmPrice, Quote } from "../types";
 
 // FXCM has no SSE on the bridge yet — chart live ticks fall back to polling
-// /api/fxcm/prices at this cadence. Matches ForexDiscoverPage's poll loop.
+// /api/fxcm/prices at this cadence. Matches CfdDiscoverPage's poll loop.
 const FXCM_QUOTE_POLL_MS = 3000;
 
 // Matches the flush interval in useLiveQuotes — caps TV order-ticket
@@ -57,8 +57,8 @@ function toFxcmTf(resolution: string): string {
   return FXCM_RESOLUTION_MAP[resolution] ?? "H1";
 }
 
-// pricescale for forex: JPY pairs have 3 decimal places, others 5
-function forexPriceScale(symbol: string): number {
+// pricescale for CFD pairs: JPY pairs have 3 decimal places, others 5
+function cfdPriceScale(symbol: string): number {
   return symbol.includes("JPY") ? 1000 : 100000;
 }
 
@@ -69,7 +69,7 @@ interface DatafeedOpts {
   // A function so the live silo can flow through without re-creating the
   // datafeed and tearing down the TV widget on every toggle.
   getSearchAssetClass?: () => string;
-  // Full silo name — used to route bar/resolve calls to FXCM when "forex".
+  // Full silo name — used to route bar/resolve calls to FXCM when "cfd".
   getAssetClass?: () => string;
 }
 
@@ -96,8 +96,8 @@ export function createDatafeed(opts: DatafeedOpts = {}) {
       _symbolType: string,
       onResult: (results: object[]) => void,
     ) {
-      if (getAssetClass() === "forex") {
-        // Forex: search FXCM instruments endpoint
+      if (getAssetClass() === "cfd") {
+        // CFD: search FXCM instruments endpoint
         fetch(`${API_BASE}/api/fxcm/instruments?search=${encodeURIComponent(userInput)}`)
           .then((r) => r.json())
           .then((data) => {
@@ -107,7 +107,7 @@ export function createDatafeed(opts: DatafeedOpts = {}) {
               full_name: a.instrument ?? "",
               description: a.display_name ?? a.instrument ?? "",
               exchange: "FXCM",
-              type: "forex",
+              type: "cfd",
             })));
           })
           .catch(() => onResult([]));
@@ -138,18 +138,18 @@ export function createDatafeed(opts: DatafeedOpts = {}) {
       onResolve: (info: object) => void,
       onError: (err: string) => void,
     ) {
-      if (getAssetClass() === "forex") {
-        // Resolve forex symbols locally — they're not in the Alpaca asset catalogue
+      if (getAssetClass() === "cfd") {
+        // Resolve CFD symbols locally — they're not in the Alpaca asset catalogue
         onResolve({
           name: symbolName,
           full_name: symbolName,
           description: symbolName,
-          type: "forex",
+          type: "cfd",
           session: "0000-2400:23456",
           timezone: "UTC",
           exchange: "FXCM",
           minmov: 1,
-          pricescale: forexPriceScale(symbolName),
+          pricescale: cfdPriceScale(symbolName),
           has_intraday: true,
           supported_resolutions: ["1", "5", "15", "30", "60", "240", "D", "W"],
           volume_precision: 0,
@@ -190,7 +190,7 @@ export function createDatafeed(opts: DatafeedOpts = {}) {
       onResult: (bars: object[], meta: { noData: boolean }) => void,
       onError: (err: string) => void,
     ) {
-      if (getAssetClass() === "forex") {
+      if (getAssetClass() === "cfd") {
         const tf = toFxcmTf(resolution);
         // date_from / date_to from TV's `from` epoch seconds
         const fromDate = new Date(periodParams.from * 1000).toISOString().slice(0, 10);
@@ -253,7 +253,7 @@ export function createDatafeed(opts: DatafeedOpts = {}) {
       onTick: (bar: object) => void,
       subscriberUID: string,
     ) {
-      if (getAssetClass() === "forex") {
+      if (getAssetClass() === "cfd") {
         // FXCM bridge has no SSE bar stream yet. The chart's bar history loads
         // via getBars; the live price line still moves via subscribeQuotes.
         // Real-time bar updates are a follow-up (BACKLOG → "FXCM push").
@@ -304,7 +304,7 @@ export function createDatafeed(opts: DatafeedOpts = {}) {
       onDataCallback: (data: object[]) => void,
       onErrorCallback: (err: string) => void,
     ) {
-      if (getAssetClass() === "forex") {
+      if (getAssetClass() === "cfd") {
         // FXCM offers list, filter client-side. Cheaper than N single-instrument
         // fetches and matches what /fxcm/watchlist already does internally.
         fetch(`${API_BASE}/api/fxcm/prices`)
@@ -398,7 +398,7 @@ export function createDatafeed(opts: DatafeedOpts = {}) {
     ) {
       const all = Array.from(new Set([...symbols, ..._fastSymbols]));
 
-      if (getAssetClass() === "forex") {
+      if (getAssetClass() === "cfd") {
         // FXCM bridge has no quote SSE, so poll /api/fxcm/prices every 3s and
         // diff against the previous frame. Only emit symbols whose bid/ask
         // changed to keep TV's re-render rate down.

@@ -8,7 +8,7 @@ import { EconomicCard } from "./discover/EconomicCard";
 import SectionHeading from "./SectionHeading";
 import FxcmOrderSheet from "./trade/FxcmOrderSheet";
 
-// Forex-specific price formatter: 5 decimal places for most pairs, 3 for JPY
+// CFD-specific price formatter: 5 decimal places for most pairs, 3 for JPY
 function fmtFxPrice(price: number | undefined, symbol?: string): string {
   if (price == null || isNaN(price)) return "—";
   const isJpy = symbol?.includes("JPY");
@@ -272,12 +272,12 @@ function FxcmPositions({
 
 const POLL_INTERVAL_MS = 3000;
 
-interface ForexDiscoverPageProps {
+interface CfdDiscoverPageProps {
   onSelectSymbol?: (symbol: string) => void;
   onOpenChart?: () => void;
 }
 
-export default function ForexDiscoverPage({ onSelectSymbol, onOpenChart }: ForexDiscoverPageProps) {
+export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDiscoverPageProps) {
   const [bridgeOk, setBridgeOk] = useState<boolean | null>(null);
   const [account, setAccount] = useState<FxcmAccount | null>(null);
   const [prices, setPrices] = useState<FxcmPrice[]>([]);
@@ -371,7 +371,7 @@ export default function ForexDiscoverPage({ onSelectSymbol, onOpenChart }: Forex
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-0.5">
           <h2 className="text-[18px] font-semibold" style={{ letterSpacing: "-0.01em" }}>
-            Forex
+            CFDs
           </h2>
           <span className="text-[12px]" style={{ color: "var(--mute)" }}>
             FXCM ForexConnect — demo account

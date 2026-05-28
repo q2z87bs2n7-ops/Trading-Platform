@@ -3,36 +3,36 @@
 Outstanding work only — shipped / historic notes are intentionally not kept
 here; use `git log` for that.
 
-## Forex (FXCM)
+## CFDs (FXCM)
 
 Bridge live on Render alongside the relay; Discover, order entry, positions,
 chart, and the FXCM-aware classifier are all shipped (see `docs/fxcm.md` for
 the full reference). Outstanding:
 
 - **FCLite push subscription** — the chart's live price line and the
-  ForexDiscoverPage watchlist both poll `/api/fxcm/prices` at 3 s.
+  CfdDiscoverPage watchlist both poll `/api/fxcm/prices` at 3 s.
   FCLite supports push callbacks via `subscribeOffer`; wire that into an
   SSE route at `/api/fxcm/stream` so quotes ride the same shape as
   Alpaca's quote stream. Removes the polling cadence floor.
-- **Live current-bar updates in the forex chart** — `subscribeBars` is a
-  no-op in forex mode (the bridge has no SSE bar stream). Either synthesize
+- **Live current-bar updates in the CFD chart** — `subscribeBars` is a
+  no-op in CFD mode (the bridge has no SSE bar stream). Either synthesize
   a partial bar from the push-subscription quotes above, or add a
   bar-aggregation step to the bridge.
-- **Forex order / position UI inside the TV account manager** — `createBroker`
-  short-circuits all Alpaca routes in forex mode and the panel stays empty.
-  A "forex broker" branch could wire `getFxcmPositions` / `getFxcmOrders` /
+- **CFD order / position UI inside the TV account manager** — `createBroker`
+  short-circuits all Alpaca routes in CFD mode and the panel stays empty.
+  A "CFD broker" branch could wire `getFxcmPositions` / `getFxcmOrders` /
   `placeFxcmOrder` into the TV broker surface for in-chart trading.
 - **Spread pip denominator from OFFERS `digits`** — `FxcmPrice.digits` is
-  already on the wire; `ForexDiscoverPage` and the chart status row hardcode
+  already on the wire; `CfdDiscoverPage` and the chart status row hardcode
   100000/1000 for non-JPY/JPY. Replace with `digits`-derived multiplier so
   exotic-precision instruments display correctly.
 - **Watchlist customisation** — bridge's `DEFAULT_WATCHLIST` is a hardcoded
   set of 8 major pairs. Persist user picks in localStorage (simple) or via
   a new `/api/fxcm/watchlist-prefs` endpoint.
 - **FXCM in the asset catalogue** — 516 FXCM instruments live cache-only in
-  the JVM. To extend `find_symbol`, screener, and Chart search across forex,
+  the JVM. To extend `find_symbol`, screener, and Chart search across CFDs,
   add a `POST /api/_dev/seed-fxcm` routine that upserts from `/api/fxcm/instruments`
-  into `assets` with `asset_class='forex'` (schema migration needed). Note:
+  into `assets` with `asset_class='cfd'` (schema migration needed). Note:
   `/instruments` returns only `{Name, OfferId, Status}` — enrich during the
   seed by joining offer-side fields (`display_name`, `type`, `currency`,
   `session`, `timezone`) from `/prices`, or extend the bridge handler to
@@ -88,7 +88,7 @@ the full reference). Outstanding:
   **crypto-silo economic card** (macro affects crypto too), **AI read tools** so
   the bot can *answer* earnings/economic questions in text (today it can only
   *place* the earnings widget), and **user-configurable windows / impact / region**
-  (currently fixed: earnings +14d, economic +7d US high+medium — Forex
+  (currently fixed: earnings +14d, economic +7d US high+medium — CFD
   Discover overrides the region with an FXCM-derived country set).
 - **Per-silo P/L curve granularity** — `/api/pnl-history` (`alpaca/pnl.py`)
   rebuilds the curve from FILL activities (FIFO) at *daily* closes with a cost

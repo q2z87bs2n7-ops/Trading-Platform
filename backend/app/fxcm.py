@@ -117,7 +117,7 @@ async def prices(instrument: str = None):
 async def positions():
     rows = await _get("/positions")
     # AllocationDonut keys off `market_value`; the bridge exposes used_margin,
-    # which is the right per-position $ figure for a forex book.
+    # which is the right per-position $ figure for a CFD book.
     if isinstance(rows, list):
         for p in rows:
             if isinstance(p, dict):

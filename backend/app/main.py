@@ -313,7 +313,7 @@ def economic_calendar(response: Response, countries: str = "") -> dict:
 
     ``?countries=US,GB,DE,...`` (comma-separated ISO 3166-1 alpha-2 codes,
     plus ``EU`` for the eurozone aggregate). Empty = US default for the
-    long-standing stocks Discover card; the forex card passes the country
+    long-standing stocks Discover card; the CFD card passes the country
     set derived from the FXCM instrument list.
     """
     response.headers["Cache-Control"] = "public, max-age=3600"

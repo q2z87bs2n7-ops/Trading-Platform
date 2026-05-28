@@ -11,8 +11,8 @@ import type { Order, Position } from "../types";
 // Two-tier check:
 //   1. _fxcmSymbols cache, populated from /api/fxcm/instruments at app boot
 //      via registerFxcmSymbols. CRYPTO-SHAPE PAIRS ARE FILTERED OUT during
-//      registration so the cache only holds forex pairs, metals, indices,
-//      and stock CFDs.
+//      registration so the cache only holds CFD pairs (fiat forex, metals,
+//      indices, stock CFDs).
 //   2. ISO 4217 fiat + metal regex fallback for the synchronous pre-boot
 //      path.
 // Anything classified as FXCM is, by definition, NOT crypto.
@@ -48,7 +48,7 @@ export function registerFxcmSymbols(symbols: Iterable<string>): void {
   _fxcmSymbols = set;
 }
 
-export function isForexSymbol(symbol: string): boolean {
+export function isCfdSymbol(symbol: string): boolean {
   if (!symbol) return false;
   if (_fxcmSymbols && _fxcmSymbols.has(symbol)) return true;
   const m = PAIR_RE.exec(symbol);
@@ -58,7 +58,7 @@ export function isForexSymbol(symbol: string): boolean {
 // Load-bearing synchronous check — useOrderTicket reads it before the async
 // asset fetch resolves, and the TradingView datafeed routes on it.
 export const isCryptoSymbol = (symbol: string): boolean =>
-  !!symbol && symbol.includes("/") && !isForexSymbol(symbol);
+  !!symbol && symbol.includes("/") && !isCfdSymbol(symbol);
 
 export const isCryptoPosition = (p: Position): boolean =>
   p.asset_class === "crypto" || isCryptoSymbol(p.symbol);
