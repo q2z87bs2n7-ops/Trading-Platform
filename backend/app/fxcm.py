@@ -402,14 +402,24 @@ async def watchlist():
         _last_subscribed_offer_ids = _last_subscribed_offer_ids | current_ids
         asyncio.create_task(_post("/subscribe", {"offer_ids": [str(i) for i in current_ids]}))
 
-    # Enrich with live bid/ask + display_name from the FCLite offers list.
-    # /prices already accepts `instrument=` filter for a single name; we
-    # could intersect once for the full set but the bridge's /prices
-    # already returns all offers, so just filter client-side here.
+    # Enrich with live bid/ask from the FCLite offers list.
+    # Some instruments (indices, commodities) return instrument=null from the
+    # bridge because instrumentsMgr.getInstrumentByOfferId() only resolves
+    # fully-subscribed instruments. Patch those rows using the offer_id →
+    # symbol map we already have so they still appear in the watchlist.
     offers = await _get("/prices")
     if not isinstance(offers, list):
         return []
-    by_inst = {row.get("instrument"): row for row in offers if isinstance(row, dict)}
+    enriched = []
+    for row in offers:
+        if not isinstance(row, dict):
+            continue
+        if not row.get("instrument"):
+            sym = id_to_sym.get(int(row["offer_id"])) if row.get("offer_id") else None
+            if sym:
+                row = {**row, "instrument": sym}
+        enriched.append(row)
+    by_inst = {row.get("instrument"): row for row in enriched if isinstance(row, dict)}
     rows = [by_inst.get(s) for s in symbols]
     return [r for r in rows if r]
 
