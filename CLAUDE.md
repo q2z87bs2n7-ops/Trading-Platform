@@ -183,7 +183,18 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
     `activity_type: "TRADE_CLOSE"` so the existing `describe()` helper
     renders them unchanged. The `TradeBar` is still suppressed in CFD mode
     (Alpaca-only order entry); CFD order entry lives in `FxcmOrderSheet`
-    mounted from `CfdDiscoverPage`.
+    mounted from `CfdDiscoverPage`. **CFD Discover** also mounts an inline
+    `CfdPriceChart` (single-column, between the watchlist and the economic
+    calendar) — a `lightweight-charts` candle panel sourcing OHLCV from
+    `/api/fxcm/history` via `useFxcmBars` (per-timeframe `from`/`to` window
+    since the bridge requires explicit dates; 60 s refetch on intraday, 5 min
+    on daily), with the live tip riding the page's existing 3 s
+    `/api/fxcm/prices` poll. Watchlist click sets a local `selected` (tints
+    the row with `--accent-bg`) which drives the chart; "Open ↗" propagates
+    the symbol to App-level state and switches to full Chart mode. Per-type
+    digit precision (JPY 3dp · FX 5dp · metals 4dp · indices 1dp · stock-CFDs
+    2dp) is applied to both the live-price header and the chart's right
+    price axis.
   - **Chart** — `TVPlatform.tsx` wraps the full TradingView Charting
     Library (`frontend/public/charting_library/`, committed — private
     repo only) using **TV's native chrome**: the native header (symbol
@@ -199,7 +210,12 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
     On desktop the chart fills the viewport (`.app.app-chart` flex
     column) at the same height as the `ChatPanel`. Datafeed:
     `lib/tv-datafeed.ts`. Broker: `lib/tv-broker.ts`. ChartBot side panel
-    mounts here when `AI_CHAT_ENABLED=true`.
+    mounts here when `AI_CHAT_ENABLED=true`. In the **CFD silo** the
+    datafeed branches off the Alpaca path and routes symbol search, bars,
+    quotes, and live ticks through `/api/fxcm/*` (history bars,
+    `api.getFxcmInstruments()` with client-side filter for search since
+    the bridge ignores `?search=`; `subscribeBars` is a no-op until the
+    FCLite push backlog item lands).
   - **Workspace** (desktop only — hidden on mobile) — a dockable widget
     canvas on Dockview (`components/Workspace.tsx` + `lib/workspace/`):
     per-silo layout persistence, link-channel widgets (None +
