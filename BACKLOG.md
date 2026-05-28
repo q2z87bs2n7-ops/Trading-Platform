@@ -32,7 +32,19 @@ the full reference). Outstanding:
 - **FXCM in the asset catalogue** — 516 FXCM instruments live cache-only in
   the JVM. To extend `find_symbol`, screener, and Chart search across forex,
   add a `POST /api/_dev/seed-fxcm` routine that upserts from `/api/fxcm/instruments`
-  into `assets` with `asset_class='forex'` (schema migration needed).
+  into `assets` with `asset_class='forex'` (schema migration needed). Note:
+  `/instruments` returns only `{Name, OfferId, Status}` — enrich during the
+  seed by joining offer-side fields (`display_name`, `type`, `currency`,
+  `session`, `timezone`) from `/prices`, or extend the bridge handler to
+  merge them server-side first.
+
+- **Bridge reconnect on FCLite disconnect** — `FxcmSession.connect()` only
+  uses the connection-status listener to fire the initial latch; a later
+  `isDisconnected()` does nothing. If FCLite drops mid-run, every route
+  returns errors until Render restarts the container. Add a watchdog: flip
+  `connected = false` on disconnect, kick off `session.connect()` from a
+  background thread with exponential backoff. Render's container-restart
+  covers the coarse case but a finer recovery is cheap to add.
 - **Account hub FXCM card** — splash's Forex card shows placeholder zeros.
   Wire to `getFxcmAccount()` + `getFxcmPositions()` for real balance / open
   count parity with the Alpaca cards.
