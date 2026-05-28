@@ -174,10 +174,11 @@ type SiloChannels = Record<AssetClass, Record<string, string>>;
 const CHANNEL_DEFAULTS: Record<AssetClass, Partial<Record<Channel, string>>> = {
   stocks: { main: "TSLA", blue: "AAPL", green: "NVDA", amber: "AMZN" },
   crypto: { main: "BTC/USD", blue: "ETH/USD", green: "XRP/USD", amber: "SOL/USD" },
+  cfd: { main: "EUR/USD", blue: "GBP/USD", green: "XAU/USD", amber: "US30" },
 };
 
 function loadChannels(): SiloChannels {
-  const empty: SiloChannels = { stocks: {}, crypto: {} };
+  const empty: SiloChannels = { stocks: {}, crypto: {}, cfd: {} };
   try {
     const raw = localStorage.getItem(CHANNELS_KEY);
     if (raw) return { ...empty, ...(JSON.parse(raw) as Partial<SiloChannels>) };

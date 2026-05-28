@@ -21,6 +21,9 @@ declare const TradingView: {
 interface Props {
   symbol: string;
   onSymbolChange?: (s: string) => void;
+  // Active silo — routes the datafeed's bar/resolve/search calls to FXCM when
+  // "cfd" (mirrors TVPlatform). Omitted → "" (Alpaca paths).
+  assetClass?: "stocks" | "crypto" | "cfd";
   // Dockview panel API — used to nudge TV's iframe autosize on
   // visibility/dimension changes (TV's RO misses display:none → visible
   // when the size hasn't changed, leaving the chart stuck).
@@ -54,12 +57,19 @@ function applyDensity(w: TVWidgetInstance, small: boolean) {
   });
 }
 
-export default function TVChartWidget({ symbol, onSymbolChange, panelApi }: Props) {
+export default function TVChartWidget({ symbol, onSymbolChange, assetClass, panelApi }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetRef = useRef<TVWidgetInstance | null>(null);
   const readyRef = useRef(false);
   const smallRef = useRef<boolean | null>(null);
   const { theme } = useTheme();
+
+  // Latest silo for the build-once datafeed (a silo switch must not tear down
+  // and rebuild the TV widget). Mirrors TVPlatform's assetClassRef pattern.
+  const assetClassRef = useRef(assetClass);
+  useEffect(() => {
+    assetClassRef.current = assetClass;
+  }, [assetClass]);
 
   // Latest theme for the async onChartReady path (a toggle can land while the
   // widget is still loading).
@@ -127,7 +137,15 @@ export default function TVChartWidget({ symbol, onSymbolChange, panelApi }: Prop
           "paneProperties.backgroundType": "solid",
         },
 
-        datafeed: createDatafeed(),
+        datafeed: createDatafeed({
+          getAssetClass: () => assetClassRef.current ?? "",
+          getSearchAssetClass: () =>
+            assetClassRef.current === "crypto"
+              ? "crypto"
+              : assetClassRef.current === "stocks"
+                ? "us_equity"
+                : "",
+        }),
 
         disabled_features: DISABLED_FEATURES,
 

@@ -600,7 +600,7 @@ export default function App() {
           <Workspace
             symbol={selected}
             onSelect={setSelected}
-            assetClass={alpacaSilo}
+            assetClass={activeClass}
             theme={theme}
             focus={focusMode}
             onToggleFocus={() => setFocusMode((v) => !v)}
