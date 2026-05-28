@@ -22,6 +22,16 @@ const STREAM_FLUSH_MS = 500;
 // Strip trailing slash — prevents double-slash when VITE_API_BASE ends with "/"
 const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
 
+// FXCM bridge lives on Render only — Vercel's serverless container has no
+// JVM, so /api/fxcm/* calls from the frontend must hit Render directly via
+// VITE_STREAM_BASE (or VITE_API_BASE as a local-dev fallback when both are
+// empty). Mirrors the convention in src/api.ts → STREAM_BASE.
+const FXCM_BASE = (
+  import.meta.env.VITE_STREAM_BASE ??
+  import.meta.env.VITE_API_BASE ??
+  ""
+).replace(/\/$/, "");
+
 // Map TradingView resolution strings → our backend timeframe strings
 const RESOLUTION_MAP: Record<string, string> = {
   "1": "1Min",
@@ -214,7 +224,7 @@ export function createDatafeed(opts: DatafeedOpts = {}) {
         // date_from / date_to from TV's `from` epoch seconds
         const fromDate = new Date(periodParams.from * 1000).toISOString().slice(0, 10);
         const toDate   = new Date(periodParams.to   * 1000).toISOString().slice(0, 10);
-        const url = `${API_BASE}/api/fxcm/history` +
+        const url = `${FXCM_BASE}/api/fxcm/history` +
           `?instrument=${encodeURIComponent(symbolInfo.name)}&timeframe=${tf}` +
           `&from=${fromDate}&to=${toDate}`;
         const ctrl = new AbortController();
@@ -330,7 +340,7 @@ export function createDatafeed(opts: DatafeedOpts = {}) {
       if (getAssetClass() === "cfd") {
         // FXCM offers list, filter client-side. Cheaper than N single-instrument
         // fetches and matches what /fxcm/watchlist already does internally.
-        fetch(`${API_BASE}/api/fxcm/prices`)
+        fetch(`${FXCM_BASE}/api/fxcm/prices`)
           .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
           .then((data: FxcmPrice[]) => {
             const byInst: Record<string, FxcmPrice> = {};
@@ -428,7 +438,7 @@ export function createDatafeed(opts: DatafeedOpts = {}) {
         const subscribed = new Set(all);
         const lastByInst: Record<string, { bid?: number; ask?: number }> = {};
         const tick = () => {
-          fetch(`${API_BASE}/api/fxcm/prices`)
+          fetch(`${FXCM_BASE}/api/fxcm/prices`)
             .then((r) => (r.ok ? r.json() : []))
             .then((data: FxcmPrice[]) => {
               const batch: object[] = [];

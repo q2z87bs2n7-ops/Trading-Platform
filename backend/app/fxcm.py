@@ -16,7 +16,7 @@ import time
 from typing import Any, Optional
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -172,14 +172,18 @@ async def instrument_detail(name: str):
 async def history(
     instrument: str = "EUR/USD",
     timeframe: str = "H1",
-    date_from: str = None,
-    date_to: str = None,
+    # `from` is a Python reserved word — alias the query param so the
+    # frontend's `?from=...&to=...` actually binds (otherwise FastAPI
+    # silently leaves these as None and the bridge falls back to its
+    # own 7-day window regardless of what the chart asked for).
+    from_: str | None = Query(None, alias="from"),
+    to: str | None = Query(None),
 ):
     params = {"instrument": instrument, "timeframe": timeframe}
-    if date_from:
-        params["from"] = date_from
-    if date_to:
-        params["to"] = date_to
+    if from_:
+        params["from"] = from_
+    if to:
+        params["to"] = to
     return await _get("/history", params=params)
 
 
