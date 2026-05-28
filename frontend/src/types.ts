@@ -652,6 +652,8 @@ export interface FxcmPrice {
   low?: number;
   digits?: number;
   point_size?: number;
+  instrument_type?: number;
+  base_unit_size?: number;
   trading_status?: string;
   // Instrument metadata merged by the bridge
   display_name?: string;

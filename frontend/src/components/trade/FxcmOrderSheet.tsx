@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useFxcmSubmitOrder } from "../../data/hooks";
 import type { FxcmPrice } from "../../types";
 
@@ -25,7 +25,7 @@ export default function FxcmOrderSheet({ instruments, defaultInstrument, default
   const [instrument, setInstrument] = useState(defaultInstrument || instruments[0]?.instrument || "EUR/USD");
   const [side, setSide] = useState<"B" | "S">(defaultSide ?? "B");
   const [orderType, setOrderType] = useState<UiOrderType>("OM");
-  const [amount, setAmount] = useState("1000");
+  const [amount, setAmount] = useState("1000"); // reset by useEffect when instrument changes
   const [rate, setRate] = useState("");
   const [error, setError] = useState<string | null>(null);
   const submit = useFxcmSubmitOrder();
@@ -34,6 +34,16 @@ export default function FxcmOrderSheet({ instruments, defaultInstrument, default
   const needsRate = orderType === "EN";
   const selectedPrice = instruments.find((p) => p.instrument === instrument);
   const liveRate = side === "B" ? selectedPrice?.ask : selectedPrice?.bid;
+
+  // InstrumentType 1 = FX pair: fixed 1000-unit lots.
+  // All other types use BaseUnitSize as the step/default.
+  const isFx = (selectedPrice?.instrument_type ?? 1) === 1;
+  const amountStep = isFx ? 1000 : (selectedPrice?.base_unit_size ?? 1);
+
+  // Reset amount to the correct step whenever the instrument changes.
+  useEffect(() => {
+    setAmount(String(amountStep));
+  }, [amountStep]);
 
   async function handleSubmit() {
     setError(null);
@@ -180,8 +190,8 @@ export default function FxcmOrderSheet({ instruments, defaultInstrument, default
           <label className="text-[11.5px]" style={{ color: "var(--mute)" }}>Amount (units)</label>
           <input
             type="number"
-            min={1}
-            step={1000}
+            min={amountStep}
+            step={amountStep}
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             style={{

@@ -315,8 +315,10 @@ public class FxcmSession {
             m.put("low",        safe(offer::getLow));
             m.put("volume",     safe(offer::getVolume));
             if (inst != null) {
-                m.put("digits",     safe(inst::getDigits));
-                m.put("point_size", safe(inst::getPointSize));
+                m.put("digits",          safe(inst::getDigits));
+                m.put("point_size",      safe(inst::getPointSize));
+                m.put("instrument_type", safe(inst::getInstrumentType));
+                m.put("base_unit_size",  safe(inst::getBaseUnitSize));
             }
             result.add(m);
         }
