@@ -9,6 +9,7 @@ import TVChartWidget from "../../components/TVChartWidget";
 import PriceChart from "../../components/PriceChart";
 import CfdPriceChart from "../../components/CfdPriceChart";
 import OrderTicketInline from "../../components/trade/OrderTicketInline";
+import FxcmOrderTicketInline from "../../components/trade/FxcmOrderTicketInline";
 import AccountPanel from "../../components/AccountPanel";
 import AssetProfile from "../../components/AssetProfile";
 import Fundamentals from "../../components/Fundamentals";
@@ -86,6 +87,12 @@ export const CHANNEL_META: Record<Channel, { color: string; label: string }> = {
   amber: { color: "#f59e0b", label: "Amber" },
 };
 export const SYMBOL_CHANNELS: Channel[] = ["main", "blue", "green", "amber"];
+
+// Stock CFDs carry a case-sensitive lowercase exchange suffix (RBLX.us), so CFD
+// symbols must keep their raw case for both the classifier cache and API
+// lookups. Stocks/crypto symbols are upper-cased as before.
+const normSym = (raw: string, ac: AssetClass): string =>
+  ac === "cfd" ? raw : raw.toUpperCase();
 
 // Live, non-serialized state shared by the canvas. Channel→symbol flows through
 // here (runtime); only the per-panel channel *assignment* is persisted, in the
@@ -351,18 +358,6 @@ export function TabWithChannel(props: IDockviewPanelHeaderProps) {
         }}
       />
     </div>
-  );
-}
-
-// Interim placeholder for widgets whose CFD branch hasn't landed yet (Phases
-// 2–3 of docs/cfd-workspace-integration.md). Renders instead of passing "cfd"
-// to an Alpaca-only feature component, which would otherwise show stock data in
-// the CFD canvas (the wrong-silo bug this integration fixes).
-function CfdPending({ kind }: { kind: string }) {
-  return (
-    <p className="text-[13px]" style={{ color: "var(--mute)" }}>
-      {kind} isn’t wired for the CFD workspace yet.
-    </p>
   );
 }
 
@@ -764,7 +759,7 @@ function AccountWidget(_props: IDockviewPanelProps) {
 function TradeWidget(props: IDockviewPanelProps) {
   const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "main");
-  const sym = getSymbol(channel).toUpperCase();
+  const sym = normSym(getSymbol(channel), assetClass);
 
   return (
     <WidgetShell
@@ -782,7 +777,7 @@ function TradeWidget(props: IDockviewPanelProps) {
     >
       <Pane pad>
         {assetClass === "cfd" ? (
-          <CfdPending kind="Trade ticket" />
+          <FxcmOrderTicketInline instrument={sym} />
         ) : (
           <OrderTicketInline symbol={sym} />
         )}
@@ -797,7 +792,7 @@ function TradeWidget(props: IDockviewPanelProps) {
 function ProfileWidget(props: IDockviewPanelProps) {
   const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "main");
-  const symbol = getSymbol(channel).toUpperCase();
+  const symbol = normSym(getSymbol(channel), assetClass);
   const ref = useRef<HTMLDivElement>(null);
   const dense = useContainerNarrow(ref, PROFILE_DENSE_W);
   return (
@@ -836,7 +831,7 @@ function ProfileWidget(props: IDockviewPanelProps) {
 function FundamentalsWidget(props: IDockviewPanelProps) {
   const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "main");
-  const symbol = getSymbol(channel).toUpperCase();
+  const symbol = normSym(getSymbol(channel), assetClass);
   const ref = useRef<HTMLDivElement>(null);
   const dense = useContainerNarrow(ref, FUNDAMENTALS_DENSE_W);
   const wide = !useContainerNarrow(ref, FUNDAMENTALS_WIDE_W) && !dense;
@@ -877,7 +872,7 @@ function EarningsWidget(props: IDockviewPanelProps) {
   const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "none");
   const isMarket = channel === "none";
-  const symbol = isMarket ? "" : getSymbol(channel).toUpperCase();
+  const symbol = isMarket ? "" : normSym(getSymbol(channel), assetClass);
   // Crypto has no earnings — skip the fetch and show a clear notice instead of
   // the backend's bare "not found".
   const isCrypto = !isMarket && isCryptoSymbol(symbol);
@@ -992,7 +987,7 @@ function TrendingResearchWidget(props: IDockviewPanelProps) {
 function SmartScoreWidget(props: IDockviewPanelProps) {
   const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "main");
-  const symbol = getSymbol(channel).toUpperCase();
+  const symbol = normSym(getSymbol(channel), assetClass);
   const isCrypto = assetClass === "crypto" || isCryptoSymbol(symbol);
   const score = useSmartScore(symbol, !isCrypto && symbol.length > 0);
 
@@ -1034,7 +1029,7 @@ function SmartScoreWidget(props: IDockviewPanelProps) {
 function SentimentWidget(props: IDockviewPanelProps) {
   const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "main");
-  const symbol = getSymbol(channel).toUpperCase();
+  const symbol = normSym(getSymbol(channel), assetClass);
   const isCrypto = assetClass === "crypto" || isCryptoSymbol(symbol);
   const sent = useSentiment(symbol, !isCrypto && symbol.length > 0);
 
@@ -1074,7 +1069,7 @@ function SentimentWidget(props: IDockviewPanelProps) {
 function AnalystRatingsWidget(props: IDockviewPanelProps) {
   const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "main");
-  const symbol = getSymbol(channel).toUpperCase();
+  const symbol = normSym(getSymbol(channel), assetClass);
   const isCrypto = assetClass === "crypto" || isCryptoSymbol(symbol);
   const ref = useRef<HTMLDivElement>(null);
   const dense = useContainerNarrow(ref, ANALYSTS_DENSE_W);
@@ -1127,7 +1122,7 @@ function AnalystRatingsWidget(props: IDockviewPanelProps) {
 function HedgeFundsWidget(props: IDockviewPanelProps) {
   const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "main");
-  const symbol = getSymbol(channel).toUpperCase();
+  const symbol = normSym(getSymbol(channel), assetClass);
   const isCrypto = assetClass === "crypto" || isCryptoSymbol(symbol);
   const ref = useRef<HTMLDivElement>(null);
   const dense = useContainerNarrow(ref, HEDGEFUNDS_DENSE_W);
@@ -1178,7 +1173,7 @@ function HedgeFundsWidget(props: IDockviewPanelProps) {
 function InsidersWidget(props: IDockviewPanelProps) {
   const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "main");
-  const symbol = getSymbol(channel).toUpperCase();
+  const symbol = normSym(getSymbol(channel), assetClass);
   const isCrypto = assetClass === "crypto" || isCryptoSymbol(symbol);
   const ref = useRef<HTMLDivElement>(null);
   const dense = useContainerNarrow(ref, INSIDERS_DENSE_W);
@@ -1231,7 +1226,7 @@ function InsidersWidget(props: IDockviewPanelProps) {
 function RelatedTickersWidget(props: IDockviewPanelProps) {
   const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "main");
-  const symbol = getSymbol(channel).toUpperCase();
+  const symbol = normSym(getSymbol(channel), assetClass);
   const isCrypto = assetClass === "crypto" || isCryptoSymbol(symbol);
   const ref = useRef<HTMLDivElement>(null);
   const dense = useContainerNarrow(ref, RELATED_TICKERS_DENSE_W);
@@ -1287,7 +1282,7 @@ function RelatedTickersWidget(props: IDockviewPanelProps) {
 function HolderDemographicsWidget(props: IDockviewPanelProps) {
   const { getSymbol, setSymbol, assetClass } = useWorkspace();
   const [channel, setChannel] = useChannel(props, "main");
-  const symbol = getSymbol(channel).toUpperCase();
+  const symbol = normSym(getSymbol(channel), assetClass);
   const isCrypto = assetClass === "crypto" || isCryptoSymbol(symbol);
   const ref = useRef<HTMLDivElement>(null);
   const narrow = useContainerNarrow(ref, HOLDER_DEMOGRAPHICS_NARROW_W);
