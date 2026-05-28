@@ -21,7 +21,7 @@ close positions, portfolio & P/L, persisted watchlists, asset search,
 real-time streaming. Supports **US equities**, **crypto**, and **forex
 (FXCM demo account)** in three separate silos. Alpaca silos are paper-only
 — there is no live trading path. The FXCM silo is a POC against a demo
-account via a local Python 3.7 sidecar bridge.
+account via an FCLite Java bridge that co-runs with the relay on Render.
 
 **Hard rules — do not cross without an explicit, deliberate decision:**
 
@@ -258,8 +258,8 @@ account via a local Python 3.7 sidecar bridge.
   fxcm/health, fxcm/account, fxcm/prices, fxcm/watchlist, fxcm/positions,
   fxcm/orders, fxcm/summary, fxcm/closed_trades, fxcm/instruments,
   fxcm/instruments/{name:path}, fxcm/history, fxcm/order (POST/DELETE),
-  fxcm/close (POST) — these proxy to the local FXCM bridge on port 3001;
-  return 503 when the bridge is not running. `/api/indices` and
+  fxcm/close (POST) — these proxy to the in-container FXCM bridge on
+  127.0.0.1:3001; return 503 when the JVM isn't responding. `/api/indices` and
   `/api/market-news` hit Yahoo Finance directly via `requests` (no yfinance,
   no C extensions — Python 3.14 safe). `/api/calendar/{earnings,economic}`
   are **FMP-backed**, live-proxied with an in-process cache (`calendar_fmp.py`,
@@ -486,14 +486,14 @@ Watchlists are not in localStorage — server-side via `/api/watchlist`.
    frontend only; talks to the Vercel prod backend. Auto-publishes to
    `gh-pages` on every `claude/**` push. Cannot trigger a Vercel
    deploy.
-4. **FXCM bridge — local sidecar** (`fxcm-bridge/java/`). FCLite Java
-   fat JAR on port 3001, started manually on the developer's machine.
-   **Not yet deployed to Vercel or Render** — requires a persistent TCP
-   connection incompatible with serverless, and the DNS/SSL workarounds
-   need adapting for Linux (see `docs/fxcm.md`). The FastAPI proxy
-   returns 503 when the bridge is not running; the frontend shows an
-   offline notice. Run: `java -Djdk.net.hosts.file=C:\Temp\jvm-hosts.txt
-   -jar fxcm-bridge\java\target\fxcm-bridge-1.0.0.jar`. See `docs/fxcm.md`.
+4. **FXCM bridge — co-runs with the relay on Render**. FCLite Java fat
+   JAR built into `backend/Dockerfile` and launched alongside uvicorn
+   by `backend/entrypoint.sh`; binds 127.0.0.1:3001 so the FastAPI
+   proxy reaches it in-container. The frontend hits FXCM endpoints
+   directly at the Render origin via `VITE_STREAM_BASE` (Vercel's
+   serverless container has no bridge). Full FCLite reference,
+   deploy lessons, and the API quirks future agents will need:
+   `docs/fxcm.md`.
 
 ## Two AI surfaces (teal Ask anything vs violet ChartBot)
 

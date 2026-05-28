@@ -87,10 +87,12 @@ top nav; preference persists in `localStorage`.
   Separate `StockDataStream` and `CryptoDataStream` hubs; the SSE endpoint
   auto-routes based on symbol format. A `/api/fxcm/*` proxy router
   (`backend/app/fxcm.py`) forwards to the local FXCM bridge.
-- **FXCM bridge:** A Python 3.7 Flask sidecar (`fxcm-bridge/bridge.py`)
-  that holds the persistent ForexConnect session and exposes a local HTTP API
-  on port 3001. Uses an embedded Python 3.7 runtime (the `forexconnect` wheel
-  is CPython 3.7 only). Local-only — not deployed to Vercel or Render.
+- **FXCM bridge:** A FCLite Java fat JAR (`fxcm-bridge/java/`) that holds the
+  persistent ForexConnect session and exposes a local HTTP API on
+  127.0.0.1:3001. Built by `backend/Dockerfile` as a multi-stage Maven step
+  and co-runs with FastAPI on the Render relay (`backend/entrypoint.sh`).
+  Java replaced the old Python 3.7 + C++ ForexConnect wheel because the
+  wheel was Windows CPython 3.7 only and not Linux-deployable.
 - **Frontend:** React + TypeScript (Vite) + Tailwind on the Calm v2 token
   set (light + dark in oklch, Inter + IBM Plex Mono). Four modes —
   Discover, Portfolio, Chart (the full Charting Library at
@@ -192,45 +194,22 @@ Auth is via query-string params despite the `X-` prefixed names. See
 `docs/tipranks.md` for the endpoint inventory, cache TTLs (15min → 6h
 depending on update cadence), and the per-widget surfaces.
 
-### 1e. FXCM ForexConnect bridge (optional, local only)
+### 1e. FXCM Forex silo
 
-The Forex silo requires the FXCM bridge sidecar running on your machine.
-It connects to a hardcoded FXCM demo account and listens on port 3001.
+In **prod**, the bridge co-runs with the Render relay automatically — no
+local setup needed to use the Forex silo from the deployed app. Set
+`FXCM_USER` / `FXCM_PASS` in the Render dashboard if you want to point at
+a different demo account; unset = hardcoded fallback. CORS already admits
+the Vercel origin.
 
-**Prerequisites (one-time):**
+For **local development of the bridge itself** (JVM hosts file, Maven
+build, JDK requirements, run command), see `fxcm-bridge/java/README.md`.
+The FastAPI proxy (`backend/app/fxcm.py`) returns 503 when the bridge
+isn't responding; the frontend shows an offline notice and the other two
+silos are unaffected.
 
-The bridge requires Python 3.7 (the `forexconnect` wheel is CP37-only). An
-embedded Python 3.7 runtime is already checked into `fxcm-bridge/python37/`
-so no system Python 3.7 install is needed.
-
-If the site-packages are missing (first clone), install them:
-
-```powershell
-# From repo root (PowerShell)
-# If on a corporate network add: --trusted-host pypi.org --trusted-host files.pythonhosted.org
-& "fxcm-bridge\python37\python.exe" -m pip install flask forexconnect pandas
-```
-
-**Starting the bridge:**
-
-```powershell
-# Foreground (shows log output)
-& "fxcm-bridge\python37\python.exe" "fxcm-bridge\bridge.py"
-
-# Background (hidden window)
-Start-Process -FilePath "fxcm-bridge\python37\python.exe" `
-              -ArgumentList "fxcm-bridge\bridge.py" `
-              -WorkingDirectory (Get-Location) `
-              -WindowStyle Hidden
-```
-
-The bridge logs `"FXCM connected — account D161665432"` when ready.
-Verify: `Invoke-RestMethod http://127.0.0.1:3001/health`
-
-If the bridge is not running, the Forex silo shows an offline notice and
-all other silos (Stocks, Crypto) are completely unaffected.
-
-See `docs/fxcm.md` for the full integration reference.
+FCLite SDK patterns, deploy lessons, and the FXCM API quirks future
+agents will need: `docs/fxcm.md`.
 
 ### 2. Backend
 

@@ -57,34 +57,42 @@ to Linux (Render), unlike the old Python 3.7 + C++ ForexConnect wheel
 | `fxcm-bridge/java/target/fxcm-bridge-1.0.0.jar` | Built fat JAR (all deps bundled) |
 | `backend/app/fxcm.py` | FastAPI proxy router at `/api/fxcm/*` |
 | `frontend/src/components/ForexDiscoverPage.tsx` | Forex Discover page |
-| `frontend/src/api.ts` | FXCM API functions (bottom of file, `getFxcm*`) |
-| `frontend/src/types.ts` | FXCM types (`FxcmAccount`, `FxcmPrice`, `FxcmBar`, `FxcmPosition`) |
+| `frontend/src/api.ts` | FXCM API functions (`getFxcm*` block). Hit Render directly via `STREAM_BASE` — Vercel has no bridge. |
+| `frontend/src/types.ts` | FXCM types (`FxcmAccount`, `FxcmPrice`, `FxcmBar`, `FxcmPosition`, `FxcmInstrument`) |
+| `frontend/src/lib/asset-class.ts` | FXCM-aware `isForexSymbol` / `isCryptoSymbol`; cache populated at boot by App.tsx |
+| `frontend/src/lib/tv-datafeed.ts` | TV datafeed forex branches (search/resolve/bars/quotes) |
+| `frontend/src/lib/tv-broker.ts` | TV broker — Alpaca routes short-circuited in forex mode |
+| `frontend/src/components/trade/FxcmOrderSheet.tsx` | Forex order ticket (Alpaca's OrderSheet is not reusable) |
+| `backend/Dockerfile`, `backend/entrypoint.sh`, `backend/jvm-hosts.txt` | Render build / boot / DNS |
 
-## Building the Bridge
+## Building the Bridge (local)
 
-```powershell
-# Requires: JDK 8+ (JDK 25 installed at C:\jdk25\jdk-25.0.3+9) + Maven 3.x
-$env:JAVA_HOME = "C:\jdk25\jdk-25.0.3+9"
-$env:Path = "$env:JAVA_HOME\bin;C:\maven\apache-maven-3.9.16\bin;$env:Path"
+The prod build runs inside `backend/Dockerfile` stage 1. For local dev:
 
-cd C:\Users\cmischel\Trading-Platform\fxcm-bridge\java
+```bash
+cd fxcm-bridge/java
+# FXCM's public-maven repo uses a non-Maven layout — pre-seed local repo:
+curl -fsSL -o /tmp/fcl.jar "https://fxcorporate.com/public-maven/com.fxcm.api/forex-connect-lite/1.3.3/forex-connect-lite-1.3.3.jar"
+curl -fsSL -o /tmp/fcl.pom "https://fxcorporate.com/public-maven/com.fxcm.api/forex-connect-lite/1.3.3/forex-connect-lite-1.3.3.pom"
+mvn install:install-file -Dfile=/tmp/fcl.jar -DpomFile=/tmp/fcl.pom
 mvn package -DskipTests
 ```
 
-Produces `target\fxcm-bridge-1.0.0.jar` — a fat JAR with all dependencies
-bundled, including the FCLite SDK and Apache HttpClient 5.
+JDK 8+ (any current Temurin is fine; CI uses 17/21). Produces
+`target/fxcm-bridge-1.0.0.jar` — a fat JAR with FCLite + Apache HC5
+bundled. See `fxcm-bridge/java/README.md` for the Windows-flavoured
+command flavour the original dev machine uses.
 
-## Starting the Bridge
+## Starting the Bridge (local)
 
-```powershell
-# From any directory — requires the JVM hosts file (see DNS section)
-& "C:\jdk25\jdk-25.0.3+9\bin\java.exe" `
-    -Djdk.net.hosts.file=C:\Temp\jvm-hosts.txt `
-    -jar "C:\Users\cmischel\Trading-Platform\fxcm-bridge\java\target\fxcm-bridge-1.0.0.jar"
+```bash
+java -Djdk.net.hosts.file=/path/to/jvm-hosts.txt \
+     -jar fxcm-bridge/java/target/fxcm-bridge-1.0.0.jar
 ```
 
-The bridge logs `"FXCM connected — account D161665432"` when ready. It
-listens on `http://127.0.0.1:3001`.
+Where `jvm-hosts.txt` matches `backend/jvm-hosts.txt`. The bridge logs
+`"FXCM connected — account D161665432"` when ready and listens on
+`http://127.0.0.1:3001`.
 
 **Verify:** `curl http://127.0.0.1:3001/health` → `{"status":"ok","account":"D161665432"}`
 
@@ -294,13 +302,39 @@ exposed at `/api/fxcm/*`.
 | `GET /orders` | `GET /api/fxcm/orders` | Pending orders |
 | `GET /summary` | `GET /api/fxcm/summary` | — (proxied but not yet implemented in bridge) |
 | `GET /closed_trades` | `GET /api/fxcm/closed_trades` | Closed trade history |
-| `GET /instruments` | `GET /api/fxcm/instruments` | All instruments; `?type=forex` / `?tradable=true` |
+| `GET /instruments` | `GET /api/fxcm/instruments` | All FXCM instruments — see note below |
 | `GET /instruments/{name}` | `GET /api/fxcm/instruments/{name:path}` | Single instrument (e.g. `EUR/USD`) |
 | `GET /history` | `GET /api/fxcm/history` | OHLCV bars; params: `instrument`, `timeframe`, `from`, `to` |
 | `POST /order` | `POST /api/fxcm/order` | Place order |
 | `DELETE /order/{id}` | `DELETE /api/fxcm/order/{id}` | Cancel pending order |
 | `POST /close` | `POST /api/fxcm/close` | Close open trade by `trade_id` |
 | `GET /debug` | `GET /api/fxcm/debug` | Raw snapshot counts (dev only) |
+
+### `/api/fxcm/instruments` response shape (mind the casing)
+
+Unlike every other FXCM endpoint, `/instruments` returns the raw FCLite
+`InstrumentInfo` with **PascalCase** keys:
+
+```json
+[
+  {"Name": "EUR/USD", "OfferId": "1", "Status": "T"},
+  {"Name": "XAU/USD", "OfferId": "121", "Status": "T"},
+  {"Name": "US30", "OfferId": "1001", "Status": "T"},
+  {"Name": "RBLX.us", "OfferId": "80625", "Status": "D"}
+]
+```
+
+`Status`: `T` = tradable, `V` = visible (priced), `D` = disabled. Roughly
+516 entries across forex pairs, indices, metals, commodities, and stock
+CFDs. `frontend/src/api.ts → getFxcmInstruments()` normalises to lowercase
+`{instrument, offer_id, status}` at the API boundary so callers see the same
+shape as `/watchlist` / `/prices` / `/positions`. Bridge-side normalisation
+is backlogged.
+
+**The `?type=forex` query param does nothing useful** — the bridge handler
+short-circuits to `[]` for any other value and returns everything for both
+`forex` and unset. The `?tradable=true` filter does work (intersects against
+the offers manager).
 
 ### Order placement body
 
@@ -353,14 +387,49 @@ Response: array of `FxcmBar`:
 - Spread displayed in pips (multiplied by 100,000 for most pairs, 1,000 for JPY).
 - Account hero shows equity, balance, used margin, free margin.
 
-### `isCryptoSymbol` slash conflict
+### FXCM-aware classifier (`lib/asset-class.ts`)
 
-`lib/asset-class.ts` uses `symbol.includes("/")` to fast-detect crypto. Forex
-pairs (EUR/USD, GBP/USD …) also contain a slash. **This is not a bug in the
-current POC** because forex symbols never enter the Alpaca flows. If forex
-symbols ever reach `useOrderTicket` or the TradingView datafeed, the slash
-detection will misclassify them as crypto. Track this before deepening the
-Chart-mode integration.
+Crypto and FXCM symbols both use BASE/QUOTE form (BTC/USD vs EUR/USD vs
+XAU/USD). FXCM also serves non-pair symbols (US30, NAS100, SPX500, stock
+CFDs like RBLX.us). Slash alone is ambiguous — the classifier is two-tier:
+
+1. **Cache** populated from `/api/fxcm/instruments` at app boot via
+   `registerFxcmSymbols(symbols)`. Authoritative; covers indices, metals,
+   commodities, stock CFDs.
+2. **ISO 4217 fiat regex** fallback for the synchronous pre-boot path.
+   Catches every common forex pair (`<fiat>/<fiat>`) before the bridge
+   fetch resolves.
+
+```ts
+isForexSymbol("EUR/USD") // true (regex)
+isForexSymbol("XAU/USD") // true after boot (cache); false pre-boot (benign)
+isCryptoSymbol("BTC/USD") // true (slash, not in cache, not fiat/fiat)
+isCryptoSymbol("EUR/USD") // false
+```
+
+`isCryptoSymbol(s)` is just `s.includes("/") && !isForexSymbol(s)`. The
+backend mirror in `alpaca/client.py` keeps only the ISO-fiat check (no
+cache) — it's a safety net since frontend silo gating already prevents
+FXCM symbols from reaching Alpaca routes.
+
+### Chart-mode forex (TV datafeed)
+
+`lib/tv-datafeed.ts` branches on `getAssetClass() === "forex"` in six places
+— all FXCM symbol types flow through correctly regardless of shape:
+
+| Method | Forex branch | Notes |
+|---|---|---|
+| `searchSymbols` | `/api/fxcm/instruments?search=` | Bridge fuzzy-matches client-side; passes through TV's search UI. |
+| `resolveSymbol` | Local hardcoded shape | Forex/CFD symbols aren't in Alpaca's catalogue. `pricescale` derived from `forexPriceScale(symbol)` (JPY: 1000, else 100000) — still hardcoded; switch to `digits` from the offers row when wiring that backlog item. |
+| `getBars` | `/api/fxcm/history` | TV resolutions map via `FXCM_RESOLUTION_MAP` (`"1"→"m1"`, `"60"→"H1"`, `"D"→"D1"`, …). |
+| `subscribeBars` | **no-op** | Bridge has no SSE bar stream; the historical bars stay static between fetches, the live price line still moves via `subscribeQuotes`. Real-time bar updates are a backlog item. |
+| `getQuotes` | `/api/fxcm/prices` (one call, filter client-side) | Cheaper than per-symbol fetches. |
+| `subscribeQuotes` | 3s `setInterval` polling `/api/fxcm/prices`, diff-only emission | Mirrors `ForexDiscoverPage`'s cadence. Replace with FCLite push subscription when that lands. |
+
+`tv-broker.ts` short-circuits every Alpaca-bound route (`/api/account`,
+`/api/orders`, `/api/positions`, `/api/activities`) when `getAssetClass()`
+returns `"forex"` — the TV account manager stays empty in forex mode.
+Forex trading still happens via `ForexDiscoverPage` + `FxcmOrderSheet`.
 
 ## Known Gotchas
 
@@ -394,85 +463,95 @@ Chart-mode integration.
 - `createOpenMarketOrder()` returns void — capture order ID via `IOrderChangeListener.onAdd()`.
 - `ordersMgr.removeOrder(orderId)` is the cancellation method (not `deleteOrder`).
 
-## What's Implemented
+## What's Shipped
 
-- [x] FCLite Java bridge with persistent session (login, manager loading, reconnect)
-- [x] All read routes (account, prices, positions, orders, closed trades, watchlist, instruments, history)
-- [x] Order placement (market) and cancellation
-- [x] Trade close
-- [x] FastAPI proxy router (`/api/fxcm/*`)
-- [x] Frontend Forex silo: `AssetClassMode` extended, orange accent, splash card, settings switcher
-- [x] ForexDiscoverPage: account hero + live watchlist (3s polling, tick colouring)
+- FCLite Java bridge with persistent session (login, manager loading)
+- All read + write routes (read: account/prices/positions/orders/closed_trades/watchlist/instruments/history; write: order/close)
+- FastAPI proxy at `/api/fxcm/*`
+- Frontend forex silo end-to-end: orange accent, splash card, ForexDiscoverPage (account hero, live watchlist, FxcmPositions panel), FxcmOrderSheet
+- Render deployment co-located with FastAPI (`backend/Dockerfile` multi-stage, `backend/entrypoint.sh` dual-process)
+- FXCM-aware classifier + TV datafeed forex branches for the chart
 
-## What's NOT Implemented (Next Steps)
-
-See also `BACKLOG.md` → "Forex (FXCM)".
-
-1. **Order entry UI** — bridge has `/order` + `/close`; no frontend order ticket yet.
-
-2. **Positions panel** — `/api/fxcm/positions` data exists; no frontend table yet.
-
-3. **Chart integration** — `/api/fxcm/history` returns OHLCV bars compatible with
-   TradingView's format. The TV datafeed needs a forex branch. Resolve the
-   `isCryptoSymbol` slash conflict first.
-
-4. **Real-time price updates** — currently 3s polling. FCLite supports push callbacks
-   for genuine real-time quotes.
-
-5. **Spread pip denominator** — hardcoded in frontend. Use the `digits` field from the
-   offers data instead.
+Outstanding work lives in `BACKLOG.md` → "Forex (FXCM)".
 
 ## Render Deployment
 
-The bridge ships in the same container as the FastAPI relay — option (a) in
-the deploy spec. Touched files:
+The bridge ships in the same container as the FastAPI relay. Touched files:
 
 | File | Role |
 |---|---|
-| `backend/Dockerfile` | Multi-stage: `maven:3.9-eclipse-temurin-17` builds the fat JAR; `python:3.12-slim` + `openjdk-17-jre-headless` runs both processes. |
-| `backend/entrypoint.sh` | Backgrounds the JVM (`-Djdk.net.hosts.file=/app/jvm-hosts.txt`) and `exec`s uvicorn. SIGTERM kills both. |
+| `backend/Dockerfile` | Multi-stage: `maven:3.9-eclipse-temurin-17` builds the fat JAR; `python:3.12-slim` + `openjdk-21-jre-headless` runs both processes. |
+| `backend/entrypoint.sh` | Backgrounds the JVM with tuned heap flags + `-Djdk.net.hosts.file=/app/jvm-hosts.txt`, then runs uvicorn. `kill -0` poll loop waits on both PIDs; SIGTERM kills both. |
 | `backend/jvm-hosts.txt` | DNS overrides baked into the image. |
-| `render.yaml` | Adds `FXCM_USER` / `FXCM_PASS` as `sync: false` secrets (set in the Render dashboard). |
+| `render.yaml` | Adds `FXCM_USER` / `FXCM_PASS` as `sync: false` secrets. |
 
-No changes were needed to `backend/app/fxcm.py` — the proxy still talks to
-`http://127.0.0.1:3001`, which now resolves to the in-container JVM rather
-than the developer's host. The bridge stays bound to `127.0.0.1` so it is
-not reachable from outside the container.
+The proxy in `backend/app/fxcm.py` talks to `http://127.0.0.1:3001`, which
+now resolves to the in-container JVM. The bridge stays bound to `127.0.0.1`
+so it's not reachable from outside the container. From the **frontend**, FXCM
+calls go directly to the Render origin (`VITE_STREAM_BASE`) — Vercel's
+serverless container has no bridge.
 
-**Render plan:** `starter` (512 MB). Python + JRE + FCLite is tight (≈ 350–
-450 MB resident); upgrade to `standard` if the container OOMs under load.
+**Render plan:** `starter` (512 MB). With the heap caps below the steady-state
+is ≈ 350–400 MB; bump to `standard` if it OOMs under load.
 
-**To deploy:**
-1. Set `FXCM_USER` and `FXCM_PASS` in the Render dashboard for the
-   `trading-relay` service (Blueprint will create the empty keys on first
-   sync). Leave them unset to keep using the demo defaults hardcoded in
+### Deploy lessons (don't re-learn these)
+
+These cost real time during the first deploy. Future agents touching the
+container should know:
+
+- **FXCM's `public-maven` repo uses a non-Maven layout.** Artifacts live at
+  `com.fxcm.api/forex-connect-lite/1.3.3/...` — `groupId` stays dotted, not
+  slashed. Neither Maven 2 default nor Maven 1 legacy layout resolvers can
+  consume it. Workaround: `curl` the jar + pom, then
+  `mvn install:install-file -DpomFile=...` to seed the local repo before
+  `mvn package`. See the Dockerfile's stage-1 `RUN`.
+- **Render injects `PORT` for the public-facing process** (uvicorn here).
+  The bridge originally read the same `PORT` env var and crashed with
+  `java.net.BindException: Address already in use`. Renamed to
+  `FXCM_BRIDGE_PORT` (default `3001`). Never name a sub-process port env
+  `PORT` on a Render service.
+- **`python:3.12-slim` now pulls Debian trixie.** `openjdk-17-jre-headless`
+  is gone from trixie — use `openjdk-21-jre-headless`. FCLite is Java 8
+  bytecode; runs identically on 21.
+- **`/bin/sh` in the slim image is dash, not bash.** `wait -n` is a bash
+  builtin and crashes dash with `Illegal option -n`. The entrypoint uses a
+  portable `kill -0` poll loop instead.
+- **JVM defaults are heap-hungry on a 512 MB container.** Out of the box
+  the JVM grabbed ~25 % of container RAM as max heap plus ~150 MB of
+  metaspace/code-cache/native and pushed RSS to 99 %. Caps:
+  `-Xms64m -Xmx192m -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=32m
+  -XX:+UseSerialGC`. The bridge is a single FXCM session, mostly I/O — these
+  are several × what it actually uses.
+
+### To deploy
+
+1. Set `FXCM_USER` / `FXCM_PASS` in the Render dashboard for the
+   `trading-relay` service. Unset = hardcoded demo defaults from
    `BridgeServer.java`.
-2. Push to a branch that triggers `autoDeploy` (or hit "Manual Deploy" in
-   Render). The Docker build runs both stages — first build pulls ~100 MB
-   of Maven deps from `https://fxcorporate.com/public-maven` + Maven
-   Central.
-3. Verify post-deploy: `curl https://<service>.onrender.com/api/fxcm/health`
-   should return `{"status":"ok","account":"<acct>"}` once the FCLite
-   login finishes (~5–10 s after the container starts).
+2. Push to `main` (or whichever branch `autoDeploy` watches). The Docker
+   build runs both stages; first build pulls ~100 MB of Maven deps.
+3. Verify: `curl https://<service>.onrender.com/api/fxcm/health` → `{"status":"ok","account":"<acct>"}` ~5–10 s after the container starts.
+   Logs should show, in order: `Connecting to FXCM via FCLite...` →
+   `FXCM connected — account ...` → `Bridge listening on http://127.0.0.1:3001`
+   → `Uvicorn running on http://0.0.0.0:10000`.
 
 ## Running the Full Stack Locally (with Forex)
 
-```powershell
-# Terminal 1 — FXCM bridge
-& "C:\jdk25\jdk-25.0.3+9\bin\java.exe" `
-    -Djdk.net.hosts.file=C:\Temp\jvm-hosts.txt `
-    -jar "C:\Users\cmischel\Trading-Platform\fxcm-bridge\java\target\fxcm-bridge-1.0.0.jar"
+```bash
+# Terminal 1 — FXCM bridge (see "Starting the Bridge (local)" above)
+java -Djdk.net.hosts.file=/path/to/jvm-hosts.txt \
+     -jar fxcm-bridge/java/target/fxcm-bridge-1.0.0.jar
 
 # Terminal 2 — FastAPI backend
-cd backend
-python -m uvicorn app.main:app --reload --port 8000
+cd backend && python -m uvicorn app.main:app --reload --port 8000
 
 # Terminal 3 — Frontend
-cd frontend
-npm run dev
+cd frontend && npm run dev
 ```
 
-Open http://localhost:5173, pick **Forex** from the splash or Settings → Market.
+Open http://localhost:5173, pick **Forex** from the splash. If you'd rather
+not run the bridge locally, leave `VITE_STREAM_BASE` pointed at the Render
+relay and the deployed bridge handles FXCM calls.
 
 ## Relation to Other Docs
 

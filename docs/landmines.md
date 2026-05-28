@@ -512,12 +512,36 @@ the persistent FCLite session on port 3001. Things that cost debugging time:
   Capture the new order ID via `IOrderChangeListener.onAdd()` subscribed before
   calling `.send()`.
 
-- **The bridge is local-only.** The FastAPI proxy (`backend/app/fxcm.py`) returns
-  HTTP 503 when the bridge is not running; the frontend shows an offline notice.
-  To deploy to Render: add `/etc/hosts` entries on the Linux container (the JVM
-  hosts file workaround is only needed on Windows without admin access).
+- **FXCM's `public-maven` repo uses a non-Maven URL layout.** Artifacts live
+  at `com.fxcm.api/forex-connect-lite/1.3.3/...` — `groupId` stays dotted,
+  not slashed. Maven 2 default and Maven 1 legacy resolvers both 404.
+  Workaround: `curl` the jar + pom and `mvn install:install-file -DpomFile=...`
+  to seed the local Maven repo before `mvn package`. The Dockerfile's
+  stage-1 `RUN` does this; replicate when building locally.
 
-- **`isCryptoSymbol` slash conflict.** `lib/asset-class.ts` uses
-  `symbol.includes("/")` to fast-detect crypto. Forex pairs (EUR/USD, GBP/USD)
-  also contain a slash. Harmless in the current POC (forex never reaches Alpaca
-  flows), but must be resolved before any Chart-mode forex integration.
+- **Render injects `PORT` for the public-facing process.** A sub-process
+  reading the same `PORT` env var will try to bind the public port and
+  crash with `java.net.BindException: Address already in use`. The bridge
+  reads `FXCM_BRIDGE_PORT` (default 3001) for this reason. Don't name any
+  sub-process port env `PORT` on a Render service.
+
+- **`python:3.12-slim` now pulls Debian trixie.** `openjdk-17-jre-headless`
+  is no longer in trixie — use `openjdk-21-jre-headless`. Java 8 bytecode
+  (FCLite + the bridge) runs identically on 21.
+
+- **`/bin/sh` in the slim image is dash, not bash.** `wait -n` is a bash
+  builtin and crashes dash with `Illegal option -n`. Use a portable
+  `kill -0` poll loop instead.
+
+- **JVM defaults are heap-hungry on a 512 MB container.** Out of the box
+  the JVM grabs ~25 % of container RAM as max heap plus ~150 MB of
+  metaspace/code-cache/native — pushes RSS to 99 % on Render's starter
+  plan. Cap with `-Xms64m -Xmx192m -XX:MaxMetaspaceSize=96m
+  -XX:ReservedCodeCacheSize=32m -XX:+UseSerialGC`. SerialGC is fine for an
+  I/O-bound single-session bridge.
+
+- **`/api/fxcm/instruments` returns PascalCase (`Name`/`OfferId`/`Status`)** —
+  every other FXCM endpoint uses snake_case. Normalised at the api.ts
+  boundary (`getFxcmInstruments`), but watch for raw-bridge consumers.
+  Also: the `?type=forex` filter is a no-op (returns everything); only
+  `?tradable=true` actually narrows.
