@@ -869,8 +869,8 @@ CFD trading still happens via `CfdDiscoverPage` + `FxcmOrderSheet`.
 - **Workspace integration** — CFD is a first-class Workspace silo across every
   widget (Chart, Mini chart, Positions, Orders, Activity, Account, Watchlist,
   Trade, Profile/Fundamentals for stock CFDs, the Tipranks research widgets
-  resolving `.us` underlyings), plus AI/Ask-anything control and a silo-aware
-  ChartBot. Full per-widget reference in `docs/workspace.md` → "CFD silo".
+  resolving US (`.us` / `.ext`) underlyings), plus AI/Ask-anything control and a
+  silo-aware ChartBot. Full per-widget reference in `docs/workspace.md` → "CFD silo".
 
 Outstanding work lives in `BACKLOG.md` → "CFDs (FXCM)".
 
