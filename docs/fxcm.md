@@ -327,7 +327,12 @@ Unlike every other FXCM endpoint, `/instruments` returns the raw FCLite
 ]
 ```
 
-`Status`: `T` = tradable, `V` = visible (priced), `D` = disabled. Roughly
+`Status`: `T` = tradable, `V` = visible (priced), `D` = **not subscribed**
+(NOT "disabled" — the user's FXCM account just doesn't have a market-data
+subscription for that instrument; resolving subscriptions is a separate
+workflow). **Do not filter `D` out** of search results, watchlist add
+flows, or any UI surface — the user will resolve subscriptions later and
+hiding them prevents that. Roughly
 516 entries across fiat-forex pairs, indices, metals, commodities, and stock
 CFDs. `frontend/src/api.ts → getFxcmInstruments()` normalises to lowercase
 `{instrument, offer_id, status}` at the API boundary so callers see the same
@@ -474,9 +479,9 @@ reaching Alpaca routes.
 
 | Method | CFD branch | Notes |
 |---|---|---|
-| `searchSymbols` | `/api/fxcm/instruments?search=` | Bridge fuzzy-matches client-side; passes through TV's search UI. |
+| `searchSymbols` | `api.getFxcmInstruments()` + client-side filter | The bridge silently ignores `?search=`, and `/api/fxcm/instruments` returns raw PascalCase (`Name`/`OfferId`/`Status`). Route through `api.getFxcmInstruments()` for the lowercase normalisation, then substring-filter client-side (prefix matches first, capped at 50). All status codes — incl. `D` ("not subscribed", not "disabled") — stay in results. |
 | `resolveSymbol` | Local hardcoded shape | CFD symbols aren't in Alpaca's catalogue. `pricescale` derived from `cfdPriceScale(symbol)` (JPY: 1000, else 100000) — still hardcoded; switch to `digits` from the offers row when wiring that backlog item. |
-| `getBars` | `/api/fxcm/history` | TV resolutions map via `FXCM_RESOLUTION_MAP` (`"1"→"m1"`, `"60"→"H1"`, `"D"→"D1"`, …). |
+| `getBars` | `/api/fxcm/history` | TV resolutions map via `FXCM_RESOLUTION_MAP` (`"1"→"m1"`, `"60"→"H1"`, `"D"→"D1"`, …). Bar `time` is a naive ISO string (no zone) but the bridge's timestamps are UTC — append `Z` before `Date.parse` or every candle shifts by the user's TZ offset. |
 | `subscribeBars` | **no-op** | Bridge has no SSE bar stream; the historical bars stay static between fetches, the live price line still moves via `subscribeQuotes`. Real-time bar updates are a backlog item. |
 | `getQuotes` | `/api/fxcm/prices` (one call, filter client-side) | Cheaper than per-symbol fetches. |
 | `subscribeQuotes` | 3s `setInterval` polling `/api/fxcm/prices`, diff-only emission | Mirrors `CfdDiscoverPage`'s cadence. Replace with FCLite push subscription when that lands. |

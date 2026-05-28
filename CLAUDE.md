@@ -210,7 +210,12 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
     On desktop the chart fills the viewport (`.app.app-chart` flex
     column) at the same height as the `ChatPanel`. Datafeed:
     `lib/tv-datafeed.ts`. Broker: `lib/tv-broker.ts`. ChartBot side panel
-    mounts here when `AI_CHAT_ENABLED=true`.
+    mounts here when `AI_CHAT_ENABLED=true`. In the **CFD silo** the
+    datafeed branches off the Alpaca path and routes symbol search, bars,
+    quotes, and live ticks through `/api/fxcm/*` (history bars,
+    `api.getFxcmInstruments()` with client-side filter for search since
+    the bridge ignores `?search=`; `subscribeBars` is a no-op until the
+    FCLite push backlog item lands).
   - **Workspace** (desktop only — hidden on mobile) — a dockable widget
     canvas on Dockview (`components/Workspace.tsx` + `lib/workspace/`):
     per-silo layout persistence, link-channel widgets (None +
