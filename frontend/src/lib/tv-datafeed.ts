@@ -7,6 +7,7 @@
  */
 import { subscribeBar } from "../data/barStream";
 import { subscribeQuoteTicks } from "../data/quoteStream";
+import { getFxcmInstruments, type FxcmInstrument } from "../api";
 import { isCryptoSymbol } from "./asset-class";
 import type { FxcmBar, FxcmPrice, Quote } from "../types";
 
@@ -97,18 +98,36 @@ export function createDatafeed(opts: DatafeedOpts = {}) {
       onResult: (results: object[]) => void,
     ) {
       if (getAssetClass() === "cfd") {
-        // CFD: search FXCM instruments endpoint
-        fetch(`${API_BASE}/api/fxcm/instruments?search=${encodeURIComponent(userInput)}`)
-          .then((r) => r.json())
-          .then((data) => {
-            const list = Array.isArray(data) ? data : [];
-            onResult(list.map((a: { instrument?: string; display_name?: string }) => ({
-              symbol: a.instrument ?? "",
-              full_name: a.instrument ?? "",
-              description: a.display_name ?? a.instrument ?? "",
-              exchange: "FXCM",
-              type: "cfd",
-            })));
+        // CFD: pull the full FXCM instrument list (normalised lowercase
+        // via api.getFxcmInstruments — the raw bridge endpoint returns
+        // PascalCase Name/OfferId/Status) and filter client-side. The
+        // bridge silently ignores unknown query params (incl. `?search=`),
+        // so server-side filtering isn't an option.
+        const q = userInput.trim().toUpperCase();
+        getFxcmInstruments()
+          .then((list: FxcmInstrument[]) => {
+            // Status "D" = not subscribed (not "disabled") — keep them in
+            // search; subscription resolution is a separate workflow.
+            const filtered = q
+              ? list.filter((i) => i.instrument.toUpperCase().includes(q))
+              : list;
+            // Prefix matches first, then substring matches — same ranking
+            // TV's native search applies to /assets results.
+            filtered.sort((a, b) => {
+              const ap = a.instrument.toUpperCase().startsWith(q) ? 0 : 1;
+              const bp = b.instrument.toUpperCase().startsWith(q) ? 0 : 1;
+              if (ap !== bp) return ap - bp;
+              return a.instrument.localeCompare(b.instrument);
+            });
+            onResult(
+              filtered.slice(0, 50).map((i) => ({
+                symbol: i.instrument,
+                full_name: i.instrument,
+                description: i.instrument,
+                exchange: "FXCM",
+                type: "cfd",
+              })),
+            );
           })
           .catch(() => onResult([]));
         return;
@@ -205,7 +224,11 @@ export function createDatafeed(opts: DatafeedOpts = {}) {
           .then((data: FxcmBar[]) => {
             clearTimeout(timer);
             const bars = (Array.isArray(data) ? data : []).map((b) => ({
-              time: Date.parse(b.time),  // ISO string → ms for TV
+              // Bridge emits naive ISO (no zone) but the underlying
+              // timestamps are UTC; without the Z suffix Date.parse treats
+              // them as local time and shifts every candle by the user's
+              // TZ offset.
+              time: Date.parse(b.time.endsWith("Z") ? b.time : `${b.time}Z`),
               open: b.open,
               high: b.high,
               low: b.low,
