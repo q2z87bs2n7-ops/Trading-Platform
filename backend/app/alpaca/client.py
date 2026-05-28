@@ -52,8 +52,27 @@ def crypto_data_client() -> CryptoHistoricalDataClient:
     return CryptoHistoricalDataClient()
 
 
+# Forex pairs use the same BASE/QUOTE form as crypto (EUR/USD vs BTC/USD), so
+# the slash alone is ambiguous. Forex pairs are <fiat>/<fiat> where fiat is an
+# ISO 4217 code; crypto pairs have a non-ISO base or quote (BTC, ETH, USDC).
+# Adding a fiat doesn't break the classifier — a new pair just routes through
+# the crypto branch until the code is added here.
+_FIAT_CURRENCIES = frozenset({
+    "USD", "EUR", "GBP", "JPY", "CHF", "AUD", "CAD", "NZD",
+    "SEK", "NOK", "DKK", "MXN", "ZAR", "HKD", "SGD", "TRY",
+    "CNH", "PLN", "HUF", "CZK", "ILS",
+})
+
+
+def is_forex(symbol: str) -> bool:
+    if not symbol or "/" not in symbol:
+        return False
+    base, _, quote = symbol.partition("/")
+    return base in _FIAT_CURRENCIES and quote in _FIAT_CURRENCIES
+
+
 def is_crypto(symbol: str) -> bool:
-    return "/" in symbol
+    return "/" in symbol and not is_forex(symbol)
 
 
 # Quote currencies Alpaca appends without a slash on crypto symbols (its

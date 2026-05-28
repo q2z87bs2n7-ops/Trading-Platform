@@ -475,6 +475,21 @@ export const getFxcmWatchlist = () =>
 export const getFxcmPositions = () =>
   getFxcmJSON<FxcmPosition[]>("/api/fxcm/positions");
 
+export interface FxcmInstrument {
+  instrument: string;
+  display_name?: string;
+  type?: string;
+  tradable?: boolean;
+}
+
+export const getFxcmInstruments = (filter?: { type?: string; tradable?: boolean }) => {
+  const params = new URLSearchParams();
+  if (filter?.type) params.set("type", filter.type);
+  if (filter?.tradable) params.set("tradable", "true");
+  const qs = params.toString();
+  return getFxcmJSON<FxcmInstrument[]>(`/api/fxcm/instruments${qs ? `?${qs}` : ""}`);
+};
+
 export const getFxcmHistory = (
   instrument: string,
   timeframe = "H1",

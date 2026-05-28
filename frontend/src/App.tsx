@@ -20,7 +20,7 @@ import AssetClassSplash from "./components/AssetClassSplash";
 import AllocationDonut from "./components/AllocationDonut";
 import PortfolioHero from "./components/PortfolioHero";
 import SectionHeading from "./components/SectionHeading";
-import { isCryptoPosition } from "./lib/asset-class";
+import { isCryptoPosition, registerFxcmSymbols } from "./lib/asset-class";
 import { DONUT_COLORS_GREEN } from "./components/discover/util";
 import TVPlatform from "./components/TVPlatform";
 import ChatPanel from "./components/chat/ChatPanel";
@@ -240,6 +240,15 @@ export default function App() {
   useEffect(() => {
     if (status?.force_stop) setBooted(true);
   }, [status?.force_stop]);
+
+  // Populate the FXCM symbol cache so isCryptoSymbol can distinguish FXCM
+  // non-fiat instruments (XAU/USD, US30, ...) from crypto pairs. Fire-and-forget;
+  // ISO-fiat fallback in asset-class.ts covers common forex pairs pre-boot.
+  useEffect(() => {
+    api.getFxcmInstruments()
+      .then((list) => registerFxcmSymbols(list.map((i) => i.instrument).filter(Boolean)))
+      .catch(() => { /* bridge offline — fallback regex handles it */ });
+  }, []);
   const [selected, setSelected] = useState<string>("");
   const [mode, setMode] = useState<PlatformMode>(readPlatformMode);
   const [assetClassMode, setAssetClassMode] = useState<AssetClassMode | null>(readAssetClassMode);
