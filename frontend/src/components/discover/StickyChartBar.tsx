@@ -47,7 +47,12 @@ export function StickyChartBar({
     );
     io.observe(el);
     return () => io.disconnect();
-  }, [chartCardRef, isMobile]);
+    // `symbol` is in the dep list (not just chartCardRef) because refs don't
+    // re-trigger effects on their own. The chart card mounts conditionally
+    // (e.g. CfdDiscoverPage gates it on `bridgeOk && selected`), so the ref
+    // is null on first render and only attaches once symbol becomes real —
+    // we need to re-observe when that happens.
+  }, [chartCardRef, isMobile, symbol]);
 
   if (!offscreen || !symbol) return null;
   const up = dayChangePct >= 0;
