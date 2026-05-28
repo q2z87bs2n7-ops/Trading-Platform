@@ -81,6 +81,9 @@ public class BridgeServer {
         server.createContext("/history",      ex -> handle(ex, BridgeServer::history));
         server.createContext("/order",        ex -> handleOrder(ex));
         server.createContext("/close",        ex -> handle(ex, BridgeServer::closePosition));
+        server.createContext("/subscribe",    ex -> handle(ex, BridgeServer::subscribe));
+        server.createContext("/unsubscribe",  ex -> handle(ex, BridgeServer::unsubscribe));
+        server.createContext("/subscribed",   ex -> handle(ex, BridgeServer::subscribed));
         server.createContext("/debug",        ex -> handle(ex, BridgeServer::debug));
         server.setExecutor(Executors.newCachedThreadPool());
         server.start();
@@ -169,6 +172,28 @@ public class BridgeServer {
         r.put("status","close_submitted");
         r.put("trade_id", tradeId.toString());
         return r;
+    }
+
+    static Object subscribe(HttpExchange ex) throws Exception {
+        Map<String,String> q = parseQuery(ex.getRequestURI());
+        String symbolsParam = q.get("symbols");
+        if (symbolsParam == null || symbolsParam.isEmpty())
+            throw new IllegalArgumentException("symbols required");
+        boolean persist = "true".equals(q.get("persist"));
+        return session.subscribeInstruments(symbolsParam.split(","), persist);
+    }
+
+    static Object unsubscribe(HttpExchange ex) throws Exception {
+        Map<String,String> q = parseQuery(ex.getRequestURI());
+        String symbolsParam = q.get("symbols");
+        if (symbolsParam == null || symbolsParam.isEmpty())
+            throw new IllegalArgumentException("symbols required");
+        boolean persist = "true".equals(q.get("persist"));
+        return session.unsubscribeInstruments(symbolsParam.split(","), persist);
+    }
+
+    static Object subscribed(HttpExchange ex) throws Exception {
+        return session.listSubscribedInstruments();
     }
 
     static Object debug(HttpExchange ex) throws Exception {

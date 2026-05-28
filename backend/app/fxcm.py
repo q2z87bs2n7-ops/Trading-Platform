@@ -23,10 +23,10 @@ router = APIRouter(prefix="/api/fxcm", tags=["fxcm"])
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
-async def _get(path: str, params: dict = None) -> Any:
+async def _get(path: str, params: dict = None, timeout: float = TIMEOUT) -> Any:
     try:
         async with httpx.AsyncClient() as client:
-            r = await client.get(f"{BRIDGE_URL}{path}", params=params, timeout=TIMEOUT)
+            r = await client.get(f"{BRIDGE_URL}{path}", params=params, timeout=timeout)
         r.raise_for_status()
         return r.json()
     except httpx.ConnectError:
@@ -162,3 +162,24 @@ async def cancel_order(order_id: str):
 @router.post("/close")
 async def close_position(req: CloseRequest):
     return await _post("/close", req.dict())
+
+
+@router.get("/subscribe")
+async def subscribe(symbols: str, persist: bool = False):
+    params: dict = {"symbols": symbols}
+    if persist:
+        params["persist"] = "true"
+    return await _get("/subscribe", params=params, timeout=20.0)
+
+
+@router.get("/unsubscribe")
+async def unsubscribe(symbols: str, persist: bool = False):
+    params: dict = {"symbols": symbols}
+    if persist:
+        params["persist"] = "true"
+    return await _get("/unsubscribe", params=params, timeout=20.0)
+
+
+@router.get("/subscribed")
+async def subscribed():
+    return await _get("/subscribed")

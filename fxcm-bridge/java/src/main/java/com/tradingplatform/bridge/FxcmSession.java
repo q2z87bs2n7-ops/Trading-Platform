@@ -411,6 +411,72 @@ public class FxcmSession {
         ordersMgr.createCloseMarketOrder(req.build());
     }
 
+    // ── Instrument subscription probes ────────────────────────────────────────
+
+    Map<String,Object> subscribeInstruments(String[] symbols, boolean persist) throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        final boolean[] ok = {false};
+        final String[] errMsg = {null};
+        final String[][] failedRef = {null};
+        ISubscribeInstrumentsCallback cb = new ISubscribeInstrumentsCallback() {
+            public void onSuccess() { ok[0] = true; latch.countDown(); }
+            public void onError(String msg, String[] failedSymbols) {
+                errMsg[0] = msg; failedRef[0] = failedSymbols; latch.countDown();
+            }
+        };
+        if (persist) instrumentsMgr.subscribeInstrumentsAndStoreOnServer(symbols, cb);
+        else         instrumentsMgr.subscribeInstruments(symbols, cb);
+        if (!latch.await(15, TimeUnit.SECONDS)) {
+            Map<String,Object> r = new LinkedHashMap<>();
+            r.put("ok", false); r.put("error", "timeout"); return r;
+        }
+        Map<String,Object> r = new LinkedHashMap<>();
+        if (ok[0]) { r.put("ok", true); return r; }
+        r.put("ok", false);
+        r.put("error", errMsg[0]);
+        if (failedRef[0] != null) r.put("failed", Arrays.asList(failedRef[0]));
+        return r;
+    }
+
+    Map<String,Object> unsubscribeInstruments(String[] symbols, boolean persist) throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        final boolean[] ok = {false};
+        final String[] errMsg = {null};
+        final String[][] failedRef = {null};
+        ISubscribeInstrumentsCallback cb = new ISubscribeInstrumentsCallback() {
+            public void onSuccess() { ok[0] = true; latch.countDown(); }
+            public void onError(String msg, String[] failedSymbols) {
+                errMsg[0] = msg; failedRef[0] = failedSymbols; latch.countDown();
+            }
+        };
+        if (persist) instrumentsMgr.unsubscribeInstrumentsAndStoreOnServer(symbols, cb);
+        else         instrumentsMgr.unsubscribeInstruments(symbols, cb);
+        if (!latch.await(15, TimeUnit.SECONDS)) {
+            Map<String,Object> r = new LinkedHashMap<>();
+            r.put("ok", false); r.put("error", "timeout"); return r;
+        }
+        Map<String,Object> r = new LinkedHashMap<>();
+        if (ok[0]) { r.put("ok", true); return r; }
+        r.put("ok", false);
+        r.put("error", errMsg[0]);
+        if (failedRef[0] != null) r.put("failed", Arrays.asList(failedRef[0]));
+        return r;
+    }
+
+    Map<String,Object> listSubscribedInstruments() {
+        Instrument[] arr = instrumentsMgr.getSubscribedInstruments();
+        List<String> symbols = new ArrayList<>();
+        if (arr != null) {
+            for (Instrument inst : arr) {
+                String sym = safe(inst::getSymbol);
+                if (sym != null) symbols.add(sym);
+            }
+        }
+        Map<String,Object> r = new LinkedHashMap<>();
+        r.put("symbols", symbols);
+        return r;
+    }
+
     // ── Utility ───────────────────────────────────────────────────────────────
 
     @FunctionalInterface interface Supplier<T> { T get() throws Exception; }
