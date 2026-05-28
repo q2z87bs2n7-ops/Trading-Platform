@@ -1,0 +1,6 @@
+204.8.240.52 api-demo.fxcm.com
+204.8.241.37 pdemo2.fxcorporate.com
+204.8.241.31 mdt4prices.fxcorporate.com
+204.8.241.21 mdt1prices.fxcorporate.com
+204.8.240.16 mdt2prices.fxcorporate.com
+204.8.240.24 mdt3prices.fxcorporate.com
