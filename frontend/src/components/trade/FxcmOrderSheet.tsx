@@ -202,7 +202,7 @@ export default function FxcmOrderSheet({ instruments, defaultInstrument, default
               Rate
               {liveRate != null && (
                 <span style={{ color: "var(--text-2)", marginLeft: 6 }}>
-                  (live: {liveRate.toFixed(instrument.includes("JPY") ? 3 : 5)})
+                  (live: {liveRate.toFixed(selectedPrice?.digits ?? (instrument.includes("JPY") ? 3 : 5))})
                 </span>
               )}
             </label>
@@ -211,7 +211,7 @@ export default function FxcmOrderSheet({ instruments, defaultInstrument, default
               step="0.00001"
               value={rate}
               onChange={(e) => setRate(e.target.value)}
-              placeholder={liveRate?.toFixed(instrument.includes("JPY") ? 3 : 5)}
+              placeholder={liveRate?.toFixed(selectedPrice?.digits ?? (instrument.includes("JPY") ? 3 : 5))}
               style={{
                 background: "var(--panel-2)",
                 border: "1px solid var(--border)",

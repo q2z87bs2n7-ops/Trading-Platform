@@ -42,7 +42,7 @@ export default function TradeBar({ symbol, assetClass }: Props) {
       : fxcmRow?.bid ?? fxcmRow?.ask
     : quote?.mid;
   const fmtPriceChip = (n: number) =>
-    isCfd ? fmtCfdPrice(n, symUpper) : money(n);
+    isCfd ? fmtCfdPrice(n, fxcmRow?.digits ?? symUpper) : money(n);
 
   function openSheet(s: "buy" | "sell") {
     setSide(s);
