@@ -31,7 +31,9 @@ public class BridgeServer {
     static final String FXCM_PASS = env("FXCM_PASS", "Qak5i");
     static final String FXCM_URL  = env("FXCM_URL",  "https://api-demo.fxcm.com");
     static final String FXCM_CONN = env("FXCM_CONN", "Demo");
-    static final int    PORT      = Integer.parseInt(env("PORT", "3001"));
+    // FXCM_BRIDGE_PORT, not PORT — Render (and most PaaS) inject PORT for the
+    // public-facing process (uvicorn here), and the bridge must stay local.
+    static final int    PORT      = Integer.parseInt(env("FXCM_BRIDGE_PORT", "3001"));
 
     static final ObjectMapper JSON = new ObjectMapper();
 
