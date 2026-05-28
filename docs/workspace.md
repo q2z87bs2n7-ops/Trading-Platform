@@ -305,8 +305,9 @@ EUR/USD · GBP/USD · XAU/USD · US30). Per-widget behaviour in CFD:
   off the DB row's `asset_class`. Gated to stock CFDs (`isStockCfdSymbol` —
   dot-suffix test, e.g. `RBLX.us`); FX/index/metal/commodity show a notice.
 - **Tipranks widgets** (SmartScore/Sentiment/Analysts/HedgeFunds/Insiders/
-  RelatedTickers/HolderDemographics) — resolve via `cfdResearch()`: **`.us`**
-  stock CFDs map to the bare US ticker (`cfdUsUnderlying`); everything else
+  RelatedTickers/HolderDemographics) — resolve via `cfdResearch()`: US stock
+  CFDs — both **`.us`** (regular session) and **`.ext`** (24-hour US shares) —
+  map to the bare US ticker (`cfdUsUnderlying`); everything else
   blocks with the notice. **News** uses the underlying ticker for stock CFDs,
   else the market feed; **Earnings** resolves per-symbol to the US underlying.
   **Trending** is notice-only in CFD (as in crypto).

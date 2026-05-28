@@ -25,10 +25,10 @@ and `docs/workspace.md` for the full reference). Outstanding:
   order intents for a fully local CFD parser.
 - **Non-US stock-CFD research** — Profile/Fundamentals work for any FMP-enriched
   stock CFD, but the Tipranks widgets (SmartScore/Sentiment/Analysts/HedgeFunds/
-  Insiders/RelatedTickers/HolderDemographics) only resolve **`.us`** stock CFDs
-  to a US ticker (`cfdUsUnderlying`). Non-US listings (`.de`/`.hk`/…) show the
-  notice; mapping them via `fmp_ticker` would extend coverage where Tipranks has
-  the name.
+  Insiders/RelatedTickers/HolderDemographics) only resolve US stock CFDs —
+  `.us` (regular) and `.ext` (24-hour US shares) — to a US ticker
+  (`cfdUsUnderlying`). Non-US listings (`.de`/`.hk`/…) show the notice; mapping
+  them via `fmp_ticker` would extend coverage where Tipranks has the name.
 
 - **FCLite push subscription** — the chart's live price line and the
   CfdDiscoverPage watchlist both poll `/api/fxcm/prices` at 3 s.
