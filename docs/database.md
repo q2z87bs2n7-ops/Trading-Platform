@@ -9,7 +9,11 @@ and the AI bot's catalogue tools (`find_symbol`, `get_asset_profile`,
 `backend/sql/003_app_settings.sql`, run once; flip the relevant row in the
 Supabase SQL editor — graceful maintenance auto-recovers, force_stop is a
 terminal boot. Full command reference in that SQL file and CLAUDE.md
-"Maintenance / force-stop switches").
+"Maintenance / force-stop switches"). A third table, `fxcm_instruments`, holds
+FXCM instrument metadata (display name, type, currency, session, timezone,
+underlying unit, search aliases) for the ~501 instruments on account 501 —
+created by `backend/sql/004_fxcm_instruments.sql`, populated once via
+`POST /api/_dev/seed-fxcm-instruments` (see below).
 
 Companions: `CLAUDE.md` for repo-wide rules, `docs/landmines.md` →
 "Asset catalogue / Postgres" for the hard-won gotchas, and
@@ -48,7 +52,7 @@ fundamentals backfill resumes independently of the profile enrichment.
 
 | File | Role |
 | --- | --- |
-| `backend/app/db.py` | pg8000 (pure-Python, 3.14/Vercel-safe) access. Per-op connections from `DATABASE_URL`; `DbUnavailable` when unset. Writes: `bulk_upsert_assets`, `upsert_asset_enrichment` (crypto), `upsert_stock_enrichment` (FMP), `upsert_fundamentals` (FMP annual). Reads: `search_assets` (visibility-filtered), `get_asset`, `get_asset_profile`, `screen_assets`, `crypto_symbols`, `enriched_/unenriched_stock_symbols`, `enriched_crypto_symbols`, `fundamentals_enriched_/fundamentals_target_symbols`. Holds `CRYPTO_CATEGORY_MAP` (screen whitelist). |
+| `backend/app/db.py` | pg8000 (pure-Python, 3.14/Vercel-safe) access. Per-op connections from `DATABASE_URL`; `DbUnavailable` when unset. Writes: `bulk_upsert_assets`, `upsert_asset_enrichment` (crypto), `upsert_stock_enrichment` (FMP), `upsert_fundamentals` (FMP annual), `upsert_fxcm_instruments`. Reads: `search_assets` (visibility-filtered), `get_asset`, `get_asset_profile`, `screen_assets`, `crypto_symbols`, `enriched_/unenriched_stock_symbols`, `enriched_crypto_symbols`, `fundamentals_enriched_/fundamentals_target_symbols`. Holds `CRYPTO_CATEGORY_MAP` (screen whitelist). |
 | `backend/app/alpaca/trading.py` | `get_all_assets_for_seed()` → full us_equity + crypto list; `_full_asset_dict` captures base fields. `_enum_value` extracts the wire value from Alpaca SDK enums (see landmines). |
 | `backend/app/coingecko.py` | Crypto enrichment. Static **base-ticker → coingecko-id** map (BTC/USD, BTC/USDT … → `bitcoin`), Demo-key header when `COINGECKO_API_KEY` set, 429 backoff. |
 | `backend/app/fmp.py` | Stock enrichment via FMP's **stable** `/profile` (single-symbol). Maps ~20 columns; translates dot-class symbols to dash for the query (`BRK.B`→`BRK-B`). Also `map_fundamentals` off `income-statement`+`cash-flow-statement`+`ratios` (annual): derives margins/growth from the statements, pulls valuation/quality ratios with alias fallbacks (stable field names vary). |
@@ -124,6 +128,17 @@ or via an external cron).
 
 For current row counts and coverage, run the verification queries below rather
 than trusting a number in this doc (it would drift).
+
+### FXCM instruments (one-time, no refresh)
+
+Populates `fxcm_instruments` from `endpoints.fxcorporate.com/symbol/data`
+cross-referenced against the bridge's account-501 instrument list. Synchronous
+(small data). Run once after the table is created.
+
+```bash
+curl -X POST "https://<render-url>/api/_dev/seed-fxcm-instruments"
+# {"upserted": 498, "skipped_no_metadata": 3, "account_instruments": 501}
+```
 
 ---
 

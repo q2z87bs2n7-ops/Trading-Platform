@@ -338,9 +338,10 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
   active/inactive, options, increments) is refreshed by `POST
   /api/_dev/refresh-alpaca` (background; the only routine touching the
   Alpaca-sourced fields, also onboards new listings); `GET /api/_dev/new-symbols`
-  is a fast read-only check for new listings/IPOs not yet in the catalogue. See
-  "Asset catalogue" below and
-  `docs/database.md`.
+  is a fast read-only check for new listings/IPOs not yet in the catalogue.
+  `POST /api/_dev/seed-fxcm-instruments` is a one-time lift that populates
+  the `fxcm_instruments` table (FXCM symbol metadata for account-501 instruments,
+  no refresh). See "Asset catalogue" below and `docs/database.md`.
   **Path params with slashes:** `/api/assets/{symbol:path}`,
   `/api/asset-profile/{symbol:path}`, `/api/positions/{symbol:path}`, and
   `/api/watchlist/{symbol:path}`
@@ -400,8 +401,9 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
   key/value table (the maintenance switch). Pure-Python `pg8000`
   (3.14/Vercel-safe), per-op connections from `DATABASE_URL`, graceful
   `DbUnavailable` → 503-style fallback when unset. Tables are created by
-  `backend/sql/002_assets.sql` and `backend/sql/003_app_settings.sql`, each run
-  **once** in the Supabase SQL editor (no auto-create). Writes only run from prod/Render (Postgres :5432 is firewalled
+  `backend/sql/002_assets.sql`, `backend/sql/003_app_settings.sql`, and
+  `backend/sql/004_fxcm_instruments.sql`, each run **once** in the Supabase SQL
+  editor (no auto-create). Writes only run from prod/Render (Postgres :5432 is firewalled
   from the sandbox + the owner's laptop). Everything else (trade journal,
   server-side watchlists, finer P/L history) is still direct-Alpaca +
   `localStorage` — backlogged. See `docs/landmines.md` → "Asset catalogue"
