@@ -208,6 +208,17 @@ public class BridgeServer {
                 session.cancelOrder(orderId);
                 sendJson(ex, 200, mapOf("status","cancelled","order_id", orderId));
 
+            } else if ("PATCH".equals(method)) {
+                String path    = ex.getRequestURI().getPath(); // /order/{id}
+                String orderId = path.substring(path.lastIndexOf('/') + 1);
+                @SuppressWarnings("unchecked")
+                Map<String,Object> body = JSON.readValue(ex.getRequestBody(), Map.class);
+                double rate  = body.get("rate")  instanceof Number ? ((Number)body.get("rate")).doubleValue()  : 0;
+                double stop  = body.get("stop")  instanceof Number ? ((Number)body.get("stop")).doubleValue()  : 0;
+                double limit = body.get("limit") instanceof Number ? ((Number)body.get("limit")).doubleValue() : 0;
+                session.changeOrder(orderId, rate, stop, limit);
+                sendJson(ex, 200, mapOf("status","change_submitted","order_id", orderId));
+
             } else {
                 sendJson(ex, 405, mapOf("error","method not allowed"));
             }

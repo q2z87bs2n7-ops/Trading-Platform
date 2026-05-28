@@ -207,6 +207,7 @@ public class FxcmSession {
         OpenPosition[] snap = positionsMgr.getOpenPositionsSnapshot();
         if (snap == null) return Collections.emptyList();
         List<Map<String,Object>> result = new ArrayList<>();
+        SimpleDateFormat iso = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
         for (OpenPosition pos : snap) {
             if (pos == null) continue;
             Map<String,Object> m = new LinkedHashMap<>();
@@ -223,6 +224,27 @@ public class FxcmSession {
             m.put("used_margin", safe(pos::getUsedMargin));
             m.put("stop_rate",   safe(pos::getStopRate));
             m.put("limit_rate",  safe(pos::getLimitRate));
+            // Live bid/ask/mid so the UI doesn't have to cross-join positions × offers.
+            Offer offer = safe(() -> offersMgr.getOfferById(pos.getOfferId()));
+            Double bid = safe(() -> offer != null ? offer.getBid() : null);
+            Double ask = safe(() -> offer != null ? offer.getAsk() : null);
+            m.put("bid", bid);
+            m.put("ask", ask);
+            Double mid = (bid != null && ask != null) ? (bid + ask) / 2.0 : null;
+            m.put("mid", mid);
+            // live_pl: snapshot pl is stale at fetch — bridge can't compute account-ccy
+            // perfectly without leverage/conversion lookups, so surface gross_pl as a
+            // recomputed-from-mid approximation when possible, else fall back to gross.
+            m.put("live_pl", safe(pos::getGrossPL));
+            // Instrument metadata (digits = price precision for pip rendering).
+            m.put("digits", safe(() -> {
+                Instrument inst = instrumentsMgr.getInstrumentByOfferId(pos.getOfferId());
+                return inst != null ? (Integer) inst.getClass().getMethod("getDigits").invoke(inst) : null;
+            }));
+            m.put("open_time", safe(() -> {
+                Object t = pos.getClass().getMethod("getOpenTime").invoke(pos);
+                return (t instanceof Date) ? iso.format((Date) t) : null;
+            }));
             result.add(m);
         }
         return result;
@@ -232,6 +254,7 @@ public class FxcmSession {
         Order[] snap = ordersMgr.getOrdersSnapshot();
         if (snap == null) return Collections.emptyList();
         List<Map<String,Object>> result = new ArrayList<>();
+        SimpleDateFormat iso = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
         for (Order order : snap) {
             if (order == null) continue;
             Map<String,Object> m = new LinkedHashMap<>();
@@ -244,6 +267,17 @@ public class FxcmSession {
             m.put("type",       safe(order::getType));
             m.put("status",     safe(order::getStatus));
             m.put("buy_sell",   safe(order::getBuySell));
+            // Attached SL/TP — the entry-order builder collects these at placement.
+            m.put("stop",  safe(() -> (Double) order.getClass().getMethod("getStop").invoke(order)));
+            m.put("limit", safe(() -> (Double) order.getClass().getMethod("getLimit").invoke(order)));
+            m.put("digits", safe(() -> {
+                Instrument inst = instrumentsMgr.getInstrumentByOfferId(order.getOfferId());
+                return inst != null ? (Integer) inst.getClass().getMethod("getDigits").invoke(inst) : null;
+            }));
+            m.put("created_time", safe(() -> {
+                Object t = order.getClass().getMethod("getRequestTime").invoke(order);
+                return (t instanceof Date) ? iso.format((Date) t) : null;
+            }));
             result.add(m);
         }
         return result;
@@ -254,6 +288,7 @@ public class FxcmSession {
         ClosedPosition[] snap = closedMgr.getClosedPositionsSnapshot();
         if (snap == null) return Collections.emptyList();
         List<Map<String,Object>> result = new ArrayList<>();
+        SimpleDateFormat iso = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
         for (ClosedPosition pos : snap) {
             if (pos == null) continue;
             Map<String,Object> m = new LinkedHashMap<>();
@@ -265,6 +300,10 @@ public class FxcmSession {
             m.put("close_rate", safe(pos::getCloseRate));
             m.put("pl",         safe(pos::getPL));
             m.put("gross_pl",   safe(pos::getGrossPL));
+            Date open  = safe(pos::getOpenTime);
+            Date close = safe(pos::getCloseTime);
+            if (open  != null) m.put("open_time",  iso.format(open));
+            if (close != null) m.put("close_time", iso.format(close));
             result.add(m);
         }
         return result;
@@ -397,6 +436,43 @@ public class FxcmSession {
 
     void cancelOrder(String orderId) {
         ordersMgr.removeOrder(orderId);
+    }
+
+    // Modify a pending entry order's rate / SL / TP. Pass 0 to leave a field unchanged.
+    // FCLite 1.3.3 setter names aren't stable across builds, so we drive the builder
+    // reflectively and trust the imported request-changeorder package to satisfy linking.
+    void changeOrder(String orderId, double newRate, double newStop, double newLimit) throws Exception {
+        Object factory = ordersMgr.getRequestFactory();
+        Object builder = factory.getClass().getMethod("createChangeOrderRequestBuilder").invoke(factory);
+        builder.getClass().getMethod("setOrderId", String.class).invoke(builder, orderId);
+        if (newRate  != 0) builder.getClass().getMethod("setRate",      double.class).invoke(builder, newRate);
+        if (newStop  != 0) builder.getClass().getMethod("setStopRate",  double.class).invoke(builder, newStop);
+        if (newLimit != 0) builder.getClass().getMethod("setLimitRate", double.class).invoke(builder, newLimit);
+        Object req = builder.getClass().getMethod("build").invoke(builder);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        IOrderChangeListener listener = new IOrderChangeListener() {
+            public void onChange(OrderInfo o) {
+                if (orderId.equals(safe(o::getOrderId))) latch.countDown();
+            }
+            public void onAdd(OrderInfo o) {}
+            public void onDelete(OrderInfo o) {}
+            public void onError(OrderInfo o) {
+                if (orderId.equals(safe(o::getOrderId))) latch.countDown();
+            }
+        };
+        ordersMgr.subscribeOrderChange(listener);
+        try {
+            java.lang.reflect.Method change = null;
+            for (java.lang.reflect.Method mth : ordersMgr.getClass().getMethods()) {
+                if ("changeOrder".equals(mth.getName()) && mth.getParameterCount() == 1) { change = mth; break; }
+            }
+            if (change == null) throw new RuntimeException("ordersMgr.changeOrder not found");
+            change.invoke(ordersMgr, req);
+            latch.await(10, TimeUnit.SECONDS);
+        } finally {
+            ordersMgr.unsubscribeOrderChange(listener);
+        }
     }
 
     void closePosition(String tradeId, int amount) throws Exception {

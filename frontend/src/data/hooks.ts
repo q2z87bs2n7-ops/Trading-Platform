@@ -68,6 +68,66 @@ export const useFxcmPositions = (enabled = true) =>
     enabled,
   });
 
+export const useFxcmOrders = (enabled = true) =>
+  useQuery({
+    queryKey: qk.fxcmOrders,
+    queryFn: api.getFxcmOrders,
+    refetchInterval: 15_000,
+    retry: 0,
+    enabled,
+  });
+
+export const useFxcmClosedTrades = (enabled = true) =>
+  useQuery({
+    queryKey: qk.fxcmClosedTrades,
+    queryFn: api.getFxcmClosedTrades,
+    refetchInterval: 30_000,
+    retry: 0,
+    enabled,
+  });
+
+function useFxcmTradeInvalidation() {
+  const qc = useQueryClient();
+  return (
+    keys: readonly (readonly string[])[] = [
+      qk.fxcmOrders,
+      qk.fxcmPositions,
+      qk.fxcmAccount,
+      qk.fxcmClosedTrades,
+    ],
+  ) => {
+    keys.forEach((k) => qc.invalidateQueries({ queryKey: k }));
+  };
+}
+
+export function useFxcmCancelOrder() {
+  const invalidate = useFxcmTradeInvalidation();
+  return useMutation({
+    mutationFn: (orderId: string) => api.cancelFxcmOrder(orderId),
+    onSuccess: () => invalidate([qk.fxcmOrders, qk.fxcmAccount]),
+  });
+}
+
+export function useFxcmModifyOrder() {
+  const invalidate = useFxcmTradeInvalidation();
+  return useMutation({
+    mutationFn: (v: {
+      id: string;
+      body: { rate?: number; stop?: number; limit?: number };
+    }) => api.modifyFxcmOrder(v.id, v.body),
+    onSuccess: () => invalidate([qk.fxcmOrders, qk.fxcmAccount]),
+  });
+}
+
+export function useFxcmClosePosition() {
+  const invalidate = useFxcmTradeInvalidation();
+  return useMutation({
+    mutationFn: (tradeId: string | number) => api.closeFxcmPosition(tradeId),
+    onSuccess: () =>
+      invalidate([qk.fxcmPositions, qk.fxcmAccount, qk.fxcmClosedTrades]),
+  });
+}
+
 // Full FXCM instrument list. Long stale window — the universe rarely changes;
 // the classifier boot effect already fetches once for symbol classification,
 // this hook lets downstream surfaces (economic-calendar country filter, search)

@@ -45,6 +45,8 @@ export const qk = {
   fxcmAccount: ["fxcm", "account"] as const,
   fxcmPositions: ["fxcm", "positions"] as const,
   fxcmInstruments: ["fxcm", "instruments"] as const,
+  fxcmOrders: ["fxcm", "orders"] as const,
+  fxcmClosedTrades: ["fxcm", "closed_trades"] as const,
   indices: ["indices"] as const,
   earningsCalendar: (include: string) =>
     ["earningsCalendar", include] as const,

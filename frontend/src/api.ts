@@ -5,6 +5,8 @@ import type {
   AssetProfile,
   FxcmAccount,
   FxcmBar,
+  FxcmClosedTrade,
+  FxcmOrder,
   FxcmPrice,
   FxcmPosition,
   Bar,
@@ -528,3 +530,24 @@ export const closeFxcmPosition = (tradeId: string | number) =>
   sendFxcmJSON<{ status: string; trade_id?: string }>("POST", "/api/fxcm/close", {
     trade_id: String(tradeId),
   });
+
+export const getFxcmOrders = () => getFxcmJSON<FxcmOrder[]>("/api/fxcm/orders");
+
+export const cancelFxcmOrder = (orderId: string) =>
+  sendFxcmJSON<{ status: string; order_id?: string }>(
+    "DELETE",
+    `/api/fxcm/order/${encodeURIComponent(orderId)}`,
+  );
+
+export const modifyFxcmOrder = (
+  orderId: string,
+  body: { rate?: number; stop?: number; limit?: number },
+) =>
+  sendFxcmJSON<{ status: string; order_id?: string }>(
+    "PATCH",
+    `/api/fxcm/order/${encodeURIComponent(orderId)}`,
+    body,
+  );
+
+export const getFxcmClosedTrades = () =>
+  getFxcmJSON<FxcmClosedTrade[]>("/api/fxcm/closed_trades");

@@ -681,6 +681,45 @@ export interface FxcmPosition {
   close?: number;
   pl?: number;
   gross_pl?: number;
+  bid?: number;
+  ask?: number;
+  mid?: number;
+  live_pl?: number;
+  // Alias for used_margin so AllocationDonut (keyed on market_value) can render forex.
+  market_value?: number;
+  digits?: number;
+  open_time?: string;
+  [key: string]: unknown;
+}
+
+export interface FxcmOrder {
+  order_id: string;
+  account_id: string;
+  offer_id: string;
+  instrument: string;
+  amount: number;
+  rate: number;
+  type: string;        // "OM" | "SE" | "LE"
+  status: string;
+  buy_sell: string;    // "B" | "S"
+  stop?: number;
+  limit?: number;
+  digits?: number;
+  created_time?: string;
+  [key: string]: unknown;
+}
+
+export interface FxcmClosedTrade {
+  trade_id: string;
+  instrument: string;
+  amount: number;
+  buy_sell: string;
+  open_rate: number;
+  close_rate: number;
+  pl: number;
+  gross_pl: number;
+  open_time?: string;
+  close_time?: string;
   [key: string]: unknown;
 }
 

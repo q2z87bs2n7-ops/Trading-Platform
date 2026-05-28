@@ -10,7 +10,7 @@ const money = (n: number) =>
 
 const pct = (n: number) => `${n >= 0 ? "+" : ""}${(n * 100).toFixed(2)}%`;
 
-type AssetClass = "stocks" | "crypto";
+type AssetClass = "stocks" | "crypto" | "forex";
 
 const TERMINAL = new Set([
   "filled",
@@ -32,7 +32,8 @@ export default function PortfolioHero({ assetClass }: { assetClass: AssetClass }
   const account = useAccount();
   const positions = usePositions();
   const orders = useOrders("open", 50);
-  const history = usePnlHistory(assetClass);
+  // pnl-history is Alpaca-only — forex falls back to stocks until Wave-2 wires FXCM.
+  const history = usePnlHistory(assetClass === "crypto" ? "crypto" : "stocks");
   const isMobile = useMobile();
 
   const title = assetClass === "crypto" ? "Crypto" : "Stocks";
