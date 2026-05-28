@@ -322,8 +322,9 @@ exposed at `/api/fxcm/*`.
 |---|---|---|
 | `GET /health` | `GET /api/fxcm/health` | Bridge + connection status |
 | `GET /account` | `GET /api/fxcm/account` | Account balance/equity/margin |
-| `GET /prices` | `GET /api/fxcm/prices` | Subscribed offers (live bid/ask/digits/point_size); only instruments in the active subscription set are returned |
-| `POST /subscribe` | (internal) | Push a list of offer IDs to subscribe. Called by `fxcm.py` when the watchlist changes. Body: `{"offer_ids": ["1", "121", ...]}`. Idempotent — already-subscribed IDs are silently skipped. |
+| `GET /prices` | `GET /api/fxcm/prices` | Subscribed offers (live bid/ask/digits/point_size/instrument_type/base_unit_size); only instruments in the active subscription set are returned |
+| `POST /subscribe` | (internal) | Push offer IDs to subscribe (set status T). Body: `{"offer_ids": ["1", "121", ...]}`. Idempotent. Called by `fxcm.py` when watchlist adds instruments. |
+| `POST /unsubscribe` | (internal) | Push offer IDs to unsubscribe (set status D). Body: `{"offer_ids": [...]}`. Bridge guards against unsubscribing offer IDs still held in open positions or orders. Called by `fxcm.py` when watchlist removes instruments. |
 | `GET /positions` | `GET /api/fxcm/positions` | Open trades |
 | `GET /orders` | `GET /api/fxcm/orders` | Pending orders |
 | `GET /summary` | `GET /api/fxcm/summary` | — (proxied but not yet implemented in bridge) |
@@ -344,17 +345,26 @@ call internally calls `IOffersManager.refresh()` which bulk-subscribes all
 ~501 instruments in the user's FXCM account, causing a 10+ second flood of
 offer-snapshot noise at startup.
 
-Instead, subscriptions are demand-driven:
+Instead, subscriptions are demand-driven and T/D status is kept accurate:
 
-- **Boot** — `BridgeServer.subscribeBootInstruments()` reads open positions
-  and open orders from their snapshots and subscribes only those offer IDs.
-- **Watchlist** — when `GET /api/fxcm/watchlist` detects new offer IDs not
-  yet in `_last_subscribed_offer_ids`, it fires a background
-  `POST /subscribe` to the bridge (asyncio `create_task`, non-blocking).
-  The frozenset union prevents redundant calls on subsequent polls.
-- **Subscribe call** — `FxcmSession.subscribeOfferIds(List<String>)` filters
-  out already-subscribed IDs (tracked in `subscribedOfferIds` ConcurrentHashMap)
-  before calling `getLatestOffersSnapshot`, keeping the call truly incremental.
+- **Boot** — `FxcmSession.subscribeBootInstruments()` reads open positions and
+  open orders, subscribes their offer IDs via `offersMgr.getLatestOffersSnapshot`
+  **and** calls `instrumentsMgr.subscribeInstruments()` to set FCLite status `T`.
+- **Watchlist add** — `GET /api/fxcm/watchlist` diffs `current_ids` against
+  `_last_subscribed_offer_ids`; new IDs fire a background `POST /subscribe`
+  (asyncio `create_task`). `_last_subscribed_offer_ids` is a **snapshot** of the
+  current watchlist (not an accumulating union) so removals are also detected.
+- **Watchlist remove** — removed IDs fire a background `POST /unsubscribe`.
+  The bridge's `unsubscribeOfferIds()` skips any offer ID still present in an
+  open position or order (those must stay `T` unconditionally), then calls
+  `instrumentsMgr.unsubscribeInstruments()` to restore status `D`.
+- **Subscribe call** — `FxcmSession.subscribeOfferIds()` filters already-subscribed
+  IDs (tracked in `subscribedOfferIds` ConcurrentHashMap), calls
+  `getLatestOffersSnapshot`, then calls `subscribeInstruments()`. Idempotent.
+
+**T/D rule:** `T` = instrument is in view (being price-polled); `D` = not in view.
+Positions and orders are always `T` regardless of watchlist state. The bridge
+enforces this guard on every unsubscribe call.
 
 `/prices` returns only the currently subscribed set; `FxcmSession.getOffers()`
 calls `getLatestOffersSnapshot` with the full `subscribedOfferIds` set on each
@@ -372,6 +382,12 @@ after subscription):
 - **`point_size`** — the size of one point/pip (e.g. 0.0001 for most FX pairs,
   0.01 for JPY pairs, 1.0 for indices). Used to compute spread in pips:
   `spread = (ask - bid) / point_size`.
+- **`instrument_type`** — FCLite integer type code. `1` = FX pair; `2` = index;
+  `8` = stock CFD; others = commodity/treasury/bullion. Used by `FxcmOrderSheet`
+  to set the amount step: type `1` → 1,000-unit lots; all others → `BaseUnitSize`.
+- **`base_unit_size`** — minimum tradeable unit for non-FX instruments (e.g. `1`
+  for indices and stock CFDs). Used as both the default amount and the step in
+  `FxcmOrderSheet` when `instrument_type ≠ 1`.
 
 `fmtSpread(bid, ask, pointSize)` in `frontend/src/lib/format.ts` applies this
 formula and renders as `"1.2 pts"`.
