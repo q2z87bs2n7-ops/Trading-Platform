@@ -4,8 +4,7 @@
 204.8.241.21 mdt1prices.fxcorporate.com
 204.8.240.16 mdt2prices.fxcorporate.com
 204.8.240.24 mdt3prices.fxcorporate.com
-204.8.240.130 mdt9prices.fxcorporate.com
-204.8.240.130 mdt91prices.fxcorporate.com
-204.8.240.130 mdt92prices.fxcorporate.com
-204.8.240.130 mdt100prices.fxcorporate.com
-204.8.240.130 mdt102prices.fxcorporate.com
+204.8.240.25  mdt9prices.fxcorporate.com
+204.8.240.26  mdt91prices.fxcorporate.com
+204.8.240.17  mdt100prices.fxcorporate.com
+204.8.241.42  mdt102prices.fxcorporate.com
