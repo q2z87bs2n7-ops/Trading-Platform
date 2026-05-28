@@ -33,6 +33,14 @@ services:
         value: "true"
       - key: ALPACA_DATA_FEED
         value: iex
+      # FXCM FCLite Java bridge co-runs in the same container (see
+      # backend/Dockerfile + entrypoint.sh). Leave URL/CONN at the Java
+      # defaults; set the two creds as dashboard secrets. Unset = the
+      # bridge falls back to its hardcoded demo account.
+      - key: FXCM_USER
+        sync: false # set in the Render dashboard (secret)
+      - key: FXCM_PASS
+        sync: false # set in the Render dashboard (secret)
       # Browser origins allowed to open the SSE stream. Must include
       # wherever the frontend is served from (Vercel prod + GitHub Pages
       # previews + local dev). Edit to match your real Vercel domain.
