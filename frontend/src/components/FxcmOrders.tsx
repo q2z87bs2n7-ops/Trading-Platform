@@ -196,13 +196,18 @@ function FxcmOrderCardMobile({
 
 export interface FxcmOrdersProps {
   symbol?: string;
+  // Workspace panel mode: drop the component's own card chrome (the panel
+  // already supplies it) and force the stacked-card layout below a width tier.
+  bare?: boolean;
+  dense?: boolean;
 }
 
-export default function FxcmOrders({ symbol }: FxcmOrdersProps = {}) {
+export default function FxcmOrders({ symbol, bare, dense }: FxcmOrdersProps = {}) {
   const { data, error, isPending } = useFxcmOrders(true);
   const cancel = useFxcmCancelOrder();
   const dn = useFxcmDisplayNames();
-  const stacked = useMobile();
+  // `dense` (panel-width driven) forces the stacked cards just like mobile.
+  const stacked = useMobile() || !!dense;
   const [modifyingOrder, setModifyingOrder] = useState<FxcmOrder | null>(null);
 
   const rows = (data ?? []).filter((o) => {
@@ -234,13 +239,17 @@ export default function FxcmOrders({ symbol }: FxcmOrdersProps = {}) {
 
   return (
     <div
-      className="p-3"
-      style={{
-        background: "var(--panel)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--r-lg)",
-        boxShadow: "var(--shadow-sm)",
-      }}
+      className={bare ? "" : "p-3"}
+      style={
+        bare
+          ? undefined
+          : {
+              background: "var(--panel)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--r-lg)",
+              boxShadow: "var(--shadow-sm)",
+            }
+      }
     >
       {error && <ErrorBanner message={(error as Error).message} />}
       {cancel.error && (

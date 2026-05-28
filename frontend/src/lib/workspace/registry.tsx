@@ -3,6 +3,7 @@ import type { IDockviewPanelHeaderProps, IDockviewPanelProps } from "dockview-re
 import { useContainerNarrow, useContainerTall } from "../../hooks/useContainerNarrow";
 import Positions from "../../components/Positions";
 import Orders from "../../components/Orders";
+import FxcmOrders from "../../components/FxcmOrders";
 import Activities from "../../components/Activities";
 import TVChartWidget from "../../components/TVChartWidget";
 import PriceChart from "../../components/PriceChart";
@@ -585,7 +586,7 @@ function OrdersWidget(props: IDockviewPanelProps) {
       <div ref={ref} style={{ height: "100%" }}>
         <Pane pad>
           {assetClass === "cfd" ? (
-            <CfdPending kind="Orders" />
+            <FxcmOrders symbol={symbol} dense={dense} bare />
           ) : (
             <Orders assetClass={assetClass} symbol={symbol} dense={dense} mid={mid} bare />
           )}
@@ -755,11 +756,7 @@ function AccountWidget(_props: IDockviewPanelProps) {
       }
     >
       <Pane pad>
-        {assetClass === "cfd" ? (
-          <CfdPending kind="Account" />
-        ) : (
-          <AccountPanel assetClass={assetClass} />
-        )}
+        <AccountPanel assetClass={assetClass} />
       </Pane>
     </WidgetShell>
   );
