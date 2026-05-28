@@ -685,7 +685,7 @@ def seed_fxcm_instruments() -> dict:
         meta_resp.raise_for_status()
     except Exception as exc:
         return {"error": f"endpoints fetch error: {exc}"}
-    meta_by_name: dict = {row["Name"]: row for row in meta_resp.json()}
+    meta_by_name: dict = {row["Name"]: row for row in meta_resp.json()["Symbols"]}
 
     # 3. Join — keep only instruments on this account.
     rows = []
