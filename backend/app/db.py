@@ -617,6 +617,42 @@ def screen_assets(*, asset_class="us_equity", sector=None, industry=None,
     return out
 
 
+# ---- fxcm_instruments table -------------------------------------------------
+
+def upsert_fxcm_instruments(rows: list[dict]) -> int:
+    """Upsert FXCM instrument metadata; returns count of rows processed."""
+    if not rows:
+        return 0
+    with _connect() as conn:
+        cur = conn.cursor()
+        for r in rows:
+            cur.execute(
+                """
+                INSERT INTO fxcm_instruments
+                    (name, display_name, description, type, currency,
+                     session, timezone, underlying_unit, alternatives, seeded_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, now())
+                ON CONFLICT (name) DO UPDATE SET
+                    display_name    = excluded.display_name,
+                    description     = excluded.description,
+                    type            = excluded.type,
+                    currency        = excluded.currency,
+                    session         = excluded.session,
+                    timezone        = excluded.timezone,
+                    underlying_unit = excluded.underlying_unit,
+                    alternatives    = excluded.alternatives,
+                    seeded_at       = now()
+                """,
+                (
+                    r["name"], r.get("display_name"), r.get("description"),
+                    r.get("type"), r.get("currency"), r.get("session"),
+                    r.get("timezone"), r.get("underlying_unit"),
+                    r.get("alternatives") or [],
+                ),
+            )
+    return len(rows)
+
+
 def all_symbols() -> set[str]:
     """Every symbol currently in the catalogue (all classes) — used to diff
     against Alpaca's live list when checking for new listings."""

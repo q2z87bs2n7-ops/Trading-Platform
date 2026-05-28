@@ -656,6 +656,60 @@ def refresh_all_crypto() -> dict:
     return _r()
 
 
+@app.post("/api/_dev/seed-fxcm-instruments", dependencies=[Depends(require_configured)])
+def seed_fxcm_instruments() -> dict:
+    """One-time lift: pull FXCM instrument metadata from endpoints.fxcorporate.com,
+    cross-reference against the bridge's instrument list (account 501 only), and
+    upsert into fxcm_instruments. Render-only (bridge is co-located):
+    curl -X POST 'https://<render-url>/api/_dev/seed-fxcm-instruments'"""
+    import httpx
+    from . import db
+
+    # 1. Get account instruments from the bridge.
+    try:
+        bridge_resp = httpx.get("http://127.0.0.1:3001/instruments", timeout=30.0)
+        bridge_resp.raise_for_status()
+    except httpx.ConnectError:
+        return {"error": "FXCM bridge not running"}
+    except Exception as exc:
+        return {"error": f"bridge error: {exc}"}
+    account_names: set[str] = {row["Name"] for row in bridge_resp.json()}
+
+    # 2. Fetch symbol metadata from the FXCM Endpoints public feed.
+    try:
+        meta_resp = httpx.get(
+            "https://endpoints.fxcorporate.com/symbol/data",
+            params={"type": "alt", "platform": "web", "locale": "enu"},
+            timeout=30.0,
+        )
+        meta_resp.raise_for_status()
+    except Exception as exc:
+        return {"error": f"endpoints fetch error: {exc}"}
+    meta_by_name: dict = {row["Name"]: row for row in meta_resp.json()}
+
+    # 3. Join — keep only instruments on this account.
+    rows = []
+    for name in account_names:
+        m = meta_by_name.get(name)
+        if not m:
+            continue
+        rows.append({
+            "name":            m["Name"],
+            "display_name":    m.get("DisplayName"),
+            "description":     m.get("Description"),
+            "type":            m.get("Type"),
+            "currency":        m.get("Currency"),
+            "session":         m.get("Session"),
+            "timezone":        m.get("Timezone"),
+            "underlying_unit": m.get("UnderlyingUnit"),
+            "alternatives":    m.get("Alternatives") or [],
+        })
+
+    count = db.upsert_fxcm_instruments(rows)
+    skipped = len(account_names) - count
+    return {"upserted": count, "skipped_no_metadata": skipped, "account_instruments": len(account_names)}
+
+
 @app.get("/api/stream")
 async def stream(
     request: Request,
