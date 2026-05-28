@@ -579,7 +579,10 @@ export default function App() {
               assetClass={activeClass}
             />
           </div>
-          <ChatPanel symbol={selected || (activeClass === "crypto" ? "BTC/USD" : activeClass === "cfd" ? "EUR/USD" : "AAPL")} />
+          <ChatPanel
+            symbol={selected || (activeClass === "crypto" ? "BTC/USD" : activeClass === "cfd" ? "EUR/USD" : "AAPL")}
+            assetClass={activeClass}
+          />
         </div>
       )}
 

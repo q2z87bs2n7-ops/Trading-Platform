@@ -57,6 +57,9 @@ def require_ai_enabled() -> None:
 class ChartContext(BaseModel):
     symbol: str = Field(default="AAPL", max_length=16)
     resolution: str = Field(default="D", max_length=8)
+    # Active silo — when "cfd" the system prompt steers the model off the
+    # Alpaca data tools (they don't cover FXCM instruments).
+    asset_class: Literal["stocks", "crypto", "cfd"] | None = None
 
 
 class ChatRequest(BaseModel):
@@ -505,7 +508,11 @@ def ai_chat(req: ChatRequest) -> ChatResponse:
     # otherwise tie up a Vercel function for the SDK default (10 min).
     client = anthropic.Anthropic(api_key=s.anthropic_api_key, timeout=60.0)
 
-    system = prompt.build_system(req.chart_context.symbol, req.chart_context.resolution)
+    system = prompt.build_system(
+        req.chart_context.symbol,
+        req.chart_context.resolution,
+        req.chart_context.asset_class,
+    )
     messages = _trim_history(list(req.messages))
     backend_results_accum: list[dict[str, Any]] = []
 
