@@ -1,8 +1,38 @@
+import { useQuery } from "@tanstack/react-query";
+
 import { useActivities } from "../data/hooks";
 import { useMobile } from "../hooks/useMobile";
 import type { Activity } from "../types";
 import ErrorBanner from "./ErrorBanner";
 import Pill from "./Pill";
+
+// Local shim — Wave 1 will add `useFxcmClosedTrades` to data/hooks.ts. The
+// FxcmClosedTrade row shape is loose (raw bridge rows); strongly-typed at merge.
+interface FxcmClosedTradeShim {
+  trade_id?: string | number;
+  instrument?: string;
+  amount?: number;
+  buy_sell?: string;
+  open_rate?: number;
+  close_rate?: number;
+  pl?: number;
+  gross_pl?: number;
+  open_time?: string;
+  close_time?: string;
+  [key: string]: unknown;
+}
+const useFxcmClosedTradesShim = (enabled = true) =>
+  useQuery({
+    queryKey: ["fxcm", "closed_trades"] as const,
+    queryFn: async () => {
+      const res = await fetch("/api/fxcm/closed_trades");
+      if (!res.ok) throw new Error(`fxcm/closed_trades ${res.status}`);
+      return (await res.json()) as FxcmClosedTradeShim[];
+    },
+    refetchInterval: 30_000,
+    retry: 0,
+    enabled,
+  });
 
 const TH =
   "px-2 py-2 text-left font-medium text-[11px] uppercase tracking-wide border-b whitespace-nowrap";
@@ -21,6 +51,18 @@ const enumTail = (v: unknown): string =>
 // (TRANS, JNLC). Best-effort describe with whichever fields are
 // populated; never blow up on missing keys.
 function describe(a: Activity): string {
+  if (a.activity_type === "TRADE_CLOSE" && a.symbol) {
+    const side = enumTail(a.side);
+    const qty = str(a.qty);
+    const sym = str(a.symbol);
+    const price = a.price != null ? `@ ${str(a.price)}` : "";
+    const plRaw = a.pl ?? a.gross_pl;
+    const pl =
+      plRaw != null
+        ? ` · P/L ${Number(plRaw) >= 0 ? "+" : ""}${str(plRaw)}`
+        : "";
+    return `${side} ${qty} ${sym} ${price}${pl}`.trim();
+  }
   if (a.symbol) {
     const side = enumTail(a.side);
     const qty = str(a.qty);
@@ -34,6 +76,36 @@ function describe(a: Activity): string {
     str(a.date) ||
     "—"
   );
+}
+
+// Map FXCM closed-trade rows into the heterogeneous Activity shape so the
+// existing describe()/whenOf() helpers handle them with one TRADE_CLOSE branch.
+// Sort newest-first by close_time, rows without a timestamp drift to the end.
+function fxcmRowsToActivities(rows: FxcmClosedTradeShim[] | undefined): Activity[] {
+  if (!rows) return [];
+  const mapped: Activity[] = rows.map((t) => {
+    const when = t.close_time || t.open_time;
+    return {
+      id: t.trade_id,
+      activity_type: "TRADE_CLOSE",
+      symbol: t.instrument,
+      side: t.buy_sell === "B" ? "BUY" : "SELL",
+      qty: t.amount,
+      price: t.close_rate,
+      transaction_time: when,
+      pl: t.pl,
+      gross_pl: t.gross_pl,
+    } as Activity;
+  });
+  mapped.sort((a, b) => {
+    const ta = a.transaction_time ? Date.parse(String(a.transaction_time)) : NaN;
+    const tb = b.transaction_time ? Date.parse(String(b.transaction_time)) : NaN;
+    if (Number.isNaN(ta) && Number.isNaN(tb)) return 0;
+    if (Number.isNaN(ta)) return 1;
+    if (Number.isNaN(tb)) return -1;
+    return tb - ta;
+  });
+  return mapped.slice(0, 25);
 }
 
 function whenOf(a: Activity): string {
@@ -95,12 +167,23 @@ export default function Activities({
   bare = false,
   symbol,
   dense = false,
+  assetClass,
 }: {
   bare?: boolean;
   symbol?: string;
   dense?: boolean;
+  assetClass?: "stocks" | "crypto" | "forex";
 }) {
-  const { data, error, isPending } = useActivities(25);
+  const isForex = assetClass === "forex";
+  const alpaca = useActivities(25);
+  const fxcm = useFxcmClosedTradesShim(isForex);
+  const { data, error, isPending } = isForex
+    ? {
+        data: { activities: fxcmRowsToActivities(fxcm.data) },
+        error: fxcm.error,
+        isPending: fxcm.isPending,
+      }
+    : alpaca;
   const rows = symbol
     ? data?.activities?.filter(
         (a) => String(a.symbol ?? "").toUpperCase() === symbol.toUpperCase(),
