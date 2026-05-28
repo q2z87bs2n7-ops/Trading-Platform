@@ -12,12 +12,15 @@ The platform supports three trading silos:
 |------|-------------|---------|
 | Stocks | Alpaca REST + WebSocket | Vercel + Render |
 | Crypto | Alpaca REST + WebSocket | Vercel + Render |
-| **Forex** | **FXCM FCLite Java SDK** | **Local sidecar only (for now)** |
+| **Forex** | **FXCM FCLite Java SDK** | **Render (co-runs with FastAPI)** |
 
-The Forex silo is a **POC** running against a hardcoded FXCM demo account. It
-is **local-only** — the bridge runs on the developer's machine; it is not yet
-deployed to Vercel or Render. The frontend handles the bridge being offline
-gracefully (shows an offline notice instead of crashing).
+The Forex silo is a **POC** running against a hardcoded FXCM demo account.
+The FCLite Java bridge ships **in the same Render container** as the FastAPI
+relay (multi-stage build in `backend/Dockerfile`, boot orchestrated by
+`backend/entrypoint.sh`). The frontend still handles the bridge being offline
+gracefully (shows an offline notice instead of crashing) — if the JVM dies,
+`/api/fxcm/*` returns 503 and the page recovers when Render restarts the
+container.
 
 ## Architecture
 
@@ -366,8 +369,11 @@ Chart-mode integration.
 - `api-demo.fxcm.com` does not resolve in DNS — use the JVM hosts file workaround.
 - `-Djdk.net.hosts.file` replaces the JVM's resolver entirely (not additive). All
   FXCM servers must be in the file or they will fail to connect.
-- On Linux (Render), the system `/etc/hosts` can be written directly — the JVM
-  hosts file trick is only needed on Windows without admin rights.
+- The same JVM hosts file works identically on Linux — we bake it into the
+  Render image at `/app/jvm-hosts.txt` (source: `backend/jvm-hosts.txt`) and
+  pass `-Djdk.net.hosts.file=/app/jvm-hosts.txt` from `entrypoint.sh`. This
+  avoids mutating `/etc/hosts` at container runtime and keeps Render
+  Blueprints (which expose no `extra_hosts`) viable.
 
 ### SSL / hostname
 
@@ -413,16 +419,41 @@ See also `BACKLOG.md` → "Forex (FXCM)".
 4. **Real-time price updates** — currently 3s polling. FCLite supports push callbacks
    for genuine real-time quotes.
 
-5. **Render deployment** — the bridge is local-only. To deploy:
-   - Add Java build step to `backend/Dockerfile` (or a separate Render service).
-   - On Linux, add FXCM servers to `/etc/hosts` instead of using the JVM hosts file.
-   - The `DefaultHostnameVerifier` override and fat JAR approach work identically on Linux.
-
-6. **Credentials in env** — already env-var ready (`FXCM_USER`, `FXCM_PASS`, `FXCM_URL`,
-   `FXCM_CONN`); hardcoded defaults are for the demo POC only.
-
-7. **Spread pip denominator** — hardcoded in frontend. Use the `digits` field from the
+5. **Spread pip denominator** — hardcoded in frontend. Use the `digits` field from the
    offers data instead.
+
+## Render Deployment
+
+The bridge ships in the same container as the FastAPI relay — option (a) in
+the deploy spec. Touched files:
+
+| File | Role |
+|---|---|
+| `backend/Dockerfile` | Multi-stage: `maven:3.9-eclipse-temurin-17` builds the fat JAR; `python:3.12-slim` + `openjdk-17-jre-headless` runs both processes. |
+| `backend/entrypoint.sh` | Backgrounds the JVM (`-Djdk.net.hosts.file=/app/jvm-hosts.txt`) and `exec`s uvicorn. SIGTERM kills both. |
+| `backend/jvm-hosts.txt` | DNS overrides baked into the image. |
+| `render.yaml` | Adds `FXCM_USER` / `FXCM_PASS` as `sync: false` secrets (set in the Render dashboard). |
+
+No changes were needed to `backend/app/fxcm.py` — the proxy still talks to
+`http://127.0.0.1:3001`, which now resolves to the in-container JVM rather
+than the developer's host. The bridge stays bound to `127.0.0.1` so it is
+not reachable from outside the container.
+
+**Render plan:** `starter` (512 MB). Python + JRE + FCLite is tight (≈ 350–
+450 MB resident); upgrade to `standard` if the container OOMs under load.
+
+**To deploy:**
+1. Set `FXCM_USER` and `FXCM_PASS` in the Render dashboard for the
+   `trading-relay` service (Blueprint will create the empty keys on first
+   sync). Leave them unset to keep using the demo defaults hardcoded in
+   `BridgeServer.java`.
+2. Push to a branch that triggers `autoDeploy` (or hit "Manual Deploy" in
+   Render). The Docker build runs both stages — first build pulls ~100 MB
+   of Maven deps from `https://fxcorporate.com/public-maven` + Maven
+   Central.
+3. Verify post-deploy: `curl https://<service>.onrender.com/api/fxcm/health`
+   should return `{"status":"ok","account":"<acct>"}` once the FCLite
+   login finishes (~5–10 s after the container starts).
 
 ## Running the Full Stack Locally (with Forex)
 
