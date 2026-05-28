@@ -229,55 +229,56 @@ round-trips; header + channel-chip search in CFD returns FXCM instruments.
 **Deferred to Phase 3 / BACKLOG:** CFD Watchlist **Cards** view (SparkCard +
 daily-bars sparkline) and the Cards/List/Auto toggle.
 
-## Phase 3 — CFD widgets, research resolution & per-silo menu
+## Phase 3 — CFD widgets, research resolution & per-silo menu — ✅ LANDED
 
-- [ ] **Mini-chart in CFD**: route `MiniChartWidget` to render `<CfdPriceChart
-      instrument={symbol} />` when `assetClass === "cfd"` (it's the CFD analogue;
-      `PriceChart` has no CFD branch). Live tip can ride `useFxcmPrices`.
-      Alternative: a dedicated `cfdchart` widget id — prefer reusing the
-      Mini-chart slot to avoid growing the catalogue.
-- [ ] **`FxcmOrderTicketInline.tsx`** (new, `components/trade/`): a layer-2
-      inline CFD ticket (props: `{ instrument }`), reusing the order logic behind
-      `FxcmOrderSheet` (extract a shared hook if the sheet has inline-able
-      state). Then **`TradeWidget`** branches to it when `cfd`. This is the one
-      genuinely new component.
-- [ ] **Profile / Fundamentals widgets in CFD** (simplest — no resolver):
-      `/api/asset-profile/{symbol:path}` already returns FMP enrichment for stock
-      CFDs (see "Data model update"). Pass the **raw CFD symbol** (e.g. `RBLX.us`)
-      and render in the **stocks** layout when the instrument is a `stock_cfd`;
-      `AssetProfile`/`Fundamentals` already show a graceful notice when a row has
-      no data (covers the 114/369 stock CFDs without FMP, and all FX/index/metal/
-      commodity). Drop the `CfdPending` guard on these two.
-- [ ] **Instrument-subtype lookup** (`lib/asset-class.ts`): the adapters need to
-      know whether a CFD symbol is a `stock_cfd` (→ research-capable) vs
-      FX/index/metal/commodity (→ notice). Surface `fxcm_type`/`asset_class`
-      through the boot classifier cache (already fed from the FXCM instrument
-      list) — e.g. `cfdSubtype(symbol) → "stock_cfd" | "forex" | …`. Avoid relying
-      on the suffix alone.
-- [ ] **Tipranks widgets** (SmartScore, Sentiment, Analyst Ratings, Hedge Funds,
-      Insiders, Related Tickers, Holder Demographics): hit `/api/research/*` by
-      **US ticker**. Resolve via `fmp_ticker` (or strip a `.us` suffix); enable
-      only when that yields a bare US symbol, else keep the notice. Most relevant
-      for `.us` stock CFDs. Trending has no symbol input — notice-only in CFD.
-- [ ] **News / Earnings in CFD**: News can use the resolved underlying ticker
-      for stock CFDs (else the market feed); Earnings only makes sense for stock
-      CFDs (else the crypto-style "no earnings" notice).
-- [ ] **Per-silo Add-menu gating**: filter `WIDGET_CATALOG` by silo so CFD only
-      surfaces widgets that make sense (charts, trade, account, positions,
-      orders, activity, watchlist, news, + the research widgets since they now
-      resolve underlyings). Cleanest approach: add an optional `silos?:
-      AssetClass[]` field to `WidgetMeta` (absent = all silos) and filter in
-      `AddWidgetMenu`. Keep stocks/crypto menus unchanged.
-- [ ] **CFD preset(s)** (`presets.tsx`): a CFD "Trader" default — Chart ·
-      Watchlist · Positions · Orders · Account. Presets are silo-agnostic in
-      structure but seed channel symbols; ensure the seeds are valid CFD symbols
-      or omit seeds (channels fall back to `CHANNEL_DEFAULTS.cfd`). Decide whether
-      CFD gets its own first-run preset vs. reusing Trader (Trader references
-      `trade`/`orders` which now resolve correctly in CFD).
+- [x] **Mini-chart in CFD**: `MiniChartWidget` renders `<CfdPriceChart
+      instrument={symbol} />` in the CFD silo (the lightweight-charts CFD
+      analogue; `PriceChart` has no CFD branch).
+- [x] **`FxcmOrderTicketInline.tsx`** (new, `components/trade/`): inline CFD
+      ticket (`{ instrument }`) — Buy/Sell · Market/Entry · amount · rate,
+      reusing `useFxcmSubmitOrder` and the SE/LE derivation from `FxcmOrderSheet`
+      (logic duplicated rather than extracted — surgical; revisit if the sheet
+      changes). `TradeWidget` routes to it when `cfd`.
+- [x] **Profile / Fundamentals in CFD** (no resolver needed): both already key
+      off the DB row's `asset_class`, and `/api/asset-profile/{symbol:path}`
+      serves FXCM stock CFDs directly. Widened their `assetClass` prop to accept
+      `cfd`; adapters gate to **stock CFDs** (`isStockCfdSymbol` — dot-suffix
+      test) and show a notice for FX/index/metal/commodity. Graceful component
+      notice still covers stock CFDs lacking FMP.
+- [x] **Case-safe symbols** (`normSym`): stock CFDs carry a case-sensitive
+      lowercase suffix (`RBLX.us`); all symbol derivations preserve raw case in
+      the CFD silo. (Was an upper-casing bug that would have broken the
+      classifier cache + API lookups.)
+- [x] **Stock-CFD test + US-underlying resolver** (`lib/asset-class.ts`):
+      `isStockCfdSymbol` (dot-suffix) and `cfdUsUnderlying` (`.us` → bare US
+      ticker). The dot-suffix test replaced the planned classifier-subtype
+      lookup — simpler and reliable (only stock CFDs carry a dot).
+- [x] **Tipranks widgets** (SmartScore, Sentiment, Analyst Ratings, Hedge Funds,
+      Insiders, Related Tickers, Holder Demographics): shared `cfdResearch()`
+      resolver — US stock CFDs (`.us`) → bare US ticker; everything else blocked
+      with the existing notice. Trending stays notice-only in CFD.
+- [x] **News / Earnings in CFD**: News uses the underlying ticker for stock
+      CFDs, else the market feed (label reads "Market"); Earnings resolves
+      per-symbol to the US underlying for stock CFDs, else a "no earnings"
+      notice. Market mode unchanged.
 
-**Verify Phase 3:** Trade widget places a CFD order; a Profile widget linked to
-`AAPL.us` shows AAPL's company profile; the same widget linked to `EUR/USD`
-shows the not-available notice; the CFD Add menu hides nothing nonsensical.
+**Skipped (low value, documented):**
+- **Per-silo Add-menu gating** — unnecessary given the "show research for stock
+  CFDs" decision: every widget is reachable in CFD with graceful notices, which
+  is exactly how the **crypto** silo already behaves (research widgets show a
+  stocks-only notice there too). Adding silo gating would diverge from that
+  established pattern for no functional gain.
+- **Dedicated CFD preset** — the **Trader** first-run preset already works in
+  CFD (Chart · Positions · Trade · Account · Orders · News · Activity all
+  resolve). A fresh CFD silo boots into a working Trader layout. If a tailored
+  CFD preset is wanted later, add it to `PRESETS` with a `silos` filter in
+  `LayoutsMenu`.
+
+**Verify Phase 3 (runtime — pending):** Trade widget places a CFD order; Mini
+chart shows the selected instrument; a Profile/Fundamentals widget linked to a
+`.us` stock CFD (e.g. `RBLX.us`) shows the company data and the same widget on
+`EUR/USD` shows the notice; a SmartScore widget on `RBLX.us` shows Tipranks data
+and on `EUR/USD` the notice.
 
 ## Phase 4 — AI / Ask-anything control parity
 
