@@ -28,10 +28,13 @@ orange for CFDs). All silos share the same mode toggle (Workspace is desktop-onl
   - *Crypto* — live crypto price marquee, holdings + allocation hero (crypto
     positions only, blue), crypto watchlist sparkline cards, inline chart, BTC
     news. No movers/most-active (Alpaca has no crypto screener).
-  - *CFDs* — FXCM account hero (equity / balance / margin) and live major-pair
-    watchlist (bid/ask, spread in pips, 3 s polling). Requires the local FXCM
-    bridge to be running; shows an offline notice otherwise. POC stage — order
-    entry and Chart integration are in the backlog.
+  - *CFDs* — FXCM account hero (equity / balance / margin), live major-pair
+    watchlist (bid/ask, spread in pips, 3 s polling), and an **inline
+    lightweight-charts** panel for the selected instrument (candles from
+    `/api/fxcm/history` with 1m / 5m / 15m / 1H / 1D pills; live tip from
+    the page's existing price poll). Click any watchlist row to switch the
+    chart; "Open ↗" jumps to full TV Chart mode. Requires the FXCM bridge
+    to be running; shows an offline notice otherwise.
 - **Portfolio** — siloed value + day P/L hero with a reconstructed per-silo
   **net P/L curve** (from `/api/pnl-history`), positions strip (one card per
   position, filtered to the active asset class), open-orders table, and

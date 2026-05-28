@@ -58,6 +58,7 @@ to Linux (Render), unlike the old Python 3.7 + C++ ForexConnect wheel
 | `fxcm-bridge/java/target/fxcm-bridge-1.0.0.jar` | Built fat JAR (all deps bundled) |
 | `backend/app/fxcm.py` | FastAPI proxy router at `/api/fxcm/*` |
 | `frontend/src/components/CfdDiscoverPage.tsx` | CFD Discover page |
+| `frontend/src/components/CfdPriceChart.tsx` | Inline lightweight-charts panel on CFD Discover (FXCM history + live-tip) |
 | `frontend/src/api.ts` | FXCM API functions (`getFxcm*` block). Hit Render directly via `STREAM_BASE` — Vercel has no bridge. |
 | `frontend/src/types.ts` | FXCM types (`FxcmAccount`, `FxcmPrice`, `FxcmBar`, `FxcmPosition`, `FxcmInstrument`) |
 | `frontend/src/lib/asset-class.ts` | FXCM-aware `isCfdSymbol` / `isCryptoSymbol`; cache populated at boot by App.tsx |
@@ -416,6 +417,28 @@ Response: array of `FxcmBar`:
   countries are passed to `useEconomicCalendar(countries, enabled)`
   which forwards them to the backend `/api/calendar/economic?countries=`
   filter.
+- **Inline price chart** (`CfdPriceChart`, mounted between the watchlist
+  and the economic calendar) — a `lightweight-charts` candle panel for
+  the row currently selected on the watchlist. Local `selected` state
+  seeded with the first row on first prices-load; clicking another row
+  highlights it (`--accent-bg`) and switches the chart. OHLCV comes from
+  `useFxcmBars` (queries `/api/fxcm/history` with per-timeframe `from`/`to`
+  windows — `m1`/2d, `m5`/7d, `m15`/14d, `m30`/21d, `H1`/60d, `H4`/180d,
+  `D1`/2y, `W1`/5y — since the bridge requires explicit dates; 60 s refetch
+  on intraday timeframes, 5 min on daily/weekly). The live tip rides the
+  page's existing 3 s `/api/fxcm/prices` poll (the `livePrice` prop) — no
+  extra request floor. Day Δ% derives from the second-to-last D1 close so
+  it stays consistent across timeframe switches; React Query dedupes when
+  the chart is already on D1. Per-type digit precision applied to both the
+  live-price header (`fmt`) and the chart's right price axis
+  (`priceFormat.precision`) — JPY 3dp · FX 5dp · metals 4dp · indices 1dp ·
+  stock-CFDs 2dp. "Open ↗" propagates the selected instrument to
+  App-level state via `onSelectSymbol` and fires `onOpenChart` to switch
+  into full TV Chart mode. Sibling rather than a branch inside
+  `PriceChart` because the data shapes (`FxcmBar` ISO time vs Alpaca
+  epoch), hooks, and per-type formatting all differ, and `PriceChart`
+  already carries the Workspace `responsive` tier branches — the CFD
+  Discover surface is single-column / full-tier only.
 
 ### FXCM-aware classifier (`lib/asset-class.ts`)
 
@@ -503,7 +526,8 @@ CFD trading still happens via `CfdDiscoverPage` + `FxcmOrderSheet`.
 - Frontend CFD silo end-to-end: orange accent, splash card (live FXCM
   equity / day P/L / positions on the Account Hub overlay),
   CfdDiscoverPage (account hero, live watchlist, FxcmPositions panel,
-  FXCM-country-filtered economic calendar), FxcmOrderSheet
+  inline `CfdPriceChart` for the selected instrument, FXCM-country-filtered
+  economic calendar), FxcmOrderSheet
 - **CFD Portfolio screen** — `CfdPortfolioHero` (equity + day-chip +
   Free margin / Total P/L / Open orders; no sparkline), shared
   `AllocationDonut` over per-instrument used-margin, netted-per-instrument

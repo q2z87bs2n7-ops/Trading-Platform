@@ -183,7 +183,18 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
     `activity_type: "TRADE_CLOSE"` so the existing `describe()` helper
     renders them unchanged. The `TradeBar` is still suppressed in CFD mode
     (Alpaca-only order entry); CFD order entry lives in `FxcmOrderSheet`
-    mounted from `CfdDiscoverPage`.
+    mounted from `CfdDiscoverPage`. **CFD Discover** also mounts an inline
+    `CfdPriceChart` (single-column, between the watchlist and the economic
+    calendar) — a `lightweight-charts` candle panel sourcing OHLCV from
+    `/api/fxcm/history` via `useFxcmBars` (per-timeframe `from`/`to` window
+    since the bridge requires explicit dates; 60 s refetch on intraday, 5 min
+    on daily), with the live tip riding the page's existing 3 s
+    `/api/fxcm/prices` poll. Watchlist click sets a local `selected` (tints
+    the row with `--accent-bg`) which drives the chart; "Open ↗" propagates
+    the symbol to App-level state and switches to full Chart mode. Per-type
+    digit precision (JPY 3dp · FX 5dp · metals 4dp · indices 1dp · stock-CFDs
+    2dp) is applied to both the live-price header and the chart's right
+    price axis.
   - **Chart** — `TVPlatform.tsx` wraps the full TradingView Charting
     Library (`frontend/public/charting_library/`, committed — private
     repo only) using **TV's native chrome**: the native header (symbol
