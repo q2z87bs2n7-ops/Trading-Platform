@@ -8,7 +8,11 @@
 import { subscribeBar } from "../data/barStream";
 import { subscribeQuoteTicks } from "../data/quoteStream";
 import { isCryptoSymbol } from "./asset-class";
-import type { FxcmBar, Quote } from "../types";
+import type { FxcmBar, FxcmPrice, Quote } from "../types";
+
+// FXCM has no SSE on the bridge yet — chart live ticks fall back to polling
+// /api/fxcm/prices at this cadence. Matches ForexDiscoverPage's poll loop.
+const FXCM_QUOTE_POLL_MS = 3000;
 
 // Matches the flush interval in useLiveQuotes — caps TV order-ticket
 // re-renders to at most one per 500ms regardless of tick rate.
@@ -249,6 +253,12 @@ export function createDatafeed(opts: DatafeedOpts = {}) {
       onTick: (bar: object) => void,
       subscriberUID: string,
     ) {
+      if (getAssetClass() === "forex") {
+        // FXCM bridge has no SSE bar stream yet. The chart's bar history loads
+        // via getBars; the live price line still moves via subscribeQuotes.
+        // Real-time bar updates are a follow-up (BACKLOG → "FXCM push").
+        return;
+      }
       // Real-time OHLCV from Alpaca's `subscribe_bars` via the shared SSE
       // stream (kinds=bar). One 1-minute bar per minute per symbol; TV
       // happily merges that into whatever chart resolution it's showing.
@@ -294,6 +304,43 @@ export function createDatafeed(opts: DatafeedOpts = {}) {
       onDataCallback: (data: object[]) => void,
       onErrorCallback: (err: string) => void,
     ) {
+      if (getAssetClass() === "forex") {
+        // FXCM offers list, filter client-side. Cheaper than N single-instrument
+        // fetches and matches what /fxcm/watchlist already does internally.
+        fetch(`${API_BASE}/api/fxcm/prices`)
+          .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+          .then((data: FxcmPrice[]) => {
+            const byInst: Record<string, FxcmPrice> = {};
+            for (const p of (Array.isArray(data) ? data : [])) byInst[p.instrument] = p;
+            const out = symbols.map((sym) => {
+              const p = byInst[sym];
+              if (!p) return { s: "error" as const, n: sym, v: {} };
+              const bid = p.bid ?? 0;
+              const ask = p.ask ?? 0;
+              const mid = (bid && ask) ? (bid + ask) / 2 : (bid || ask);
+              return {
+                s: "ok" as const,
+                n: sym,
+                v: {
+                  ch: 0, chp: 0,
+                  short_name: sym,
+                  exchange: "FXCM",
+                  description: p.display_name ?? sym,
+                  lp: mid, ask, bid,
+                  spread: ask && bid ? ask - bid : 0,
+                  open_price: 0,
+                  high_price: p.high ?? 0,
+                  low_price: p.low ?? 0,
+                  prev_close_price: 0,
+                  volume: 0,
+                },
+              };
+            });
+            onDataCallback(out);
+          })
+          .catch((e) => onErrorCallback(String(e)));
+        return;
+      }
       const syms = encodeURIComponent(symbols.join(","));
       Promise.all([
         fetch(`${API_BASE}/api/snapshots?symbols=${syms}`).then((r) => r.json()),
@@ -350,6 +397,43 @@ export function createDatafeed(opts: DatafeedOpts = {}) {
       listenerGUID: string,
     ) {
       const all = Array.from(new Set([...symbols, ..._fastSymbols]));
+
+      if (getAssetClass() === "forex") {
+        // FXCM bridge has no quote SSE, so poll /api/fxcm/prices every 3s and
+        // diff against the previous frame. Only emit symbols whose bid/ask
+        // changed to keep TV's re-render rate down.
+        const subscribed = new Set(all);
+        const lastByInst: Record<string, { bid?: number; ask?: number }> = {};
+        const tick = () => {
+          fetch(`${API_BASE}/api/fxcm/prices`)
+            .then((r) => (r.ok ? r.json() : []))
+            .then((data: FxcmPrice[]) => {
+              const batch: object[] = [];
+              for (const p of (Array.isArray(data) ? data : [])) {
+                if (!subscribed.has(p.instrument)) continue;
+                const prev = lastByInst[p.instrument];
+                if (prev && prev.bid === p.bid && prev.ask === p.ask) continue;
+                lastByInst[p.instrument] = { bid: p.bid, ask: p.ask };
+                const bid = p.bid ?? 0;
+                const ask = p.ask ?? 0;
+                const mid = (bid && ask) ? (bid + ask) / 2 : (bid || ask);
+                batch.push({
+                  s: "ok",
+                  n: p.instrument,
+                  v: { lp: mid, ask, bid, spread: ask && bid ? ask - bid : 0 },
+                });
+              }
+              if (batch.length > 0) onRealtimeCallback(batch);
+            })
+            .catch(() => { /* leave last data visible */ });
+        };
+        tick();
+        const pollId = window.setInterval(tick, FXCM_QUOTE_POLL_MS);
+        (window as unknown as Record<string, unknown>)[`__tv_quotes_${listenerGUID}`] =
+          () => clearInterval(pollId);
+        return;
+      }
+
       let pending: Record<string, Quote> = {};
 
       const flushId = window.setInterval(() => {
