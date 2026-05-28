@@ -23,3 +23,6 @@ fxcm-bridge/java/dependency-reduced-pom.xml
 .DS_Store
 .vscode/
 .idea/
+
+# Claude Code agent worktrees (local only)
+.claude/
