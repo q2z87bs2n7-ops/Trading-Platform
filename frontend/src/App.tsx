@@ -22,7 +22,7 @@ import AssetClassSplash from "./components/AssetClassSplash";
 import AllocationDonut from "./components/AllocationDonut";
 import PortfolioHero from "./components/PortfolioHero";
 import SectionHeading from "./components/SectionHeading";
-import { isCryptoPosition, registerFxcmSymbols } from "./lib/asset-class";
+import { isCfdSymbol, isCryptoPosition, registerFxcmSymbols } from "./lib/asset-class";
 import { DONUT_COLORS_GREEN } from "./components/discover/util";
 import TVPlatform from "./components/TVPlatform";
 import ChatPanel from "./components/chat/ChatPanel";
@@ -572,7 +572,7 @@ export default function App() {
             <TVPlatform
               symbol={
                 activeClass === "cfd"
-                  ? (selected || "EUR/USD")
+                  ? (isCfdSymbol(selected) ? selected : "EUR/USD")
                   : selected
               }
               onSymbolChange={setSelected}
@@ -650,7 +650,7 @@ export default function App() {
          Chart mode mounts its own TradeBar inside TVPlatform. CFD routes
          the same bar to FxcmOrderSheet via the assetClass prop. */}
       {(mode === "discover" || mode === "portfolio") && (
-        <TradeBar symbol={selected} assetClass={activeClass} />
+        <TradeBar symbol={activeClass === "cfd" ? (isCfdSymbol(selected) ? selected : "") : selected} assetClass={activeClass} />
       )}
 
       {/* Mobile-only floating ✦ Ask launcher. Bottom-left so it sits in the

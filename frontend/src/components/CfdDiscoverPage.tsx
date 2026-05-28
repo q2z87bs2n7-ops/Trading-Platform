@@ -393,6 +393,7 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
   useEffect(() => {
     if (!selected && wlSymbols.length > 0) {
       setSelected(wlSymbols[0]);
+      onSelectSymbol?.(wlSymbols[0]);
     }
   }, [wlSymbols, selected]);
 
