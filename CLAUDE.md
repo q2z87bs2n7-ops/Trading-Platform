@@ -9,7 +9,9 @@ that took several iterations to land — don't undo them),
 (the two AI surfaces), `docs/database.md` (Postgres asset catalogue),
 `docs/tipranks.md` (Tipranks research API — endpoint inventory & auth
 quirks, not yet wired), `docs/fxcm.md` (FXCM ForexConnect integration —
-bridge architecture, SDK patterns, what's built, what's next).
+bridge architecture, SDK patterns, what's built, what's next),
+`docs/cfd-workspace-integration.md` (tracked spec: bringing the CFD silo
+to the Workspace canvas — phased, with handover detail).
 
 ## What this is
 
