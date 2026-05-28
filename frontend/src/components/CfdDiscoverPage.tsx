@@ -7,6 +7,7 @@ import { useEconomicCalendar, useFxcmInstruments } from "../data/hooks";
 import { EconomicCard } from "./discover/EconomicCard";
 import SectionHeading from "./SectionHeading";
 import FxcmOrderSheet from "./trade/FxcmOrderSheet";
+import CfdPriceChart from "./CfdPriceChart";
 
 // CFD-specific price formatter: 5 decimal places for most pairs, 3 for JPY
 function fmtFxPrice(price: number | undefined, symbol?: string): string {
@@ -284,6 +285,10 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
   const [prevPrices, setPrevPrices] = useState<Map<string, FxcmPrice>>(new Map());
   const [positions, setPositions] = useState<FxcmPosition[]>([]);
   const [orderSheetOpen, setOrderSheetOpen] = useState(false);
+  // Inline chart selection — seeded from the first watchlist row once it
+  // resolves. Watchlist clicks update this; the "Open ↗" button on the
+  // chart card jumps to full Chart mode via onOpenChart.
+  const [selected, setSelected] = useState<string>("");
 
   // Economic calendar — filtered to every country represented in the FXCM
   // product list (not just our watchlist pairs), so adding indices / stock
@@ -360,8 +365,25 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
     } catch { /* leave stale */ }
   }
 
+  // Seed the inline chart with the first watchlist row once prices land,
+  // mirroring how stocks/crypto Discover auto-picks the first watchlist
+  // symbol on first load.
+  useEffect(() => {
+    if (!selected && prices.length > 0) {
+      setSelected(prices[0].instrument);
+    }
+  }, [prices, selected]);
+
   function handleSelectPair(instrument: string) {
+    setSelected(instrument);
+    // Bubble the choice up so App-level state stays in sync (e.g. for the
+    // header chart-mode prefetch). No jump to Chart mode here — the user
+    // navigates there explicitly via "Open ↗" on the chart card.
     onSelectSymbol?.(instrument);
+  }
+
+  function handleOpenChart() {
+    if (selected) onSelectSymbol?.(selected);
     onOpenChart?.();
   }
 
@@ -464,13 +486,30 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
             <div
               key={p.instrument}
               onClick={() => handleSelectPair(p.instrument)}
-              style={{ cursor: onOpenChart ? "pointer" : undefined }}
+              style={{
+                cursor: "pointer",
+                background:
+                  p.instrument === selected
+                    ? "var(--accent-bg)"
+                    : undefined,
+              }}
             >
               <PriceRow price={p} prev={prevPrices.get(p.instrument)} />
             </div>
           ))
         )}
       </div>
+
+      {/* Inline chart — mirrors stocks/crypto Discover's ChartCard, pulling
+         OHLCV from /api/fxcm/history and the live tip from the parent's
+         /api/fxcm/prices poll. Click a watchlist row above to switch. */}
+      {bridgeOk && selected && (
+        <CfdPriceChart
+          instrument={selected}
+          livePrice={priceMap.get(selected)}
+          onOpenChart={onOpenChart ? handleOpenChart : undefined}
+        />
+      )}
 
       {/* Economic calendar — filtered to every country in the FXCM universe */}
       {bridgeOk && economic.data?.economic && economic.data.economic.length > 0 && (

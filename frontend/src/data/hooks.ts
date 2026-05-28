@@ -142,6 +142,47 @@ export function useFxcmClosePosition() {
 // the classifier boot effect already fetches once for symbol classification,
 // this hook lets downstream surfaces (economic-calendar country filter, search)
 // share the same cache.
+// FXCM history bars for the CFD Discover inline chart. The bridge has no
+// SSE bar stream, so a 60s refetch keeps the chart fresh on intraday
+// timeframes; the live tip rides the parent's /api/fxcm/prices poll. The
+// bridge requires explicit `from`/`to` dates (TV datafeed already passes
+// them) — pick a window that yields ~200–400 bars per timeframe so the
+// chart has enough scrollback without bloating the response.
+const FXCM_WINDOW_DAYS: Record<string, number> = {
+  m1: 2,
+  m5: 7,
+  m15: 14,
+  m30: 21,
+  H1: 60,
+  H4: 180,
+  D1: 365 * 2,
+  W1: 365 * 5,
+};
+
+function fxcmHistoryWindow(timeframe: string): { from: string; to: string } {
+  const days = FXCM_WINDOW_DAYS[timeframe] ?? 60;
+  const to = new Date();
+  const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000);
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  return { from: iso(from), to: iso(to) };
+}
+
+export const useFxcmBars = (
+  instrument: string,
+  timeframe: string,
+  enabled = true,
+) =>
+  useQuery({
+    queryKey: qk.fxcmHistory(instrument, timeframe),
+    queryFn: () => {
+      const { from, to } = fxcmHistoryWindow(timeframe);
+      return api.getFxcmHistory(instrument, timeframe, from, to);
+    },
+    enabled: enabled && !!instrument,
+    refetchInterval: timeframe === "D1" || timeframe === "W1" ? 5 * 60_000 : 60_000,
+    retry: 0,
+  });
+
 export const useFxcmInstruments = (enabled = true) =>
   useQuery({
     queryKey: qk.fxcmInstruments,
