@@ -439,10 +439,7 @@ export default function ForexDiscoverPage({ onSelectSymbol, onOpenChart }: Forex
 
         {bridgeOk === false ? (
           <div className="px-4 py-8 text-center text-[13px]" style={{ color: "var(--mute)" }}>
-            FXCM bridge is not running.{" "}
-            <span className="font-mono text-[12px]">
-              Start fxcm-bridge\java\target\fxcm-bridge-1.0.0.jar to see live prices.
-            </span>
+            FXCM bridge is unreachable. Try again in a moment.
           </div>
         ) : prices.length === 0 ? (
           <div className="px-4 py-8 text-center text-[13px]" style={{ color: "var(--mute)" }}>
@@ -471,11 +468,10 @@ export default function ForexDiscoverPage({ onSelectSymbol, onOpenChart }: Forex
             color: "var(--neg)",
           }}
         >
-          <strong>Bridge offline.</strong> The FXCM FCLite bridge is not responding on
-          port 3001. Start it with:{" "}
-          <code className="font-mono text-[11.5px]">
-            java -Djdk.net.hosts.file=C:\Temp\jvm-hosts.txt -jar fxcm-bridge\java\target\fxcm-bridge-1.0.0.jar
-          </code>
+          <strong>Bridge offline.</strong> The FXCM FCLite bridge isn't
+          responding. The Render service may be restarting or the FXCM
+          session may have dropped — refresh in a minute. If it persists,
+          check the Render logs.
         </div>
       )}
 

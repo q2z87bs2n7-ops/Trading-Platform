@@ -426,23 +426,54 @@ export function streamBars(
 }
 
 // ── FXCM bridge API (/api/fxcm/*) ────────────────────────────────────────────
+//
+// FXCM endpoints live behind the Render relay (the Java bridge co-runs with
+// FastAPI there). Vercel's serverless container has no bridge, so we hit the
+// Render origin directly via STREAM_BASE instead of going through API_BASE.
+// Locally STREAM_BASE is empty → relative URLs hit the Vite proxy as before.
+
+async function getFxcmJSON<T>(path: string): Promise<T> {
+  const res = await fetch(`${STREAM_BASE}${path}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(formatDetail(body.detail, res.status));
+  }
+  return res.json() as Promise<T>;
+}
+
+async function sendFxcmJSON<T>(
+  method: "POST" | "PATCH" | "DELETE",
+  path: string,
+  body?: unknown,
+): Promise<T> {
+  const res = await fetch(`${STREAM_BASE}${path}`, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}));
+    throw new Error(formatDetail(errBody.detail, res.status));
+  }
+  return res.json() as Promise<T>;
+}
 
 export const getFxcmHealth = () =>
-  getJSON<{ status: string; account: string }>("/api/fxcm/health");
+  getFxcmJSON<{ status: string; account: string }>("/api/fxcm/health");
 
 export const getFxcmAccount = () =>
-  getJSON<FxcmAccount>("/api/fxcm/account");
+  getFxcmJSON<FxcmAccount>("/api/fxcm/account");
 
 export const getFxcmPrices = (instrument?: string) =>
-  getJSON<FxcmPrice[]>(
+  getFxcmJSON<FxcmPrice[]>(
     `/api/fxcm/prices${instrument ? `?instrument=${encodeURIComponent(instrument)}` : ""}`,
   );
 
 export const getFxcmWatchlist = () =>
-  getJSON<FxcmPrice[]>("/api/fxcm/watchlist");
+  getFxcmJSON<FxcmPrice[]>("/api/fxcm/watchlist");
 
 export const getFxcmPositions = () =>
-  getJSON<FxcmPosition[]>("/api/fxcm/positions");
+  getFxcmJSON<FxcmPosition[]>("/api/fxcm/positions");
 
 export const getFxcmHistory = (
   instrument: string,
@@ -453,7 +484,7 @@ export const getFxcmHistory = (
   const params = new URLSearchParams({ instrument, timeframe });
   if (dateFrom) params.set("from", dateFrom);
   if (dateTo) params.set("to", dateTo);
-  return getJSON<FxcmBar[]>(`/api/fxcm/history?${params}`);
+  return getFxcmJSON<FxcmBar[]>(`/api/fxcm/history?${params}`);
 };
 
 export interface FxcmOrderRequest {
@@ -467,9 +498,9 @@ export interface FxcmOrderRequest {
 }
 
 export const submitFxcmOrder = (order: FxcmOrderRequest) =>
-  sendJSON<{ status: string; order_id?: string }>("POST", "/api/fxcm/order", order);
+  sendFxcmJSON<{ status: string; order_id?: string }>("POST", "/api/fxcm/order", order);
 
 export const closeFxcmPosition = (tradeId: string | number) =>
-  sendJSON<{ status: string; trade_id?: string }>("POST", "/api/fxcm/close", {
+  sendFxcmJSON<{ status: string; trade_id?: string }>("POST", "/api/fxcm/close", {
     trade_id: String(tradeId),
   });
