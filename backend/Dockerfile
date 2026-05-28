@@ -5,7 +5,7 @@
 # it on 127.0.0.1:3001.
 
 # ── Stage 1: build the FCLite fat JAR ────────────────────────────────────────
-FROM maven:3.9-eclipse-temurin-17 AS jbuild
+FROM maven:3.9-eclipse-temurin-21 AS jbuild
 WORKDIR /build
 
 # Pre-seed the local Maven repo with FCLite — fxcorporate.com serves it from a
@@ -31,7 +31,7 @@ FROM python:3.12-slim
 WORKDIR /app
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends openjdk-17-jre-headless \
+ && apt-get install -y --no-install-recommends openjdk-21-jre-headless \
  && rm -rf /var/lib/apt/lists/*
 
 COPY backend/requirements.txt .
