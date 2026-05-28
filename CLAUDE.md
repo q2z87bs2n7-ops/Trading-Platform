@@ -298,8 +298,8 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
   most of these proxy to the in-container FXCM bridge on 127.0.0.1:3001
   (return 503 when the JVM isn't responding). **Three endpoints are DB-only
   and never touch the bridge:** `fxcm/display-names`, `fxcm/underlying-units`,
-  and `fxcm/search-instruments` — all three query the `fxcm_instruments`
-  Postgres table and are served from Vercel (via `API_BASE`) not Render
+  and `fxcm/search-instruments` — all three query the `assets` table
+  (`WHERE source='fxcm'`) and are served from Vercel (via `API_BASE`) not Render
   (`STREAM_BASE`), so they work even when the bridge is offline. **The
   fxcm/watchlist surface** doesn't touch the bridge either — it proxies
   to FXCM's Endpoints suite (`endpoints-demo.fxcorporate.com`)
@@ -347,9 +347,12 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
   /api/_dev/refresh-alpaca` (background; the only routine touching the
   Alpaca-sourced fields, also onboards new listings); `GET /api/_dev/new-symbols`
   is a fast read-only check for new listings/IPOs not yet in the catalogue.
-  `POST /api/_dev/seed-fxcm-instruments` is a one-time lift that populates
-  the `fxcm_instruments` table (FXCM symbol metadata for account-501 instruments,
-  no refresh). See "Asset catalogue" below and `docs/database.md`.
+  `POST /api/_dev/seed-fxcm-instruments` is a one-time lift that upserts
+  FXCM instrument metadata into `assets` (`source='fxcm'`; `fxcm_instruments`
+  is now a legacy empty table). `POST /api/_dev/enrich-fxcm-stocks` FMP-enriches
+  the `stock_cfd` subset (synchronous, ~5 min); `POST
+  /api/_dev/refresh-fxcm-stocks` re-enriches in the background.
+  See "Asset catalogue" below and `docs/database.md`.
   **Path params with slashes:** `/api/assets/{symbol:path}`,
   `/api/asset-profile/{symbol:path}`, `/api/positions/{symbol:path}`, and
   `/api/watchlist/{symbol:path}`
@@ -409,9 +412,10 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
   key/value table (the maintenance switch). Pure-Python `pg8000`
   (3.14/Vercel-safe), per-op connections from `DATABASE_URL`, graceful
   `DbUnavailable` → 503-style fallback when unset. Tables are created by
-  `backend/sql/002_assets.sql`, `backend/sql/003_app_settings.sql`, and
-  `backend/sql/004_fxcm_instruments.sql`, each run **once** in the Supabase SQL
-  editor (no auto-create). Writes only run from prod/Render (Postgres :5432 is firewalled
+  `backend/sql/002_assets.sql`, `backend/sql/003_app_settings.sql`,
+  `backend/sql/004_fxcm_instruments.sql`, and
+  `backend/sql/005_merge_fxcm_instruments.sql`, each run **once** in the
+  Supabase SQL editor (no auto-create). Writes only run from prod/Render (Postgres :5432 is firewalled
   from the sandbox + the owner's laptop). Everything else (trade journal,
   server-side watchlists, finer P/L history) is still direct-Alpaca +
   `localStorage` — backlogged. See `docs/landmines.md` → "Asset catalogue"
@@ -447,24 +451,28 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
   update app_settings set value='off' where key='force_stop';    -- stop re-booting fresh loads
   -- Optional messages: keys 'maintenance_message' / 'force_stop_message'.
   ```
-- **Asset catalogue:** one `assets` table; each row's `asset_class` drives its
-  enrichment source (no mixing). Base identity comes from Alpaca
-  (`get_all_assets_for_seed` → `db.bulk_upsert_assets`); crypto enrichment from
-  CoinGecko (`coingecko.py` — keyless or the `COINGECKO_API_KEY` Demo key,
-  static base-ticker→id map); stock enrichment from FMP's **stable** profile
-  endpoint (`fmp.py` — single-symbol on the paid **Starter** tier, 300/min, same
-  key; no 250/day free cap. `profile-bulk` + the constituent lists need a higher
-  tier still — 402 on Starter); fundamentals from FMP statements
-  (`income-statement`+`cash-flow-statement`+`ratios`, annual). Refresh of any
-  card is the background routine for that card (`refresh-profile-stocks` /
-  `-crypto` / `refresh-fundamentals`); `?include_missing=true` onboards new rows.
-  **Visibility rule:**
-  `db.search_assets` only returns `tradable` + enriched rows, so the un-enriched
-  long tail (SPAC shells, warrants, dead OTC) stays out of discovery and
-  enrichment status doubles as the curation filter — enrich a symbol and it
-  becomes searchable. Search-only; direct resolution (`get_asset`, Alpaca
-  fallback) and user-referenced data (positions/watchlist/charts) are never
-  filtered. See `docs/database.md`.
+- **Asset catalogue:** one `assets` table hosting all three symbol universes.
+  `source` column (`'alpaca'` | `'fxcm'`) identifies origin. `asset_class`
+  drives enrichment: `'us_equity'` / `'crypto'` (Alpaca) or `'forex'` /
+  `'stock_cfd'` / `'index'` / `'metal'` / `'commodity'` / `'cfd_other'` (FXCM).
+  Base identity for Alpaca rows comes from `get_all_assets_for_seed` →
+  `db.bulk_upsert_assets`; FXCM rows are seeded via
+  `seed-fxcm-instruments`. Enrichment: crypto from CoinGecko (`coingecko.py` —
+  keyless or `COINGECKO_API_KEY` Demo key, static base-ticker→id map); Alpaca
+  equities + FXCM stock_cfd from FMP's **stable** profile endpoint (`fmp.py` —
+  single-symbol on the paid **Starter** tier, 300/min, no daily cap;
+  `profile-bulk` + constituent lists 402 on Starter); fundamentals from FMP
+  statements (`income-statement`+`cash-flow-statement`+`ratios`, annual —
+  `us_equity` only). For FXCM stock_cfd rows FMP enrichment shares the same
+  columns (`description`, `logo_url`, `sector`, `market_cap`, `is_adr`, etc.);
+  `fmp_ticker` records the ticker used (bare ADR first, exchange-suffixed
+  fallback). Refresh routines: `refresh-profile-stocks` / `-crypto` /
+  `refresh-fundamentals` / `refresh-fxcm-stocks`; `?include_missing=true`
+  onboards new rows. **Visibility rule:** `db.search_assets` returns only
+  `tradable` + enriched rows — scoped to Alpaca rows (FXCM instruments use
+  `search_fxcm_instruments` via `/api/fxcm/search-instruments`). Direct
+  resolution (`get_asset`, `get_asset_profile`) is never filtered and works for
+  FXCM symbols too. See `docs/database.md`.
 - **Styling:** Tailwind + a Calm v2 oklch token set in
   `frontend/src/index.css` (light default, dark under
   `html[data-theme="dark"]`, switched by `hooks/useTheme.ts` with a

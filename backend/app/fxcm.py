@@ -176,7 +176,7 @@ async def underlying_units():
 
 @router.get("/search-instruments")
 async def search_instruments_db(q: str = "", limit: int = 50):
-    """Search fxcm_instruments table by name, display_name, or alternatives."""
+    """Search FXCM instruments (assets WHERE source='fxcm') by name, display name, or alternatives."""
     from . import db
     if not q.strip():
         return []

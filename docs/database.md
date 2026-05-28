@@ -23,19 +23,26 @@ Companions: `CLAUDE.md` for repo-wide rules, `docs/landmines.md` →
 
 ## Schema
 
-Authoritative definition: **`backend/sql/002_assets.sql`** — run **once** in the
-Supabase SQL editor (no auto-create). One row per Alpaca symbol; each row's
-`asset_class` decides which enrichment source fills it — **sources never mix
-within a row.**
+Authoritative definition: **`backend/sql/002_assets.sql`** (base) +
+**`backend/sql/005_merge_fxcm_instruments.sql`** (FXCM columns) — run
+**once each** in the Supabase SQL editor (no auto-create). One row per
+symbol; `source` distinguishes origin and `asset_class` drives enrichment.
+
+**`source`** values: `'alpaca'` (default, all pre-existing rows) | `'fxcm'`
+
+**`asset_class`** values: `'us_equity'` | `'crypto'` (Alpaca) | `'forex'` |
+`'stock_cfd'` | `'index'` | `'metal'` | `'commodity'` | `'cfd_other'` (FXCM)
 
 | Group | Columns | Source |
 | --- | --- | --- |
-| Base identity | `symbol`, `alpaca_id`, `name`, `asset_class`, `exchange`, `status`, `tradable`, `marginable`, `shortable`, `fractionable`, `attributes[]`, `min_order_size`, `min_trade_increment`, `price_increment` | Alpaca (all rows) |
-| Common enrichment | `description`, `website`, `logo_url`, `market_cap` | per `asset_class` |
-| Stock-only | `sector`, `industry`, `country`, `city`, `state`, `ipo_date`, `isin`, `cik`, `is_etf`, `is_adr`, `is_fund`, `is_actively_trading`, `ceo`, `employees`, `phone`, `beta`, `dcf`, `dcf_diff` | FMP |
-| Stock fundamentals | `pe_ratio`, `ps_ratio`, `pb_ratio`, `ev_to_ebitda`, `peg_ratio`, `gross_margin`, `operating_margin`, `net_margin`, `roe`, `roic`, `debt_to_equity`, `current_ratio`, `eps_diluted`, `book_value_per_share`, `free_cash_flow`, `revenue_growth_yoy`, `eps_growth_yoy`, `dividend_yield`, `payout_ratio`, `latest_fiscal_year`, `reported_currency`, `financials_annual` (JSONB, ≤5yr trend), `fundamentals_enriched_at` | FMP (annual) |
+| Base identity | `symbol`, `alpaca_id`, `name`, `asset_class`, `exchange`, `status`, `tradable`, `marginable`, `shortable`, `fractionable`, `attributes[]`, `min_order_size`, `min_trade_increment`, `price_increment` | Alpaca rows only |
+| Common enrichment | `description`, `website`, `logo_url`, `market_cap` | FMP (stocks + stock_cfd) / CoinGecko (crypto) |
+| Stock-only | `sector`, `industry`, `country`, `city`, `state`, `ipo_date`, `isin`, `cik`, `is_etf`, `is_adr`, `is_fund`, `is_actively_trading`, `ceo`, `employees`, `phone`, `beta`, `dcf`, `dcf_diff` | FMP — shared by `us_equity` and `stock_cfd` rows |
+| Stock fundamentals | `pe_ratio`, `ps_ratio`, `pb_ratio`, `ev_to_ebitda`, `peg_ratio`, `gross_margin`, `operating_margin`, `net_margin`, `roe`, `roic`, `debt_to_equity`, `current_ratio`, `eps_diluted`, `book_value_per_share`, `free_cash_flow`, `revenue_growth_yoy`, `eps_growth_yoy`, `dividend_yield`, `payout_ratio`, `latest_fiscal_year`, `reported_currency`, `financials_annual` (JSONB, ≤5yr trend), `fundamentals_enriched_at` | FMP (annual) — `us_equity` only for now |
 | Crypto-only | `coingecko_id`, `hashing_algorithm`, `genesis_date`, `categories[]`, `whitepaper_url`, `github_url`, `circulating_supply`, `total_supply`, `max_supply`, `market_cap_rank`, `ath_usd`, `ath_date`, `atl_usd`, `atl_date` | CoinGecko |
-| Metadata | `seeded_at`, `enriched_at`, `enrichment_source` (`fmp` \| `coingecko`) | — |
+| FXCM metadata | `fxcm_type`, `fxcm_display_name`, `fxcm_underlying_unit`, `fxcm_alternatives[]`, `fxcm_session`, `fxcm_timezone` | FXCM Endpoints feed — NULL for Alpaca rows |
+| FMP resolution | `fmp_ticker` | Enrichment helper — the FMP ticker actually used (e.g. `'ASML'` for `'ASML.nl'`, `'ASML.AS'` if the ADR lookup missed); NULL for unenriched / non-stock rows |
+| Metadata | `source`, `seeded_at`, `enriched_at`, `enrichment_source` (`fmp` \| `coingecko`) | — |
 
 `dcf`/`dcf_diff` aren't in FMP's stable profile (separate endpoint) — left null.
 `market_cap` is **BIGINT** — bind integers, not floats, in queries.
@@ -52,11 +59,11 @@ fundamentals backfill resumes independently of the profile enrichment.
 
 | File | Role |
 | --- | --- |
-| `backend/app/db.py` | pg8000 (pure-Python, 3.14/Vercel-safe) access. Per-op connections from `DATABASE_URL`; `DbUnavailable` when unset. Writes: `bulk_upsert_assets`, `upsert_asset_enrichment` (crypto), `upsert_stock_enrichment` (FMP), `upsert_fundamentals` (FMP annual), `upsert_fxcm_instruments`. Reads: `search_assets` (visibility-filtered), `get_asset`, `get_asset_profile`, `screen_assets`, `crypto_symbols`, `enriched_/unenriched_stock_symbols`, `enriched_crypto_symbols`, `fundamentals_enriched_/fundamentals_target_symbols`. Holds `CRYPTO_CATEGORY_MAP` (screen whitelist). |
+| `backend/app/db.py` | pg8000 (pure-Python, 3.14/Vercel-safe) access. Per-op connections from `DATABASE_URL`; `DbUnavailable` when unset. Writes: `bulk_upsert_assets`, `upsert_asset_enrichment` (crypto), `upsert_stock_enrichment` (FMP / Alpaca equities), `upsert_fxcm_stock_enrichment` (FMP / FXCM stock_cfd), `upsert_fundamentals` (FMP annual), `upsert_fxcm_instruments` (now writes to `assets`). Reads: `search_assets` (visibility-filtered — Alpaca rows only), `search_fxcm_instruments` (FXCM rows, `assets WHERE source='fxcm'`), `get_asset`, `get_asset_profile`, `screen_assets`, `get_fxcm_display_names`, `get_fxcm_underlying_units`, `crypto_symbols`, `enriched_/unenriched_stock_symbols`, `fxcm_stock_symbols`, `unenriched_fxcm_stock_symbols`, `enriched_crypto_symbols`, `fundamentals_enriched_/fundamentals_target_symbols`. Holds `CRYPTO_CATEGORY_MAP` (screen whitelist). `all_symbols()` is scoped to `source='alpaca'` (Alpaca-diff only). |
 | `backend/app/alpaca/trading.py` | `get_all_assets_for_seed()` → full us_equity + crypto list; `_full_asset_dict` captures base fields. `_enum_value` extracts the wire value from Alpaca SDK enums (see landmines). |
 | `backend/app/coingecko.py` | Crypto enrichment. Static **base-ticker → coingecko-id** map (BTC/USD, BTC/USDT … → `bitcoin`), Demo-key header when `COINGECKO_API_KEY` set, 429 backoff. |
-| `backend/app/fmp.py` | Stock enrichment via FMP's **stable** `/profile` (single-symbol). Maps ~20 columns; translates dot-class symbols to dash for the query (`BRK.B`→`BRK-B`). Also `map_fundamentals` off `income-statement`+`cash-flow-statement`+`ratios` (annual): derives margins/growth from the statements, pulls valuation/quality ratios with alias fallbacks (stable field names vary). |
-| `backend/app/seed.py` | Onboarding: `run_seed(force, base)` — Alpaca base upsert + CoinGecko crypto enrich. Per-widget **refresh routines** (background daemon via `_start_background`): `refresh_profile_stocks`, `refresh_profile_crypto`, `refresh_fundamentals` (each `include_missing` to also onboard), plus aggregate `refresh_all_stocks` (profile+fundamentals) and `refresh_all_crypto`. `refresh_alpaca` re-pulls Alpaca base/trading status; `check_new_symbols` diffs Alpaca's live list against `db.all_symbols()` (read-only new-listing check). `enrich_stocks`/`enrich_fundamentals` remain as the per-symbol executors the refreshers loop over. |
+| `backend/app/fmp.py` | Stock enrichment via FMP's **stable** `/profile` (single-symbol). Maps ~20 columns; translates dot-class symbols to dash for the query (`BRK.B`→`BRK-B`). `fetch_profile_raw` skips that substitution for exchange-suffixed tickers (`SAP.DE`, `ASML.AS`). `fxcm_stock_to_fmp_candidates(fxcm_name)` converts a FXCM stock CFD symbol to an ordered list of FMP tickers to try: bare ticker first (ADR coverage), home-exchange suffix as fallback. `_FXCM_SUFFIX_TO_FMP_EXCHANGE` maps `.us`→none, `.de`→`DE`, `.uk`→`L`, `.nl`→`AS`, etc. Also `map_fundamentals` off `income-statement`+`cash-flow-statement`+`ratios` (annual). |
+| `backend/app/seed.py` | Onboarding: `run_seed(force, base)` — Alpaca base upsert + CoinGecko crypto enrich. Per-widget **refresh routines** (background daemon via `_start_background`): `refresh_profile_stocks`, `refresh_profile_crypto`, `refresh_fundamentals` (each `include_missing` to also onboard), plus aggregate `refresh_all_stocks` (profile+fundamentals) and `refresh_all_crypto`. `refresh_alpaca` re-pulls Alpaca base/trading status; `check_new_symbols` diffs Alpaca's live list against `db.all_symbols()` (scoped to Alpaca). `enrich_fxcm_stocks(force)` / `refresh_fxcm_stocks()` handle FXCM stock_cfd enrichment synchronously (small set). |
 | `backend/app/main.py` | Endpoints: `/api/assets` (search), `/api/assets/{symbol}` (both DB-backed w/ Alpaca fallback), and the dev seeders below. |
 | `backend/app/ai/tools_read.py`, `ai/router.py` | The AI catalogue tools (`get_asset_profile`, `screen_assets`) — schemas + server-side execution. |
 
@@ -129,16 +136,35 @@ or via an external cron).
 For current row counts and coverage, run the verification queries below rather
 than trusting a number in this doc (it would drift).
 
-### FXCM instruments (one-time, no refresh)
+### FXCM instruments (one-time seed + FMP enrichment for stock CFDs)
 
-Populates `fxcm_instruments` from `endpoints.fxcorporate.com/symbol/data`
-cross-referenced against the bridge's account-501 instrument list. Synchronous
-(small data). Run once after the table is created.
+`seed-fxcm-instruments` pulls instrument metadata from
+`endpoints.fxcorporate.com/symbol/data` cross-referenced against the bridge's
+account instrument list, and upserts into **`assets`** (`source='fxcm'`).
+`fxcm_instruments` is now a legacy empty table.
+
+`enrich-fxcm-stocks` FMP-enriches the `stock_cfd` subset: tries bare ticker
+first (ADR), falls back to home-exchange suffix (`BAYER.DE`, `BP.L`, etc.).
+Synchronous — small enough to run in the request thread (~5 min for ~370 symbols).
 
 ```bash
 curl -X POST "https://<render-url>/api/_dev/seed-fxcm-instruments"
-# {"upserted": 498, "skipped_no_metadata": 3, "account_instruments": 501}
+# {"upserted": 516, "skipped_no_metadata": 0, "account_instruments": 516}
+
+curl -X POST "https://<render-url>/api/_dev/enrich-fxcm-stocks"
+# {"requested": 369, "fxcm_stocks_enriched": 255, "not_found": 114, ...}
+# 114 not_found = smaller regional stocks with no FMP coverage on Starter tier.
+
+# Re-enrich already-enriched rows (background):
+curl -X POST "https://<render-url>/api/_dev/refresh-fxcm-stocks"
 ```
+
+**Symbol collision risk:** `symbol` is the primary key. FXCM stock CFDs use
+`TICKER.cc` suffixes so they don't collide with Alpaca equities. FXCM's current
+demo account has no crypto instruments, but if it ever did, a `BTC/USD` FXCM row
+would conflict with Alpaca's. Guard: `upsert_fxcm_instruments` would need a
+`WHERE assets.source = 'fxcm'` clause on the conflict update, or the PK would
+need to become `(symbol, source)`. Tracked in BACKLOG.
 
 ---
 

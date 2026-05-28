@@ -341,21 +341,31 @@ exposed at `/api/fxcm/*`.
 ### DB-only endpoints (no bridge required)
 
 These three routes live on the same `/api/fxcm/*` router but query the
-`fxcm_instruments` Postgres table directly — they never call the bridge
-and return `{}` / `[]` gracefully when the DB is unreachable. Critically,
-they are fetched via **`API_BASE` (Vercel)** by the frontend, not via
-`STREAM_BASE` (Render), because Render's `DATABASE_URL` is not guaranteed
-to be set. Vercel always has `DATABASE_URL`.
+**`assets` table** (`WHERE source='fxcm'`) directly — they never call the bridge
+and return `{}` / `[]` gracefully when the DB is unreachable. (`fxcm_instruments`
+was the previous backing table; it is now a legacy empty table after the
+`005_merge_fxcm_instruments.sql` migration.) Fetched via **`API_BASE` (Vercel)**,
+not `STREAM_BASE` (Render).
 
 | FastAPI route | Description |
 |---|---|
-| `GET /api/fxcm/display-names` | `{name: display_name}` map for instruments where `display_name` differs from the raw name (e.g. `"XAU/USD" → "Gold"`). Used by `useFxcmDisplayNames()` hook (`staleTime: Infinity`). |
-| `GET /api/fxcm/underlying-units` | `{name: underlying_unit}` map (e.g. `"XAU/USD" → "oz"`). Used by `useFxcmUnderlyingUnit()` hook. Falls back to `"units"` when a key is absent. |
-| `GET /api/fxcm/search-instruments?q=<term>` | Case-insensitive ILIKE search across `name`, `display_name`, and `alternatives[]`. Returns `[{name, display_name, description, type}]`, ranked: prefix matches first. Used by `AssetSearch` (`source="fxcm"`) — replaces the old full-list bridge fetch + client-side filter. |
+| `GET /api/fxcm/display-names` | `{symbol: fxcm_display_name}` map for instruments where `fxcm_display_name` differs from the raw symbol (e.g. `"XAU/USD" → "Gold"`). Used by `useFxcmDisplayNames()` hook (`staleTime: Infinity`). |
+| `GET /api/fxcm/underlying-units` | `{symbol: fxcm_underlying_unit}` map (e.g. `"XAU/USD" → "oz"`). Used by `useFxcmUnderlyingUnit()` hook. Falls back to `"units"` when absent. |
+| `GET /api/fxcm/search-instruments?q=<term>` | ILIKE search across `symbol`, `fxcm_display_name`, `fxcm_alternatives[]`. Returns `[{name, display_name, description, type}]` (shape unchanged). Prefix matches ranked first. |
 
-The `fxcm_instruments` table is seeded once via `POST /api/_dev/seed-fxcm-instruments`
-(Render-only, requires bridge to get the account's instrument list). Schema in
-`backend/sql/004_fxcm_instruments.sql`.
+FXCM instruments are seeded via `POST /api/_dev/seed-fxcm-instruments`
+(Render-only, requires bridge). Writes to `assets` (`source='fxcm'`).
+FMP profile enrichment for stock_cfd rows: `POST /api/_dev/enrich-fxcm-stocks`
+(synchronous, ~5 min for ~370 symbols); re-enrich: `POST /api/_dev/refresh-fxcm-stocks`
+(background thread). Schema additions in `backend/sql/005_merge_fxcm_instruments.sql`.
+
+**FMP enrichment on stock CFDs** shares the same columns as Alpaca equities
+(`description`, `logo_url`, `sector`, `market_cap`, `is_adr`, `beta`, etc.).
+`fmp_ticker` records the FMP ticker used (bare ADR ticker first, e.g. `ASML` for
+`ASML.nl`; exchange-suffixed fallback e.g. `ASML.AS`). The
+`/api/asset-profile/{symbol:path}` endpoint returns enrichment for FXCM
+stock_cfd rows without any code change — Workspace Profile/Fundamentals widgets
+work for them already.
 
 ### Selective subscription
 
