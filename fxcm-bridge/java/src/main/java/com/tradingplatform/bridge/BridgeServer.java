@@ -69,6 +69,17 @@ public class BridgeServer {
         session.connect();
         LOG.info("FXCM connected — account " + FXCM_USER);
 
+        // Subscribe all dormant instruments in background; start inactivity sweeper.
+        // Defaults: sweep every 5 min, unsubscribe after 10 min idle, first sweep at 15 min.
+        // batchSize=1: each instrument subscribed independently so one SSL failure
+        // (e.g. stock CFDs on mdt102prices) doesn't poison the whole batch.
+        int  bootBatch      = Integer.parseInt(env("FXCM_BOOT_BATCH",      "1"));
+        long sweepInterval  = Long.parseLong(  env("FXCM_SWEEP_INTERVAL",  "300000"));  // 5 min
+        long inactivityMs   = Long.parseLong(  env("FXCM_INACTIVITY_MS",   "600000"));  // 10 min
+        long initialDelay   = Long.parseLong(  env("FXCM_SWEEP_DELAY",     "900000"));  // 15 min
+        session.subscribeAllInBackground(bootBatch);
+        session.startActivitySweeper(initialDelay, sweepInterval, inactivityMs);
+
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", PORT), 0);
         server.createContext("/health",       ex -> handle(ex, BridgeServer::health));
         server.createContext("/account",      ex -> handle(ex, BridgeServer::account));
@@ -107,6 +118,8 @@ public class BridgeServer {
         Map<String,String> q = parseQuery(ex.getRequestURI());
         String instrument  = q.get("instrument");
         String typeFilter  = q.getOrDefault("type","").toLowerCase();
+        // Touch signals active polling — triggers re-subscribe if the symbol was swept to D.
+        if (instrument != null && !instrument.isEmpty()) session.touch(instrument);
         List<Map<String,Object>> rows = session.getOffers();
         if (instrument != null && !instrument.isEmpty())
             rows.removeIf(r -> !instrument.equals(r.get("instrument")));
@@ -116,6 +129,8 @@ public class BridgeServer {
     }
 
     static Object watchlist(HttpExchange ex) throws Exception {
+        // Touch all default watchlist symbols so they survive the sweeper.
+        for (String sym : DEFAULT_WATCHLIST) session.touch(sym);
         List<Map<String,Object>> offers = session.getOffers();
         Map<String, Map<String,Object>> byName = new LinkedHashMap<>();
         for (Map<String,Object> o : offers) byName.put((String)o.get("instrument"), o);
@@ -156,6 +171,7 @@ public class BridgeServer {
         String timeframe  = q.getOrDefault("timeframe","H1");
         String from       = q.get("from");
         String to         = q.get("to");
+        session.touch(instrument);
         return session.getHistory(instrument, timeframe, from, to);
     }
 

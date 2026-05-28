@@ -54,6 +54,14 @@ public class FxcmSession {
     // Populated once via getAccountsSnapshot callback
     private volatile Account[] loadedAccounts = null;
 
+    // Instrument activity tracking — symbol → last-access epoch ms
+    private final ConcurrentHashMap<String, Long> lastActivity = new ConcurrentHashMap<>();
+    // Cached descriptor map built at connect time for O(1) status lookup
+    private final ConcurrentHashMap<String, InstrumentDescriptor> descriptorCache = new ConcurrentHashMap<>();
+    // Single-thread executor shared by boot-subscribe and sweeper
+    private final ScheduledExecutorService lifecycle = Executors.newSingleThreadScheduledExecutor(
+        r -> { Thread t = new Thread(r, "instrument-lifecycle"); t.setDaemon(true); return t; });
+
     static final Map<String, int[]> TIMEFRAME_MAP = new LinkedHashMap<>();
     static {
         // {TimeframeUnit constant, count}
@@ -118,6 +126,12 @@ public class FxcmSession {
 
         // Load data managers
         instrumentsMgr = loadDataManager(session.getInstrumentsManager());
+        // Cache descriptors for O(1) status lookup in touch()
+        InstrumentDescriptor[] allDescs = instrumentsMgr.getAllInstrumentDescriptors();
+        if (allDescs != null) for (InstrumentDescriptor d : allDescs) {
+            String sym = safe(d::getSymbol);
+            if (sym != null) descriptorCache.put(sym, d);
+        }
         offersMgr      = loadDataManager(session.getOffersManager());
         ordersMgr      = loadDataManager(session.getOrdersManager());
         positionsMgr   = loadDataManager(session.getOpenPositionsManager());
@@ -483,6 +497,90 @@ public class FxcmSession {
             if (sym != null) result.add(sym);
         }
         return result;
+    }
+
+    /**
+     * Record that a symbol is actively being polled. If it has been swept back to D,
+     * fire an async re-subscribe so it comes back online for the next poll.
+     */
+    void touch(String symbol) {
+        if (symbol == null || symbol.isEmpty()) return;
+        lastActivity.put(symbol, System.currentTimeMillis());
+        InstrumentDescriptor d = descriptorCache.get(symbol);
+        if (d != null && "D".equals(safe(d::getSubscriptionStatus))) {
+            lifecycle.submit(() -> {
+                try { subscribeInstruments(new String[]{symbol}, false); }
+                catch (Exception e) { LOG.warning("Re-subscribe " + symbol + ": " + e.getMessage()); }
+            });
+        }
+    }
+
+    /**
+     * Subscribe all currently-D instruments in background batches.
+     * Called once after connect(). Failures are logged and skipped.
+     */
+    void subscribeAllInBackground(int batchSize) {
+        lifecycle.submit(() -> {
+            List<String> dormant = new ArrayList<>();
+            for (InstrumentDescriptor d : descriptorCache.values()) {
+                if ("D".equals(safe(d::getSubscriptionStatus))) {
+                    String sym = safe(d::getSymbol);
+                    if (sym != null) dormant.add(sym);
+                }
+            }
+            int total = dormant.size(), ok = 0, failed = 0;
+            LOG.info("Boot subscribe: " + total + " dormant instruments in batches of " + batchSize);
+            for (int i = 0; i < dormant.size(); i += batchSize) {
+                String[] batch = dormant.subList(i, Math.min(i + batchSize, dormant.size()))
+                                        .toArray(new String[0]);
+                try {
+                    Map<String,Object> r = subscribeInstruments(batch, false);
+                    if (Boolean.TRUE.equals(r.get("ok"))) {
+                        ok += batch.length;
+                    } else {
+                        @SuppressWarnings("unchecked")
+                        List<String> fs = (List<String>) r.get("failed");
+                        int nFailed = fs != null ? fs.size() : batch.length;
+                        failed += nFailed; ok += batch.length - nFailed;
+                        LOG.warning("Boot batch " + (i/batchSize + 1) + " partial fail: " +
+                            r.get("error") + (fs != null ? " " + fs : ""));
+                    }
+                } catch (Exception e) {
+                    failed += batch.length;
+                    LOG.warning("Boot batch " + (i/batchSize + 1) + " error: " + e.getMessage());
+                }
+            }
+            LOG.info("Boot subscribe complete: " + ok + " ok, " + failed + " failed");
+        });
+    }
+
+    /**
+     * Start the background sweeper. Every {@code intervalMs} ms (after an initial delay),
+     * any T/V instrument not touched in the last {@code inactivityMs} ms is unsubscribed.
+     * A subsequent touch() on a swept instrument re-subscribes it automatically.
+     */
+    void startActivitySweeper(long initialDelayMs, long intervalMs, long inactivityMs) {
+        lifecycle.scheduleAtFixedRate(() -> {
+            try {
+                long cutoff = System.currentTimeMillis() - inactivityMs;
+                List<String> toUnsub = new ArrayList<>();
+                for (InstrumentDescriptor d : descriptorCache.values()) {
+                    String status = safe(d::getSubscriptionStatus);
+                    if (!"T".equals(status) && !"V".equals(status)) continue;
+                    String sym = safe(d::getSymbol);
+                    if (sym == null) continue;
+                    Long last = lastActivity.get(sym);
+                    if (last == null || last < cutoff) toUnsub.add(sym);
+                }
+                if (toUnsub.isEmpty()) { LOG.info("Sweeper: nothing to unsubscribe"); return; }
+                LOG.info("Sweeper: unsubscribing " + toUnsub.size() + " inactive instruments");
+                Map<String,Object> r = unsubscribeInstruments(toUnsub.toArray(new String[0]), false);
+                if (!Boolean.TRUE.equals(r.get("ok")))
+                    LOG.warning("Sweeper unsubscribe error: " + r.get("error"));
+            } catch (Exception e) {
+                LOG.warning("Sweeper error: " + e.getMessage());
+            }
+        }, initialDelayMs, intervalMs, TimeUnit.MILLISECONDS);
     }
 
     private static Map<String,Object> mapResult(boolean ok, String error, String[] failed) {
