@@ -3,6 +3,7 @@ import {
   useAccount,
   useAppStatus,
   useCryptoWatchlist,
+  useFxcmPositions,
   usePositions,
   useWatchlist,
 } from "./data/hooks";
@@ -12,6 +13,7 @@ import { useTheme } from "./hooks/useTheme";
 import MaintenancePage from "./components/MaintenancePage";
 import Positions from "./components/Positions";
 import Orders from "./components/Orders";
+import FxcmOrders from "./components/FxcmOrders";
 import Activities from "./components/Activities";
 import { HeaderEquityReadout, HeaderStatusInline } from "./components/TopBar";
 import DiscoverPage from "./components/DiscoverPage";
@@ -609,9 +611,9 @@ export default function App() {
          below). */}
       {mode === "portfolio" && (
         <div className="max-w-[1280px] mx-auto pt-2">
-          <PortfolioHero assetClass={alpacaSilo} />
+          <PortfolioHero assetClass={activeClass} />
 
-          <PortfolioAllocation activeClass={alpacaSilo} />
+          <PortfolioAllocation activeClass={activeClass} />
 
           {/* Positions is the primary block — promoted heading + full-width
              list. Orders + Activity drop to a 2-col secondary row beneath. */}
@@ -622,17 +624,21 @@ export default function App() {
               setSelected(s);
               switchMode("chart");
             }}
-            assetClass={alpacaSilo}
+            assetClass={activeClass}
           />
 
           <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
             <section>
               <SectionHeading label="Orders" />
-              <Orders assetClass={alpacaSilo} />
+              {activeClass === "forex" ? (
+                <FxcmOrders />
+              ) : (
+                <Orders assetClass={activeClass} />
+              )}
             </section>
             <section>
               <SectionHeading label="Activity" />
-              <Activities />
+              <Activities assetClass={activeClass} />
             </section>
           </div>
         </div>
@@ -724,9 +730,21 @@ function PortfolioAllocation({
   activeClass: AssetClassMode;
 }) {
   const positions = usePositions();
-  const siloPositions = (positions.data?.positions || []).filter((p) =>
-    activeClass === "crypto" ? isCryptoPosition(p) : !isCryptoPosition(p),
-  );
+  const fxcm = useFxcmPositions(activeClass === "forex");
+  // FXCM positions don't carry a stock-shaped Position; map to the minimal
+  // {symbol,market_value} pair AllocationDonut needs. used_margin is the
+  // per-position $ exposure on a forex book.
+  const siloPositions =
+    activeClass === "forex"
+      ? (fxcm.data || []).map((p) => ({
+          symbol: String(p.instrument || ""),
+          market_value: Number(
+            (p.used_margin as number | undefined) ?? p.market_value ?? 0,
+          ),
+        }))
+      : (positions.data?.positions || []).filter((p) =>
+          activeClass === "crypto" ? isCryptoPosition(p) : !isCryptoPosition(p),
+        );
   if (siloPositions.length === 0) return null;
   return (
     <div
@@ -738,8 +756,8 @@ function PortfolioAllocation({
       }}
     >
       <AllocationDonut
-        positions={siloPositions}
-        colors={activeClass === "crypto" ? undefined : DONUT_COLORS_GREEN}
+        positions={siloPositions as unknown as Parameters<typeof AllocationDonut>[0]["positions"]}
+        colors={activeClass === "stocks" ? DONUT_COLORS_GREEN : undefined}
       />
     </div>
   );

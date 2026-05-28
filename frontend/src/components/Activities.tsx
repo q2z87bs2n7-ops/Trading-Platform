@@ -95,10 +95,13 @@ export default function Activities({
   bare = false,
   symbol,
   dense = false,
+  assetClass: _assetClass,
 }: {
   bare?: boolean;
   symbol?: string;
   dense?: boolean;
+  // Wave-1 prop placeholder; Wave-2 swaps the data source for forex.
+  assetClass?: "stocks" | "crypto" | "forex";
 }) {
   const { data, error, isPending } = useActivities(25);
   const rows = symbol

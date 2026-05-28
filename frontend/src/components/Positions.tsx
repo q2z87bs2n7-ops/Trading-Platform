@@ -308,7 +308,7 @@ export default function Positions({
 }: {
   variant?: "strip" | "table";
   onSelect?: (symbol: string) => void;
-  assetClass?: "stocks" | "crypto";
+  assetClass?: "stocks" | "crypto" | "forex";
   symbol?: string;
   dense?: boolean;
   // Only meaningful with `dense`/mobile (i.e. card layout). Tightens row

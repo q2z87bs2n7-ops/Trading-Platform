@@ -50,6 +50,21 @@ the full reference). Outstanding:
   while `/watchlist`, `/prices`, `/positions` all use snake_case. Currently
   normalised at the api.ts boundary; fixing it in the bridge handler keeps
   the contract consistent for any future direct consumer.
+- **FXCM Portfolio P/L curve (sparkline)** — FCLite `ClosedPosition` doesn't
+  expose open/close timestamps reliably (or only partially, depending on SDK
+  build). To rebuild a per-silo daily P/L curve like `alpaca/pnl.py` does for
+  stocks/crypto, we need either: (a) timestamped closed trades + extending
+  `pnl.py` to FIFO-rebuild from FXCM trades valued against `/api/fxcm/history`
+  daily closes, or (b) an EOD account-equity snapshot route writing to
+  Supabase. v1 ships the FXCM PortfolioHero without the sparkline — the
+  left-section layout keeps equity + day-chip only.
+- **FXCM cancel-all orders** — bridge has only single-cancel. Add a
+  `DELETE /api/fxcm/orders` route in the proxy that fetches the list and
+  iterates `DELETE /api/fxcm/order/{id}`. Defer until the Orders blotter UX
+  demands it.
+- **FXCM rollover / dividend activity stream** — FCLite doesn't expose
+  deposits, withdrawals, overnight swap, or stock-CFD dividend adjustments as
+  discrete events. The FXCM Activities feed shows closed trades only.
 
 ## Data / persistence
 

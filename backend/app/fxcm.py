@@ -59,6 +59,18 @@ async def _delete(path: str) -> Any:
         raise HTTPException(e.response.status_code, e.response.text)
 
 
+async def _patch(path: str, body: dict) -> Any:
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.patch(f"{BRIDGE_URL}{path}", json=body, timeout=TIMEOUT)
+        r.raise_for_status()
+        return r.json()
+    except httpx.ConnectError:
+        raise HTTPException(503, "FXCM bridge not running")
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(e.response.status_code, e.response.text)
+
+
 # ── Pydantic models ────────────────────────────────────────────────────────────
 
 class OrderRequest(BaseModel):
@@ -74,6 +86,13 @@ class OrderRequest(BaseModel):
 class CloseRequest(BaseModel):
     trade_id: str
     amount: int = 0
+
+
+class ChangeOrderRequest(BaseModel):
+    # Any subset; missing fields = 0 = bridge leaves that field unchanged.
+    rate: float = 0
+    stop: float = 0
+    limit: float = 0
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
@@ -96,7 +115,14 @@ async def prices(instrument: str = None):
 
 @router.get("/positions")
 async def positions():
-    return await _get("/positions")
+    rows = await _get("/positions")
+    # AllocationDonut keys off `market_value`; the bridge exposes used_margin,
+    # which is the right per-position $ figure for a forex book.
+    if isinstance(rows, list):
+        for p in rows:
+            if isinstance(p, dict):
+                p.setdefault("market_value", p.get("used_margin", 0))
+    return rows
 
 
 @router.get("/orders")
@@ -157,6 +183,11 @@ async def place_order(req: OrderRequest):
 @router.delete("/order/{order_id}")
 async def cancel_order(order_id: str):
     return await _delete(f"/order/{order_id}")
+
+
+@router.patch("/order/{order_id}")
+async def modify_order(order_id: str, req: ChangeOrderRequest):
+    return await _patch(f"/order/{order_id}", req.dict())
 
 
 @router.post("/close")
