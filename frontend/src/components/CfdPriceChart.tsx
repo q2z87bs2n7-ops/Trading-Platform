@@ -8,7 +8,7 @@ import {
 
 import { useFxcmBars } from "../data/hooks";
 import { useTheme } from "../hooks/useTheme";
-import { cfdDigits } from "../lib/format";
+import { cfdDigits, fmtSpread } from "../lib/format";
 import type { FxcmBar, FxcmPrice } from "../types";
 import ErrorBanner from "./ErrorBanner";
 
@@ -69,7 +69,7 @@ export default function CfdPriceChart({
   // chart timeframe; React Query dedupes when the chart is already on D1.
   const { data: dailyBars } = useFxcmBars(instrument, "D1");
 
-  const digits = cfdDigits(instrument);
+  const digits = livePrice?.digits ?? cfdDigits(instrument);
   const fmt = (n: number | undefined | null) =>
     n == null || isNaN(n) ? "—" : n.toFixed(digits);
 
@@ -235,6 +235,8 @@ export default function CfdPriceChart({
           <span>Bid {fmt(livePrice.bid)}</span>
           <span>·</span>
           <span>Ask {fmt(livePrice.ask)}</span>
+          <span>·</span>
+          <span>Spread {fmtSpread(livePrice.bid, livePrice.ask, livePrice.point_size)}</span>
           {livePrice.high != null && livePrice.low != null && (
             <>
               <span>·</span>

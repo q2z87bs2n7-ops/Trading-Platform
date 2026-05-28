@@ -36,9 +36,18 @@ export function cfdDigits(symbol: string): number {
   return 1;
 }
 
-export function fmtCfdPrice(price: number | undefined, symbol?: string): string {
+// Prefer the bridge-supplied `digits` value; fall back to symbol heuristic.
+export function fmtCfdPrice(price: number | undefined, digitsOrSymbol?: number | string): string {
   if (price == null || Number.isNaN(price)) return "—";
-  return price.toFixed(cfdDigits(symbol ?? ""));
+  const dp = typeof digitsOrSymbol === "number" ? digitsOrSymbol : cfdDigits(digitsOrSymbol ?? "");
+  return price.toFixed(dp);
+}
+
+// Spread in pips: (ask - bid) / pointSize, rounded to 1dp.
+export function fmtSpread(bid: number | undefined, ask: number | undefined, pointSize: number | undefined): string {
+  if (bid == null || ask == null || !pointSize) return "—";
+  const pips = (ask - bid) / pointSize;
+  return `${pips.toFixed(1)} pts`;
 }
 
 export const pct = (n: number) =>

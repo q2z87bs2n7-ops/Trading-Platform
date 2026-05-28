@@ -183,7 +183,7 @@ function CfdWatchlistCard({
       onSelect={onSelect}
       onRemove={onRemove}
       closes={closes.length >= 2 ? closes : undefined}
-      formatPrice={(n) => fmtCfdPrice(n, instrument)}
+      formatPrice={(n) => fmtCfdPrice(n, livePrice?.digits ?? instrument)}
     />
   );
 }
@@ -244,11 +244,11 @@ function FxcmPositions({
             <div className="flex gap-4 tabular-nums text-[12px]">
               <div className="flex flex-col items-end">
                 <span style={{ color: "var(--mute)", fontSize: 10 }}>Open</span>
-                <span>{fmtCfdPrice(typeof openRate === "number" ? openRate : undefined, instrument)}</span>
+                <span>{fmtCfdPrice(typeof openRate === "number" ? openRate : undefined, current?.digits ?? instrument)}</span>
               </div>
               <div className="flex flex-col items-end">
                 <span style={{ color: "var(--mute)", fontSize: 10 }}>Current</span>
-                <span>{fmtCfdPrice(currentRate, instrument)}</span>
+                <span>{fmtCfdPrice(currentRate, current?.digits ?? instrument)}</span>
               </div>
               <div className="flex flex-col items-end">
                 <span style={{ color: "var(--mute)", fontSize: 10 }}>P&amp;L</span>
@@ -503,7 +503,7 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
         symbol={selected}
         price={selMid}
         dayChangePct={selDayChange}
-        formatPrice={(n) => fmtCfdPrice(n, selected)}
+        formatPrice={(n) => fmtCfdPrice(n, selectedPrice?.digits ?? selected)}
       />
       <FxcmAccountHero account={account} />
 

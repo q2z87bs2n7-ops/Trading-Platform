@@ -54,6 +54,9 @@ public class FxcmSession {
     // Populated once via getAccountsSnapshot callback
     private volatile Account[] loadedAccounts = null;
 
+    // Offer IDs we've subscribed to (positions + orders + watchlist at boot)
+    private final Set<String> subscribedOfferIds = Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
+
     static final Map<String, int[]> TIMEFRAME_MAP = new LinkedHashMap<>();
     static {
         // {TimeframeUnit constant, count}
@@ -118,7 +121,7 @@ public class FxcmSession {
 
         // Load data managers
         instrumentsMgr = loadDataManager(session.getInstrumentsManager());
-        offersMgr      = loadDataManager(session.getOffersManager());
+        offersMgr      = session.getOffersManager();   // no bulk refresh — subscribe selectively via subscribeBootInstruments()
         ordersMgr      = loadDataManager(session.getOrdersManager());
         positionsMgr   = loadDataManager(session.getOpenPositionsManager());
 
@@ -132,6 +135,49 @@ public class FxcmSession {
         catch (Exception e) { LOG.warning("closedMgr unavailable: " + e.getMessage()); }
         try { historyMgr = session.getPriceHistoryManager(); }
         catch (Exception e) { LOG.warning("historyMgr unavailable: " + e.getMessage()); }
+    }
+
+    // ── Selective subscription ─────────────────────────────────────────────────
+
+    // Called at bridge boot — subscribes open positions + open orders only.
+    // Watchlist symbols are pushed later by FastAPI via POST /subscribe.
+    void subscribeBootInstruments() throws Exception {
+        Set<String> ids = new HashSet<>();
+        OpenPosition[] positions = positionsMgr.getOpenPositionsSnapshot();
+        if (positions != null) for (OpenPosition p : positions) if (p != null) ids.add(p.getOfferId());
+        Order[] orders = ordersMgr.getOrdersSnapshot();
+        if (orders != null) for (Order o : orders) if (o != null) ids.add(o.getOfferId());
+
+        subscribedOfferIds.addAll(ids);
+        LOG.info("Boot subscribe: " + ids.size() + " instruments (open positions + orders)");
+        if (!ids.isEmpty()) fetchOfferSnapshot(ids.toArray(new String[0]));
+    }
+
+    // Called by POST /subscribe — adds offer IDs directly and warms the cache.
+    // Accepts string offer IDs (e.g. "1", "1004") to avoid the getInstrumentBySymbol
+    // chicken-and-egg: unsubscribed instruments can't be found by symbol lookup.
+    // Idempotent: safe to call when watchlist changes.
+    void subscribeOfferIds(List<String> offerIds) throws Exception {
+        Set<String> newIds = new HashSet<>(offerIds);
+        newIds.removeAll(subscribedOfferIds);
+        if (newIds.isEmpty()) return;
+        subscribedOfferIds.addAll(newIds);
+        fetchOfferSnapshot(newIds.toArray(new String[0]));
+        LOG.info("Subscribed " + newIds.size() + " new offer IDs (total: " + subscribedOfferIds.size() + ")");
+    }
+
+    private Offer[] fetchOfferSnapshot(String[] offerIds) throws Exception {
+        if (offerIds.length == 0) return new Offer[0];
+        CountDownLatch latch = new CountDownLatch(1);
+        Offer[][] result = {new Offer[0]};
+        offersMgr.getLatestOffersSnapshot(offerIds, new com.fxcm.api.interfaces.tradingdata.offers.IOffersSnapshotCallback() {
+            public void onSuccess(Offer[] offers) { result[0] = offers != null ? offers : new Offer[0]; latch.countDown(); }
+            public void onError(com.fxcm.api.interfaces.errors.IFXConnectLiteError e) {
+                LOG.warning("Offer snapshot error: " + e.getMessage()); latch.countDown();
+            }
+        });
+        if (!latch.await(10, TimeUnit.SECONDS)) LOG.warning("Offer snapshot timeout");
+        return result[0];
     }
 
     private <T extends IDataManager> T loadDataManager(T mgr) throws Exception {
@@ -183,29 +229,44 @@ public class FxcmSession {
         throw new RuntimeException("No account available");
     }
 
-    List<Map<String,Object>> getOffers() {
-        String[] ids = offersMgr.getOfferIds();
-        if (ids == null) return Collections.emptyList();
+    List<Map<String,Object>> getOffers() throws Exception {
+        if (subscribedOfferIds.isEmpty()) return Collections.emptyList();
+        Offer[] offers = fetchOfferSnapshot(subscribedOfferIds.toArray(new String[0]));
         List<Map<String,Object>> result = new ArrayList<>();
-        for (String id : ids) {
-            Offer offer = offersMgr.getOfferById(id);
+        for (Offer offer : offers) {
             if (offer == null) continue;
+            String id = offer.getOfferId();
+            Instrument inst = safe(() -> instrumentsMgr.getInstrumentByOfferId(id));
             Map<String,Object> m = new LinkedHashMap<>();
             m.put("offer_id",   id);
-            m.put("instrument", safe(() -> { Instrument inst = instrumentsMgr.getInstrumentByOfferId(id); return inst != null ? inst.getSymbol() : null; }));
+            m.put("instrument", inst != null ? inst.getSymbol() : null);
             m.put("bid",        safe(offer::getBid));
             m.put("ask",        safe(offer::getAsk));
             m.put("high",       safe(offer::getHigh));
             m.put("low",        safe(offer::getLow));
             m.put("volume",     safe(offer::getVolume));
+            if (inst != null) {
+                m.put("digits",     safe(inst::getDigits));
+                m.put("point_size", safe(inst::getPointSize));
+            }
             result.add(m);
         }
         return result;
     }
 
-    List<Map<String,Object>> getOpenPositions() {
+    List<Map<String,Object>> getOpenPositions() throws Exception {
         OpenPosition[] snap = positionsMgr.getOpenPositionsSnapshot();
         if (snap == null) return Collections.emptyList();
+
+        // Fetch live prices for just the instruments in open positions.
+        Set<String> posOfferIds = new HashSet<>();
+        for (OpenPosition p : snap) if (p != null) posOfferIds.add(p.getOfferId());
+        Map<String,Offer> offerMap = new HashMap<>();
+        if (!posOfferIds.isEmpty()) {
+            Offer[] offers = fetchOfferSnapshot(posOfferIds.toArray(new String[0]));
+            for (Offer o : offers) if (o != null) offerMap.put(o.getOfferId(), o);
+        }
+
         List<Map<String,Object>> result = new ArrayList<>();
         SimpleDateFormat iso = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
         for (OpenPosition pos : snap) {
@@ -224,10 +285,10 @@ public class FxcmSession {
             m.put("used_margin", safe(pos::getUsedMargin));
             m.put("stop_rate",   safe(pos::getStopRate));
             m.put("limit_rate",  safe(pos::getLimitRate));
-            // Live bid/ask/mid so the UI doesn't have to cross-join positions × offers.
-            Offer offer = safe(() -> offersMgr.getOfferById(pos.getOfferId()));
-            Double bid = safe(() -> offer != null ? offer.getBid() : null);
-            Double ask = safe(() -> offer != null ? offer.getAsk() : null);
+            // Live bid/ask/mid from the position-specific snapshot.
+            Offer offer = offerMap.get(pos.getOfferId());
+            Double bid = offer != null ? safe(offer::getBid) : null;
+            Double ask = offer != null ? safe(offer::getAsk) : null;
             m.put("bid", bid);
             m.put("ask", ask);
             Double mid = (bid != null && ask != null) ? (bid + ask) / 2.0 : null;
@@ -318,6 +379,23 @@ public class FxcmSession {
             m.put("Name",    safe(d::getSymbol));
             m.put("OfferId", safe(d::getOfferId));
             m.put("Status",  safe(d::getSubscriptionStatus));
+            Instrument inst = safe(() -> instrumentsMgr.getInstrumentByOfferId(d.getOfferId()));
+            if (inst != null) {
+                m.put("Digits",              safe(inst::getDigits));
+                m.put("PointSize",           safe(inst::getPointSize));
+                m.put("FractionalPipSize",   safe(inst::getFractionalPipSize));
+                m.put("ContractCurrency",    safe(inst::getContractCurrency));
+                m.put("ContractMultiplier",  safe(inst::getContractMultiplier));
+                m.put("InstrumentType",      safe(inst::getInstrumentType));
+                m.put("TradingStatus",       safe(inst::getTradingStatus));
+                m.put("MinQuantity",         safe(inst::getMinQuantity));
+                m.put("MaxQuantity",         safe(inst::getMaxQuantity));
+                m.put("BaseUnitSize",        safe(inst::getBaseUnitSize));
+                m.put("BuyInterest",         safe(inst::getBuyInterest));
+                m.put("SellInterest",        safe(inst::getSellInterest));
+                m.put("ConditionDistStop",   safe(inst::getConditionDistStop));
+                m.put("ConditionDistLimit",  safe(inst::getConditionDistLimit));
+            }
             result.add(m);
         }
         return result;
@@ -408,11 +486,13 @@ public class FxcmSession {
                 if (limit != null) req.setLimitRate(limit);
                 ordersMgr.createOpenMarketOrder(req.build());
             } else {
-                Offer offer = offersMgr.getOfferById(offerId);
+                Offer[] snap = fetchOfferSnapshot(new String[]{offerId});
+                Offer offer = snap.length > 0 ? snap[0] : null;
                 double entryRate = rate != null ? rate
-                    : ("B".equals(buySell)
-                        ? offer.getAsk() + offer.getAsk() / 100.0
-                        : offer.getBid() - offer.getBid() / 100.0);
+                    : (offer == null ? 0.0
+                        : "B".equals(buySell)
+                            ? offer.getAsk() + offer.getAsk() / 100.0
+                            : offer.getBid() - offer.getBid() / 100.0);
 
                 EntryOrderRequestBuilder builder = ordersMgr.getRequestFactory()
                     .createEntryOrderRequestBuilder()

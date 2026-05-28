@@ -481,10 +481,17 @@ The FXCM integration uses a FCLite Java fat JAR (`fxcm-bridge/java/`) that owns
 the persistent FCLite session on port 3001. Things that cost debugging time:
 
 - **`api-demo.fxcm.com` no longer resolves in public DNS.** FCLite 1.3.3
-  hardcodes this hostname for demo connections. Fix: `-Djdk.net.hosts.file=C:\Temp\jvm-hosts.txt`
-  with `204.8.240.52 api-demo.fxcm.com` (IP from FXCM's own Hosts.jsp endpoint,
-  visible in the PWA DevTools Network tab). This flag replaces the JVM's
-  resolver entirely — all FXCM servers must be listed or they fail DNS.
+  hardcodes this hostname for demo connections. Fix: `-Djdk.net.hosts.file=/path/to/jvm-hosts.txt`.
+  The file is committed at `backend/jvm-hosts.txt` and baked into the Render image.
+  This flag replaces the JVM's resolver entirely — all FXCM servers must be listed.
+  The full set (including the mdt9/91/92/100/102 price servers that were missing
+  and caused "Get temporary price session" offer-snapshot errors) is in `backend/jvm-hosts.txt`.
+  IPs from FXCM's platform Hosts XML; mdt9/91/92/100/102 all map to `204.8.240.130`.
+
+- **`-Djdk.net.hosts.file` requires Java 9+.** On Java 8 the flag is silently
+  ignored and the JVM falls back to OS DNS — `api-demo.fxcm.com` won't resolve
+  and the bridge hangs on login. The Render image uses OpenJDK 21 (safe); local
+  dev must use Java 9 or later (tested with JDK 25 portable zip on Windows).
 
 - **FCLite uses Apache HttpClient 5 (HC5) internally — not the JVM SSL context.**
   `SSLContext.setDefault()` and `HttpsURLConnection.setDefaultSSLSocketFactory()`
@@ -499,6 +506,17 @@ the persistent FCLite session on port 3001. Things that cost debugging time:
   the no-arg form. Using `Object` in the constructor causes `NoSuchMethodError`.
   `httpclient5:5.1` must be `compile` scope (not `provided`) so `PublicSuffixMatcher`
   is on the classpath and HC5 classes land in the fat JAR.
+
+- **`IOffersManager.refresh()` (and `loadDataManager(offersMgr)`) subscribes ALL ~501 instruments.**
+  Never call either at boot. Use `IOffersManager.getLatestOffersSnapshot(String[] offerIds, callback)`
+  for targeted per-instrument snapshots. At boot subscribe only instruments with open
+  positions/orders; push watchlist offer IDs on demand via `POST /subscribe`.
+
+- **`instrumentsMgr.getInstrumentBySymbol()` only works for subscribed instruments.**
+  Calling it for an unsubscribed instrument returns null (chicken-and-egg). When you
+  need to subscribe by symbol, resolve the offerId first via the instruments list
+  and call `subscribeOfferIds` with the ID directly — never rely on
+  `getInstrumentBySymbol` as the subscription trigger.
 
 - **`OfferInfo` has no `getSymbol()`.** Use `instrumentsMgr.getInstrumentByOfferId(offerId).getSymbol()`.
 

@@ -37,11 +37,6 @@ public class BridgeServer {
 
     static final ObjectMapper JSON = new ObjectMapper();
 
-    static final List<String> DEFAULT_WATCHLIST = Arrays.asList(
-        "EUR/USD","GBP/USD","USD/JPY","AUD/USD",
-        "USD/CAD","USD/CHF","NZD/USD","EUR/GBP"
-    );
-
     // FCLite session — set after successful login
     static volatile FxcmSession session = null;
 
@@ -67,13 +62,14 @@ public class BridgeServer {
         LOG.info("Connecting to FXCM via FCLite...");
         session = new FxcmSession(FXCM_USER, FXCM_PASS, FXCM_URL, FXCM_CONN);
         session.connect();
+        session.subscribeBootInstruments();
         LOG.info("FXCM connected — account " + FXCM_USER);
 
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", PORT), 0);
         server.createContext("/health",       ex -> handle(ex, BridgeServer::health));
         server.createContext("/account",      ex -> handle(ex, BridgeServer::account));
         server.createContext("/prices",       ex -> handle(ex, BridgeServer::prices));
-        server.createContext("/watchlist",    ex -> handle(ex, BridgeServer::watchlist));
+        server.createContext("/subscribe",    ex -> handle(ex, BridgeServer::subscribe));
         server.createContext("/positions",    ex -> handle(ex, BridgeServer::positions));
         server.createContext("/orders",       ex -> handle(ex, BridgeServer::orders));
         server.createContext("/closed_trades",ex -> handle(ex, BridgeServer::closedTrades));
@@ -112,13 +108,16 @@ public class BridgeServer {
         return rows;
     }
 
-    static Object watchlist(HttpExchange ex) throws Exception {
-        List<Map<String,Object>> offers = session.getOffers();
-        Map<String, Map<String,Object>> byName = new LinkedHashMap<>();
-        for (Map<String,Object> o : offers) byName.put((String)o.get("instrument"), o);
-        List<Map<String,Object>> result = new ArrayList<>();
-        for (String sym : DEFAULT_WATCHLIST) if (byName.containsKey(sym)) result.add(byName.get(sym));
-        return result;
+    @SuppressWarnings("unchecked")
+    static Object subscribe(HttpExchange ex) throws Exception {
+        if (!"POST".equals(ex.getRequestMethod()))
+            throw new IllegalArgumentException("POST required");
+        Map<String,Object> body = JSON.readValue(ex.getRequestBody(), Map.class);
+        List<String> offerIds = (List<String>) body.get("offer_ids");
+        if (offerIds == null || offerIds.isEmpty())
+            throw new IllegalArgumentException("offer_ids list required");
+        session.subscribeOfferIds(offerIds);
+        return mapOf("status", "ok");
     }
 
     static Object positions(HttpExchange ex) throws Exception {
@@ -142,7 +141,7 @@ public class BridgeServer {
         if (tradableOnly) {
             Set<Object> tradable = new HashSet<>();
             for (Map<String,Object> o : session.getOffers()) tradable.add(o.get("instrument"));
-            items.removeIf(i -> !tradable.contains(i.get("Name")));
+            items.removeIf(i -> !tradable.contains(i.get("Name")));  // TODO: post-subscribe this reflects subscribed set only
         }
         return items;
     }

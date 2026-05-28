@@ -121,7 +121,7 @@ hostname no longer resolves in public DNS. The fix is the JVM hosts file
 additive. Hosts not in this file will not resolve, so all FXCM servers must be
 listed.
 
-`C:\Temp\jvm-hosts.txt` content:
+`backend/jvm-hosts.txt` content (committed to the repo and baked into the Render image):
 ```
 204.8.240.52 api-demo.fxcm.com
 204.8.241.37 pdemo2.fxcorporate.com
@@ -129,10 +129,21 @@ listed.
 204.8.241.21 mdt1prices.fxcorporate.com
 204.8.240.16 mdt2prices.fxcorporate.com
 204.8.240.24 mdt3prices.fxcorporate.com
+204.8.240.130 mdt9prices.fxcorporate.com
+204.8.240.130 mdt91prices.fxcorporate.com
+204.8.240.130 mdt92prices.fxcorporate.com
+204.8.240.130 mdt100prices.fxcorporate.com
+204.8.240.130 mdt102prices.fxcorporate.com
 ```
 
-The IPs were resolved from `www.fxcorporate.com/Hosts.jsp` (the endpoint FXCM's
-own PWA uses for server discovery — visible via browser DevTools Network tab).
+IPs sourced from FXCM's platform Hosts XML (the same source their own PWA uses
+for server discovery). All http-based price servers share `client-connection-factory=204.8.240.130`.
+`mdt103` uses the dxfeed protocol and does not need a hosts entry.
+
+**Java 9+ required for `-Djdk.net.hosts.file`.** The flag silently does nothing
+on Java 8 — the bridge will fail to resolve `api-demo.fxcm.com` and hang on
+login. Use Java 9 or newer (the Render image uses OpenJDK 21; local dev has
+been tested with JDK 25 portable zip).
 
 ## SSL / Hostname Verification
 
@@ -311,8 +322,8 @@ exposed at `/api/fxcm/*`.
 |---|---|---|
 | `GET /health` | `GET /api/fxcm/health` | Bridge + connection status |
 | `GET /account` | `GET /api/fxcm/account` | Account balance/equity/margin |
-| `GET /prices` | `GET /api/fxcm/prices` | All offers (live bid/ask); `?instrument=EUR/USD` or `?type=forex` to filter |
-| ~~`GET /watchlist`~~ | `GET /api/fxcm/watchlist` | **No longer proxies to the bridge — see "Watchlist API (Endpoints suite)" below.** The bridge's `GET /watchlist` handler with its hardcoded `DEFAULT_WATCHLIST` of 8 majors is dead code, kept for now. |
+| `GET /prices` | `GET /api/fxcm/prices` | Subscribed offers (live bid/ask/digits/point_size); only instruments in the active subscription set are returned |
+| `POST /subscribe` | (internal) | Push a list of offer IDs to subscribe. Called by `fxcm.py` when the watchlist changes. Body: `{"offer_ids": ["1", "121", ...]}`. Idempotent — already-subscribed IDs are silently skipped. |
 | `GET /positions` | `GET /api/fxcm/positions` | Open trades |
 | `GET /orders` | `GET /api/fxcm/orders` | Pending orders |
 | `GET /summary` | `GET /api/fxcm/summary` | — (proxied but not yet implemented in bridge) |
@@ -325,6 +336,45 @@ exposed at `/api/fxcm/*`.
 | `PATCH /order/{id}` | `PATCH /api/fxcm/order/{id}` | Modify pending entry order — body `{rate?, stop?, limit?}`; `0` = leave unchanged (FCLite `ChangeOrderRequest`, wired reflectively) |
 | `POST /close` | `POST /api/fxcm/close` | Close open trade — body `{trade_id, amount}`; `amount: 0` = full close |
 | `GET /debug` | `GET /api/fxcm/debug` | Raw snapshot counts (dev only) |
+
+### Selective subscription
+
+The bridge does **not** call `loadDataManager(offersMgr)` at boot — that
+call internally calls `IOffersManager.refresh()` which bulk-subscribes all
+~501 instruments in the user's FXCM account, causing a 10+ second flood of
+offer-snapshot noise at startup.
+
+Instead, subscriptions are demand-driven:
+
+- **Boot** — `BridgeServer.subscribeBootInstruments()` reads open positions
+  and open orders from their snapshots and subscribes only those offer IDs.
+- **Watchlist** — when `GET /api/fxcm/watchlist` detects new offer IDs not
+  yet in `_last_subscribed_offer_ids`, it fires a background
+  `POST /subscribe` to the bridge (asyncio `create_task`, non-blocking).
+  The frozenset union prevents redundant calls on subsequent polls.
+- **Subscribe call** — `FxcmSession.subscribeOfferIds(List<String>)` filters
+  out already-subscribed IDs (tracked in `subscribedOfferIds` ConcurrentHashMap)
+  before calling `getLatestOffersSnapshot`, keeping the call truly incremental.
+
+`/prices` returns only the currently subscribed set; `FxcmSession.getOffers()`
+calls `getLatestOffersSnapshot` with the full `subscribedOfferIds` set on each
+request (live values each time, no stale cache).
+
+### Per-instrument price precision
+
+`/prices` and `/positions` rows now include `digits` and `point_size` from the
+FCLite `Instrument` object (read via `instrumentsMgr.getInstrumentByOfferId()`
+after subscription):
+
+- **`digits`** — decimal places for price display (e.g. EUR/USD = 5, USD/JPY = 3,
+  US30 = 1, XAU/USD = 2). Prefer over the frontend's hardcoded `cfdDigits()`
+  heuristic; the heuristic is kept as a fallback for pre-subscription states.
+- **`point_size`** — the size of one point/pip (e.g. 0.0001 for most FX pairs,
+  0.01 for JPY pairs, 1.0 for indices). Used to compute spread in pips:
+  `spread = (ask - bid) / point_size`.
+
+`fmtSpread(bid, ask, pointSize)` in `frontend/src/lib/format.ts` applies this
+formula and renders as `"1.2 pts"`.
 
 ### `/api/fxcm/instruments` response shape (mind the casing)
 
@@ -537,15 +587,15 @@ the `Origin: https://app.fxcm.com` header.
 { "code": "integer", "message": "string" }
 ```
 
-#### Subscription virtualization (frontend concern)
+#### Subscription virtualization
 
-The Endpoints suite returns the **full** `offerIds` list for a watchlist
-on every fetch. Per FXCM's spec doc the **frontend** is responsible for
-limiting active market-data subscriptions (the FCLite `subscribeOffer`
-call) to instruments **currently visible** — sending the whole list at
-once causes performance issues. We don't currently subscribe at all
-beyond what FCLite already streams by default; revisit if/when a
-"subscribe on demand" flow lands.
+When `GET /api/fxcm/watchlist` fetches the watchlist from the Endpoints
+suite it has the full `offerIds` list. Those IDs are pushed to the bridge
+via `POST /subscribe` only when the set has grown since the last poll
+(tracked in `_last_subscribed_offer_ids` frozenset in `fxcm.py`). This is
+incremental — already-subscribed IDs are dropped in `FxcmSession.subscribeOfferIds`
+before the bridge makes any network call. Result: watchlist instruments are
+subscribed within one poll cycle (≤3 s), with zero redundant bridge calls.
 
 ### Our proxy mapping (`backend/app/fxcm.py`)
 
@@ -610,7 +660,7 @@ first time today), the map auto-refreshes once before failing with 404.
 - Polls `/api/fxcm/watchlist` every 3 s for live bid/ask.
 - Price rows colour bid green/red on uptick/downtick (prev vs current comparison
   held in `prevPrices` Map).
-- Spread displayed in pips (multiplied by 100,000 for most pairs, 1,000 for JPY).
+- Spread displayed via `fmtSpread(bid, ask, pointSize)` = `(ask - bid) / pointSize` rendered as pts — uses `point_size` from the `/prices` row (per-instrument from FCLite), not a hardcoded pair-class multiplier.
 - Account hero shows equity, balance, used margin, free margin.
 - Standard `EconomicCard` mounted under the watchlist, filtered to the
   FXCM-derived country set via `lib/fxcm-countries.ts` (maps any FXCM
@@ -633,10 +683,11 @@ first time today), the map auto-refreshes once before failing with 404.
   page's existing 3 s `/api/fxcm/prices` poll (the `livePrice` prop) — no
   extra request floor. Day Δ% derives from the second-to-last D1 close so
   it stays consistent across timeframe switches; React Query dedupes when
-  the chart is already on D1. Per-type digit precision applied to both the
-  live-price header (`fmt`) and the chart's right price axis
-  (`priceFormat.precision`) — JPY 3dp · FX 5dp · metals 4dp · indices 1dp ·
-  stock-CFDs 2dp. "Open ↗" propagates the selected instrument to
+  the chart is already on D1. Precision uses `digits` from the live `/prices`
+  row (per-instrument from FCLite), falling back to `cfdDigits(symbol)` when
+  not yet subscribed — applies to both the live-price header and the chart
+  right price axis (`priceFormat.precision`). Spread chip uses
+  `fmtSpread(bid, ask, point_size)`. "Open ↗" propagates the selected instrument to
   App-level state via `onSelectSymbol` and fires `onOpenChart` to switch
   into full TV Chart mode. Sibling rather than a branch inside
   `PriceChart` because the data shapes (`FxcmBar` ISO time vs Alpaca
@@ -725,7 +776,13 @@ CFD trading still happens via `CfdDiscoverPage` + `FxcmOrderSheet`.
 ## What's Shipped
 
 - FCLite Java bridge with persistent session (login, manager loading)
-- All read + write routes (read: account/prices/positions/orders/closed_trades/watchlist/instruments/history; write: order/close + `PATCH /order/{id}` modify)
+- **Selective subscription** — bridge subscribes only open-position and open-order
+  instruments at boot; watchlist instruments are pushed incrementally via `POST /subscribe`
+  as the user's watchlist is fetched. No bulk `IOffersManager.refresh()` at startup.
+- **Per-instrument precision** — `/prices` rows include `digits` (decimal places)
+  and `point_size` from FCLite `Instrument`; frontend prefers these over the hardcoded
+  `cfdDigits()` heuristic. Spread displayed via `fmtSpread` = `(ask - bid) / point_size`.
+- All read + write routes (read: account/prices/positions/orders/closed_trades/instruments/history; write: order/close + `PATCH /order/{id}` modify)
 - FastAPI proxy at `/api/fxcm/*`
 - Frontend CFD silo end-to-end: orange accent, splash card (live FXCM
   equity / day P/L / positions on the Account Hub overlay),

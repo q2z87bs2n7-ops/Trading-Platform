@@ -221,6 +221,7 @@ class WatchlistAddRequest(BaseModel):
 # Module-level cache. Single-user app — no per-user scoping needed.
 _watchlist_id: Optional[str] = None
 _watchlist_id_lock = asyncio.Lock()
+_last_subscribed_offer_ids: frozenset[int] = frozenset()
 
 # offerId ↔ symbol map cached from the FCLite bridge's /instruments
 # endpoint. Refreshed on cache miss + every hour.
@@ -356,6 +357,13 @@ async def watchlist():
     symbols = [s for s in symbols if s]
     if not symbols:
         return []
+
+    # Push new offer IDs to bridge when the watchlist changes.
+    global _last_subscribed_offer_ids
+    current_ids = frozenset(int(oid) for oid in offer_ids)
+    if not current_ids.issubset(_last_subscribed_offer_ids):
+        _last_subscribed_offer_ids = _last_subscribed_offer_ids | current_ids
+        asyncio.create_task(_post("/subscribe", {"offer_ids": [str(i) for i in current_ids]}))
 
     # Enrich with live bid/ask + display_name from the FCLite offers list.
     # /prices already accepts `instrument=` filter for a single name; we
