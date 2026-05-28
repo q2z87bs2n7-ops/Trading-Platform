@@ -26,5 +26,9 @@ uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}" &
 UVI_PID=$!
 
 # Exit when either process exits, so Render restarts the container.
-wait -n "$BRIDGE_PID" "$UVI_PID"
+# kill -0 is portable across sh/dash/bash; `wait -n` is bash-only and the
+# python:3.12-slim image's /bin/sh is dash.
+while kill -0 "$BRIDGE_PID" 2>/dev/null && kill -0 "$UVI_PID" 2>/dev/null; do
+  sleep 5
+done
 cleanup
