@@ -395,12 +395,18 @@ async def watchlist():
     if not symbols:
         return []
 
-    # Push new offer IDs to bridge when the watchlist changes.
+    # Keep bridge subscription state in sync: subscribe new IDs, unsubscribe removed ones.
+    # _last_subscribed_offer_ids is the snapshot of what Python last told the bridge;
+    # the bridge guards unsubscribe against open positions/orders on its own.
     global _last_subscribed_offer_ids
     current_ids = frozenset(int(oid) for oid in offer_ids)
-    if not current_ids.issubset(_last_subscribed_offer_ids):
-        _last_subscribed_offer_ids = _last_subscribed_offer_ids | current_ids
-        asyncio.create_task(_post("/subscribe", {"offer_ids": [str(i) for i in current_ids]}))
+    new_ids = current_ids - _last_subscribed_offer_ids
+    removed_ids = _last_subscribed_offer_ids - current_ids
+    if new_ids:
+        asyncio.create_task(_post("/subscribe", {"offer_ids": [str(i) for i in new_ids]}))
+    if removed_ids:
+        asyncio.create_task(_post("/unsubscribe", {"offer_ids": [str(i) for i in removed_ids]}))
+    _last_subscribed_offer_ids = current_ids
 
     # Enrich with live bid/ask from the FCLite offers list.
     # Some instruments (indices, commodities) return instrument=null from the

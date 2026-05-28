@@ -101,6 +101,7 @@ public class BridgeServer {
         server.createContext("/account",      ex -> handle(ex, BridgeServer::account));
         server.createContext("/prices",       ex -> handle(ex, BridgeServer::prices));
         server.createContext("/subscribe",    ex -> handle(ex, BridgeServer::subscribe));
+        server.createContext("/unsubscribe",  ex -> handle(ex, BridgeServer::unsubscribe));
         server.createContext("/positions",    ex -> handle(ex, BridgeServer::positions));
         server.createContext("/orders",       ex -> handle(ex, BridgeServer::orders));
         server.createContext("/closed_trades",ex -> handle(ex, BridgeServer::closedTrades));
@@ -149,6 +150,18 @@ public class BridgeServer {
             throw new IllegalArgumentException("offer_ids list required");
         session.subscribeOfferIds(offerIds);
         return mapOf("status", "ok");
+    }
+
+    @SuppressWarnings("unchecked")
+    static Object unsubscribe(HttpExchange ex) throws Exception {
+        if (!"POST".equals(ex.getRequestMethod()))
+            throw new IllegalArgumentException("POST required");
+        Map<String,Object> body = JSON.readValue(ex.getRequestBody(), Map.class);
+        List<String> offerIds = (List<String>) body.get("offer_ids");
+        if (offerIds == null || offerIds.isEmpty())
+            return mapOf("unsubscribed", 0);
+        session.unsubscribeOfferIds(offerIds);
+        return mapOf("unsubscribed", offerIds.size());
     }
 
     static Object positions(HttpExchange ex) throws Exception {

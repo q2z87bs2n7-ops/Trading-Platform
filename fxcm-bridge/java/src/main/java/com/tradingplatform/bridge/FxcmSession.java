@@ -155,12 +155,16 @@ public class FxcmSession {
 
         subscribedOfferIds.addAll(ids);
         LOG.info("Boot subscribe: " + ids.size() + " instruments (open positions + orders)");
-        if (!ids.isEmpty()) fetchOfferSnapshot(ids.toArray(new String[0]));
+        if (!ids.isEmpty()) {
+            fetchOfferSnapshot(ids.toArray(new String[0]));
+            List<String> syms = idsToSymbols(ids);
+            if (!syms.isEmpty()) subscribeSymbols(syms.toArray(new String[0]));
+        }
     }
 
-    // Called by POST /subscribe — adds offer IDs directly and warms the cache.
-    // Accepts string offer IDs (e.g. "1", "1004") to avoid the getInstrumentBySymbol
-    // chicken-and-egg: unsubscribed instruments can't be found by symbol lookup.
+    // Called by POST /subscribe — adds offer IDs, warms price cache, and sets status T.
+    // Accepts string offer IDs to avoid the getInstrumentBySymbol chicken-and-egg:
+    // unsubscribed instruments can't be found by symbol lookup.
     // Idempotent: safe to call when watchlist changes.
     void subscribeOfferIds(List<String> offerIds) throws Exception {
         Set<String> newIds = new HashSet<>(offerIds);
@@ -168,7 +172,62 @@ public class FxcmSession {
         if (newIds.isEmpty()) return;
         subscribedOfferIds.addAll(newIds);
         fetchOfferSnapshot(newIds.toArray(new String[0]));
+        List<String> syms = idsToSymbols(newIds);
+        if (!syms.isEmpty()) subscribeSymbols(syms.toArray(new String[0]));
         LOG.info("Subscribed " + newIds.size() + " new offer IDs (total: " + subscribedOfferIds.size() + ")");
+    }
+
+    // Called by POST /unsubscribe — sets status back to D.
+    // Skips any offer ID that still has an open position or order (always T).
+    void unsubscribeOfferIds(List<String> offerIds) throws Exception {
+        Set<String> protect = new HashSet<>();
+        OpenPosition[] positions = positionsMgr.getOpenPositionsSnapshot();
+        if (positions != null) for (OpenPosition p : positions) if (p != null) protect.add(p.getOfferId());
+        Order[] orders = ordersMgr.getOrdersSnapshot();
+        if (orders != null) for (Order o : orders) if (o != null) protect.add(o.getOfferId());
+
+        Set<String> toRemove = new HashSet<>(offerIds);
+        toRemove.removeAll(protect);
+        toRemove.retainAll(subscribedOfferIds);
+        if (toRemove.isEmpty()) return;
+
+        subscribedOfferIds.removeAll(toRemove);
+        List<String> syms = idsToSymbols(toRemove);
+        if (!syms.isEmpty()) unsubscribeSymbols(syms.toArray(new String[0]));
+        LOG.info("Unsubscribed " + syms.size() + " instruments: " + syms);
+    }
+
+    private List<String> idsToSymbols(Set<String> offerIds) {
+        List<String> syms = new ArrayList<>();
+        for (String id : offerIds) {
+            InstrumentDescriptor d = instrumentsMgr.getInstrumentDescriptorByOfferId(id);
+            if (d != null && d.getSymbol() != null) syms.add(d.getSymbol());
+        }
+        return syms;
+    }
+
+    private void subscribeSymbols(String[] symbols) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        instrumentsMgr.subscribeInstruments(symbols, new ISubscribeInstrumentsCallback() {
+            public void onSuccess() { latch.countDown(); }
+            public void onError(String msg, String[] failed) {
+                LOG.warning("subscribeInstruments error: " + msg + " failed=" + Arrays.toString(failed));
+                latch.countDown();
+            }
+        });
+        if (!latch.await(10, TimeUnit.SECONDS)) LOG.warning("subscribeInstruments timeout");
+    }
+
+    private void unsubscribeSymbols(String[] symbols) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        instrumentsMgr.unsubscribeInstruments(symbols, new ISubscribeInstrumentsCallback() {
+            public void onSuccess() { latch.countDown(); }
+            public void onError(String msg, String[] failed) {
+                LOG.warning("unsubscribeInstruments error: " + msg + " failed=" + Arrays.toString(failed));
+                latch.countDown();
+            }
+        });
+        if (!latch.await(10, TimeUnit.SECONDS)) LOG.warning("unsubscribeInstruments timeout");
     }
 
     private Offer[] fetchOfferSnapshot(String[] offerIds) throws Exception {
