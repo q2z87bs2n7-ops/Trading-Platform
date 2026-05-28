@@ -438,6 +438,61 @@ public class FxcmSession {
         ordersMgr.removeOrder(orderId);
     }
 
+    Map<String,Object> subscribeInstruments(String[] symbols, boolean persist) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final String[]   errorMsg   = {null};
+        final String[][] failedSyms = {null};
+        ISubscribeInstrumentsCallback cb = new ISubscribeInstrumentsCallback() {
+            public void onSuccess() { latch.countDown(); }
+            public void onError(String msg, String[] failed) {
+                errorMsg[0] = msg; failedSyms[0] = failed; latch.countDown();
+            }
+        };
+        if (persist) instrumentsMgr.subscribeInstrumentsAndStoreOnServer(symbols, cb);
+        else         instrumentsMgr.subscribeInstruments(symbols, cb);
+        if (!latch.await(15, TimeUnit.SECONDS))
+            return mapResult(false, "timeout", null);
+        if (errorMsg[0] == null) return mapResult(true, null, null);
+        return mapResult(false, errorMsg[0], failedSyms[0]);
+    }
+
+    Map<String,Object> unsubscribeInstruments(String[] symbols, boolean persist) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final String[]   errorMsg   = {null};
+        final String[][] failedSyms = {null};
+        ISubscribeInstrumentsCallback cb = new ISubscribeInstrumentsCallback() {
+            public void onSuccess() { latch.countDown(); }
+            public void onError(String msg, String[] failed) {
+                errorMsg[0] = msg; failedSyms[0] = failed; latch.countDown();
+            }
+        };
+        if (persist) instrumentsMgr.unsubscribeInstrumentsAndStoreOnServer(symbols, cb);
+        else         instrumentsMgr.unsubscribeInstruments(symbols, cb);
+        if (!latch.await(15, TimeUnit.SECONDS))
+            return mapResult(false, "timeout", null);
+        if (errorMsg[0] == null) return mapResult(true, null, null);
+        return mapResult(false, errorMsg[0], failedSyms[0]);
+    }
+
+    List<String> getSubscribedInstruments() {
+        Instrument[] arr = instrumentsMgr.getSubscribedInstruments();
+        if (arr == null) return Collections.emptyList();
+        List<String> result = new ArrayList<>();
+        for (Instrument inst : arr) {
+            String sym = safe(inst::getSymbol);
+            if (sym != null) result.add(sym);
+        }
+        return result;
+    }
+
+    private static Map<String,Object> mapResult(boolean ok, String error, String[] failed) {
+        Map<String,Object> r = new LinkedHashMap<>();
+        r.put("ok", ok);
+        if (error  != null) r.put("error",  error);
+        if (failed != null) r.put("failed", Arrays.asList(failed));
+        return r;
+    }
+
     // Modify a pending entry order's rate / SL / TP. Pass 0 to leave a field unchanged.
     // FCLite 1.3.3 setter names aren't stable across builds, so we drive the builder
     // reflectively and trust the imported request-changeorder package to satisfy linking.

@@ -82,6 +82,9 @@ public class BridgeServer {
         server.createContext("/order",        ex -> handleOrder(ex));
         server.createContext("/close",        ex -> handle(ex, BridgeServer::closePosition));
         server.createContext("/debug",        ex -> handle(ex, BridgeServer::debug));
+        server.createContext("/subscribe",    ex -> handle(ex, BridgeServer::subscribeInstruments));
+        server.createContext("/unsubscribe",  ex -> handle(ex, BridgeServer::unsubscribeInstruments));
+        server.createContext("/subscribed",   ex -> handle(ex, BridgeServer::subscribedInstruments));
         server.setExecutor(Executors.newCachedThreadPool());
         server.start();
         LOG.info("Bridge listening on http://127.0.0.1:" + PORT);
@@ -179,6 +182,30 @@ public class BridgeServer {
         r.put("offers",    debugSection(offers));
         r.put("positions", debugSection(positions));
         r.put("orders",    debugSection(orders));
+        return r;
+    }
+
+    static Object subscribeInstruments(HttpExchange ex) throws Exception {
+        Map<String,String> q = parseQuery(ex.getRequestURI());
+        String symsParam = q.get("symbols");
+        if (symsParam == null || symsParam.isEmpty())
+            throw new IllegalArgumentException("symbols parameter required");
+        boolean persist = "true".equalsIgnoreCase(q.get("persist"));
+        return session.subscribeInstruments(symsParam.split(","), persist);
+    }
+
+    static Object unsubscribeInstruments(HttpExchange ex) throws Exception {
+        Map<String,String> q = parseQuery(ex.getRequestURI());
+        String symsParam = q.get("symbols");
+        if (symsParam == null || symsParam.isEmpty())
+            throw new IllegalArgumentException("symbols parameter required");
+        boolean persist = "true".equalsIgnoreCase(q.get("persist"));
+        return session.unsubscribeInstruments(symsParam.split(","), persist);
+    }
+
+    static Object subscribedInstruments(HttpExchange ex) throws Exception {
+        Map<String,Object> r = new LinkedHashMap<>();
+        r.put("symbols", session.getSubscribedInstruments());
         return r;
     }
 
