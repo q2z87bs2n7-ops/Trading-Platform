@@ -502,13 +502,26 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
 
       {/* Inline chart — mirrors stocks/crypto Discover's ChartCard, pulling
          OHLCV from /api/fxcm/history and the live tip from the parent's
-         /api/fxcm/prices poll. Click a watchlist row above to switch. */}
+         /api/fxcm/prices poll. Click a watchlist row above to switch.
+         Outer wrapper mirrors `ChartCard` (mt-6, var(--r-lg), shadow-sm,
+         p-[20px_24px]) so the nested panel-in-panel look matches stocks
+         and crypto Discover. */}
       {bridgeOk && selected && (
-        <CfdPriceChart
-          instrument={selected}
-          livePrice={priceMap.get(selected)}
-          onOpenChart={onOpenChart ? handleOpenChart : undefined}
-        />
+        <div
+          className="p-[20px_24px]"
+          style={{
+            background: "var(--panel)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--r-lg)",
+            boxShadow: "var(--shadow-sm)",
+          }}
+        >
+          <CfdPriceChart
+            instrument={selected}
+            livePrice={priceMap.get(selected)}
+            onOpenChart={onOpenChart ? handleOpenChart : undefined}
+          />
+        </div>
       )}
 
       {/* Economic calendar — filtered to every country in the FXCM universe */}

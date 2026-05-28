@@ -203,7 +203,7 @@ export default function CfdPriceChart({
           {dayPct !== null && (
             <span
               className="text-[13px] tabular-nums"
-              style={{ color: dayUp ? "var(--pos)" : "var(--neg)" }}
+              style={{ color: dayUp ? "var(--green)" : "var(--red)" }}
             >
               {dayUp ? "+" : ""}
               {(dayPct * 100).toFixed(2)}%
