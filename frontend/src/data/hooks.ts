@@ -122,7 +122,8 @@ export function useFxcmModifyOrder() {
 export function useFxcmClosePosition() {
   const invalidate = useFxcmTradeInvalidation();
   return useMutation({
-    mutationFn: (tradeId: string | number) => api.closeFxcmPosition(tradeId),
+    mutationFn: (v: { tradeId: string | number; amount?: number }) =>
+      api.closeFxcmPosition(v.tradeId, v.amount ?? 0),
     onSuccess: () =>
       invalidate([qk.fxcmPositions, qk.fxcmAccount, qk.fxcmClosedTrades]),
   });

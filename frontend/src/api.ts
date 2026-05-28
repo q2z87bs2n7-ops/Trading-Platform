@@ -526,9 +526,10 @@ export interface FxcmOrderRequest {
 export const submitFxcmOrder = (order: FxcmOrderRequest) =>
   sendFxcmJSON<{ status: string; order_id?: string }>("POST", "/api/fxcm/order", order);
 
-export const closeFxcmPosition = (tradeId: string | number) =>
+export const closeFxcmPosition = (tradeId: string | number, amount = 0) =>
   sendFxcmJSON<{ status: string; trade_id?: string }>("POST", "/api/fxcm/close", {
     trade_id: String(tradeId),
+    amount,
   });
 
 export const getFxcmOrders = () => getFxcmJSON<FxcmOrder[]>("/api/fxcm/orders");

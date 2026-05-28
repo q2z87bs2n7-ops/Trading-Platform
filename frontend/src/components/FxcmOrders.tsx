@@ -1,67 +1,12 @@
 import { useState } from "react";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-
+import { useFxcmCancelOrder, useFxcmOrders } from "../data/hooks";
 import { useMobile } from "../hooks/useMobile";
 import { showToast } from "../lib/toast";
+import type { FxcmOrder } from "../types";
 import ErrorBanner from "./ErrorBanner";
 import Pill from "./Pill";
-import FxcmModifyOrderCard, {
-  type FxcmOrder,
-} from "./trade/FxcmModifyOrderCard";
-
-// Mirror api.ts's STREAM_BASE so blotter calls land on the Render relay
-// (which hosts the FXCM bridge) in prod, and the Vite proxy locally.
-const STREAM_BASE = (
-  import.meta.env.VITE_STREAM_BASE ??
-  import.meta.env.VITE_API_BASE ??
-  ""
-).replace(/\/$/, "");
-
-// Local read + mutate shims. Wave 1 will export useFxcmOrders /
-// useFxcmCancelOrder; merge will reconcile.
-function useFxcmOrdersLocal() {
-  return useQuery({
-    queryKey: ["fxcm", "orders"],
-    queryFn: async (): Promise<FxcmOrder[]> => {
-      const res = await fetch(`${STREAM_BASE}/api/fxcm/orders`);
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        const detail = body.detail ?? res.statusText;
-        throw new Error(
-          typeof detail === "string" ? detail : `HTTP ${res.status}`,
-        );
-      }
-      return res.json() as Promise<FxcmOrder[]>;
-    },
-    refetchInterval: 15_000,
-    retry: 0,
-  });
-}
-
-function useFxcmCancelOrderLocal() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (orderId: string) => {
-      const res = await fetch(
-        `${STREAM_BASE}/api/fxcm/order/${encodeURIComponent(orderId)}`,
-        { method: "DELETE" },
-      );
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        const detail = body.detail ?? res.statusText;
-        throw new Error(
-          typeof detail === "string" ? detail : `HTTP ${res.status}`,
-        );
-      }
-      return res.json().catch(() => ({}));
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["fxcm", "orders"] });
-      qc.invalidateQueries({ queryKey: ["fxcm", "account"] });
-    },
-  });
-}
+import FxcmModifyOrderCard from "./trade/FxcmModifyOrderCard";
 
 const TYPE_LABEL: Record<string, string> = {
   OM: "Market",
@@ -252,8 +197,8 @@ export interface FxcmOrdersProps {
 }
 
 export default function FxcmOrders({ symbol }: FxcmOrdersProps = {}) {
-  const { data, error, isPending } = useFxcmOrdersLocal();
-  const cancel = useFxcmCancelOrderLocal();
+  const { data, error, isPending } = useFxcmOrders(true);
+  const cancel = useFxcmCancelOrder();
   const stacked = useMobile();
   const [modifyingOrder, setModifyingOrder] = useState<FxcmOrder | null>(null);
 

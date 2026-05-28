@@ -1,36 +1,8 @@
 import { useEffect, useState } from "react";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-
+import { useFxcmModifyOrder } from "../../data/hooks";
 import { showToast } from "../../lib/toast";
-
-// Mirror api.ts's STREAM_BASE resolution so the PATCH lands on the Render
-// relay (which hosts the FXCM bridge) in prod, and the Vite proxy locally.
-const STREAM_BASE = (
-  import.meta.env.VITE_STREAM_BASE ??
-  import.meta.env.VITE_API_BASE ??
-  ""
-).replace(/\/$/, "");
-
-// Local shape mirrors the Wave-1 FxcmOrder contract; merge will reconcile to
-// the canonical types.ts version. Indexed-access keeps us tolerant of the
-// rest of the FCLite row.
-export interface FxcmOrder {
-  order_id: string;
-  account_id?: string;
-  offer_id?: string;
-  instrument: string;
-  amount: number;
-  rate: number;
-  type: string;
-  status: string;
-  buy_sell: string;
-  stop?: number;
-  limit?: number;
-  digits?: number;
-  created_time?: string;
-  [key: string]: unknown;
-}
+import type { FxcmOrder } from "../../types";
 
 const TYPE_LABEL: Record<string, string> = {
   OM: "Market",
@@ -38,37 +10,6 @@ const TYPE_LABEL: Record<string, string> = {
   LE: "Limit entry",
 };
 const SIDE_LABEL: Record<string, string> = { B: "Buy", S: "Sell" };
-
-// Wave-1 will export a real useFxcmModifyOrder hook; fall back to a local
-// shim built on api.sendFxcmJSON via a thin PATCH call so this file
-// compiles today. Resolved at merge time.
-type ModifyBody = { rate?: number; stop?: number; limit?: number };
-function useFxcmModifyOrderLocal() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (v: { order_id: string } & ModifyBody) => {
-      const { order_id, ...body } = v;
-      // Bridge endpoint is PATCH /api/fxcm/order/{id}. Hit it via fetch
-      // since api.ts doesn't expose a public PATCH helper for FXCM yet.
-      const path = `/api/fxcm/order/${encodeURIComponent(order_id)}`;
-      const res = await fetch(`${STREAM_BASE}${path}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const errBody = await res.json().catch(() => ({}));
-        const detail = errBody.detail ?? res.statusText;
-        throw new Error(typeof detail === "string" ? detail : `HTTP ${res.status}`);
-      }
-      return res.json().catch(() => ({}));
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["fxcm", "orders"] });
-      qc.invalidateQueries({ queryKey: ["fxcm", "account"] });
-    },
-  });
-}
 
 export interface FxcmModifyOrderCardProps {
   order: FxcmOrder;
@@ -79,7 +20,7 @@ export default function FxcmModifyOrderCard({
   order,
   onClose,
 }: FxcmModifyOrderCardProps) {
-  const modify = useFxcmModifyOrderLocal();
+  const modify = useFxcmModifyOrder();
   const isMarket = order.type === "OM";
   const sideKey = order.buy_sell;
   const digits = order.digits ?? 5;
@@ -130,8 +71,8 @@ export default function FxcmModifyOrderCard({
     limit != null &&
     limit > rate;
 
-  function buildBody(): ModifyBody {
-    const body: ModifyBody = {};
+  function buildBody(): { rate?: number; stop?: number; limit?: number } {
+    const body: { rate?: number; stop?: number; limit?: number } = {};
     if (rate != null && rate !== initRate) body.rate = rate;
     if (stop !== initStop) body.stop = stop ?? 0;
     if (limit !== initLimit) body.limit = limit ?? 0;
@@ -150,7 +91,7 @@ export default function FxcmModifyOrderCard({
       return;
     }
     modify.mutate(
-      { order_id: order.order_id, ...body },
+      { id: order.order_id, body },
       {
         onSuccess: () => {
           showToast(`${order.instrument} order updated`, "success");

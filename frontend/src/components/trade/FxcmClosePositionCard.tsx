@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import * as api from "../../api";
+import { useFxcmClosePosition } from "../../data/hooks";
 import { useMobile } from "../../hooks/useMobile";
 import { showToast } from "../../lib/toast";
 
@@ -21,16 +21,6 @@ export interface FxcmClosePositionCardProps {
   onClose: () => void;
 }
 
-// Wave 1 hook shim — until useFxcmClosePosition lands, drive the bridge call
-// directly. Re-fetch on mount so the merge swap is invisible.
-async function closeOne(tradeId: string, amount: number): Promise<void> {
-  // The bridge currently accepts only trade_id; partial-close support lives
-  // server-side and is exercised by an `amount` field. Pass it as an extra
-  // body param — backend ignores unknown fields until Wave 1 wires it.
-  await api.closeFxcmPosition(tradeId);
-  void amount;
-}
-
 export default function FxcmClosePositionCard({
   instrument,
   side,
@@ -43,6 +33,7 @@ export default function FxcmClosePositionCard({
   onClose,
 }: FxcmClosePositionCardProps) {
   const isMobile = useMobile();
+  const closeMutation = useFxcmClosePosition();
   const [amount, setAmount] = useState<number>(Math.max(1, Math.floor(netQty)));
   const [pending, setPending] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -76,7 +67,7 @@ export default function FxcmClosePositionCard({
       // Full close — fire amount=0 per trade (bridge treats 0 as full).
       for (const tid of tradeIds) {
         try {
-          await closeOne(tid, 0);
+          await closeMutation.mutateAsync({ tradeId: tid, amount: 0 });
         } catch (e) {
           failures.push(`${tid}: ${(e as Error).message}`);
         }
@@ -94,7 +85,7 @@ export default function FxcmClosePositionCard({
         if (tradeAmt <= 0) continue;
         const take = Math.min(tradeAmt, remaining);
         try {
-          await closeOne(tid, take >= tradeAmt ? 0 : take);
+          await closeMutation.mutateAsync({ tradeId: tid, amount: take >= tradeAmt ? 0 : take });
           remaining -= take;
         } catch (e) {
           failures.push(`${tid}: ${(e as Error).message}`);
