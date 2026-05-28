@@ -11,18 +11,14 @@ app.fxcm.com uses) with a JWT minted by fxcm_auth.py. See the
 """
 
 import asyncio
-import logging
 import time
 from typing import Any, Optional
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from .fxcm_auth import get_access_token
-
-log = logging.getLogger("fxcm")
 
 BRIDGE_URL = "http://127.0.0.1:3001"
 TIMEOUT    = 10.0

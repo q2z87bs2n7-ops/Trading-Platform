@@ -52,11 +52,14 @@ def crypto_data_client() -> CryptoHistoricalDataClient:
     return CryptoHistoricalDataClient()
 
 
-# Forex pairs use the same BASE/QUOTE form as crypto (EUR/USD vs BTC/USD), so
-# the slash alone is ambiguous. Forex pairs are <fiat>/<fiat> where fiat is an
-# ISO 4217 code; crypto pairs have a non-ISO base or quote (BTC, ETH, USDC).
-# Adding a fiat doesn't break the classifier — a new pair just routes through
-# the crypto branch until the code is added here.
+# Currency-shape classifier (NOT the silo). Crypto and fiat-fiat pairs share
+# the BASE/QUOTE form, so the slash alone is ambiguous: EUR/USD looks like
+# BTC/USD. Fiat-fiat pairs are <ISO 4217>/<ISO 4217>; crypto pairs have a
+# non-ISO leg (BTC, ETH, USDC). Adding a missing fiat code doesn't break the
+# classifier — an unrecognised pair just falls through the crypto branch.
+# The frontend's CFD silo is a separate concept (`isCfdSymbol` in
+# `lib/asset-class.ts`, fed by the FXCM instrument list); this helper is
+# only used to keep `is_crypto` honest.
 _FIAT_CURRENCIES = frozenset({
     "USD", "EUR", "GBP", "JPY", "CHF", "AUD", "CAD", "NZD",
     "SEK", "NOK", "DKK", "MXN", "ZAR", "HKD", "SGD", "TRY",
@@ -64,7 +67,7 @@ _FIAT_CURRENCIES = frozenset({
 })
 
 
-def is_forex(symbol: str) -> bool:
+def _is_fiat_pair(symbol: str) -> bool:
     if not symbol or "/" not in symbol:
         return False
     base, _, quote = symbol.partition("/")
@@ -72,7 +75,7 @@ def is_forex(symbol: str) -> bool:
 
 
 def is_crypto(symbol: str) -> bool:
-    return "/" in symbol and not is_forex(symbol)
+    return "/" in symbol and not _is_fiat_pair(symbol)
 
 
 # Quote currencies Alpaca appends without a slash on crypto symbols (its

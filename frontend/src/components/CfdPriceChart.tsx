@@ -8,6 +8,7 @@ import {
 
 import { useFxcmBars } from "../data/hooks";
 import { useTheme } from "../hooks/useTheme";
+import { cfdDigits } from "../lib/format";
 import type { FxcmBar, FxcmPrice } from "../types";
 import ErrorBanner from "./ErrorBanner";
 
@@ -39,15 +40,6 @@ const TIMEFRAMES = [
   { value: "D1", label: "1D" },
 ];
 
-// Per-type digit precision — same ladder used by FxcmStripRow / closeFxcm.
-function digitsFor(instrument: string): number {
-  if (/\.[a-z]{2,3}$/i.test(instrument)) return 2; // stock CFD (RBLX.us)
-  if (instrument.includes("JPY")) return 3;
-  if (/^XA[GU]\//.test(instrument)) return 4; // XAU/USD, XAG/USD
-  if (instrument.includes("/")) return 5;
-  return 1; // index
-}
-
 // The bridge sends `time` as a naive ISO string (no zone) — treat as UTC
 // epoch seconds for lightweight-charts.
 function isoToEpochSec(iso: string): number {
@@ -77,7 +69,7 @@ export default function CfdPriceChart({
   // chart timeframe; React Query dedupes when the chart is already on D1.
   const { data: dailyBars } = useFxcmBars(instrument, "D1");
 
-  const digits = digitsFor(instrument);
+  const digits = cfdDigits(instrument);
   const fmt = (n: number | undefined | null) =>
     n == null || isNaN(n) ? "—" : n.toFixed(digits);
 

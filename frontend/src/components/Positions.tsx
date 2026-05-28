@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { useCloseAllPositions, useFxcmPositions, usePositions } from "../data/hooks";
 import { useMobile } from "../hooks/useMobile";
 import { isCryptoPosition } from "../lib/asset-class";
-import { fmtCryptoPrice } from "../lib/format";
+import { cfdDigits, fmtCryptoPrice } from "../lib/format";
 import { showToast } from "../lib/toast";
 import type { FxcmPosition, Position } from "../types";
 import ErrorBanner from "./ErrorBanner";
@@ -631,17 +631,6 @@ interface NettedFxcmRow {
   tradeAmounts: number[];
 }
 
-// Per-type digit defaults; FXCM mixes forex (5/3), metals (4), indices (1),
-// stock-CFDs (2). Bridge sends `digits` per row when it can — these are the
-// fallback when it doesn't.
-function defaultDigits(instrument: string): number {
-  if (/\.[a-z]{2,3}$/i.test(instrument)) return 2; // stock CFD (e.g. RBLX.us)
-  if (instrument.includes("JPY")) return 3;
-  if (/^XA[GU]\//.test(instrument)) return 4; // XAU/USD, XAG/USD
-  if (instrument.includes("/")) return 5; // standard FX pair
-  return 1; // index
-}
-
 function netFxcmPositions(rows: FxcmPosition[]): NettedFxcmRow[] {
   const groups = new Map<string, FxcmPosition[]>();
   for (const r of rows) {
@@ -721,7 +710,7 @@ function netFxcmPositions(rows: FxcmPosition[]): NettedFxcmRow[] {
       mark: markPick ?? 0,
       livePl: livePlComplete ? livePlSum : plFallback,
       usedMargin,
-      digits: digits ?? defaultDigits(instrument),
+      digits: digits ?? cfdDigits(instrument),
       tradeIds,
       tradeAmounts,
     });

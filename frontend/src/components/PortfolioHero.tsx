@@ -321,13 +321,9 @@ function CfdPortfolioHero({ isMobile }: { isMobile: boolean }) {
 
   const equity = Number(acct?.equity ?? 0);
   const dayPl = Number(acct?.day_pl ?? 0);
-  const grossPl = Number((acct as Record<string, unknown> | undefined)?.gross_pl ?? 0);
-  const usableMargin = Number(
-    (acct as Record<string, unknown> | undefined)?.usablemargin ?? 0,
-  );
-  const usedMargin = Number(
-    (acct as Record<string, unknown> | undefined)?.usedmargin ?? 0,
-  );
+  const grossPl = Number(acct?.gross_pl ?? 0);
+  const usableMargin = Number(acct?.usablemargin ?? 0);
+  const usedMargin = Number(acct?.usedmargin ?? 0);
   const dayBasis = equity - dayPl;
   const dayPlPct = dayBasis > 0 ? dayPl / dayBasis : 0;
   const dayUp = dayPl >= 0;

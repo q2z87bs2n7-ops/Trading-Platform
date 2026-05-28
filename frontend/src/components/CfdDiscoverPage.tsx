@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import * as api from "../api";
 import type { FxcmAccount, FxcmPosition, FxcmPrice } from "../types";
-import { money } from "../lib/format";
+import { fmtCfdPrice, money } from "../lib/format";
 import { fxcmCountrySet } from "../lib/fxcm-countries";
 import {
   useEconomicCalendar,
@@ -20,18 +20,6 @@ import SectionHeading from "./SectionHeading";
 import FxcmOrderSheet from "./trade/FxcmOrderSheet";
 import CfdPriceChart from "./CfdPriceChart";
 import { useMobile } from "../hooks/useMobile";
-
-// CFD-specific price formatter — per-type digit precision. JPY pairs 3dp,
-// metals 4dp, indices 1dp, stock-CFDs 2dp, everything else 5dp.
-function fmtCfdPrice(price: number | undefined, symbol?: string): string {
-  if (price == null || isNaN(price)) return "—";
-  const sym = symbol ?? "";
-  if (/\.[a-z]{2,3}$/i.test(sym)) return price.toFixed(2);
-  if (sym.includes("JPY")) return price.toFixed(3);
-  if (/^XA[GU]\//.test(sym)) return price.toFixed(4);
-  if (sym.includes("/")) return price.toFixed(5);
-  return price.toFixed(1);
-}
 
 function fmtPl(pl: number | undefined): string {
   if (pl == null || isNaN(pl)) return "—";

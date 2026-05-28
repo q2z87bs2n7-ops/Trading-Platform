@@ -634,11 +634,13 @@ export interface HolderDemographicsResponse {
 
 export interface FxcmAccount {
   account_id?: string | number;
+  account_name?: string;
   balance?: number;
   equity?: number;
   usedmargin?: number;
+  usablemargin?: number;
   day_pl?: number;
-  [key: string]: unknown;
+  gross_pl?: number;
 }
 
 export interface FxcmPrice {

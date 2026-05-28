@@ -23,6 +23,24 @@ export function fmtCryptoPrice(n: number): string {
   });
 }
 
+// Per-type digit precision for FXCM CFD instruments. JPY pairs trade in
+// 3dp, metals in 4dp, indices in 1dp, stock-CFDs (`RBLX.us`-style) in 2dp,
+// everything else (standard FX) in 5dp. The bridge sends `digits` per row
+// when it can; this is the structural fallback when it doesn't.
+export function cfdDigits(symbol: string): number {
+  if (!symbol) return 5;
+  if (/\.[a-z]{2,3}$/i.test(symbol)) return 2;
+  if (symbol.includes("JPY")) return 3;
+  if (/^XA[GU]\//.test(symbol)) return 4;
+  if (symbol.includes("/")) return 5;
+  return 1;
+}
+
+export function fmtCfdPrice(price: number | undefined, symbol?: string): string {
+  if (price == null || Number.isNaN(price)) return "—";
+  return price.toFixed(cfdDigits(symbol ?? ""));
+}
+
 export const pct = (n: number) =>
   `${n >= 0 ? "+" : ""}${(n * 100).toFixed(2)}%`;
 

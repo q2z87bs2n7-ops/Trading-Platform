@@ -9,6 +9,7 @@ import { subscribeBar } from "../data/barStream";
 import { subscribeQuoteTicks } from "../data/quoteStream";
 import { getFxcmInstruments, type FxcmInstrument } from "../api";
 import { isCryptoSymbol } from "./asset-class";
+import { cfdDigits } from "./format";
 import type { FxcmBar, FxcmPrice, Quote } from "../types";
 
 // FXCM has no SSE on the bridge yet — chart live ticks fall back to polling
@@ -68,9 +69,11 @@ function toFxcmTf(resolution: string): string {
   return FXCM_RESOLUTION_MAP[resolution] ?? "H1";
 }
 
-// pricescale for CFD pairs: JPY pairs have 3 decimal places, others 5
+// TV's `pricescale` is 10^digits (e.g. 5dp → 100000). Derive from the same
+// shared ladder used by the formatter so all CFD price precision flows from
+// one place (`lib/format.ts → cfdDigits`).
 function cfdPriceScale(symbol: string): number {
-  return symbol.includes("JPY") ? 1000 : 100000;
+  return Math.pow(10, cfdDigits(symbol));
 }
 
 interface DatafeedOpts {
