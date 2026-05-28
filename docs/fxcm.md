@@ -780,8 +780,12 @@ CFD trading still happens via `CfdDiscoverPage` + `FxcmOrderSheet`.
   instruments at boot; watchlist instruments are pushed incrementally via `POST /subscribe`
   as the user's watchlist is fetched. No bulk `IOffersManager.refresh()` at startup.
 - **Per-instrument precision** — `/prices` rows include `digits` (decimal places)
-  and `point_size` from FCLite `Instrument`; frontend prefers these over the hardcoded
-  `cfdDigits()` heuristic. Spread displayed via `fmtSpread` = `(ask - bid) / point_size`.
+  and `point_size` from FCLite `Instrument`; all CFD price display surfaces prefer `digits`
+  over the hardcoded `cfdDigits()` heuristic: `CfdDiscoverPage`, `CfdPriceChart` (chart
+  header + axis `priceFormat`), `TradeBar` (`fmtPriceChip`), and `FxcmOrderSheet` (rate
+  display + input placeholder). `cfdDigits()` / `cfdPriceScale()` remain as pre-subscription
+  fallbacks. Spread displayed via `fmtSpread` = `(ask - bid) / point_size`. The TV chart's
+  `resolveSymbol` `pricescale` is still hardcoded (backlog).
 - All read + write routes (read: account/prices/positions/orders/closed_trades/instruments/history; write: order/close + `PATCH /order/{id}` modify)
 - FastAPI proxy at `/api/fxcm/*`
 - Frontend CFD silo end-to-end: orange accent, splash card (live FXCM
