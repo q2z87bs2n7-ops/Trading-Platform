@@ -3,6 +3,7 @@ import type { IDockviewPanelHeaderProps, IDockviewPanelProps } from "dockview-re
 import { useContainerNarrow, useContainerTall } from "../../hooks/useContainerNarrow";
 import Positions from "../../components/Positions";
 import Orders from "../../components/Orders";
+import FxcmOrders from "../../components/FxcmOrders";
 import Activities from "../../components/Activities";
 import TVChartWidget from "../../components/TVChartWidget";
 import PriceChart from "../../components/PriceChart";
@@ -249,6 +250,7 @@ function LinkHeader({
       {searching && canPick ? (
         <AssetSearch
           assetClass={assetClass === "crypto" ? "crypto" : "us_equity"}
+          source={assetClass === "cfd" ? "fxcm" : "alpaca"}
           align="left"
           autoFocus
           fluid
@@ -585,7 +587,7 @@ function OrdersWidget(props: IDockviewPanelProps) {
       <div ref={ref} style={{ height: "100%" }}>
         <Pane pad>
           {assetClass === "cfd" ? (
-            <CfdPending kind="Orders" />
+            <FxcmOrders symbol={symbol} dense={dense} bare />
           ) : (
             <Orders assetClass={assetClass} symbol={symbol} dense={dense} mid={mid} bare />
           )}
@@ -721,17 +723,13 @@ function WatchlistWidget(props: IDockviewPanelProps) {
       }
     >
       <Pane pad>
-        {assetClass === "cfd" ? (
-          <CfdPending kind="Watchlist" />
-        ) : (
-          <Watchlist
-            assetClass={assetClass}
-            selected={getSymbol(target)}
-            onSelect={(s) => setSymbol(target, s)}
-            mode={mode}
-            onModeChange={setMode}
-          />
-        )}
+        <Watchlist
+          assetClass={assetClass}
+          selected={getSymbol(target)}
+          onSelect={(s) => setSymbol(target, s)}
+          mode={mode}
+          onModeChange={setMode}
+        />
       </Pane>
     </WidgetShell>
   );
@@ -755,11 +753,7 @@ function AccountWidget(_props: IDockviewPanelProps) {
       }
     >
       <Pane pad>
-        {assetClass === "cfd" ? (
-          <CfdPending kind="Account" />
-        ) : (
-          <AccountPanel assetClass={assetClass} />
-        )}
+        <AccountPanel assetClass={assetClass} />
       </Pane>
     </WidgetShell>
   );
