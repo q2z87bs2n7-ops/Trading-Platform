@@ -558,3 +558,6 @@ export const modifyFxcmOrder = (
 
 export const getFxcmClosedTrades = () =>
   getFxcmJSON<FxcmClosedTrade[]>("/api/fxcm/closed_trades");
+
+export const getFxcmDisplayNames = () =>
+  getFxcmJSON<Record<string, string>>("/api/fxcm/display-names");

@@ -1,4 +1,4 @@
-import { useActivities, useFxcmClosedTrades } from "../data/hooks";
+import { useActivities, useFxcmClosedTrades, useFxcmDisplayNames } from "../data/hooks";
 import { useMobile } from "../hooks/useMobile";
 import type { Activity, FxcmClosedTrade } from "../types";
 import ErrorBanner from "./ErrorBanner";
@@ -51,14 +51,17 @@ function describe(a: Activity): string {
 // Map FXCM closed-trade rows into the heterogeneous Activity shape so the
 // existing describe()/whenOf() helpers handle them with one TRADE_CLOSE branch.
 // Sort newest-first by close_time, rows without a timestamp drift to the end.
-function fxcmRowsToActivities(rows: FxcmClosedTrade[] | undefined): Activity[] {
+function fxcmRowsToActivities(
+  rows: FxcmClosedTrade[] | undefined,
+  dn: (name: string) => string,
+): Activity[] {
   if (!rows) return [];
   const mapped: Activity[] = rows.map((t) => {
     const when = t.close_time || t.open_time;
     return {
       id: t.trade_id,
       activity_type: "TRADE_CLOSE",
-      symbol: t.instrument,
+      symbol: dn(t.instrument),
       side: t.buy_sell === "B" ? "BUY" : "SELL",
       qty: t.amount,
       price: t.close_rate,
@@ -145,11 +148,12 @@ export default function Activities({
   assetClass?: "stocks" | "crypto" | "cfd";
 }) {
   const isCfd = assetClass === "cfd";
+  const dn = useFxcmDisplayNames();
   const alpaca = useActivities(25);
   const fxcm = useFxcmClosedTrades(isCfd);
   const { data, error, isPending } = isCfd
     ? {
-        data: { activities: fxcmRowsToActivities(fxcm.data) },
+        data: { activities: fxcmRowsToActivities(fxcm.data, dn) },
         error: fxcm.error,
         isPending: fxcm.isPending,
       }

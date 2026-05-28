@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { useFxcmCancelOrder, useFxcmOrders } from "../data/hooks";
+import { useFxcmCancelOrder, useFxcmDisplayNames, useFxcmOrders } from "../data/hooks";
 import { useMobile } from "../hooks/useMobile";
 import { showToast } from "../lib/toast";
 import type { FxcmOrder } from "../types";
@@ -79,11 +79,13 @@ function FxcmOrderCardMobile({
   onModify,
   onCancel,
   cancelPending,
+  dn,
 }: {
   o: FxcmOrder;
   onModify: (o: FxcmOrder) => void;
   onCancel: (o: FxcmOrder) => void;
   cancelPending: boolean;
+  dn: (name: string) => string;
 }) {
   const buy = o.buy_sell === "B";
   const digits = o.digits ?? 5;
@@ -115,7 +117,7 @@ function FxcmOrderCardMobile({
         >
           {buy ? "Buy" : "Sell"}
         </span>
-        <b style={{ fontSize: 16 }}>{o.instrument}</b>
+        <b style={{ fontSize: 16 }}>{dn(o.instrument)}</b>
         <span style={{ fontSize: 12, color: "var(--mute)" }}>
           {TYPE_LABEL[o.type] ?? o.type}
         </span>
@@ -199,6 +201,7 @@ export interface FxcmOrdersProps {
 export default function FxcmOrders({ symbol }: FxcmOrdersProps = {}) {
   const { data, error, isPending } = useFxcmOrders(true);
   const cancel = useFxcmCancelOrder();
+  const dn = useFxcmDisplayNames();
   const stacked = useMobile();
   const [modifyingOrder, setModifyingOrder] = useState<FxcmOrder | null>(null);
 
@@ -261,6 +264,7 @@ export default function FxcmOrders({ symbol }: FxcmOrdersProps = {}) {
               cancelPending={
                 cancel.isPending && pendingCancelId === o.order_id
               }
+              dn={dn}
             />
           ))}
         </div>
@@ -338,7 +342,7 @@ export default function FxcmOrders({ symbol }: FxcmOrdersProps = {}) {
                         className={`${TD} text-left font-sans`}
                         style={{ borderColor: "var(--hairline)" }}
                       >
-                        <span className="font-semibold">{o.instrument}</span>
+                        <span className="font-semibold">{dn(o.instrument)}</span>
                       </td>
                       <td
                         className={`${TD} font-sans`}

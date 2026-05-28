@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 
-import { useCloseAllPositions, useFxcmPositions, usePositions } from "../data/hooks";
+import { useCloseAllPositions, useFxcmDisplayNames, useFxcmPositions, usePositions } from "../data/hooks";
 import { useMobile } from "../hooks/useMobile";
 import { isCryptoPosition } from "../lib/asset-class";
 import { cfdDigits, fmtCryptoPrice } from "../lib/format";
@@ -734,6 +734,7 @@ function CfdPositions({
   bare: boolean;
 }) {
   const { data, error, isPending } = useFxcmPositions(true);
+  const dn = useFxcmDisplayNames();
   const isMobile = useMobile();
   const [closing, setClosing] = useState<NettedFxcmRow | null>(null);
 
@@ -793,6 +794,7 @@ function CfdPositions({
                 onCloseClick={setClosing}
                 bare={bare}
                 compact={compact}
+                dn={dn}
               />
             ) : (
               <FxcmStripRow
@@ -801,6 +803,7 @@ function CfdPositions({
                 onSelect={onSelect}
                 onCloseClick={setClosing}
                 bare={bare}
+                dn={dn}
               />
             ),
           )}
@@ -851,7 +854,7 @@ function CfdPositions({
                   >
                     <td className={`${TD} text-left font-sans`}>
                       <span className="text-text font-semibold">
-                        {r.instrument}
+                        {dn(r.instrument)}
                       </span>
                     </td>
                     <td className={TD}>{r.side}</td>
@@ -895,11 +898,13 @@ function FxcmStripRow({
   onSelect,
   onCloseClick,
   bare,
+  dn,
 }: {
   row: NettedFxcmRow;
   onSelect?: (s: string) => void;
   onCloseClick: (r: NettedFxcmRow) => void;
   bare: boolean;
+  dn: (name: string) => string;
 }) {
   const plUp = row.livePl >= 0;
   return (
@@ -917,7 +922,7 @@ function FxcmStripRow({
       }}
     >
       <div className="flex flex-col min-w-0">
-        <span className="font-semibold">{row.instrument}</span>
+        <span className="font-semibold">{dn(row.instrument)}</span>
         <span className="text-[11px]" style={{ color: "var(--mute)" }}>
           {row.side === "Short" ? "SHORT" : "Long"}
         </span>
@@ -996,12 +1001,14 @@ function FxcmStripCard({
   onCloseClick,
   bare,
   compact,
+  dn,
 }: {
   row: NettedFxcmRow;
   onSelect?: (s: string) => void;
   onCloseClick: (r: NettedFxcmRow) => void;
   bare: boolean;
   compact: boolean;
+  dn: (name: string) => string;
 }) {
   const plUp = row.livePl >= 0;
   return (
@@ -1029,7 +1036,7 @@ function FxcmStripCard({
         }}
       >
         <div>
-          <span style={{ fontSize: 16, fontWeight: 700 }}>{row.instrument}</span>
+          <span style={{ fontSize: 16, fontWeight: 700 }}>{dn(row.instrument)}</span>
           <span
             className="tabular-nums"
             style={{

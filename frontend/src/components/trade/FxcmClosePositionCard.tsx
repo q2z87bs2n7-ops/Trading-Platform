@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { useFxcmClosePosition } from "../../data/hooks";
+import { useFxcmClosePosition, useFxcmDisplayNames } from "../../data/hooks";
 import { useMobile } from "../../hooks/useMobile";
 import { showToast } from "../../lib/toast";
 
@@ -34,6 +34,8 @@ export default function FxcmClosePositionCard({
 }: FxcmClosePositionCardProps) {
   const isMobile = useMobile();
   const closeMutation = useFxcmClosePosition();
+  const dn = useFxcmDisplayNames();
+  const displayInstrument = dn(instrument);
   const [amount, setAmount] = useState<number>(Math.max(1, Math.floor(netQty)));
   const [pending, setPending] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -96,7 +98,7 @@ export default function FxcmClosePositionCard({
 
     setPending(false);
     if (failures.length === 0) {
-      showToast(`${instrument} close submitted`, "success");
+      showToast(`${displayInstrument} close submitted`, "success");
       onClose();
     } else {
       setErrors(failures.map((f) => `Failed to close trade ${f}`));
@@ -108,7 +110,7 @@ export default function FxcmClosePositionCard({
       <div className="text-[14px]">
         Close <span style={{ fontWeight: 600 }}>{side}</span>{" "}
         <span className="font-mono tabular-nums">{netQty.toLocaleString()}</span>{" "}
-        <span style={{ fontWeight: 600 }}>{instrument}</span>
+        <span style={{ fontWeight: 600 }}>{displayInstrument}</span>
         {mark != null && (
           <>
             {" @ ~"}
@@ -194,7 +196,7 @@ export default function FxcmClosePositionCard({
         opacity: pending ? 0.6 : 1,
       }}
     >
-      {pending ? "Closing…" : isPartial ? `Close ${clamped.toLocaleString()} units` : `Close ${side} ${instrument}`}
+      {pending ? "Closing…" : isPartial ? `Close ${clamped.toLocaleString()} units` : `Close ${side} ${displayInstrument}`}
     </button>
   );
 
@@ -321,7 +323,7 @@ export default function FxcmClosePositionCard({
               Close position
             </div>
             <div className="text-[18px] font-semibold">
-              {instrument}
+              {displayInstrument}
               <span
                 className="ml-2 font-mono text-[14px] font-normal"
                 style={{ color: "var(--text-2)" }}

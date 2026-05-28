@@ -152,6 +152,18 @@ async def closed_trades():
     return await _get("/closed_trades")
 
 
+@router.get("/display-names")
+async def display_names():
+    """Return {name: display_name} for FXCM instruments where the display
+    name differs from the FCLite name (e.g. stock CFDs). Forex pairs where
+    the two are identical are excluded — callers fall back to the raw name."""
+    from . import db
+    try:
+        return db.get_fxcm_display_names()
+    except db.DbUnavailable:
+        return {}
+
+
 @router.get("/instruments")
 async def instruments(type: str = None, tradable: bool = False):
     params = {}

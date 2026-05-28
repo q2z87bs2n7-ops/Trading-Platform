@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { useFxcmPrices } from "../../data/hooks";
+import { useFxcmDisplayNames, useFxcmPrices } from "../../data/hooks";
 import { useLiveQuotes } from "../../data/useLiveQuotes";
 import { useMobile } from "../../hooks/useMobile";
 import { fmtCfdPrice } from "../../lib/format";
@@ -28,6 +28,8 @@ export default function TradeBar({ symbol, assetClass }: Props) {
   // Symbols stay as-is for CFD (EUR/USD, XAU/USD, US30 are case-sensitive on
   // the FXCM side); the long-standing uppercase normalisation is Alpaca-only.
   const symUpper = isCfd ? symbol.trim() : symbol.trim().toUpperCase();
+  const dn = useFxcmDisplayNames();
+  const symLabel = isCfd ? dn(symUpper) : symUpper;
   const { quotes } = useLiveQuotes(!isCfd && symUpper ? [symUpper] : []);
   const fxcmPrices = useFxcmPrices(isCfd);
   const quote = quotes[symUpper];
@@ -100,7 +102,7 @@ export default function TradeBar({ symbol, assetClass }: Props) {
                     boxShadow: "var(--shadow-lg)",
                   }}
                 >
-                  {symUpper}
+                  {symLabel}
                   {livePrice != null ? ` · ${fmtPriceChip(livePrice)}` : ""}
                 </span>
               )}
@@ -188,7 +190,7 @@ export default function TradeBar({ symbol, assetClass }: Props) {
       >
         <div className="flex items-center gap-2">
           <span className="font-semibold" style={{ letterSpacing: "-0.005em" }}>
-            {symUpper || "—"}
+            {symLabel || "—"}
           </span>
           {livePrice != null && (
             <span

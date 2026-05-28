@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useFxcmSubmitOrder } from "../../data/hooks";
+import { useFxcmDisplayNames, useFxcmSubmitOrder } from "../../data/hooks";
 import type { FxcmPrice } from "../../types";
 
 interface Props {
@@ -22,6 +22,7 @@ const ORDER_TYPES = [
 type UiOrderType = (typeof ORDER_TYPES)[number]["value"];
 
 export default function FxcmOrderSheet({ instruments, defaultInstrument, defaultSide, onClose, onSubmitted }: Props) {
+  const dn = useFxcmDisplayNames();
   const [instrument, setInstrument] = useState(defaultInstrument || instruments[0]?.instrument || "EUR/USD");
   const [side, setSide] = useState<"B" | "S">(defaultSide ?? "B");
   const [orderType, setOrderType] = useState<UiOrderType>("OM");
@@ -138,7 +139,7 @@ export default function FxcmOrderSheet({ instruments, defaultInstrument, default
             }}
           >
             {instruments.map((p) => (
-              <option key={p.instrument} value={p.instrument}>{p.instrument}</option>
+              <option key={p.instrument} value={p.instrument}>{dn(p.instrument)}</option>
             ))}
           </select>
         </div>
@@ -249,7 +250,7 @@ export default function FxcmOrderSheet({ instruments, defaultInstrument, default
             opacity: submitting ? 0.6 : 1,
           }}
         >
-          {submitting ? "Submitting…" : `${side === "B" ? "Buy" : "Sell"} ${instrument}`}
+          {submitting ? "Submitting…" : `${side === "B" ? "Buy" : "Sell"} ${dn(instrument)}`}
         </button>
       </div>
     </div>

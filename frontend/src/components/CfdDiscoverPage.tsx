@@ -6,6 +6,7 @@ import { fxcmCountrySet } from "../lib/fxcm-countries";
 import {
   useEconomicCalendar,
   useFxcmBars,
+  useFxcmDisplayNames,
   useFxcmInstruments,
   useFxcmWatchlistAdd,
   useFxcmWatchlistQuery,
@@ -152,12 +153,14 @@ function CfdWatchlistCard({
   selected,
   onSelect,
   onRemove,
+  dn,
 }: {
   instrument: string;
   livePrice?: FxcmPrice;
   selected: boolean;
   onSelect: () => void;
   onRemove: () => void;
+  dn: (name: string) => string;
 }) {
   const { data: bars } = useFxcmBars(instrument, "D1");
   const closes = useMemo(() => (bars ?? []).map((b) => b.close), [bars]);
@@ -171,12 +174,12 @@ function CfdWatchlistCard({
   const prev = closes.length >= 2 ? closes[closes.length - 2] : 0;
   const changePct = prev > 0 ? (mid - prev) / prev : 0;
 
+  const displayName = dn(instrument);
   return (
     <SparkCard
       symbol={instrument}
-      name={livePrice?.display_name && livePrice.display_name !== instrument
-        ? livePrice.display_name
-        : ""}
+      displayName={displayName !== instrument ? displayName : undefined}
+      name=""
       price={mid}
       changePct={changePct}
       selected={selected}
@@ -194,10 +197,12 @@ function FxcmPositions({
   positions,
   prices,
   onClose,
+  dn,
 }: {
   positions: FxcmPosition[];
   prices: Map<string, FxcmPrice>;
   onClose: (tradeId: string | number) => void;
+  dn: (name: string) => string;
 }) {
   const [closing, setClosing] = useState<string | null>(null);
 
@@ -236,7 +241,7 @@ function FxcmPositions({
             style={{ borderBottom: "1px solid var(--hairline)" }}
           >
             <div className="flex flex-col min-w-0 flex-1">
-              <span className="text-[13px] font-semibold">{instrument}</span>
+              <span className="text-[13px] font-semibold">{dn(instrument)}</span>
               <span className="text-[11px]" style={{ color: "var(--mute)" }}>
                 {pos.buy_sell === "B" ? "Buy" : "Sell"} · {pos.amount ?? "—"} units
               </span>
@@ -317,6 +322,7 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
     });
   }
 
+  const dn = useFxcmDisplayNames();
   const watchlist = useFxcmWatchlistQuery(!!bridgeOk);
   const addMut = useFxcmWatchlistAdd();
   const removeMut = useFxcmWatchlistRemove();
@@ -442,6 +448,7 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
               selected={sym === selected}
               onSelect={() => handleSelectSymbol(sym)}
               onRemove={() => handleRemove(sym)}
+              dn={dn}
             />
           )),
           <AddSymbolTile
@@ -502,6 +509,7 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
       <StickyChartBar
         chartCardRef={chartCardRef}
         symbol={selected}
+        label={dn(selected)}
         price={selMid}
         dayChangePct={selDayChange}
         formatPrice={(n) => fmtCfdPrice(n, selectedPrice?.digits ?? selected)}
@@ -538,6 +546,7 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
             positions={positions}
             prices={priceMap}
             onClose={handleClosePosition}
+            dn={dn}
           />
         </div>
       )}

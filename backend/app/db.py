@@ -619,6 +619,19 @@ def screen_assets(*, asset_class="us_equity", sector=None, industry=None,
 
 # ---- fxcm_instruments table -------------------------------------------------
 
+def get_fxcm_display_names() -> dict[str, str]:
+    """Return {name: display_name} for all rows in fxcm_instruments where
+    display_name is non-null and differs from name. Callers fall back to
+    the raw name when a key is absent."""
+    with _connect() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT name, display_name FROM fxcm_instruments "
+            "WHERE display_name IS NOT NULL AND display_name <> name"
+        )
+        return {row[0]: row[1] for row in cur.fetchall()}
+
+
 def upsert_fxcm_instruments(rows: list[dict]) -> int:
     """Upsert FXCM instrument metadata; returns count of rows processed."""
     if not rows:

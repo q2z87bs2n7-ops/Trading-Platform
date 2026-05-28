@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { useFxcmModifyOrder } from "../../data/hooks";
+import { useFxcmDisplayNames, useFxcmModifyOrder } from "../../data/hooks";
 import { showToast } from "../../lib/toast";
 import type { FxcmOrder } from "../../types";
 
@@ -21,6 +21,7 @@ export default function FxcmModifyOrderCard({
   onClose,
 }: FxcmModifyOrderCardProps) {
   const modify = useFxcmModifyOrder();
+  const dn = useFxcmDisplayNames();
   const isMarket = order.type === "OM";
   const sideKey = order.buy_sell;
   const digits = order.digits ?? 5;
@@ -94,7 +95,7 @@ export default function FxcmModifyOrderCard({
       { id: order.order_id, body },
       {
         onSuccess: () => {
-          showToast(`${order.instrument} order updated`, "success");
+          showToast(`${dn(order.instrument)} order updated`, "success");
           onClose();
         },
         onError: (e) => setSubmitError((e as Error).message),
@@ -146,7 +147,7 @@ export default function FxcmModifyOrderCard({
               Modify order
             </div>
             <div className="text-[18px] font-semibold flex items-baseline gap-2">
-              <span>{order.instrument}</span>
+              <span>{dn(order.instrument)}</span>
               <span
                 className="text-[12px] font-medium px-2 py-0.5"
                 style={{

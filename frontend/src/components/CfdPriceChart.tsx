@@ -6,7 +6,7 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 
-import { useFxcmBars } from "../data/hooks";
+import { useFxcmBars, useFxcmDisplayNames } from "../data/hooks";
 import { useTheme } from "../hooks/useTheme";
 import { cfdDigits, fmtSpread } from "../lib/format";
 import type { FxcmBar, FxcmPrice } from "../types";
@@ -68,6 +68,7 @@ export default function CfdPriceChart({
   // Day Δ% always derives from D1 bars so it works regardless of the
   // chart timeframe; React Query dedupes when the chart is already on D1.
   const { data: dailyBars } = useFxcmBars(instrument, "D1");
+  const dn = useFxcmDisplayNames();
 
   const digits = livePrice?.digits ?? cfdDigits(instrument);
   const fmt = (n: number | undefined | null) =>
@@ -183,9 +184,9 @@ export default function CfdPriceChart({
     <div className="bg-panel border border-border rounded-lg p-3 flex-1 flex flex-col">
       <div className="flex items-baseline justify-between gap-3 mb-1 flex-wrap">
         <div className="flex items-baseline gap-3 flex-wrap">
-          <strong className="text-[16px]">{instrument}</strong>
-          {livePrice?.display_name && livePrice.display_name !== instrument && (
-            <span className="text-muted text-[13px]">{livePrice.display_name}</span>
+          <strong className="text-[16px]">{dn(instrument)}</strong>
+          {dn(instrument) !== instrument && (
+            <span className="text-[13px]" style={{ color: "var(--mute)" }}>{instrument}</span>
           )}
           {liveMid != null && (
             <span className="text-[16px] font-semibold tabular-nums">

@@ -163,6 +163,7 @@ function SparkChart({
 export function SparkCard({
   symbol,
   name,
+  displayName,
   price,
   changePct,
   selected,
@@ -176,6 +177,10 @@ export function SparkCard({
 }: {
   symbol: string;
   name: string;
+  /** Optional override for the bold primary label — used by the CFD silo
+   *  so stock CFDs show "Fosun Tourism" instead of "1992.hk". The raw
+   *  `symbol` is still used for aria-labels and API calls. */
+  displayName?: string;
   price: number;
   changePct: number;
   selected: boolean;
@@ -239,7 +244,7 @@ export function SparkCard({
         className="font-semibold"
         style={{ fontSize: dense ? 12 : 15, paddingRight: dense ? 16 : 0 }}
       >
-        {symbol}
+        {displayName ?? symbol}
       </div>
       {!dense && !compact && (
         <div

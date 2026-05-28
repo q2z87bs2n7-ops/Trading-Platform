@@ -48,6 +48,7 @@ export const qk = {
   fxcmInstruments: ["fxcm", "instruments"] as const,
   fxcmOrders: ["fxcm", "orders"] as const,
   fxcmClosedTrades: ["fxcm", "closed_trades"] as const,
+  fxcmDisplayNames: ["fxcm", "display-names"] as const,
   fxcmWatchlist: ["fxcm", "watchlist"] as const,
   fxcmHistory: (instrument: string, timeframe: string) =>
     ["fxcm", "history", instrument, timeframe] as const,

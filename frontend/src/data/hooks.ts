@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -238,6 +238,22 @@ export const useFxcmInstruments = (enabled = true) =>
     retry: 0,
     enabled,
   });
+
+/** Returns a stable lookup fn `(name) => displayName` for FXCM instruments.
+ *  Falls back to the raw name when the DB has no display-name override.
+ *  Fetched once per session (staleTime: Infinity). */
+export const useFxcmDisplayNames = () => {
+  const { data } = useQuery({
+    queryKey: qk.fxcmDisplayNames,
+    queryFn: api.getFxcmDisplayNames,
+    staleTime: Infinity,
+    retry: 0,
+  });
+  return useCallback(
+    (name: string) => data?.[name] ?? name,
+    [data],
+  );
+};
 
 export const useOrders = (status = "all", limit = 25) =>
   useQuery({
