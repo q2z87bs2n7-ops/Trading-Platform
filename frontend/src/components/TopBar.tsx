@@ -2,7 +2,8 @@ import { useRef } from "react";
 
 import { useAccount, useClock } from "../data/hooks";
 import { useStreamStatus } from "../hooks/useStreamStatus";
-import type { AssetClass } from "../lib/ask-intent";
+import type { AssetClass as BaseAssetClass } from "../lib/ask-intent";
+type AssetClass = BaseAssetClass | "cfd";
 import type { Account } from "../types";
 import SheetHandle from "./SheetHandle";
 
@@ -31,21 +32,24 @@ export function HeaderStatusInline({ assetClass }: { assetClass: AssetClass }) {
   const { data: clk } = useClock();
   const streamStatus = useStreamStatus();
   const isCrypto = assetClass === "crypto";
+  const isCfd = assetClass === "cfd";
   const polling = streamStatus === "polling";
 
-  const open = isCrypto ? true : !!clk?.is_open;
+  const open = (isCrypto || isCfd) ? true : !!clk?.is_open;
   const dotColor = open ? "var(--pos)" : "var(--neg)";
   const labelColor = open ? "var(--text-2)" : "var(--neg)";
-  const labelText = isCrypto ? "Open" : open ? "Open" : "Closed";
+  const labelText = isCrypto ? "Open" : isCfd ? "Open" : open ? "Open" : "Closed";
   const subText = isCrypto
     ? "24/7"
-    : clk
-      ? open
-        ? `until ${timeHM(clk.next_close)}`
-        : `opens ${timeHM(clk.next_open)}`
-      : "";
+    : isCfd
+      ? "24/5"
+      : clk
+        ? open
+          ? `until ${timeHM(clk.next_close)}`
+          : `opens ${timeHM(clk.next_open)}`
+        : "";
 
-  if (!isCrypto && !clk) return null;
+  if (!isCrypto && !isCfd && !clk) return null;
 
   return (
     <span

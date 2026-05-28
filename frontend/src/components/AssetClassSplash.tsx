@@ -351,7 +351,7 @@ export default function AssetClassSplash({
             equity={fxcmEquity}
             dayPl={fxcmDay}
             dayPlPct={fxcmDayPct}
-            subStatus="FXCM demo · 24/5"
+            subStatus="24/5"
             active={currentClass === "cfd"}
             onClick={() => onSelect("cfd")}
           />

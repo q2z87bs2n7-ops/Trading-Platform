@@ -454,7 +454,7 @@ export default function App() {
         {isMobile ? (
           <MobileHeader
             mode={mode}
-            activeClass={alpacaSilo}
+            activeClass={activeClass}
             onOpenDrawer={() => setDrawerOpen(true)}
             onSwitchMode={switchMode}
             onSwitchAssetClass={switchAssetClass}
@@ -513,7 +513,7 @@ export default function App() {
               aria-hidden
             />
             <span className="hidden lg:inline-flex">
-              <HeaderStatusInline assetClass={alpacaSilo} />
+              <HeaderStatusInline assetClass={activeClass} />
             </span>
           </div>
 

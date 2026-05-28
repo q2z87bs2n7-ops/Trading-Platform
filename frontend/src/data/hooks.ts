@@ -255,6 +255,21 @@ export const useFxcmDisplayNames = () => {
   );
 };
 
+/** Returns a stable lookup fn `(instrument) => underlyingUnit` for FXCM instruments.
+ *  Falls back to "units" when the DB has no underlying_unit value. */
+export const useFxcmUnderlyingUnit = () => {
+  const { data } = useQuery({
+    queryKey: qk.fxcmUnderlyingUnits,
+    queryFn: api.getFxcmUnderlyingUnits,
+    staleTime: Infinity,
+    retry: 0,
+  });
+  return useCallback(
+    (instrument: string) => data?.[instrument] ?? "units",
+    [data],
+  );
+};
+
 export const useOrders = (status = "all", limit = 25) =>
   useQuery({
     queryKey: qk.orders(status, limit),

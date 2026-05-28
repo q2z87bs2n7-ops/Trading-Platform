@@ -164,6 +164,28 @@ async def display_names():
         return {}
 
 
+@router.get("/underlying-units")
+async def underlying_units():
+    """Return {name: underlying_unit} for FXCM instruments (e.g. 'oz' for XAU/USD)."""
+    from . import db
+    try:
+        return db.get_fxcm_underlying_units()
+    except db.DbUnavailable:
+        return {}
+
+
+@router.get("/search-instruments")
+async def search_instruments_db(q: str = "", limit: int = 50):
+    """Search fxcm_instruments table by name, display_name, or alternatives."""
+    from . import db
+    if not q.strip():
+        return []
+    try:
+        return db.search_fxcm_instruments(q.strip(), limit)
+    except db.DbUnavailable:
+        return []
+
+
 @router.get("/instruments")
 async def instruments(type: str = None, tradable: bool = False):
     params = {}

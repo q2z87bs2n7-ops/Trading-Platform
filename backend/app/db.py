@@ -632,6 +632,43 @@ def get_fxcm_display_names() -> dict[str, str]:
         return {row[0]: row[1] for row in cur.fetchall()}
 
 
+def get_fxcm_underlying_units() -> dict[str, str]:
+    """Return {name: underlying_unit} for FXCM instruments where underlying_unit is non-null."""
+    with _connect() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT name, underlying_unit FROM fxcm_instruments "
+            "WHERE underlying_unit IS NOT NULL AND underlying_unit <> ''"
+        )
+        return {row[0]: row[1] for row in cur.fetchall()}
+
+
+def search_fxcm_instruments(q: str, limit: int = 50) -> list[dict]:
+    """Search FXCM instruments by name, display_name, or alternatives (case-insensitive)."""
+    with _connect() as conn:
+        cur = conn.cursor()
+        pattern = f"%{q}%"
+        prefix = f"{q}%"
+        cur.execute(
+            """
+            SELECT name, display_name, description, type
+            FROM fxcm_instruments
+            WHERE name ILIKE %s
+               OR display_name ILIKE %s
+               OR EXISTS (SELECT 1 FROM unnest(alternatives) alt WHERE alt ILIKE %s)
+            ORDER BY
+                CASE WHEN name ILIKE %s OR display_name ILIKE %s THEN 0 ELSE 1 END,
+                name
+            LIMIT %s
+            """,
+            (pattern, pattern, pattern, prefix, prefix, limit),
+        )
+        return [
+            {"name": r[0], "display_name": r[1], "description": r[2], "type": r[3]}
+            for r in cur.fetchall()
+        ]
+
+
 def upsert_fxcm_instruments(rows: list[dict]) -> int:
     """Upsert FXCM instrument metadata; returns count of rows processed."""
     if not rows:

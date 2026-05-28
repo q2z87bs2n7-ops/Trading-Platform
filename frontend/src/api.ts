@@ -559,6 +559,14 @@ export const modifyFxcmOrder = (
 export const getFxcmClosedTrades = () =>
   getFxcmJSON<FxcmClosedTrade[]>("/api/fxcm/closed_trades");
 
-// display-names is DB-only (no bridge), so use API_BASE (Vercel) not STREAM_BASE (Render).
+// display-names and underlying-units are DB-only (no bridge) — use API_BASE (Vercel).
 export const getFxcmDisplayNames = () =>
   getJSON<Record<string, string>>("/api/fxcm/display-names");
+
+export const getFxcmUnderlyingUnits = () =>
+  getJSON<Record<string, string>>("/api/fxcm/underlying-units");
+
+export const searchFxcmInstruments = (q: string) =>
+  getJSON<Array<{ name: string; display_name: string | null; description: string | null; type: string | null }>>(
+    `/api/fxcm/search-instruments?q=${encodeURIComponent(q)}`,
+  );

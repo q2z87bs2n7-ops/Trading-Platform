@@ -59,29 +59,18 @@ export function AssetSearch({
     setLoading(true);
     const t = window.setTimeout(() => {
       const fetcher = isFxcm
-        ? api.getFxcmInstruments().then((list) => {
-            const Q = term.toUpperCase();
-            const filtered = list.filter((i) =>
-              i.instrument.toUpperCase().includes(Q),
-            );
-            // Prefix matches first, same ranking the chart-tab search uses.
-            filtered.sort((a, b) => {
-              const ap = a.instrument.toUpperCase().startsWith(Q) ? 0 : 1;
-              const bp = b.instrument.toUpperCase().startsWith(Q) ? 0 : 1;
-              if (ap !== bp) return ap - bp;
-              return a.instrument.localeCompare(b.instrument);
-            });
-            // Map FxcmInstrument → Asset shape so the renderer below stays
-            // unchanged. Only `symbol` and `name` are read by the dropdown.
-            return filtered.slice(0, 50).map(
-              (i): Asset => ({
-                symbol: i.instrument,
-                name: i.instrument,
+        ? api.searchFxcmInstruments(term).then((list) =>
+            list.map(
+              (r): Asset => ({
+                symbol: r.name,
+                // Show display_name in the label slot; empty string when identical
+                // to the raw name so the renderer doesn't duplicate it.
+                name: r.display_name && r.display_name !== r.name ? r.display_name : "",
                 asset_class: "cfd",
                 exchange: "FXCM",
               }) as Asset,
-            );
-          })
+            ),
+          )
         : api.searchAssets(term, assetClass);
       fetcher
         .then((r) => {

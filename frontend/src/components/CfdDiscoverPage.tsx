@@ -8,6 +8,7 @@ import {
   useFxcmBars,
   useFxcmDisplayNames,
   useFxcmInstruments,
+  useFxcmUnderlyingUnit,
   useFxcmWatchlistAdd,
   useFxcmWatchlistQuery,
   useFxcmWatchlistRemove,
@@ -117,30 +118,6 @@ function FxcmAccountHero({ account }: { account: FxcmAccount | null }) {
   );
 }
 
-// ── Status badge ───────────────────────────────────────────────────────────────
-
-function BridgeStatus({ ok }: { ok: boolean | null }) {
-  const label = ok === null ? "Connecting…" : ok ? "Bridge connected" : "Bridge offline";
-  const color = ok === null ? "var(--mute)" : ok ? "var(--pos)" : "var(--neg)";
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 text-[11.5px] font-medium"
-      style={{ color }}
-    >
-      <span
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: 99,
-          background: color,
-          display: "inline-block",
-        }}
-      />
-      {label}
-    </span>
-  );
-}
-
 // ── Watchlist card ────────────────────────────────────────────────────────────
 // Per-instrument SparkCard wrapper — pulls D1 bars for the sparkline via its
 // own useFxcmBars query so each card refreshes independently (React Query
@@ -204,6 +181,7 @@ function FxcmPositions({
   onClose: (tradeId: string | number) => void;
   dn: (name: string) => string;
 }) {
+  const unit = useFxcmUnderlyingUnit();
   const [closing, setClosing] = useState<string | null>(null);
 
   if (positions.length === 0) {
@@ -243,7 +221,7 @@ function FxcmPositions({
             <div className="flex flex-col min-w-0 flex-1">
               <span className="text-[13px] font-semibold">{dn(instrument)}</span>
               <span className="text-[11px]" style={{ color: "var(--mute)" }}>
-                {pos.buy_sell === "B" ? "Buy" : "Sell"} · {pos.amount ?? "—"} units
+                {pos.buy_sell === "B" ? "Buy" : "Sell"} · {pos.amount ?? "—"} {unit(instrument)}
               </span>
             </div>
             <div className="flex gap-4 tabular-nums text-[12px]">
@@ -600,28 +578,10 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
   return (
     <div className="max-w-[1280px] mx-auto px-4 pt-4 pb-20">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex flex-col gap-0.5">
-          <h2 className="text-[18px] font-semibold" style={{ letterSpacing: "-0.01em" }}>
-            CFDs
-          </h2>
-          <span className="text-[12px]" style={{ color: "var(--mute)" }}>
-            FXCM ForexConnect — demo account
-          </span>
-        </div>
-        <div className="flex items-center gap-3">
-          {bridgeOk && (
-            <button
-              type="button"
-              onClick={() => setOrderSheetOpen(true)}
-              className="text-[12.5px] font-semibold px-3 py-1.5 rounded-card border-0 cursor-pointer"
-              style={{ background: "var(--accent)", color: "var(--bg)" }}
-            >
-              + New Order
-            </button>
-          )}
-          <BridgeStatus ok={bridgeOk} />
-        </div>
+      <div className="mb-4">
+        <h2 className="text-[18px] font-semibold" style={{ letterSpacing: "-0.01em" }}>
+          CFDs
+        </h2>
       </div>
 
       {isMobile ? (

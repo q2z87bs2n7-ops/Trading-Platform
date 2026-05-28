@@ -8,7 +8,7 @@ import { EquitySheet } from "./TopBar";
 // "workspace" is desktop-only — it's accepted here for type parity with the
 // app's PlatformMode but is intentionally never offered in the mobile pills.
 type Mode = "discover" | "portfolio" | "chart" | "workspace";
-type AssetClass = "stocks" | "crypto";
+type AssetClass = "stocks" | "crypto" | "cfd";
 
 const TITLES: Record<Mode, string> = {
   discover: "Discover",
@@ -50,16 +50,19 @@ export default function MobileHeader({
   const streamStatus = useStreamStatus();
   const polling = streamStatus === "polling";
   const isCrypto = activeClass === "crypto";
-  const open = isCrypto ? true : !!clk?.is_open;
+  const isCfd = activeClass === "cfd";
+  const open = (isCrypto || isCfd) ? true : !!clk?.is_open;
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const statusCaption = isCrypto
     ? "● Open · 24/7"
-    : clk
-      ? open
-        ? `● Open · until ${timeHM(clk.next_close)}`
-        : `● Closed · opens ${timeHM(clk.next_open)}`
-      : "";
+    : isCfd
+      ? "● Open · 24/5"
+      : clk
+        ? open
+          ? `● Open · until ${timeHM(clk.next_close)}`
+          : `● Closed · opens ${timeHM(clk.next_open)}`
+        : "";
 
   const pl = acct ? acct.equity - acct.equity_at_market_open : 0;
   const plpc =

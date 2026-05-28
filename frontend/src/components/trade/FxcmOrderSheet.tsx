@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useFxcmDisplayNames, useFxcmSubmitOrder } from "../../data/hooks";
+import { useFxcmDisplayNames, useFxcmSubmitOrder, useFxcmUnderlyingUnit } from "../../data/hooks";
 import type { FxcmPrice } from "../../types";
 
 interface Props {
@@ -23,6 +23,7 @@ type UiOrderType = (typeof ORDER_TYPES)[number]["value"];
 
 export default function FxcmOrderSheet({ instruments, defaultInstrument, defaultSide, onClose, onSubmitted }: Props) {
   const dn = useFxcmDisplayNames();
+  const unit = useFxcmUnderlyingUnit();
   const [instrument, setInstrument] = useState(defaultInstrument || instruments[0]?.instrument || "EUR/USD");
   const [side, setSide] = useState<"B" | "S">(defaultSide ?? "B");
   const [orderType, setOrderType] = useState<UiOrderType>("OM");
@@ -188,7 +189,7 @@ export default function FxcmOrderSheet({ instruments, defaultInstrument, default
 
         {/* Amount */}
         <div className="flex flex-col gap-1">
-          <label className="text-[11.5px]" style={{ color: "var(--mute)" }}>Amount (units)</label>
+          <label className="text-[11.5px]" style={{ color: "var(--mute)" }}>Amount ({unit(instrument)})</label>
           <input
             type="number"
             min={amountStep}

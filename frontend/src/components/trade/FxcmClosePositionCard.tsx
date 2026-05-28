@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { useFxcmClosePosition, useFxcmDisplayNames } from "../../data/hooks";
+import { useFxcmClosePosition, useFxcmDisplayNames, useFxcmUnderlyingUnit } from "../../data/hooks";
 import { useMobile } from "../../hooks/useMobile";
 import { showToast } from "../../lib/toast";
 
@@ -35,7 +35,9 @@ export default function FxcmClosePositionCard({
   const isMobile = useMobile();
   const closeMutation = useFxcmClosePosition();
   const dn = useFxcmDisplayNames();
+  const unit = useFxcmUnderlyingUnit();
   const displayInstrument = dn(instrument);
+  const u = unit(instrument);
   const [amount, setAmount] = useState<number>(Math.max(1, Math.floor(netQty)));
   const [pending, setPending] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -136,7 +138,7 @@ export default function FxcmClosePositionCard({
         className="text-[11px] uppercase"
         style={{ color: "var(--mute)", letterSpacing: "0.05em" }}
       >
-        Amount (units) — max {Math.floor(netQty).toLocaleString()}
+        Amount ({u}) — max {Math.floor(netQty).toLocaleString()}
       </label>
       <div className="flex gap-2 items-center">
         <input
@@ -176,7 +178,7 @@ export default function FxcmClosePositionCard({
       </div>
       {isPartial && (
         <span className="text-[11px]" style={{ color: "var(--mute)" }}>
-          Partial close — {clamped.toLocaleString()} of {Math.floor(netQty).toLocaleString()} units.
+          Partial close — {clamped.toLocaleString()} of {Math.floor(netQty).toLocaleString()} {u}.
         </span>
       )}
     </div>
@@ -196,7 +198,7 @@ export default function FxcmClosePositionCard({
         opacity: pending ? 0.6 : 1,
       }}
     >
-      {pending ? "Closing…" : isPartial ? `Close ${clamped.toLocaleString()} units` : `Close ${side} ${displayInstrument}`}
+      {pending ? "Closing…" : isPartial ? `Close ${clamped.toLocaleString()} ${u}` : `Close ${side} ${displayInstrument}`}
     </button>
   );
 
@@ -328,7 +330,7 @@ export default function FxcmClosePositionCard({
                 className="ml-2 font-mono text-[14px] font-normal"
                 style={{ color: "var(--text-2)" }}
               >
-                {side} · {Math.floor(netQty).toLocaleString()} units
+                {side} · {Math.floor(netQty).toLocaleString()} {u}
               </span>
             </div>
           </div>
