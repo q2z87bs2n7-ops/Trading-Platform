@@ -477,17 +477,24 @@ export const getFxcmPositions = () =>
 
 export interface FxcmInstrument {
   instrument: string;
-  display_name?: string;
-  type?: string;
-  tradable?: boolean;
+  offer_id?: string;
+  status?: string;
 }
 
-export const getFxcmInstruments = (filter?: { type?: string; tradable?: boolean }) => {
+// Bridge's /instruments returns raw FCLite InstrumentInfo with capitalized
+// keys (Name/OfferId/Status) — unlike /watchlist /prices /positions which use
+// lowercase. Normalize at the API edge so callers see the same shape across
+// FXCM endpoints. (Bridge-side normalization is backlogged.)
+export const getFxcmInstruments = async (filter?: { tradable?: boolean }): Promise<FxcmInstrument[]> => {
   const params = new URLSearchParams();
-  if (filter?.type) params.set("type", filter.type);
   if (filter?.tradable) params.set("tradable", "true");
   const qs = params.toString();
-  return getFxcmJSON<FxcmInstrument[]>(`/api/fxcm/instruments${qs ? `?${qs}` : ""}`);
+  const raw = await getFxcmJSON<{ Name?: string; OfferId?: string; Status?: string }[]>(
+    `/api/fxcm/instruments${qs ? `?${qs}` : ""}`,
+  );
+  return raw
+    .filter((i) => !!i.Name)
+    .map((i) => ({ instrument: i.Name!, offer_id: i.OfferId, status: i.Status }));
 };
 
 export const getFxcmHistory = (
