@@ -66,7 +66,10 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
   **Account Hub**: a whole-account overview (total equity, day P/L,
   buying power, stocks-vs-crypto-vs-cash split) that is intentionally the
   *only* cross-silo balance surface — every other balance view is filtered
-  to the active silo. Switching silo also runs through the brand button
+  to the active silo. The forex card pulls live FXCM equity / day P/L /
+  position count via `useFxcmAccount` + `useFxcmPositions` (30 s poll,
+  `retry: 0`); both hooks are gated on the Hub overlay (`!!onClose`) so
+  the first-time landing splash doesn't hit the bridge. Switching silo also runs through the brand button
   → hub on desktop (the standalone stocks/crypto pill is gone); mobile
   keeps the inline toggle for fast access. Per-silo accent: stocks
   recolours the `--accent` tokens to green (`--pos`), crypto keeps the
@@ -122,8 +125,10 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
       toggle re-sorts the same rows by market cap desc vs date asc
       client-side, with `sortable` opt-in so the Workspace per-symbol
       view stays chronological), **economic calendar**
-      (`discover/EconomicCard.tsx`, US high/medium-impact, day-paginated —
-      defaults to today, falls back to the next day with events; rows for
+      (`discover/EconomicCard.tsx`, high/medium-impact, day-paginated —
+      defaults to today, falls back to the next day with events; US-only on
+      stocks Discover, FXCM-derived country set on Forex Discover (see
+      `lib/fxcm-countries.ts`); rows for
       the ~95 mapped recurring releases deep-link to the corresponding
       **FRED series page** in a new tab via `lib/economic-fred-map.ts`
       (rule-based name → series id), unmapped events render as plain text
@@ -270,7 +275,12 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
   watchlist symbols (passed as `?include=`); rows arrive sorted by market cap
   desc (the frontend's "Top" mode — "Upcoming" re-sorts by date asc client-side
   off the same array). When the DB is unreachable it degrades to those `include`
-  symbols only. FMP economic times are **UTC**. `/api/news` and `/api/most-active` are
+  symbols only. FMP economic times are **UTC**. `/api/calendar/economic` accepts
+  `?countries=US,GB,DE,...` (ISO 3166-1 alpha-2, plus `EU` for the eurozone
+  aggregate); empty defaults to US-only. The Forex Discover card passes the
+  countries it derives from the FXCM instrument universe via
+  `lib/fxcm-countries.ts`, so any new symbol the bridge surfaces widens
+  calendar coverage automatically. `/api/news` and `/api/most-active` are
   served but only consumed by the AI tool loop — don't delete them. `/api/assets`
   (search) and `/api/assets/{symbol}` are **DB-backed** off the catalogue (clean
   enum values, sector/logo/market_cap; Alpaca fallback) and power the watchlist

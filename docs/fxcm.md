@@ -386,6 +386,15 @@ Response: array of `FxcmBar`:
   held in `prevPrices` Map).
 - Spread displayed in pips (multiplied by 100,000 for most pairs, 1,000 for JPY).
 - Account hero shows equity, balance, used margin, free margin.
+- Standard `EconomicCard` mounted under the watchlist, filtered to the
+  FXCM-derived country set via `lib/fxcm-countries.ts` (maps any FXCM
+  instrument → country set: fiat/fiat pairs → both quote countries + EU
+  for euro legs, metal pairs via the quote leg, stock-CFD suffixes
+  `.us`/`.de`/`.hk`/..., index name prefixes `US30`/`UK100`/`GER30`/...).
+  `useFxcmInstruments` caches the symbol list for 1 h; the resulting
+  countries are passed to `useEconomicCalendar(countries, enabled)`
+  which forwards them to the backend `/api/calendar/economic?countries=`
+  filter.
 
 ### FXCM-aware classifier (`lib/asset-class.ts`)
 
@@ -468,7 +477,10 @@ Forex trading still happens via `ForexDiscoverPage` + `FxcmOrderSheet`.
 - FCLite Java bridge with persistent session (login, manager loading)
 - All read + write routes (read: account/prices/positions/orders/closed_trades/watchlist/instruments/history; write: order/close)
 - FastAPI proxy at `/api/fxcm/*`
-- Frontend forex silo end-to-end: orange accent, splash card, ForexDiscoverPage (account hero, live watchlist, FxcmPositions panel), FxcmOrderSheet
+- Frontend forex silo end-to-end: orange accent, splash card (live FXCM
+  equity / day P/L / positions on the Account Hub overlay),
+  ForexDiscoverPage (account hero, live watchlist, FxcmPositions panel,
+  FXCM-country-filtered economic calendar), FxcmOrderSheet
 - Render deployment co-located with FastAPI (`backend/Dockerfile` multi-stage, `backend/entrypoint.sh` dual-process)
 - FXCM-aware classifier + TV datafeed forex branches for the chart
 

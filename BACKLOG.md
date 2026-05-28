@@ -73,7 +73,8 @@ the full reference). Outstanding:
   **crypto-silo economic card** (macro affects crypto too), **AI read tools** so
   the bot can *answer* earnings/economic questions in text (today it can only
   *place* the earnings widget), and **user-configurable windows / impact / region**
-  (currently fixed: earnings +14d, economic +7d US high+medium).
+  (currently fixed: earnings +14d, economic +7d US high+medium — Forex
+  Discover overrides the region with an FXCM-derived country set).
 - **Per-silo P/L curve granularity** — `/api/pnl-history` (`alpaca/pnl.py`)
   rebuilds the curve from FILL activities (FIFO) at *daily* closes with a cost
   anchor + live tip. Intraday shape between trades isn't captured, FIFO is
