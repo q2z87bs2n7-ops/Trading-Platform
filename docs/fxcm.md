@@ -413,6 +413,14 @@ newly-needed IDs immediately, and unsubscribes stale ones only on a cleanup pass
   `getLatestOffersSnapshot`, then `subscribeInstruments()`. `unsubscribeOfferIds()`
   skips any offer ID still in an open position/order (always `T`), then
   `unsubscribeInstruments()` restores `D`. Both idempotent.
+- **Caveat — account-level `D`.** `subscribeInstruments()` can only promote
+  instruments the demo account actually has a market-data subscription for;
+  some instruments stay `D` regardless (FXCM account limit, not a bug) and so
+  never get live ticks/metadata. The **Settings → Developer → "FXCM
+  subscriptions"** tool (`components/FxcmSubscriptionsTool.tsx`) surfaces the
+  live T/V/D status per instrument (and per watchlist row, the Scalp set) by
+  reading `/api/fxcm/instruments`, so a stuck-`D` instrument is visible rather
+  than mysteriously price-less.
 
 ### Live price stream (SSE, push-driven)
 

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import IconButton from "./IconButton";
+import FxcmSubscriptionsTool from "./FxcmSubscriptionsTool";
 import { useSettings } from "../hooks/useSettings";
 import { updateSettings } from "../lib/settings";
 import { disableServiceWorker } from "../lib/service-worker";
@@ -302,6 +303,15 @@ export default function SettingsMenu() {
             >
               Disable
             </button>
+          </div>
+
+          <SectionLabel>Developer</SectionLabel>
+
+          <div
+            className="px-3 py-3"
+            style={{ borderTop: "1px solid var(--hairline)" }}
+          >
+            <FxcmSubscriptionsTool />
           </div>
         </div>
       )}
