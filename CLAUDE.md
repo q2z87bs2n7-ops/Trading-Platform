@@ -61,7 +61,11 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
   landing screen, prompting the user to pick **Stocks**, **Crypto**, or
   **CFDs**. Once a silo is picked, `localStorage('splash_seen_v1')='1'`
   is set and every subsequent load lands straight on the last-used silo's
-  Discover. `localStorage('asset_class_mode')` is now **load-bearing** — it
+  Discover — **but only while the session is fresh**: a `last_active_at`
+  timestamp (updated on interaction / focus) gates this, so a tab left
+  dormant longer than `SESSION_TTL_MS` (10 min) re-shows the splash on its
+  next load instead of silently resuming (`shouldShowSplash` in `App.tsx`).
+  `localStorage('asset_class_mode')` is now **load-bearing** — it
   selects the silo the app boots into (was previously just a last-used
   hint). The header brand button re-opens the splash on demand as the
   **Account Hub**: a whole-account overview (total equity, day P/L,
@@ -510,7 +514,8 @@ new surface. Full rules, precedents, and examples: `docs/workspace.md` →
 | --- | ------ | ------- | ----- |
 | `asset_class_mode` | `App.tsx` | `App.tsx` | `"stocks" \| "crypto" \| "cfd"`. **Load-bearing** — the silo the app boots into on subsequent loads (post-splash). Also highlights the active card in the Account Hub. Legacy `"forex"` values are migrated to `"cfd"` on read. |
 | `platform_mode_v1` | `App.tsx` | `App.tsx` | `"discover" \| "portfolio" \| "chart" \| "workspace"`. The header-pill mode the app boots into. A mobile reload that rehydrates `workspace` falls back to `discover` (workspace is desktop-only). |
-| `splash_seen_v1` | `App.tsx` | `App.tsx` | `"1"` once the user has picked a silo from the splash. Subsequent loads skip the splash and land on the `asset_class_mode` silo. Clearing this key restores the first-time landing. |
+| `splash_seen_v1` | `App.tsx` | `App.tsx` | `"1"` once the user has picked a silo from the splash. Subsequent loads skip the splash and land on the `asset_class_mode` silo **only while the session is fresh** (see `last_active_at`). Clearing this key restores the first-time landing. |
+| `last_active_at` | `App.tsx` | `App.tsx` | Epoch-ms of last activity (mount · interaction, throttled 15s · tab focus · pagehide). Gates the resume-on-reload behaviour: if a load happens > `SESSION_TTL_MS` (10 min) after the last activity, the splash re-shows instead of resuming the last silo/mode. Boot-only check — never interrupts a mounted session. Absent (pre-existing sessions) is grandfathered as fresh. |
 | `theme` | `hooks/useTheme.ts` + `index.html` bootstrap | both | `"light" \| "dark"`. Defaults to OS preference. |
 | `discover_sidebar_collapsed_v1` | `components/DiscoverPage.tsx` | `components/DiscoverPage.tsx` | `"1"` when the desktop Discover watchlist sidebar is collapsed to its 32 px chevron strip. Absent / any other value = expanded. Desktop-only (mobile renders the watchlist as a horizontal CardsRow). |
 | `chartbot_session` | `useChatSession` | `useChatSession` | Serialised turns + apiHistory, capped at 256 KB. |

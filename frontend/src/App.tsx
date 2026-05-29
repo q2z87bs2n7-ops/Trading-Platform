@@ -59,6 +59,33 @@ function readSplashSeen(): boolean {
   return localStorage.getItem(SPLASH_SEEN_KEY) === "1";
 }
 
+// Session freshness. The "resume where you were on reload" behaviour (skip the
+// splash, land on the last silo/mode) should only hold while the session is
+// recent. After this much inactivity a reload / revisit re-shows the splash so a
+// long-dormant tab doesn't silently resume into the platform. `last_active_at`
+// is refreshed on interaction + tab focus (see the activity effect below).
+const LAST_ACTIVE_KEY = "last_active_at";
+const SESSION_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+function markActive(): void {
+  try {
+    localStorage.setItem(LAST_ACTIVE_KEY, String(Date.now()));
+  } catch {
+    /* private mode / quota — non-fatal */
+  }
+}
+
+// Show the splash when the user has never picked a silo, OR when the last
+// session went dormant past the freshness window. A returning user with no
+// activity record yet (first load after this shipped) is grandfathered in so the
+// rollout doesn't bounce everyone to the splash once.
+function shouldShowSplash(): boolean {
+  if (!readSplashSeen()) return true;
+  const last = Number(localStorage.getItem(LAST_ACTIVE_KEY) || 0);
+  if (!last) return false;
+  return Date.now() - last > SESSION_TTL_MS;
+}
+
 // Last-used platform mode — persisted so a reload lands on the same tab the
 // user was on (Discover / Portfolio / Chart / Workspace) instead of always
 // snapping back to Discover.
@@ -259,8 +286,9 @@ export default function App() {
   const [askOpen, setAskOpen] = useState(false);
   const [hubOpen, setHubOpen] = useState(false);
   // First-session-only splash: opens on the very first load, then dismissed.
+  // Also re-opens after a dormant session (see shouldShowSplash / SESSION_TTL).
   // The brand button (▾) re-opens it as the account hub.
-  const [landingOpen, setLandingOpen] = useState(() => !readSplashSeen());
+  const [landingOpen, setLandingOpen] = useState(shouldShowSplash);
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Workspace-only immersive mode: hides the app header for a near-full-screen
   // canvas (paired with the full-bleed `.app.bleed` layout).
@@ -277,6 +305,41 @@ export default function App() {
   useEffect(() => {
     if (!selected && symbols.length) setSelected(symbols[0]);
   }, [symbols.join(","), selected]);
+
+  // Keep the session-freshness clock current: mark active on mount, then on
+  // interaction (throttled) and on tab focus. A reload while fresh resumes where
+  // the user was; once this stops updating for SESSION_TTL the next load
+  // re-shows the splash (see shouldShowSplash). Boot-only check — flipping back
+  // to an already-mounted tab never yanks the user to the splash mid-session.
+  useEffect(() => {
+    markActive();
+    let lastWrite = Date.now();
+    const onActivity = () => {
+      const now = Date.now();
+      if (now - lastWrite >= 15_000) {
+        lastWrite = now;
+        markActive();
+      }
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        lastWrite = Date.now();
+        markActive();
+      }
+    };
+    window.addEventListener("pointerdown", onActivity, { passive: true });
+    window.addEventListener("keydown", onActivity);
+    window.addEventListener("scroll", onActivity, { passive: true });
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("pagehide", markActive);
+    return () => {
+      window.removeEventListener("pointerdown", onActivity);
+      window.removeEventListener("keydown", onActivity);
+      window.removeEventListener("scroll", onActivity);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("pagehide", markActive);
+    };
+  }, []);
 
   // Workspace is desktop-only. If a mobile reload rehydrated mode=workspace
   // (e.g. user resized down, or last session was desktop), fall back to
