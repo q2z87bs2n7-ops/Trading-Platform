@@ -172,10 +172,21 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
     traditional forex-broker rapid-trade surface and the platform's
     **main CFD trading entry**. Reached from the splash / Account Hub
     CFD card's "⚡ Scalp" affordance (`enterMarket("cfd", "scalp")`), not
-    a header pill. Layout is a **single-column stack on every viewport**
-    (desktop mirrors the iPad flow — no narrow side rail): an
-    account/control strip (equity · day P/L ·
-    free margin · live open P/L · **per-instrument-type lot presets** —
+    a header pill. Layout is a **3-pane "cockpit"** (rebuilt from the design
+    handoff `design_handoff_cfd_scalp_cockpit`, adapted onto our Calm-v2
+    tokens via `components/cfd-scalp.css`): a top **stats bar** (brand · Live
+    pill · equity/free-margin/open-P&L · hotkey hint · size chips · 1-click
+    toggle · theme), then a grid of **Rate Matrix** (left, click-to-select
+    rows with bid/ask flash + spread + per-instrument P/L + inline remove) ·
+    **Chart + Deal strip** (center — `CfdPriceChart` on the m1 scalping
+    preset drives the action, with the Sell/spread/Buy deal strip beneath) ·
+    **Position info** (right — net side/size/avg/P&L/pips, mark/spread/margin,
+    visual-stub SL/TP, Reverse + Close), then a full-width **blotter**
+    (per-fill close + Flatten-all) and the alerts panel. **Hotkeys:** B/S
+    fire, F flattens, Space confirms an armed order. Collapses to a single
+    column below 1180px (scalp stays desktop-only). Underneath it reuses the
+    same engine as before: an account/control model with **per-instrument-type
+    lot presets** —
     FX in 1K/10K/50K/100K units, non-FX in `1/5/10/25 × base_unit_size`
     contracts; the control stores a 0–3 level and each tile resolves its
     own amount at submit), a **rate matrix** of live bid/ask tiles (one
