@@ -23,7 +23,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from .fxcm_auth import get_access_token
+from .fxcm_auth import ENDPOINTS_TIMEOUT, get_access_token
 
 _log = logging.getLogger(__name__)
 
@@ -507,7 +507,9 @@ _OFFER_MAP_TTL_SEC = 3600
 
 # Pooled keep-alive client for the remote Endpoints-suite gateway — reuses the
 # TLS connection across the 3s watchlist poll instead of a fresh handshake each
-# call. Lazily created so it binds to the running uvicorn loop.
+# call. Lazily created so it binds to the running uvicorn loop. Uses the shared
+# ENDPOINTS_TIMEOUT (from fxcm_auth) — NOT the bridge's TIMEOUT, whose 2s connect
+# is for localhost only and would time out a normal remote TLS handshake.
 _endpoints_client: Optional[httpx.AsyncClient] = None
 
 
@@ -516,7 +518,7 @@ def _endpoints() -> httpx.AsyncClient:
     if _endpoints_client is None:
         _endpoints_client = httpx.AsyncClient(
             base_url=_ENDPOINTS_BASE,
-            timeout=TIMEOUT,
+            timeout=ENDPOINTS_TIMEOUT,
             limits=httpx.Limits(max_keepalive_connections=4, max_connections=8),
         )
     return _endpoints_client

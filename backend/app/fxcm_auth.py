@@ -43,7 +43,12 @@ _APP_NAME           = "Trading Platform"
 _TRADING_SESSION_ID = "FXCM"
 _TRADING_SUB_ID     = "MINIDEMO"
 
-_HTTP_TIMEOUT = 10.0
+# Timeout for any call to the FXCM Endpoints/IAM gateway. Shared with the
+# watchlist proxy in fxcm.py (imported there) so there's one source of truth
+# for how long to wait on FXCM's remote gateway — a flat, generous budget,
+# since it's a remote internet host (the bridge's tight localhost timeout is
+# wrong for it).
+ENDPOINTS_TIMEOUT = 10.0
 
 
 class _TokenCache:
@@ -86,7 +91,7 @@ async def _mint() -> tuple[str, int]:
         "tradingSessionSubId": _TRADING_SUB_ID,
     }
     try:
-        async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
+        async with httpx.AsyncClient(timeout=ENDPOINTS_TIMEOUT) as client:
             r = await client.post(
                 f"{_IAM_BASE}{_MINT_PATH}",
                 json=body,
