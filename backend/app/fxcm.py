@@ -27,7 +27,28 @@ from .fxcm_auth import get_access_token
 _log = logging.getLogger(__name__)
 
 BRIDGE_URL = "http://127.0.0.1:3001"
-TIMEOUT    = 25.0
+# Split timeout: connect fast so a wedged JVM can't tie up the single uvicorn
+# worker that also serves the Alpaca SSE relay; allow a more generous read for
+# heavier calls (history bars).
+TIMEOUT = httpx.Timeout(connect=2.0, read=10.0, write=10.0, pool=2.0)
+
+# One pooled, keep-alive client for every bridge call. Re-creating an
+# AsyncClient per request opened a fresh localhost TCP connection each time —
+# at the SSE hub's poll cadence that churned several conns/sec on the shared
+# relay worker. Reuse one connection instead. Lazily created so it binds to the
+# running uvicorn loop.
+_bridge_client: Optional[httpx.AsyncClient] = None
+
+
+def _bridge() -> httpx.AsyncClient:
+    global _bridge_client
+    if _bridge_client is None:
+        _bridge_client = httpx.AsyncClient(
+            base_url=BRIDGE_URL,
+            timeout=TIMEOUT,
+            limits=httpx.Limits(max_keepalive_connections=8, max_connections=16),
+        )
+    return _bridge_client
 
 # FXCM Endpoints-suite gateway (demo). Live env would be
 # endpoints.fxcorporate.com (no -demo).
@@ -40,11 +61,10 @@ router = APIRouter(prefix="/api/fxcm", tags=["fxcm"])
 
 async def _get(path: str, params: dict = None) -> Any:
     try:
-        async with httpx.AsyncClient() as client:
-            r = await client.get(f"{BRIDGE_URL}{path}", params=params, timeout=TIMEOUT)
+        r = await _bridge().get(path, params=params)
         r.raise_for_status()
         return r.json()
-    except httpx.ConnectError:
+    except (httpx.ConnectError, httpx.TimeoutException):
         raise HTTPException(503, "FXCM bridge not running")
     except httpx.HTTPStatusError as e:
         raise HTTPException(e.response.status_code, e.response.text)
@@ -52,11 +72,10 @@ async def _get(path: str, params: dict = None) -> Any:
 
 async def _post(path: str, body: dict) -> Any:
     try:
-        async with httpx.AsyncClient() as client:
-            r = await client.post(f"{BRIDGE_URL}{path}", json=body, timeout=TIMEOUT)
+        r = await _bridge().post(path, json=body)
         r.raise_for_status()
         return r.json()
-    except httpx.ConnectError:
+    except (httpx.ConnectError, httpx.TimeoutException):
         raise HTTPException(503, "FXCM bridge not running")
     except httpx.HTTPStatusError as e:
         raise HTTPException(e.response.status_code, e.response.text)
@@ -64,11 +83,10 @@ async def _post(path: str, body: dict) -> Any:
 
 async def _delete(path: str) -> Any:
     try:
-        async with httpx.AsyncClient() as client:
-            r = await client.delete(f"{BRIDGE_URL}{path}", timeout=TIMEOUT)
+        r = await _bridge().delete(path)
         r.raise_for_status()
         return r.json()
-    except httpx.ConnectError:
+    except (httpx.ConnectError, httpx.TimeoutException):
         raise HTTPException(503, "FXCM bridge not running")
     except httpx.HTTPStatusError as e:
         raise HTTPException(e.response.status_code, e.response.text)
@@ -76,11 +94,10 @@ async def _delete(path: str) -> Any:
 
 async def _patch(path: str, body: dict) -> Any:
     try:
-        async with httpx.AsyncClient() as client:
-            r = await client.patch(f"{BRIDGE_URL}{path}", json=body, timeout=TIMEOUT)
+        r = await _bridge().patch(path, json=body)
         r.raise_for_status()
         return r.json()
-    except httpx.ConnectError:
+    except (httpx.ConnectError, httpx.TimeoutException):
         raise HTTPException(503, "FXCM bridge not running")
     except httpx.HTTPStatusError as e:
         raise HTTPException(e.response.status_code, e.response.text)
@@ -97,7 +114,7 @@ async def _patch(path: str, body: dict) -> Any:
 # open, so the frontend hits this via STREAM_BASE. Bridge offline → the loop
 # backs off and clients simply receive no ticks (their polling fallback covers).
 
-_STREAM_POLL_SEC = 0.1          # localhost map read — effectively free; ~10fps tile cadence
+_STREAM_POLL_SEC = 0.2          # localhost map read; ~5fps tile cadence (smooth for dealing tiles, half the bridge round-trips of 10fps)
 _STREAM_BACKOFF_MAX_SEC = 5.0
 _STREAM_KEEPALIVE_SEC = 15.0    # SSE comment so idle proxies don't cull the conn
 
@@ -484,6 +501,23 @@ _offer_map_loaded_at: float = 0
 _OFFER_MAP_TTL_SEC = 3600
 
 
+# Pooled keep-alive client for the remote Endpoints-suite gateway — reuses the
+# TLS connection across the 3s watchlist poll instead of a fresh handshake each
+# call. Lazily created so it binds to the running uvicorn loop.
+_endpoints_client: Optional[httpx.AsyncClient] = None
+
+
+def _endpoints() -> httpx.AsyncClient:
+    global _endpoints_client
+    if _endpoints_client is None:
+        _endpoints_client = httpx.AsyncClient(
+            base_url=_ENDPOINTS_BASE,
+            timeout=TIMEOUT,
+            limits=httpx.Limits(max_keepalive_connections=4, max_connections=8),
+        )
+    return _endpoints_client
+
+
 async def _endpoints_request(method: str, path: str, **kwargs) -> Any:
     """HTTP call to the Endpoints-suite gateway with a fresh bearer."""
     token = await get_access_token()
@@ -491,16 +525,13 @@ async def _endpoints_request(method: str, path: str, **kwargs) -> Any:
     headers.setdefault("Authorization", f"Bearer {token}")
     headers.setdefault("Origin", "https://app.fxcm.com")
     try:
-        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            r = await client.request(
-                method, f"{_ENDPOINTS_BASE}{path}", headers=headers, **kwargs,
-            )
+        r = await _endpoints().request(method, path, headers=headers, **kwargs)
         r.raise_for_status()
         # Some routes (DELETE, PUT /sort) may return an empty body.
         if not r.content:
             return None
         return r.json()
-    except httpx.ConnectError as e:
+    except (httpx.ConnectError, httpx.TimeoutException) as e:
         raise HTTPException(503, f"FXCM endpoints unreachable: {e}")
     except httpx.HTTPStatusError as e:
         raise HTTPException(e.response.status_code, e.response.text)

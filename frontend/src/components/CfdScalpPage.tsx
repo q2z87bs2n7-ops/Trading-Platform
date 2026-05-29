@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 
 import * as api from "../api";
 import {
@@ -34,7 +34,7 @@ import "./cfd-scalp.css";
 // only). SL/TP remains a visual stub (not sent to the bridge).
 // ─────────────────────────────────────────────────────────────────────────────
 
-const POSITIONS_POLL_MS = 1000;
+const POSITIONS_POLL_MS = 3000;
 const ARM_TTL_MS = 2600;
 
 const LOT_LEVELS = [0, 1, 2, 3] as const;
@@ -89,7 +89,7 @@ function splitBigFig(
   return { big: rem.slice(0, cut), pips: rem.slice(cut), frac };
 }
 
-function BigFig({
+const BigFig = memo(function BigFig({
   value,
   digits,
   pointSize,
@@ -108,7 +108,7 @@ function BigFig({
       {frac && <span style={{ fontSize: 12 * size, verticalAlign: "super", opacity: 0.7, marginLeft: 0.5 }}>{frac}</span>}
     </span>
   );
-}
+});
 
 function spreadNum(bid: number | undefined, ask: number | undefined, pointSize: number | undefined): number {
   if (bid == null || ask == null || !pointSize) return 0;
@@ -255,7 +255,7 @@ function DealStrip({
 
 // ── Rate matrix row (select-only; bid/ask flash on mid direction) ─────────────
 
-function RateRow({
+const RateRow = memo(function RateRow({
   sym,
   price,
   net,
@@ -299,7 +299,19 @@ function RateRow({
       </button>
     </div>
   );
-}
+  // Custom compare: the parent re-renders on every SSE tick (priceMap rebuilds)
+  // and every positions poll (net rebuilds), but a row only needs to repaint
+  // when its own quote / selection / P&L changes. onSelect/onRemove are pure
+  // dispatchers, so ignoring their identity is intentional.
+}, (a, b) =>
+  a.sym === b.sym &&
+  a.selected === b.selected &&
+  a.typicalSpread === b.typicalSpread &&
+  a.price.bid === b.price.bid &&
+  a.price.ask === b.price.ask &&
+  a.price.point_size === b.price.point_size &&
+  a.price.digits === b.price.digits &&
+  (a.net?.pl ?? null) === (b.net?.pl ?? null));
 
 // ── Position info pane ────────────────────────────────────────────────────────
 
@@ -418,14 +430,14 @@ function Blotter({
               <span style={{ textAlign: "right" }}>P/L</span>
               <span />
             </div>
-            {positions.map((p) => {
+            {positions.map((p, i) => {
               const sym = String(p.instrument ?? "");
               const digits = priceMap.get(sym)?.digits ?? cfdDigits(sym);
               const pl = typeof p.pl === "number" ? p.pl : Number(p.gross_pl ?? 0);
               const open = Number(p.open ?? p.open_rate ?? 0);
               const tid = String(p.trade_id ?? "");
               return (
-                <div key={tid || Math.random()} className="sc-blot-row" style={{ cursor: "pointer" }} onClick={() => onSelect(sym)}>
+                <div key={tid || `${sym}-${i}`} className="sc-blot-row" style={{ cursor: "pointer" }} onClick={() => onSelect(sym)}>
                   <span className={`sc-side-tag ${p.buy_sell === "B" ? "b" : "s"}`} style={{ fontSize: 9, padding: "2px 5px" }}>{p.buy_sell}</span>
                   <span className="sc-blot-sym">{sym}</span>
                   <span style={{ color: "var(--text-2)" }}>{p.buy_sell === "B" ? "Long" : "Short"}</span>
