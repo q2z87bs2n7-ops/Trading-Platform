@@ -735,7 +735,9 @@ first time today), the map auto-refreshes once before failing with 404.
   `useFxcmInstruments` caches the symbol list for 1 h; the resulting
   countries are passed to `useEconomicCalendar(countries, enabled)`
   which forwards them to the backend `/api/calendar/economic?countries=`
-  filter.
+  filter. Each row prefixes its event with a **country flag** (emoji from
+  the ISO alpha-2 `country` field via the `EconomicCard showFlags` prop —
+  default-off, enabled only here, not on stocks Discover which is US-only).
 - **Inline price chart** (`CfdPriceChart`, mounted between the watchlist
   and the economic calendar) — a `lightweight-charts` candle panel for
   the row currently selected on the watchlist. Local `selected` state

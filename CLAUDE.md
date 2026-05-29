@@ -153,7 +153,9 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
     - *CFDs*: separate page (`CfdDiscoverPage.tsx`) — same 2-col shell
       (watchlist sidebar + FXCM account hero / **AI market summary** /
       inline `CfdPriceChart` / economic calendar gated on the FXCM-derived
-      country set). The old inline **open-positions panel was removed** so
+      country set, each row flag-prefixed via `EconomicCard`'s default-off
+      `showFlags` prop — enabled only on CFD Discover). The old inline
+      **open-positions panel was removed** so
       CFD Discover is **market-discovery only**, consistent with the
       stocks/crypto Discover surfaces — open positions live on Portfolio.
       The AI market summary uses the same `MarketSummaryCard` +
