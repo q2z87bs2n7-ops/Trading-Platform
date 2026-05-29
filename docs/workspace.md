@@ -319,7 +319,12 @@ EUR/USD · GBP/USD · XAU/USD · US30). Per-widget behaviour in CFD:
   (backend `_SILO_PROP`); the controller defaults to the active silo, so the bot
   builds onto the CFD canvas. ChartBot is silo-aware via `ChartContext.asset_class`
   → `build_system` (steers off the Alpaca data tools for FXCM instruments). The
-  *local* intent parser still treats `cfd` as the stocks default (backlogged).
+  **local** intent parser is CFD-aware too: FXCM instruments validate via the
+  classifier cache (`resolveCfdSymbol` — case-insensitive, returns the canonical
+  name), so `chart EUR/USD`, `set blue to US30`, `watch EUR/USD GBP/USD` and
+  custom builds resolve to the cfd silo locally; capability chips are CFD-specific
+  and wrong-silo order/close intents defer to the AI (no local FXCM trade flow yet
+  — see BACKLOG).
 
 No per-silo Add-menu gating: every widget is reachable in CFD with graceful
 notices where an instrument has no data — the same pattern the crypto silo uses

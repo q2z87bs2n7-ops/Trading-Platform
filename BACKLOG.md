@@ -15,14 +15,14 @@ and `docs/workspace.md` for the full reference). Outstanding:
   toggle (as in stocks/crypto) need per-instrument daily bars; wire `useFxcmBars`
   per row (or a batch FXCM history endpoint) and render through `SparkCard` with
   CFD `digits` precision.
-- **Local Ask-intent CFD-awareness** — the Workspace *apply* path is CFD-correct
-  (the controller targets the active silo, the backend AI is silo-aware), but the
-  local intent parser (`lib/ask-intent/`) still treats `cfd` as the stocks
-  default: capability-hint chips and the order/trade intents are stock-flavoured
-  in the CFD silo, and the symbol universe doesn't carry FXCM instruments (so CFD
-  watch/build requests fall through to the backend AI). Wire an FXCM symbol
-  universe + `cfd` branches in `detectors.ts` / `symbols.ts` and silo-correct
-  order intents for a fully local CFD parser.
+- **Local Ask-intent — CFD trade/close intents** — the parser is otherwise
+  CFD-aware (FXCM instruments validate via the classifier cache, chart /
+  set-channel / watch / build resolve to the cfd silo, capability chips are
+  CFD-specific). The one gap left: a CFD "buy/sell/close" defers to the AI
+  fallback rather than driving a local FXCM trade flow, because ask-intent has
+  no FXCM order/close intent type. Add one (open `FxcmOrderSheet` /
+  `FxcmClosePositionCard`) to handle those locally; the post-answer follow-up
+  chips for those turns are also still stock-flavoured.
 - **Non-US stock-CFD research** — Profile/Fundamentals work for any FMP-enriched
   stock CFD, but the Tipranks widgets (SmartScore/Sentiment/Analysts/HedgeFunds/
   Insiders/RelatedTickers/HolderDemographics) only resolve US stock CFDs —

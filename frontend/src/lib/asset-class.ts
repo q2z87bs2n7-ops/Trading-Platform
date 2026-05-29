@@ -32,6 +32,10 @@ const FIAT_OR_METAL: ReadonlySet<string> = new Set([
 const PAIR_RE = /^([A-Z]{3})\/([A-Z]{3})$/;
 
 let _fxcmSymbols: ReadonlySet<string> | null = null;
+// Lowercase → canonical FXCM name (e.g. "rblx.us" → "RBLX.us"), so the
+// Ask-intent parser (which lowercases tokens) can validate + normalise CFD
+// instruments back to their exact API casing.
+let _fxcmLower: ReadonlyMap<string, string> | null = null;
 
 // Filter out crypto-shape pairs at registration time. FXCM's instrument list
 // includes BTC/USD CFDs that overlap with Alpaca's crypto symbols; without
@@ -39,13 +43,31 @@ let _fxcmSymbols: ReadonlySet<string> | null = null;
 // crypto silo (positions, orders, blotters) goes blank.
 export function registerFxcmSymbols(symbols: Iterable<string>): void {
   const set = new Set<string>();
+  const lower = new Map<string, string>();
   for (const s of symbols) {
     if (!s) continue;
     const m = PAIR_RE.exec(s);
     if (m && !FIAT_OR_METAL.has(m[1])) continue; // crypto-shape — Alpaca owns it
     set.add(s);
+    lower.set(s.toLowerCase(), s);
   }
   _fxcmSymbols = set;
+  _fxcmLower = lower;
+}
+
+// Case-insensitive resolve of a (possibly lowercased) token to the canonical
+// FXCM instrument name, or null if it isn't a CFD instrument. Cache hit first
+// (covers indices/metals/stock CFDs incl. mixed-case suffixes), then the
+// ISO-fiat pair regex as a pre-boot / cache-miss fallback (returns the
+// upper-cased pair). Used by the Ask-intent parser for CFD silo validation.
+export function resolveCfdSymbol(token: string): string | null {
+  if (!token) return null;
+  const hit = _fxcmLower?.get(token.toLowerCase());
+  if (hit) return hit;
+  const up = token.toUpperCase();
+  const m = PAIR_RE.exec(up);
+  if (m && FIAT_OR_METAL.has(m[1]) && FIAT_OR_METAL.has(m[2])) return up;
+  return null;
 }
 
 export function isCfdSymbol(symbol: string): boolean {
