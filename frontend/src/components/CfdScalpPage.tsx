@@ -730,7 +730,14 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
         <div className="sc-center">
           <div className="sc-chart-host">
             {selected && selectedPrice ? (
-              <CfdPriceChart instrument={selected} livePrice={selectedPrice} onOpenChart={onOpenChart} defaultTimeframe="m1" barsToShow={90} />
+              <CfdPriceChart
+                instrument={selected}
+                livePrice={selectedPrice}
+                onOpenChart={onOpenChart}
+                defaultTimeframe="m1"
+                barsToShow={90}
+                entryLine={selNet ? { price: selNet.avg, side: selNet.side } : null}
+              />
             ) : (
               <div className="sc-pane" style={{ flex: 1, alignItems: "center", justifyContent: "center", color: "var(--mute)", fontSize: 13 }}>
                 Pick an instrument to chart.

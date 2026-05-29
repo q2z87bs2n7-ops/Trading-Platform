@@ -182,7 +182,10 @@ alongside the relay (see "Four runtime targets").
     toggle · theme), then a grid of **Rate Matrix** (left, click-to-select
     rows with bid/ask flash + spread + per-instrument P/L + inline remove) ·
     **Chart + Deal strip** (center — `CfdPriceChart` on the m1 scalping
-    preset drives the action, with the Sell/spread/Buy deal strip beneath) ·
+    preset drives the action, with a dashed **entry line** at the selected
+    instrument's net average — long green / short red, via the chart's
+    additive `entryLine` prop + LWC `createPriceLine` — and the
+    Sell/spread/Buy deal strip beneath) ·
     **Position info** (right — net side/size/avg/P&L/pips, mark/spread/margin,
     visual-stub SL/TP, Reverse + Close), then a full-width **blotter**
     (per-fill close + Flatten-all) and the alerts panel. **Hotkeys:** B/S

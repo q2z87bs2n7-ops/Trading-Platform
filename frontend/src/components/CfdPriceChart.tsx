@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   createChart,
   type IChartApi,
+  type IPriceLine,
   type ISeriesApi,
   type UTCTimestamp,
+  LineStyle,
 } from "lightweight-charts";
 
 import { useFxcmBars, useFxcmDisplayNames } from "../data/hooks";
@@ -66,6 +68,7 @@ export default function CfdPriceChart({
   onOpenChart,
   defaultTimeframe,
   barsToShow,
+  entryLine,
 }: {
   instrument: string;
   // Optional — the parent CfdDiscoverPage already polls /api/fxcm/prices and
@@ -77,6 +80,9 @@ export default function CfdPriceChart({
   // N bars instead of fit-to-content. Other callers keep the H1 / fit defaults.
   defaultTimeframe?: string;
   barsToShow?: number;
+  // Optional dashed price line at a position's net average entry (Scalp).
+  // `side` colours it long (pos) / short (neg). Null/absent = no line.
+  entryLine?: { price: number; side: "B" | "S" } | null;
 }) {
   // Keep the charted instrument subscribed (status T) for the live-tip price.
   useFxcmView(instrument);
@@ -84,6 +90,7 @@ export default function CfdPriceChart({
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const entryLineRef = useRef<IPriceLine | null>(null);
   const [timeframe, setTimeframe] = useState(defaultTimeframe ?? "H1");
   const { theme } = useTheme();
 
@@ -200,6 +207,31 @@ export default function CfdPriceChart({
       chartRef.current?.timeScale().fitContent();
     }
   }, [bars, barsToShow]);
+
+  // Dashed entry line at the position's net average (Scalp). Re-runs on
+  // entry/side/theme change and after bars load (series is ready by then).
+  useEffect(() => {
+    const series = seriesRef.current;
+    if (!series) return;
+    if (entryLineRef.current) {
+      series.removePriceLine(entryLineRef.current);
+      entryLineRef.current = null;
+    }
+    if (entryLine && entryLine.price > 0) {
+      const cs = getComputedStyle(document.documentElement);
+      const token = entryLine.side === "B" ? "--pos" : "--neg";
+      const color =
+        cs.getPropertyValue(token).trim() || (entryLine.side === "B" ? "#26a69a" : "#ef5350");
+      entryLineRef.current = series.createPriceLine({
+        price: entryLine.price,
+        color,
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: entryLine.side === "B" ? "Long" : "Short",
+      });
+    }
+  }, [entryLine?.price, entryLine?.side, theme, bars]);
 
   if (!instrument) {
     return (
