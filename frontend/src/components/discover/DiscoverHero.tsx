@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 
 import { usePnlHistory } from "../../data/hooks";
-import { money, pct } from "../../lib/format";
+import { DASH, money, moneyOr, pct } from "../../lib/format";
 import type { Position } from "../../types";
 
 type AssetClass = "stocks" | "crypto";
@@ -22,6 +22,7 @@ export function DiscoverHero({
   unrealized,
   unrealizedPct,
   positions,
+  ready = true,
 }: {
   assetClass: AssetClass;
   title: string;
@@ -34,6 +35,9 @@ export function DiscoverHero({
   // hero itself no longer reads it, but call sites pass it through and other
   // sibling surfaces (Discover's AI summary) still expect the shape.
   positions: Position[] | undefined;
+  // False while positions are still loading — render placeholders instead of
+  // $0.00 so the headline never flashes a fake zero balance.
+  ready?: boolean;
 }) {
   // Suppress unused warning; documented above why we still accept the prop.
   void positions;
@@ -89,19 +93,29 @@ export function DiscoverHero({
             lineHeight: 1,
           }}
         >
-          {money(value)}
+          {moneyOr(value, ready)}
         </div>
         <div className="flex gap-3.5 items-baseline flex-wrap">
           <span
             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[12.5px] font-medium tabular-nums"
             style={{
-              background: dayUp ? "var(--pos-bg)" : "var(--neg-bg)",
-              color: dayUp ? "var(--pos)" : "var(--neg)",
+              background: ready
+                ? dayUp
+                  ? "var(--pos-bg)"
+                  : "var(--neg-bg)"
+                : "var(--panel-2)",
+              color: ready ? (dayUp ? "var(--pos)" : "var(--neg)") : "var(--mute)",
               letterSpacing: "-0.005em",
             }}
           >
-            {dayUp ? "↑" : "↓"} {dayUp ? "+" : ""}
-            {money(dayPl)} ({pct(dayPlPct)})
+            {ready ? (
+              <>
+                {dayUp ? "↑" : "↓"} {dayUp ? "+" : ""}
+                {money(dayPl)} ({pct(dayPlPct)})
+              </>
+            ) : (
+              DASH
+            )}
           </span>
           <span
             style={{ color: "var(--mute)" }}
@@ -111,8 +125,14 @@ export function DiscoverHero({
           </span>
         </div>
         <div className="text-[11.5px] tabular-nums" style={{ color: "var(--mute)" }}>
-          All time {allUp ? "+" : ""}
-          {money(unrealized)} ({pct(unrealizedPct)})
+          {ready ? (
+            <>
+              All time {allUp ? "+" : ""}
+              {money(unrealized)} ({pct(unrealizedPct)})
+            </>
+          ) : (
+            <>All time {DASH}</>
+          )}
         </div>
         {curve ? (
           <svg

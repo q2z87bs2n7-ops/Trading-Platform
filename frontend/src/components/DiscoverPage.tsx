@@ -351,6 +351,7 @@ export default function DiscoverPage({
         }
         positions={siloPositions}
         colors={isCrypto ? undefined : DONUT_COLORS_GREEN}
+        ready={!!positions.data}
       />
     </div>
   ) : (
@@ -363,6 +364,7 @@ export default function DiscoverPage({
       unrealized={unrealized}
       unrealizedPct={unrealizedPct}
       positions={siloPositions}
+      ready={!!positions.data}
     />
   );
 

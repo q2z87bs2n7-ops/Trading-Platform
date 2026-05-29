@@ -1,7 +1,7 @@
 import { useAccount, useClock, useFxcmAccount, useFxcmPositions, usePositions } from "../data/hooks";
 import { useMobile } from "../hooks/useMobile";
 import { isCryptoPosition } from "../lib/asset-class";
-import { money, pct } from "../lib/format";
+import { DASH, money, moneyOr, pct } from "../lib/format";
 
 type AssetClassMode = "stocks" | "crypto" | "cfd";
 
@@ -24,6 +24,7 @@ function SiloCard({
   active,
   onClick,
   secondaryAction,
+  ready = true,
 }: {
   name: string;
   dot: string;
@@ -37,6 +38,9 @@ function SiloCard({
   // Optional corner affordance (e.g. CFD "Scalp"). Rendered as a sibling
   // overlay button so we don't nest a button inside the card button.
   secondaryAction?: { label: string; onClick: () => void };
+  // While the source query is still loading, render placeholders instead of
+  // 0 / $0.00 / "0 positions" so the card never reads as a real zero balance.
+  ready?: boolean;
 }) {
   const dayUp = dayPl >= 0;
   return (
@@ -72,19 +76,23 @@ function SiloCard({
             {name}
           </span>
           <span className="text-[10.5px] tabular-nums" style={{ color: "var(--mute)" }}>
-            {positions} position{positions === 1 ? "" : "s"}
+            {ready ? `${positions} position${positions === 1 ? "" : "s"}` : DASH}
           </span>
         </div>
         <div
           className="font-mono font-semibold tabular-nums"
           style={{ fontSize: 24, lineHeight: 1, letterSpacing: "-0.02em" }}
         >
-          {money(equity)}
+          {moneyOr(equity, ready)}
         </div>
         <div className="text-[11.5px] tabular-nums" style={{ color: "var(--mute)" }}>
-          <span style={{ color: dayUp ? "var(--pos)" : "var(--neg)", fontWeight: 600 }}>
-            Day {pct(dayPlPct)}
-          </span>
+          {ready ? (
+            <span style={{ color: dayUp ? "var(--pos)" : "var(--neg)", fontWeight: 600 }}>
+              Day {pct(dayPlPct)}
+            </span>
+          ) : (
+            <span style={{ color: "var(--mute)", fontWeight: 600 }}>Day {DASH}</span>
+          )}
           {" · "}
           {subStatus}
         </div>
@@ -278,14 +286,19 @@ export default function AssetClassSplash({
   const cryptoDayPct =
     cryptoEquity - cryptoDay > 0 ? cryptoDay / (cryptoEquity - cryptoDay) : 0;
 
-  // FXCM only fetched in the Hub overlay (onClose set) — the first-time
-  // landing splash is the picker, not the dashboard.
-  const fxcmAccount = useFxcmAccount(!!onClose);
-  const fxcmPositions = useFxcmPositions(!!onClose);
+  // Fetched on both the landing splash and the Hub overlay so the CFD card
+  // shows live equity/positions on first load (not just after entering the
+  // silo). Bridge offline → 503 with retry:0, so the card stays on its DASH
+  // placeholder rather than reading $0.00.
+  const fxcmAccount = useFxcmAccount(true);
+  const fxcmPositions = useFxcmPositions(true);
   const fxcmEquity = fxcmAccount.data?.equity ?? 0;
   const fxcmDay = fxcmAccount.data?.day_pl ?? 0;
   const fxcmDayPct = fxcmEquity - fxcmDay > 0 ? fxcmDay / (fxcmEquity - fxcmDay) : 0;
   const fxcmPosCount = fxcmPositions.data?.length ?? 0;
+
+  const alpacaReady = !!positions.data;
+  const fxcmReady = !!fxcmAccount.data;
 
   const clk = clock.data;
   const stockSub = clk
@@ -361,6 +374,7 @@ export default function AssetClassSplash({
               subStatus={stockSub}
               active={currentClass === "stocks"}
               onClick={() => onSelect("stocks")}
+              ready={alpacaReady}
             />
             <SiloCard
               name="Crypto"
@@ -372,6 +386,7 @@ export default function AssetClassSplash({
               subStatus="24/7"
               active={currentClass === "crypto"}
               onClick={() => onSelect("crypto")}
+              ready={alpacaReady}
             />
           </div>
           {/* CFDs — full-width card; backed by the FXCM bridge (not Alpaca).
@@ -387,6 +402,7 @@ export default function AssetClassSplash({
             subStatus="24/5"
             active={currentClass === "cfd"}
             onClick={() => onSelect("cfd")}
+            ready={fxcmReady}
             secondaryAction={
               onSelectScalp && !isMobile
                 ? { label: "⚡ Scalp", onClick: onSelectScalp }

@@ -12,6 +12,13 @@ export function relTime(ts: number): string {
 export const money = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD" });
 
+// Placeholder shown for a value whose source query hasn't returned yet. We
+// render this instead of a misleading 0 / $0.00 while data is in flight (a
+// real, loaded zero still shows as $0.00). Pass `ready=false` while loading.
+export const DASH = "—";
+export const moneyOr = (n: number, ready: boolean) => (ready ? money(n) : DASH);
+export const pctOr = (n: number, ready: boolean) => (ready ? pct(n) : DASH);
+
 export function fmtCryptoPrice(n: number): string {
   const abs = Math.abs(n);
   const dec = abs >= 1 ? 2 : abs >= 0.01 ? 4 : abs >= 0.0001 ? 6 : 8;

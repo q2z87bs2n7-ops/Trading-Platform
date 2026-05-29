@@ -104,7 +104,9 @@ function AlpacaPortfolioHero({
     return { W, H, line, area, stroke };
   }, [pnl]);
 
-  if (!acct && account.isPending) {
+  // Holdings/day-P/L come from positions, so wait on both queries — otherwise
+  // the headline number flashes $0.00 when account resolves before positions.
+  if ((!acct && account.isPending) || (!positions.data && positions.isPending)) {
     return (
       <div
         className="rounded-card-lg mb-6 p-[22px] flex flex-col gap-3 animate-pulse"

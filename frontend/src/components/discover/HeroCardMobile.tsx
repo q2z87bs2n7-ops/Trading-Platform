@@ -1,6 +1,6 @@
 import type { useAccount } from "../../data/hooks";
 import type { Position } from "../../types";
-import { money, pct } from "../../lib/format";
+import { DASH, money, moneyOr, pct } from "../../lib/format";
 import { DONUT_COLORS } from "./util";
 
 // Mobile-only combined Discover hero: BalanceCard + AllocationCard folded
@@ -15,6 +15,7 @@ export function HeroCardMobile({
   buyingPower,
   positions,
   colors = DONUT_COLORS,
+  ready = true,
 }: {
   account: ReturnType<typeof useAccount>["data"];
   title: string;
@@ -26,6 +27,8 @@ export function HeroCardMobile({
   buyingPower: number;
   positions: Position[];
   colors?: string[];
+  // False while positions are still loading — placeholders instead of $0.00.
+  ready?: boolean;
 }) {
   if (!account) {
     return (
@@ -95,19 +98,29 @@ export function HeroCardMobile({
           lineHeight: 1,
         }}
       >
-        {money(value)}
+        {moneyOr(value, ready)}
       </div>
 
       <div className="flex gap-2 items-center flex-wrap">
         <span
           className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[12.5px] font-medium tabular-nums"
           style={{
-            background: dayUp ? "var(--pos-bg)" : "var(--neg-bg)",
-            color: dayUp ? "var(--pos)" : "var(--neg)",
+            background: ready
+              ? dayUp
+                ? "var(--pos-bg)"
+                : "var(--neg-bg)"
+              : "var(--panel-2)",
+            color: ready ? (dayUp ? "var(--pos)" : "var(--neg)") : "var(--mute)",
           }}
         >
-          {dayUp ? "↑" : "↓"} {dayUp ? "+" : ""}
-          {money(dayPl)} ({pct(dayPlPct)})
+          {ready ? (
+            <>
+              {dayUp ? "↑" : "↓"} {dayUp ? "+" : ""}
+              {money(dayPl)} ({pct(dayPlPct)})
+            </>
+          ) : (
+            DASH
+          )}
         </span>
         <span
           className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[12.5px] tabular-nums"
