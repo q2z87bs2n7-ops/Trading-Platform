@@ -74,6 +74,23 @@ export function buildArc(
   return `M ${x1} ${y1} A ${R} ${R} 0 ${large} 1 ${x2} ${y2} L ${x3} ${y3} A ${r} ${r} 0 ${large} 0 ${x4} ${y4} Z`;
 }
 
+// Full donut ring (outer R, inner r). A single 100% slice can't use buildArc —
+// a 360° arc has start == end and renders nothing — so the lone-position case
+// draws a complete ring instead: outer circle (two 180° arcs) + inner circle
+// punched out via the even-odd fill rule (so the hole is transparent).
+export function buildRing(cx: number, cy: number, R: number, r: number): string {
+  return [
+    `M ${cx - R} ${cy}`,
+    `A ${R} ${R} 0 1 1 ${cx + R} ${cy}`,
+    `A ${R} ${R} 0 1 1 ${cx - R} ${cy}`,
+    "Z",
+    `M ${cx - r} ${cy}`,
+    `A ${r} ${r} 0 1 0 ${cx + r} ${cy}`,
+    `A ${r} ${r} 0 1 0 ${cx - r} ${cy}`,
+    "Z",
+  ].join(" ");
+}
+
 // Monochrome luminance steps for the allocation donut. Blue (hue 200) is the
 // default / crypto ramp; green (hue 155, matching --pos) is used for stocks.
 export const DONUT_COLORS = [

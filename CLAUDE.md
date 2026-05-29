@@ -249,7 +249,9 @@ alongside the relay (see "Four runtime targets").
     `AllocationDonut` sibling card (donut + legend, sorted biggest slice
     first; rendered via the shared `components/AllocationDonut.tsx`
     extracted from the old DiscoverHero — Portfolio is the spec'd home
-    for the donut, Discover is now market discovery only) +
+    for the donut, Discover is now market discovery only; a **lone position**
+    draws a full ring via `buildRing` since a single 360° `buildArc` slice
+    is degenerate — start == end — and renders nothing) +
     promoted `Positions` block (`SectionHeading size="lg"`) + a 2-col
     `Orders` + `Activities` row beneath. Clicking a Positions row
     switches to Chart mode for that symbol (was: just repopulated the

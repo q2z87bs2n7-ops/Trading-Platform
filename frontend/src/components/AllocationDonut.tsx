@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 
 import type { Position } from "../types";
-import { buildArc, DONUT_COLORS } from "./discover/util";
+import { buildArc, buildRing, DONUT_COLORS } from "./discover/util";
 
 // Shared allocation donut + legend. Previously lived inside DiscoverHero; now
 // rendered on Portfolio (the spec'd home) and importable for any future
@@ -28,6 +28,12 @@ export default function AllocationDonut({
   const total = open.reduce((s, p) => s + p.market_value, 0);
   const slices = useMemo(() => {
     if (total === 0) return [];
+    // A lone position is the whole pie — buildArc's 360° arc is degenerate
+    // (start == end → nothing renders), so draw a full ring instead.
+    if (open.length === 1) {
+      const p = open[0];
+      return [{ symbol: p.symbol, share: 1, color: colors[0], d: buildRing(60, 60, 50, 38) }];
+    }
     let a = -Math.PI / 2;
     return open.map((p, i) => {
       const sweep = (p.market_value / total) * 2 * Math.PI;
@@ -72,6 +78,7 @@ export default function AllocationDonut({
                   key={s.symbol}
                   d={s.d}
                   fill={s.color}
+                  fillRule="evenodd"
                   opacity={hovered && hovered !== s.symbol ? 0.35 : 1}
                   style={{ transition: "opacity 0.15s", cursor: "pointer" }}
                   onMouseEnter={() => setHovered(s.symbol)}
