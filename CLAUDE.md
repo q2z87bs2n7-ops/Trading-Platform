@@ -216,10 +216,13 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
     unchanged quote stays quiet while its counterpart moves (the
     FXCM/MT4/cTrader dealing-tile convention) instead of strobing every
     poll.
-    **Status — MOCK / FOUNDATION for design to redo:** "live" ticks
-    ride a **1 s `/api/fxcm/prices` poll** (no FCLite per-tick push yet —
-    see BACKLOG; `subscribeBars` is still a no-op), and **SL/TP is a
-    visual stub** (bridge stop/limit params untested from here, so they
+    **Status — MOCK / FOUNDATION for design to redo:** live ticks now
+    ride a **real SSE feed** (`useFxcmPriceStream` → `/api/fxcm/stream`,
+    FCLite `subscribeOfferChange` push under the hood — see `docs/fxcm.md`
+    → "Live price stream"), with the 1 s `/api/fxcm/prices` poll kept as
+    the automatic fallback; the **alert engine shares the same feed**.
+    (`subscribeBars` — live *bar* updates in the chart — is still a no-op.)
+    **SL/TP is a visual stub** (bridge stop/limit params untested from here, so they
     aren't sent — the 1-click/confirm toggle and the success toasts are
     real, but SL/TP isn't). Instruments are subscribed via `useFxcmView`
     so the bridge keeps them on status T (live bid/ask). The focus column
@@ -377,7 +380,9 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
   watchlist, movers,
   most-active, indices, market-news, crypto/tickers, ai/chat, ai/ask (last two gated by
   `AI_CHAT_ENABLED`; require `ANTHROPIC_API_KEY`),
-  fxcm/health, fxcm/account, fxcm/prices, fxcm/positions,
+  fxcm/health, fxcm/account, fxcm/prices, fxcm/stream (SSE — live price
+  feed for Scalp + alerts; QuoteHub-style fan-out over the bridge's
+  in-memory /prices/live push cache, Render-only), fxcm/positions,
   fxcm/orders, fxcm/summary, fxcm/closed_trades, fxcm/instruments,
   fxcm/instruments/{name:path}, fxcm/history, fxcm/order (POST/DELETE/PATCH),
   fxcm/close (POST), fxcm/view (POST — subscribe on-screen instruments),

@@ -79,6 +79,14 @@ export default defineConfig({
       "/api": "http://localhost:8000",
     },
   },
+  // Mirror the dev proxy for `vite preview` (serving the production build
+  // locally for realistic perf). Local-only — prod hosts never run preview.
+  preview: {
+    port: 4173,
+    proxy: {
+      "/api": "http://localhost:8000",
+    },
+  },
   test: {
     // Pure functions — no DOM needed.
     environment: "node",

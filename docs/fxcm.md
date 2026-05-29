@@ -324,6 +324,8 @@ exposed at `/api/fxcm/*`.
 | `GET /health` | `GET /api/fxcm/health` | Bridge + connection status |
 | `GET /account` | `GET /api/fxcm/account` | Account balance/equity/margin |
 | `GET /prices` | `GET /api/fxcm/prices` | Subscribed offers (live bid/ask/digits/point_size/instrument_type/base_unit_size); only instruments in the active subscription set are returned |
+| `GET /prices/live` | (internal — feeds the SSE hub) | Fast in-memory price read off the push-maintained `latestOffers` cache (no `getLatestOffersSnapshot` round-trip, no `snapshotLock`), scoped to the subscribed (status-T) set. Same row shape as `/prices` plus `ts`. Polled tightly (~200 ms) by the `/api/fxcm/stream` hub. |
+| (none — SSE) | `GET /api/fxcm/stream` | **Live price SSE feed** (Scalp + alert engine). QuoteHub-style fan-out: one shared upstream polls the bridge's `/prices/live`, per-client bounded `Queue(maxsize=100)` (drop-oldest), replay-latest-on-connect, supervisor that never crashes the process. Each `data:` frame is a JSON array of *changed* `FxcmPrice` rows; `: ping` keepalive every 15 s. **Render-only** (Vercel can't hold SSE open) — reached via `STREAM_BASE`. |
 | `POST /subscribe` | (internal) | Push offer IDs to subscribe (set status T). Body: `{"offer_ids": ["1", "121", ...]}`. Idempotent. Called by `fxcm.py` when watchlist adds instruments. |
 | `POST /unsubscribe` | (internal) | Push offer IDs to unsubscribe (set status D). Body: `{"offer_ids": [...]}`. Bridge guards against unsubscribing offer IDs still held in open positions or orders. Called by `fxcm.py` when watchlist removes instruments. |
 | `GET /positions` | `GET /api/fxcm/positions` | Open trades |
@@ -398,6 +400,47 @@ newly-needed IDs immediately, and unsubscribes stale ones only on a cleanup pass
   `getLatestOffersSnapshot`, then `subscribeInstruments()`. `unsubscribeOfferIds()`
   skips any offer ID still in an open position/order (always `T`), then
   `unsubscribeInstruments()` restores `D`. Both idempotent.
+
+### Live price stream (SSE, push-driven)
+
+Scalp mode and the alert engine ride a real-time SSE feed instead of polling
+`/prices`. The chain is split across the three tiers so each stays simple:
+
+- **Bridge (push → cache).** `connect()` registers an
+  `IOfferChangeListener` via `offersMgr.subscribeOfferChange(...)`. FCLite calls
+  `onChange`/`onAdd` for every subscribed (status-T) offer whenever its price
+  moves — but `OfferInfo` carries only the `offerId`, so the listener re-reads
+  the live `Offer` via `getOfferById(...)` and stores it in a
+  `ConcurrentHashMap<String,Offer> latestOffers`. `getLatestOffersSnapshot`
+  (on subscribe) also seeds the map so it's warm before the first push. The map
+  is read by `getLiveOffers()` (scoped to `subscribedOfferIds`) and exposed as
+  the bridge route `GET /prices/live` — a pure in-memory read, no snapshot
+  round-trip, no `snapshotLock`. Unsubscribing an offer evicts it from the map.
+- **FastAPI (fan-out).** `FxcmPriceHub` in `fxcm.py` is a QuoteHub-style
+  singleton: one shared upstream task polls `/prices/live` every ~200 ms
+  (`_STREAM_POLL_SEC`), diffs against the last-emitted row per instrument
+  (bid/ask change), and broadcasts only changed rows to per-client
+  `asyncio.Queue(maxsize=100)` (drop-oldest so a slow client never stalls the
+  upstream). New clients replay the last-known map so they paint immediately.
+  The upstream runs only while ≥1 client is connected and **never crashes the
+  process** — all errors back off (to 5 s) and retry; a bridge-offline 503 just
+  means clients receive no ticks (their poll fallback covers). Served at
+  `GET /api/fxcm/stream` as `text/event-stream` with a 15 s `: ping` keepalive.
+- **Frontend (ref-counted singleton + fallback).** `data/fxcmPriceStream.ts`
+  mirrors `data/quoteStream.ts`: a single `EventSource` shared by all consumers
+  (ref-counted, opens on first subscriber, tears down on last), merging ticks
+  into the React Query cache under `qk.fxcmLivePrices`. On an SSE drop it falls
+  back to polling `/prices` immediately, then retries the stream on a
+  3 s→60 s backoff (a transient relay/proxy blip self-heals instead of
+  permanently degrading). `useFxcmPriceStream(enabled)` is the hook;
+  `CfdScalpPage` and `CfdAlertEngine` consume it (the page still polls
+  `/positions` separately — the stream carries quotes only, but net P/L needs
+  the bridge's recomputed `gross_pl`). Reached via `STREAM_BASE` (Render);
+  the serverless API base can't hold SSE open, hence the poll fallback.
+
+The subscribed set the feed emits is still driven entirely by the
+watchlist/view logic below — the SSE connection is receive-only and never
+subscribes/unsubscribes anything itself.
 
 #### View-driven subscription (frontend)
 

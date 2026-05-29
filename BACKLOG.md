@@ -23,9 +23,10 @@ and `docs/workspace.md` for the full reference). Outstanding:
   execution path raises a **success toast**, and the focus-column chart now
   leads with a **scalping preset** (`CfdPriceChart` opens on m1 zoomed to
   the recent bars via additive `defaultTimeframe`/`barsToShow` props).
-  Remaining gaps to close once design lands: (1) **real ticks** — the
-  flashes still ride a 1 s `/api/fxcm/prices` poll; wire them to the FCLite
-  push subscription below so they're true tick-by-tick. (2) **SL/TP** — the
+  Remaining gaps to close once design lands: (1) **real ticks — DONE** —
+  prices now ride the FCLite-push SSE feed (`useFxcmPriceStream` →
+  `/api/fxcm/stream`), 1 s `/prices` poll kept as fallback; the chart tip /
+  CfdDiscoverPage watchlist are the only CFD surfaces still polling. (2) **SL/TP** — the
   deal-ticket inputs are a visual stub; wire `stop`/`limit` into
   `submitFxcmOrder` (the `FxcmOrderRequest` fields exist but are untested
   from the UI — the proven path only sends OM market orders). (3) **true
@@ -72,11 +73,17 @@ and `docs/workspace.md` for the full reference). Outstanding:
   (`cfdUsUnderlying`). Non-US listings (`.de`/`.hk`/…) show the notice; mapping
   them via `fmp_ticker` would extend coverage where Tipranks has the name.
 
-- **FCLite push subscription** — the chart's live price line and the
-  CfdDiscoverPage watchlist both poll `/api/fxcm/prices` at 3 s.
-  FCLite supports push callbacks via `subscribeOffer`; wire that into an
-  SSE route at `/api/fxcm/stream` so quotes ride the same shape as
-  Alpaca's quote stream. Removes the polling cadence floor.
+- **FCLite push subscription — DONE (Scalp + alerts).** Wired
+  `IOffersManager.subscribeOfferChange` in the bridge into a push-maintained
+  offer cache, exposed via a fast `/prices/live` map read, and fanned out by a
+  QuoteHub-style SSE hub at `/api/fxcm/stream` (per-client bounded queue,
+  drop-oldest, replay-latest-on-connect, supervisor that never crashes the
+  process). Frontend rides it via the ref-counted `data/fxcmPriceStream.ts`
+  singleton + `useFxcmPriceStream` hook (mirrors `quoteStream.ts`): Scalp mode
+  and `CfdAlertEngine` now consume the stream, with the 1 s `/prices` poll kept
+  as the automatic fallback. **Still on the 3 s poll:** the CFD chart's live
+  tip and `CfdDiscoverPage` watchlist — point them at `useFxcmPriceStream` to
+  finish removing the polling cadence floor there too.
 - **Live current-bar updates in the CFD chart** — `subscribeBars` is a
   no-op in CFD mode (the bridge has no SSE bar stream). Either synthesize
   a partial bar from the push-subscription quotes above, or add a

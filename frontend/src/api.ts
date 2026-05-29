@@ -473,6 +473,33 @@ export const getFxcmPrices = (instrument?: string) =>
     `/api/fxcm/prices${instrument ? `?instrument=${encodeURIComponent(instrument)}` : ""}`,
   );
 
+// Subscribe to the live FXCM price stream (Scalp mode + alert engine). Each SSE
+// frame is an array of changed FxcmPrice rows (the subscribed/status-T set is
+// driven server-side by the watchlist/view logic, not this connection). Calls
+// onTick per frame; onError once if the stream can't be held open (caller falls
+// back to polling /prices). Returns an unsubscribe. Hits STREAM_BASE (Render) —
+// Vercel's serverless container can't hold SSE open.
+export function streamFxcmPrices(
+  onTick: (prices: FxcmPrice[]) => void,
+  onError: () => void,
+): () => void {
+  warnNoRelay();
+  const es = new EventSource(`${STREAM_BASE}/api/fxcm/stream`);
+  es.onmessage = (e) => {
+    try {
+      const rows = JSON.parse(e.data) as FxcmPrice[];
+      if (Array.isArray(rows) && rows.length) onTick(rows);
+    } catch {
+      /* ignore keepalive / malformed frames */
+    }
+  };
+  es.onerror = () => {
+    es.close();
+    onError();
+  };
+  return () => es.close();
+}
+
 export const getFxcmWatchlist = () =>
   getFxcmJSON<FxcmPrice[]>("/api/fxcm/watchlist");
 
