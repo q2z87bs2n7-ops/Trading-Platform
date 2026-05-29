@@ -46,18 +46,16 @@ function dayLabel(key: string): string {
   });
 }
 
-// ISO 3166-1 alpha-2 (FMP's country field, plus "EU") → emoji flag via the
-// regional-indicator code points. Returns null for anything that isn't a
-// 2-letter code so the row falls back to no flag.
-function countryFlag(code: string | null): string | null {
+// FMP economic calendar uses some non-ISO codes ("UK" instead of "GB").
+// flagcdn.com serves 20×15 PNG flags keyed by ISO lowercase code; "eu" works too.
+const COUNTRY_NORM: Record<string, string> = { UK: "gb" };
+
+function flagSrc(code: string | null): string | null {
   if (!code) return null;
   const cc = code.trim().toUpperCase();
   if (!/^[A-Z]{2}$/.test(cc)) return null;
-  const base = 0x1f1e6; // regional indicator "A"
-  return String.fromCodePoint(
-    base + (cc.charCodeAt(0) - 65),
-    base + (cc.charCodeAt(1) - 65),
-  );
+  const iso = COUNTRY_NORM[cc] ?? cc.toLowerCase();
+  return `https://flagcdn.com/20x15/${iso}.png`;
 }
 
 function fmtVal(n: number | null, unit: string | null): string {
@@ -102,7 +100,7 @@ function EconomicRowItem({
 }) {
   const { day, time } = fmtWhen(r.date);
   const href = eventLink(r.event);
-  const flag = showFlag ? countryFlag(r.country) : null;
+  const fsrc = showFlag ? flagSrc(r.country) : null;
   const inner = (
     <>
       <div className="font-mono text-[11px] leading-tight" style={{ color: "var(--mute)" }}>
@@ -111,10 +109,16 @@ function EconomicRowItem({
       </div>
       <div className="min-w-0">
         <div className="text-[14px] leading-snug">
-          {flag && (
-            <span className="mr-1.5" title={r.country ?? undefined}>
-              {flag}
-            </span>
+          {fsrc && (
+            <img
+              src={fsrc}
+              alt={r.country ?? ""}
+              title={r.country ?? undefined}
+              width={20}
+              height={15}
+              className="inline-block mr-1.5 align-middle"
+              style={{ borderRadius: 2 }}
+            />
           )}
           {r.event ?? "—"}
         </div>
