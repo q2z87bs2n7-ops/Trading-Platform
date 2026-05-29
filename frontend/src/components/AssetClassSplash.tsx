@@ -23,6 +23,7 @@ function SiloCard({
   subStatus,
   active,
   onClick,
+  secondaryAction,
 }: {
   name: string;
   dot: string;
@@ -33,57 +34,83 @@ function SiloCard({
   subStatus: string;
   active?: boolean;
   onClick: () => void;
+  // Optional corner affordance (e.g. CFD "Scalp"). Rendered as a sibling
+  // overlay button so we don't nest a button inside the card button.
+  secondaryAction?: { label: string; onClick: () => void };
 }) {
   const dayUp = dayPl >= 0;
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex flex-col gap-2 text-left cursor-pointer border-0 w-full transition-colors"
-      style={{
-        background: "var(--panel)",
-        border: `1px solid ${active ? "var(--border-2)" : "var(--border)"}`,
-        borderRadius: "var(--r)",
-        boxShadow: "var(--shadow-sm)",
-        padding: "18px 22px",
-        minWidth: 0,
-      }}
-      onMouseEnter={(e: { currentTarget: HTMLButtonElement }) => {
-        e.currentTarget.style.borderColor = "var(--border-2)";
-      }}
-      onMouseLeave={(e: { currentTarget: HTMLButtonElement }) => {
-        e.currentTarget.style.borderColor = active
-          ? "var(--border-2)"
-          : "var(--border)";
-      }}
-    >
-      <div className="flex items-center gap-2">
-        <span
-          aria-hidden
-          className="inline-block"
-          style={{ width: 6, height: 6, borderRadius: 99, background: dot }}
-        />
-        <span className="text-[14px] font-semibold" style={{ color: "var(--text)" }}>
-          {name}
-        </span>
-        <span className="text-[10.5px] tabular-nums" style={{ color: "var(--mute)" }}>
-          {positions} position{positions === 1 ? "" : "s"}
-        </span>
-      </div>
-      <div
-        className="font-mono font-semibold tabular-nums"
-        style={{ fontSize: 24, lineHeight: 1, letterSpacing: "-0.02em" }}
+    <div className="relative" style={{ minWidth: 0 }}>
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex flex-col gap-2 text-left cursor-pointer border-0 w-full transition-colors"
+        style={{
+          background: "var(--panel)",
+          border: `1px solid ${active ? "var(--border-2)" : "var(--border)"}`,
+          borderRadius: "var(--r)",
+          boxShadow: "var(--shadow-sm)",
+          padding: "18px 22px",
+          minWidth: 0,
+        }}
+        onMouseEnter={(e: { currentTarget: HTMLButtonElement }) => {
+          e.currentTarget.style.borderColor = "var(--border-2)";
+        }}
+        onMouseLeave={(e: { currentTarget: HTMLButtonElement }) => {
+          e.currentTarget.style.borderColor = active
+            ? "var(--border-2)"
+            : "var(--border)";
+        }}
       >
-        {money(equity)}
-      </div>
-      <div className="text-[11.5px] tabular-nums" style={{ color: "var(--mute)" }}>
-        <span style={{ color: dayUp ? "var(--pos)" : "var(--neg)", fontWeight: 600 }}>
-          Day {pct(dayPlPct)}
-        </span>
-        {" · "}
-        {subStatus}
-      </div>
-    </button>
+        <div className="flex items-center gap-2">
+          <span
+            aria-hidden
+            className="inline-block"
+            style={{ width: 6, height: 6, borderRadius: 99, background: dot }}
+          />
+          <span className="text-[14px] font-semibold" style={{ color: "var(--text)" }}>
+            {name}
+          </span>
+          <span className="text-[10.5px] tabular-nums" style={{ color: "var(--mute)" }}>
+            {positions} position{positions === 1 ? "" : "s"}
+          </span>
+        </div>
+        <div
+          className="font-mono font-semibold tabular-nums"
+          style={{ fontSize: 24, lineHeight: 1, letterSpacing: "-0.02em" }}
+        >
+          {money(equity)}
+        </div>
+        <div className="text-[11.5px] tabular-nums" style={{ color: "var(--mute)" }}>
+          <span style={{ color: dayUp ? "var(--pos)" : "var(--neg)", fontWeight: 600 }}>
+            Day {pct(dayPlPct)}
+          </span>
+          {" · "}
+          {subStatus}
+        </div>
+      </button>
+      {secondaryAction && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            secondaryAction.onClick();
+          }}
+          className="absolute top-3 right-3 cursor-pointer transition-colors"
+          style={{
+            background: "oklch(72% 0.18 55 / 0.14)",
+            color: "oklch(58% 0.16 55)",
+            border: "1px solid oklch(72% 0.18 55 / 0.45)",
+            borderRadius: 999,
+            padding: "4px 11px",
+            fontSize: 11.5,
+            fontWeight: 600,
+          }}
+        >
+          {secondaryAction.label}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -224,10 +251,14 @@ function AccountOverview() {
 
 export default function AssetClassSplash({
   onSelect,
+  onSelectScalp,
   onClose,
   currentClass,
 }: {
   onSelect: (cls: AssetClassMode) => void;
+  // Enter the CFD silo straight into Scalp mode. Desktop-only surface, so the
+  // affordance is hidden on mobile (see the CFD card below).
+  onSelectScalp?: () => void;
   onClose?: () => void;
   currentClass?: AssetClassMode;
 }) {
@@ -343,7 +374,9 @@ export default function AssetClassSplash({
               onClick={() => onSelect("crypto")}
             />
           </div>
-          {/* CFDs — full-width card; backed by the FXCM bridge (not Alpaca) */}
+          {/* CFDs — full-width card; backed by the FXCM bridge (not Alpaca).
+              The corner "⚡ Scalp" affordance jumps straight into the rapid-
+              trade surface (desktop only). */}
           <SiloCard
             name="CFDs"
             dot="oklch(72% 0.18 55)"
@@ -354,6 +387,11 @@ export default function AssetClassSplash({
             subStatus="24/5"
             active={currentClass === "cfd"}
             onClick={() => onSelect("cfd")}
+            secondaryAction={
+              onSelectScalp && !isMobile
+                ? { label: "⚡ Scalp", onClick: onSelectScalp }
+                : undefined
+            }
           />
         </div>
 

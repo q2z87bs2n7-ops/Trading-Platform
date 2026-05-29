@@ -79,8 +79,8 @@ function readPlatformMode(): PlatformMode {
 }
 
 // "workspace" is desktop-only; the mobile header renders its own pill set and
-// deliberately omits it. "scalp" is a CFD-only rapid-trade surface, injected
-// into the pill row only when the CFD silo is active (see `modes` below).
+// deliberately omits it. "scalp" is a CFD-only rapid-trade surface that is NOT
+// a mode pill — it's entered from the CFD card on the splash / account hub.
 const MODES: { value: PlatformMode; label: string }[] = [
   { value: "discover", label: "Discover" },
   { value: "portfolio", label: "Portfolio" },
@@ -282,12 +282,6 @@ export default function App() {
   const alpacaSilo: "stocks" | "crypto" = activeClass === "crypto" ? "crypto" : "stocks";
   const symbols = (activeClass === "crypto" ? cryptoWl?.symbols : wl?.symbols) ?? [];
 
-  // CFD silo gains a "Scalp" pill (after Chart) for the rapid-trade surface.
-  const modes: { value: PlatformMode; label: string }[] =
-    activeClass === "cfd"
-      ? [...MODES.slice(0, 3), { value: "scalp", label: "Scalp" }, ...MODES.slice(3)]
-      : MODES;
-
   useEffect(() => {
     if (!selected && symbols.length) setSelected(symbols[0]);
   }, [symbols.join(","), selected]);
@@ -407,13 +401,17 @@ export default function App() {
   // Picking a market from the landing/hub enters the platform. The first time
   // through, mark the splash as seen so subsequent loads skip straight to
   // Discover; the brand button still re-opens the hub on demand.
-  function enterMarket(m: AssetClassMode) {
+  // Picking a market enters its Discover by default; the CFD card's "Scalp"
+  // affordance passes platformMode="scalp" to land straight on the rapid-trade
+  // surface. Other entries leave the current platform mode untouched.
+  function enterMarket(m: AssetClassMode, platformMode?: PlatformMode) {
     switchAssetClass(m);
     try {
       localStorage.setItem(SPLASH_SEEN_KEY, "1");
     } catch {
       /* private mode / quota — non-fatal */
     }
+    if (platformMode) switchMode(platformMode);
     setLandingOpen(false);
     setHubOpen(false);
   }
@@ -542,7 +540,7 @@ export default function App() {
           <div
             className="inline-flex items-center gap-1 justify-self-center"
           >
-            {modes.map((m) => (
+            {MODES.map((m) => (
               <ModePill
                 key={m.value}
                 active={mode === m.value}
@@ -749,6 +747,7 @@ export default function App() {
       {(landingOpen || hubOpen) && (
         <AssetClassSplash
           onSelect={enterMarket}
+          onSelectScalp={() => enterMarket("cfd", "scalp")}
           onClose={landingOpen ? undefined : () => setHubOpen(false)}
           currentClass={assetClassMode ?? undefined}
         />
