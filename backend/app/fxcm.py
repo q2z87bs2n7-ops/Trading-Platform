@@ -675,8 +675,19 @@ async def watchlist():
                 row = {**row, "instrument": sym}
         enriched.append(row)
     by_inst = {row.get("instrument"): row for row in enriched if isinstance(row, dict)}
-    rows = [by_inst.get(s) for s in symbols]
-    return [r for r in rows if r]
+    # Return every pinned instrument in watchlist order. Instruments that aren't
+    # actively pricing yet — subscription still warming up after a bridge
+    # restart, or the market is closed — still belong in the list, so emit a
+    # minimal {offer_id, instrument} row instead of dropping them (the FXCM app
+    # greys such rows rather than hiding them). Live bid/ask fills in on the next
+    # poll once the bridge prices them.
+    out = []
+    for oid in offer_ids:
+        sym = id_to_sym.get(int(oid))
+        if not sym:
+            continue
+        out.append(by_inst.get(sym) or {"offer_id": int(oid), "instrument": sym})
+    return out
 
 
 async def _put_offer_ids(wl_id: str, new_offer_ids: list[int]) -> None:
