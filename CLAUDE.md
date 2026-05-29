@@ -177,7 +177,10 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
     own amount at submit), a **rate matrix** of live bid/ask tiles (one
     per watchlist instrument) with **up/down tick flashes**, broker-style
     big-figure/pips/tenth price rendering, spread chip, and a net
-    position/P&L footer; a **deal-ticket focus column** (chart on top —
+    position/P&L footer — instruments are managed inline (a per-tile ×
+    removes, a trailing `AddSymbolTile` searches + adds via the same FXCM
+    Endpoints-suite watchlist as Discover, so no round-trip to manage it);
+    a **deal-ticket focus column** (chart on top —
     it drives the action — a `CfdPriceChart` opened on a **scalping preset**
     via additive `defaultTimeframe="m1"` + `barsToShow` props that zoom to
     the recent bars; then the selected instrument's big bid/ask Buy/Sell,

@@ -6,7 +6,9 @@ import {
   useFxcmDisplayNames,
   useFxcmSubmitOrder,
   useFxcmUnderlyingUnit,
+  useFxcmWatchlistAdd,
   useFxcmWatchlistQuery,
+  useFxcmWatchlistRemove,
 } from "../data/hooks";
 import { useFxcmView } from "../lib/fxcm-view";
 import { cfdDigits, fmtCfdPrice, fmtSpread, money } from "../lib/format";
@@ -14,6 +16,7 @@ import { showToast } from "../lib/toast";
 import type { FxcmPosition, FxcmPrice } from "../types";
 import CfdPriceChart from "./CfdPriceChart";
 import CfdAlertsPanel from "./CfdAlertsPanel";
+import { AddSymbolTile } from "./discover/AddSymbolTile";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CFD scalping mode — a traditional forex-broker rapid-trade surface.
@@ -220,6 +223,7 @@ function ScalpRateTile({
   onSelect,
   onBuy,
   onSell,
+  onRemove,
 }: {
   price: FxcmPrice;
   displayName: string;
@@ -232,6 +236,7 @@ function ScalpRateTile({
   onSelect: () => void;
   onBuy: () => void;
   onSell: () => void;
+  onRemove: () => void;
 }) {
   const digits = price.digits ?? cfdDigits(price.instrument);
   const pointSize = price.point_size;
@@ -259,16 +264,38 @@ function ScalpRateTile({
         style={{ borderBottom: "1px solid var(--hairline)" }}
       >
         <span className="text-[13px] font-semibold truncate">{displayName}</span>
-        <span
-          className="text-[10.5px] font-medium tabular-nums px-1.5 py-0.5 rounded transition-colors"
-          style={{
-            background: spreadFlash ? "var(--accent-bg)" : "var(--panel-2)",
-            color: spreadFlash ? "var(--accent)" : "var(--mute)",
-          }}
-          title={spreadFlash === "up" ? "Spread widening" : spreadFlash === "down" ? "Spread tightening" : "Spread"}
-        >
-          {fmtSpread(price.bid, price.ask, price.point_size)}
-        </span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span
+            className="text-[10.5px] font-medium tabular-nums px-1.5 py-0.5 rounded transition-colors"
+            style={{
+              background: spreadFlash ? "var(--accent-bg)" : "var(--panel-2)",
+              color: spreadFlash ? "var(--accent)" : "var(--mute)",
+            }}
+            title={spreadFlash === "up" ? "Spread widening" : spreadFlash === "down" ? "Spread tightening" : "Spread"}
+          >
+            {fmtSpread(price.bid, price.ask, price.point_size)}
+          </span>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove();
+            }}
+            aria-label={`Remove ${displayName}`}
+            title="Remove from watchlist"
+            className="flex items-center justify-center cursor-pointer border-0 leading-none"
+            style={{
+              width: 18,
+              height: 18,
+              borderRadius: 4,
+              background: "transparent",
+              color: "var(--mute)",
+              fontSize: 14,
+            }}
+          >
+            ×
+          </button>
+        </div>
       </div>
       <div
         className="flex items-stretch gap-1 p-1"
@@ -320,6 +347,8 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
   const unit = useFxcmUnderlyingUnit();
   const account = useFxcmAccount(!!bridgeOk).data ?? null;
   const watchlist = useFxcmWatchlistQuery(!!bridgeOk);
+  const addMut = useFxcmWatchlistAdd();
+  const removeMut = useFxcmWatchlistRemove();
   const submit = useFxcmSubmitOrder();
 
   const wlSymbols = useMemo(
@@ -371,9 +400,13 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
 
   const priceMap = useMemo(() => {
     const m = new Map<string, FxcmPrice>();
+    // Seed from the watchlist feed (carries bid/ask) so a just-added
+    // instrument's tile renders immediately; the live /prices poll overlays
+    // it (with full metadata) within a tick.
+    for (const p of watchlist.data ?? []) m.set(p.instrument, p);
     for (const p of prices) m.set(p.instrument, p);
     return m;
-  }, [prices]);
+  }, [prices, watchlist.data]);
 
   // Net exposure + P&L per instrument (B units positive, S negative).
   const netByInstrument = useMemo(() => {
@@ -409,6 +442,23 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
   function handleSelect(instrument: string) {
     setSelected(instrument);
     onSelectSymbol?.(instrument);
+  }
+
+  // Watchlist add/remove — same FXCM Endpoints-suite mutations as CFD Discover,
+  // surfaced here so the rate matrix can be managed without leaving Scalp.
+  function handleAdd(instrument: string) {
+    addMut.mutate(instrument, {
+      onError: (e) => showToast(`Couldn't add ${instrument}: ${(e as Error).message}`, "error"),
+    });
+  }
+
+  function handleRemove(instrument: string) {
+    removeMut.mutate(instrument, {
+      onSuccess: () => {
+        if (selected === instrument) setSelected("");
+      },
+      onError: (e) => showToast(`Couldn't remove ${instrument}: ${(e as Error).message}`, "error"),
+    });
   }
 
   async function refreshPositions() {
@@ -631,10 +681,6 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
             <div className="text-[13px] py-10 text-center" style={{ color: "var(--mute)" }}>
               Loading instruments…
             </div>
-          ) : wlSymbols.length === 0 ? (
-            <div className="text-[13px] py-10 text-center" style={{ color: "var(--mute)" }}>
-              Your CFD watchlist is empty — add instruments from Discover to trade them here.
-            </div>
           ) : (
             <div
               className="grid gap-3"
@@ -657,9 +703,22 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
                     onSelect={() => handleSelect(sym)}
                     onBuy={() => requestOrder(sym, "B")}
                     onSell={() => requestOrder(sym, "S")}
+                    onRemove={() => handleRemove(sym)}
                   />
                 );
               })}
+              {/* Persistent add affordance — search + add an FXCM instrument
+                  without leaving Scalp (same Endpoints-suite watchlist as
+                  Discover). Scalp is desktop-only, so isMobile is false. */}
+              <AddSymbolTile
+                assetClass="cfd"
+                isCrypto={false}
+                isMobile={false}
+                disabled={addMut.isPending}
+                source="fxcm"
+                onChoose={handleAdd}
+                onMobileTap={() => {}}
+              />
             </div>
           )}
         </div>
