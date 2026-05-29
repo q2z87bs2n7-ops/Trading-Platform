@@ -18,6 +18,7 @@ import { useMarketSummary } from "../hooks/useMarketSummary";
 // watchlist row (no extra network).
 import { AddSymbolTile } from "./discover/AddSymbolTile";
 import { CardsRow } from "./discover/CardsRow";
+import { CfdTicker } from "./discover/CfdTicker";
 import { EconomicCard } from "./discover/EconomicCard";
 import { SparkCard, SparkCardSkeleton } from "./discover/SparkCard";
 import { StickyChartBar } from "./discover/StickyChartBar";
@@ -426,7 +427,7 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
       {bridgeOk && economic.data?.economic && economic.data.economic.length > 0 && (
         <div className="flex flex-col gap-3 mt-6">
           <SectionHeading label="Economic calendar" />
-          <EconomicCard rows={economic.data.economic} />
+          <EconomicCard rows={economic.data.economic} showFlags />
         </div>
       )}
 
@@ -450,6 +451,10 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
 
   return (
     <div className="max-w-[1280px] mx-auto px-4 pt-4 pb-20">
+      {/* Live CFD price strip — mirrors the stocks indices marquee /
+         crypto ticker at the top of Discover. */}
+      {bridgeOk && <CfdTicker priceMap={priceMap} enabled={!!bridgeOk} />}
+
       {isMobile ? (
         <>
           {/* Mobile: watchlist as horizontal CardsRow above the main flow. */}

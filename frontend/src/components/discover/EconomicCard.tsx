@@ -46,6 +46,20 @@ function dayLabel(key: string): string {
   });
 }
 
+// ISO 3166-1 alpha-2 (FMP's country field, plus "EU") → emoji flag via the
+// regional-indicator code points. Returns null for anything that isn't a
+// 2-letter code so the row falls back to no flag.
+function countryFlag(code: string | null): string | null {
+  if (!code) return null;
+  const cc = code.trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(cc)) return null;
+  const base = 0x1f1e6; // regional indicator "A"
+  return String.fromCodePoint(
+    base + (cc.charCodeAt(0) - 65),
+    base + (cc.charCodeAt(1) - 65),
+  );
+}
+
 function fmtVal(n: number | null, unit: string | null): string {
   if (n == null) return "—";
   const s = Math.abs(n) >= 10_000 ? compact(n) : `${n}`;
@@ -77,9 +91,18 @@ function eventLink(event: string | null): string | null {
   return lookupFredUrl(event);
 }
 
-function EconomicRowItem({ r, rank }: { r: EconomicRow; rank: number }) {
+function EconomicRowItem({
+  r,
+  rank,
+  showFlag = false,
+}: {
+  r: EconomicRow;
+  rank: number;
+  showFlag?: boolean;
+}) {
   const { day, time } = fmtWhen(r.date);
   const href = eventLink(r.event);
+  const flag = showFlag ? countryFlag(r.country) : null;
   const inner = (
     <>
       <div className="font-mono text-[11px] leading-tight" style={{ color: "var(--mute)" }}>
@@ -87,7 +110,14 @@ function EconomicRowItem({ r, rank }: { r: EconomicRow; rank: number }) {
         <div>{time}</div>
       </div>
       <div className="min-w-0">
-        <div className="text-[14px] leading-snug">{r.event ?? "—"}</div>
+        <div className="text-[14px] leading-snug">
+          {flag && (
+            <span className="mr-1.5" title={r.country ?? undefined}>
+              {flag}
+            </span>
+          )}
+          {r.event ?? "—"}
+        </div>
         <div className="text-[11px] mt-0.5 font-mono" style={{ color: "var(--mute)" }}>
           {`Prev ${fmtVal(r.previous, r.unit)} · Est ${fmtVal(r.estimate, r.unit)}`}
           {r.actual != null && (
@@ -125,9 +155,11 @@ function EconomicRowItem({ r, rank }: { r: EconomicRow; rank: number }) {
 export function EconomicCard({
   rows,
   bare = false,
+  showFlags = false,
 }: {
   rows: EconomicRow[];
   bare?: boolean;
+  showFlags?: boolean;
 }) {
   // Group by local day (rows arrive sorted ascending, so insertion order is
   // chronological). Paginate one day per page, defaulting to today.
@@ -160,7 +192,12 @@ export function EconomicCard({
       <>
         <div>
           {group.items.map((r, i) => (
-            <EconomicRowItem key={`${r.date}-${r.event}-${i}`} r={r} rank={i} />
+            <EconomicRowItem
+              key={`${r.date}-${r.event}-${i}`}
+              r={r}
+              rank={i}
+              showFlag={showFlags}
+            />
           ))}
         </div>
         <CardPager
