@@ -70,6 +70,18 @@ export function resolveCfdSymbol(token: string): string | null {
   return null;
 }
 
+// True for a fiat/fiat forex pair (EUR/USD, USD/JPY) — i.e. the FXCM
+// instrument_type 1 class that trades in 1,000-unit lots. Excludes metals
+// (XAU/XAG/… are slash-pairs too but trade in base-unit lots). Used as a
+// subscription-free fallback for the CFD order ticket's lot-size rule when the
+// live /prices row (which carries the authoritative instrument_type) is absent.
+export function isForexPair(symbol: string): boolean {
+  const m = PAIR_RE.exec(symbol.toUpperCase());
+  if (!m) return false;
+  const fiat = (c: string) => FIAT_OR_METAL.has(c) && !c.startsWith("X");
+  return fiat(m[1]) && fiat(m[2]);
+}
+
 export function isCfdSymbol(symbol: string): boolean {
   if (!symbol) return false;
   if (_fxcmSymbols && _fxcmSymbols.has(symbol)) return true;

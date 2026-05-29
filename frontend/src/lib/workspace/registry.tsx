@@ -53,7 +53,7 @@ import {
   HolderDemographicsCardSkeleton,
 } from "../../components/research/HolderDemographicsCard";
 import ErrorBanner from "../../components/ErrorBanner";
-import { cfdUsUnderlying, isCryptoSymbol, isStockCfdSymbol } from "../asset-class";
+import { cfdUsUnderlying, isCryptoSymbol } from "../asset-class";
 import {
   useEarningsCalendar,
   useMarketNews,
@@ -845,7 +845,7 @@ function ProfileWidget(props: IDockviewPanelProps) {
     >
       <div ref={ref} style={{ height: "100%" }}>
         <Pane pad>
-          {assetClass === "cfd" && !isStockCfdSymbol(symbol) ? (
+          {assetClass === "cfd" && !symbol.includes(".") ? (
             <p className="text-[13px]" style={{ color: "var(--mute)" }}>
               Profile is available for stock CFDs (e.g. AAPL.us) — not for FX,
               indices, metals or commodities.
@@ -885,7 +885,7 @@ function FundamentalsWidget(props: IDockviewPanelProps) {
     >
       <div ref={ref} style={{ height: "100%" }}>
         <Pane pad>
-          {assetClass === "cfd" && !isStockCfdSymbol(symbol) ? (
+          {assetClass === "cfd" && !symbol.includes(".") ? (
             <p className="text-[13px]" style={{ color: "var(--mute)" }}>
               Fundamentals are available for stock CFDs (e.g. AAPL.us) — not for
               FX, indices, metals or commodities.
