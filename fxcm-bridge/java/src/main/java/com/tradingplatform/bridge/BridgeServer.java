@@ -99,7 +99,8 @@ public class BridgeServer {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", PORT), 0);
         server.createContext("/health",       ex -> handle(ex, BridgeServer::health));
         server.createContext("/account",      ex -> handle(ex, BridgeServer::account));
-        server.createContext("/prices",       ex -> handle(ex, BridgeServer::prices));
+        server.createContext("/prices/live",   ex -> handle(ex, BridgeServer::pricesLive));
+        server.createContext("/prices",        ex -> handle(ex, BridgeServer::prices));
         server.createContext("/subscribe",    ex -> handle(ex, BridgeServer::subscribe));
         server.createContext("/unsubscribe",  ex -> handle(ex, BridgeServer::unsubscribe));
         server.createContext("/positions",    ex -> handle(ex, BridgeServer::positions));
@@ -138,6 +139,12 @@ public class BridgeServer {
         if (!typeFilter.isEmpty() && !typeFilter.equals("forex"))
             rows.clear();
         return rows;
+    }
+
+    // Fast in-memory price read for the SSE feed — push-maintained cache,
+    // no snapshot round-trip. Scoped to the subscribed (status-T) set.
+    static Object pricesLive(HttpExchange ex) {
+        return session.getLiveOffers();
     }
 
     @SuppressWarnings("unchecked")

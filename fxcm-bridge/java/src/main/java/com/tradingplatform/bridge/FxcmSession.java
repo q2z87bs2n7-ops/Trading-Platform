@@ -58,6 +58,12 @@ public class FxcmSession {
     // Offer IDs we've subscribed to (positions + orders + watchlist at boot)
     private final Set<String> subscribedOfferIds = Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
 
+    // Live offer cache, kept warm by the FCLite push listener (subscribeOfferChange).
+    // OfferInfo carries only the offerId, so onChange/onAdd re-reads the full Offer
+    // via getOfferById and stores it here. Backs the fast /prices/live endpoint
+    // (no getLatestOffersSnapshot round-trip, no snapshotLock) the SSE feed polls.
+    private final Map<String, Offer> latestOffers = new java.util.concurrent.ConcurrentHashMap<>();
+
     // Serializes getLatestOffersSnapshot calls — FCLite's internal price
     // session handling is not safe for concurrent snapshot requests.
     private final ReentrantLock snapshotLock = new ReentrantLock();
@@ -127,6 +133,13 @@ public class FxcmSession {
         // Load data managers
         instrumentsMgr = loadDataManager(session.getInstrumentsManager());
         offersMgr      = session.getOffersManager();   // no bulk refresh — subscribe selectively via subscribeBootInstruments()
+        // Push subscription: FCLite calls onChange/onAdd for every subscribed
+        // (status-T) offer whenever its price moves. OfferInfo only carries the
+        // offerId, so re-read the live Offer and cache it for /prices/live.
+        offersMgr.subscribeOfferChange(new IOfferChangeListener() {
+            public void onChange(OfferInfo info) { cacheOffer(info.getOfferId()); }
+            public void onAdd(OfferInfo info)    { cacheOffer(info.getOfferId()); }
+        });
         ordersMgr      = loadDataManager(session.getOrdersManager());
         positionsMgr   = loadDataManager(session.getOpenPositionsManager());
 
@@ -192,9 +205,18 @@ public class FxcmSession {
         if (toRemove.isEmpty()) return;
 
         subscribedOfferIds.removeAll(toRemove);
+        for (String id : toRemove) latestOffers.remove(id);
         List<String> syms = idsToSymbols(toRemove);
         if (!syms.isEmpty()) unsubscribeSymbols(syms.toArray(new String[0]));
         LOG.info("Unsubscribed " + syms.size() + " instruments: " + syms);
+    }
+
+    // Re-read and cache a single offer after a push notification. Cheap
+    // in-memory lookup — getOfferById resolves from FCLite's live price session.
+    private void cacheOffer(String offerId) {
+        if (offerId == null) return;
+        Offer o = safe(() -> offersMgr.getOfferById(offerId));
+        if (o != null) latestOffers.put(offerId, o);
     }
 
     private List<String> idsToSymbols(Set<String> offerIds) {
@@ -237,7 +259,13 @@ public class FxcmSession {
             CountDownLatch latch = new CountDownLatch(1);
             Offer[][] result = {new Offer[0]};
             offersMgr.getLatestOffersSnapshot(offerIds, new com.fxcm.api.interfaces.tradingdata.offers.IOffersSnapshotCallback() {
-                public void onSuccess(Offer[] offers) { result[0] = offers != null ? offers : new Offer[0]; latch.countDown(); }
+                public void onSuccess(Offer[] offers) {
+                    result[0] = offers != null ? offers : new Offer[0];
+                    // Warm the push cache so /prices/live has data before the
+                    // first onChange lands (e.g. immediately after a subscribe).
+                    for (Offer o : result[0]) if (o != null && o.getOfferId() != null) latestOffers.put(o.getOfferId(), o);
+                    latch.countDown();
+                }
                 public void onError(com.fxcm.api.interfaces.errors.IFXConnectLiteError e) {
                     LOG.warning("Offer snapshot error: " + e.getMessage()); latch.countDown();
                 }
@@ -304,25 +332,46 @@ public class FxcmSession {
         List<Map<String,Object>> result = new ArrayList<>();
         for (Offer offer : offers) {
             if (offer == null) continue;
-            String id = offer.getOfferId();
-            Instrument inst = safe(() -> instrumentsMgr.getInstrumentByOfferId(id));
-            Map<String,Object> m = new LinkedHashMap<>();
-            m.put("offer_id",   id);
-            m.put("instrument", inst != null ? inst.getSymbol() : null);
-            m.put("bid",        safe(offer::getBid));
-            m.put("ask",        safe(offer::getAsk));
-            m.put("high",       safe(offer::getHigh));
-            m.put("low",        safe(offer::getLow));
-            m.put("volume",     safe(offer::getVolume));
-            if (inst != null) {
-                m.put("digits",          safe(inst::getDigits));
-                m.put("point_size",      safe(inst::getPointSize));
-                m.put("instrument_type", safe(inst::getInstrumentType));
-                m.put("base_unit_size",  safe(inst::getBaseUnitSize));
-            }
-            result.add(m);
+            result.add(offerRow(offer));
         }
         return result;
+    }
+
+    // Fast, in-memory price read backing /prices/live (and the SSE feed). Reads
+    // the push-maintained cache — no getLatestOffersSnapshot round-trip, no
+    // snapshotLock — so it can be polled tightly. Scoped to the subscribed
+    // (status-T) set, same row shape as getOffers().
+    List<Map<String,Object>> getLiveOffers() {
+        List<Map<String,Object>> result = new ArrayList<>();
+        for (String id : subscribedOfferIds) {
+            Offer offer = latestOffers.get(id);
+            if (offer != null) result.add(offerRow(offer));
+        }
+        return result;
+    }
+
+    // Shared offer → JSON-map projection. instrument/digits/point_size/etc. come
+    // from the InstrumentByOfferId lookup (null for not-fully-subscribed offers,
+    // patched by the FastAPI layer from its offerId↔symbol map).
+    private Map<String,Object> offerRow(Offer offer) {
+        String id = offer.getOfferId();
+        Instrument inst = safe(() -> instrumentsMgr.getInstrumentByOfferId(id));
+        Map<String,Object> m = new LinkedHashMap<>();
+        m.put("offer_id",   id);
+        m.put("instrument", inst != null ? inst.getSymbol() : null);
+        m.put("bid",        safe(offer::getBid));
+        m.put("ask",        safe(offer::getAsk));
+        m.put("high",       safe(offer::getHigh));
+        m.put("low",        safe(offer::getLow));
+        m.put("volume",     safe(offer::getVolume));
+        m.put("ts",         safe(() -> { Date t = offer.getTime(); return t != null ? t.getTime() : null; }));
+        if (inst != null) {
+            m.put("digits",          safe(inst::getDigits));
+            m.put("point_size",      safe(inst::getPointSize));
+            m.put("instrument_type", safe(inst::getInstrumentType));
+            m.put("base_unit_size",  safe(inst::getBaseUnitSize));
+        }
+        return m;
     }
 
     List<Map<String,Object>> getOpenPositions() throws Exception {

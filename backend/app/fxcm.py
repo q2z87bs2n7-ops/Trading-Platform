@@ -11,6 +11,7 @@ app.fxcm.com uses) with a JWT minted by fxcm_auth.py. See the
 """
 
 import asyncio
+import json
 import logging
 import random
 import time
@@ -18,6 +19,7 @@ from typing import Any, Optional
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from .fxcm_auth import get_access_token
@@ -84,6 +86,109 @@ async def _patch(path: str, body: dict) -> Any:
         raise HTTPException(e.response.status_code, e.response.text)
 
 
+# ── Live price stream (SSE) ─────────────────────────────────────────────────────
+# A QuoteHub-style fan-out for the FXCM price feed, scoped to Scalp mode + the
+# alert engine. One shared upstream — a tight localhost poll of the bridge's
+# in-memory /prices/live (push-maintained, no snapshot round-trip) — feeds
+# per-client bounded queues (drop-oldest). New clients get a replay of the last
+# known prices so they paint immediately. The upstream task only runs while at
+# least one client is connected; it never crashes the process (all failures are
+# caught and retried with a short backoff). Render-only: Vercel can't hold SSE
+# open, so the frontend hits this via STREAM_BASE. Bridge offline → the loop
+# backs off and clients simply receive no ticks (their polling fallback covers).
+
+_STREAM_POLL_SEC = 0.2          # localhost map read — effectively free
+_STREAM_BACKOFF_MAX_SEC = 5.0
+_STREAM_KEEPALIVE_SEC = 15.0    # SSE comment so idle proxies don't cull the conn
+
+
+class FxcmPriceHub:
+    def __init__(self) -> None:
+        self._clients: set[asyncio.Queue] = set()
+        self._latest: dict[str, dict] = {}     # instrument -> last emitted row
+        self._task: Optional[asyncio.Task] = None
+
+    async def subscribe(self) -> asyncio.Queue:
+        q: asyncio.Queue = asyncio.Queue(maxsize=100)
+        self._clients.add(q)
+        if self._latest:
+            try:
+                q.put_nowait(list(self._latest.values()))
+            except asyncio.QueueFull:
+                pass
+        self._ensure_task()
+        return q
+
+    def unsubscribe(self, q: asyncio.Queue) -> None:
+        self._clients.discard(q)
+
+    def _ensure_task(self) -> None:
+        if self._task is None or self._task.done():
+            self._task = asyncio.create_task(self._run())
+
+    async def _run(self) -> None:
+        backoff = _STREAM_POLL_SEC
+        while self._clients:
+            try:
+                rows = await _get("/prices/live")
+                backoff = _STREAM_POLL_SEC
+                changed = self._diff(rows)
+                if changed:
+                    self._broadcast(changed)
+                await asyncio.sleep(_STREAM_POLL_SEC)
+            except HTTPException:
+                # Bridge offline / 503 — back off; clients ride their poll fallback.
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, _STREAM_BACKOFF_MAX_SEC)
+            except Exception:
+                _log.exception("fxcm price hub upstream error")
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, _STREAM_BACKOFF_MAX_SEC)
+        self._task = None
+
+    def _diff(self, rows: Any) -> list[dict]:
+        if not isinstance(rows, list):
+            return []
+        changed: list[dict] = []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            inst = row.get("instrument")
+            if not inst and row.get("offer_id"):
+                # Not-fully-resolved offer — patch the symbol from the cached map.
+                try:
+                    inst = _offer_map_by_id.get(int(row["offer_id"]))
+                except (TypeError, ValueError):
+                    inst = None
+                if inst:
+                    row = {**row, "instrument": inst}
+            if not inst:
+                continue
+            prev = self._latest.get(inst)
+            if prev is None or prev.get("bid") != row.get("bid") or prev.get("ask") != row.get("ask"):
+                self._latest[inst] = row
+                changed.append(row)
+        return changed
+
+    def _broadcast(self, rows: list[dict]) -> None:
+        dead: list[asyncio.Queue] = []
+        for q in self._clients:
+            try:
+                q.put_nowait(rows)
+            except asyncio.QueueFull:
+                # Drop-oldest: a slow client never stalls the upstream.
+                try:
+                    q.get_nowait()
+                    q.put_nowait(rows)
+                except Exception:
+                    dead.append(q)
+        for q in dead:
+            self._clients.discard(q)
+
+
+_price_hub = FxcmPriceHub()
+
+
 # ── Pydantic models ────────────────────────────────────────────────────────────
 
 class OrderRequest(BaseModel):
@@ -124,6 +229,41 @@ async def account():
 async def prices(instrument: str = None):
     params = {"instrument": instrument} if instrument else None
     return await _get("/prices", params=params)
+
+
+@router.get("/stream")
+async def price_stream():
+    """SSE feed of live FXCM prices (Scalp mode + alert engine).
+
+    Each ``data:`` frame is a JSON array of changed instrument rows (same shape
+    as /prices). The frontend merges them into its price map. Receive-only —
+    the subscribed (status-T) set is driven by the watchlist/view subscription
+    logic, not by this connection. Falls back to polling on the client when the
+    stream can't be held open (e.g. pointed at the serverless API base).
+    """
+    q = await _price_hub.subscribe()
+
+    async def gen():
+        try:
+            yield ": connected\n\n"
+            while True:
+                try:
+                    rows = await asyncio.wait_for(q.get(), timeout=_STREAM_KEEPALIVE_SEC)
+                    yield f"data: {json.dumps(rows)}\n\n"
+                except asyncio.TimeoutError:
+                    yield ": ping\n\n"
+        finally:
+            _price_hub.unsubscribe(q)
+
+    return StreamingResponse(
+        gen(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # disable proxy buffering so frames flush
+        },
+    )
 
 
 @router.get("/positions")

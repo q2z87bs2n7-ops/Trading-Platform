@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 
-import { useFxcmPrices } from "../data/hooks";
 import { useFxcmView } from "../lib/fxcm-view";
+import { useFxcmPriceStream } from "../data/useFxcmPriceStream";
 import {
   setAlertStatus,
   useAlerts,
@@ -46,8 +46,8 @@ export default function CfdAlertEngine() {
   // Keep armed instruments subscribed (status T) so /prices includes them even
   // when they're not otherwise on screen.
   useFxcmView(instruments, instruments.length > 0);
-  // Only poll while something is armed.
-  const { data: prices } = useFxcmPrices(armed.length > 0);
+  // Only stream while something is armed (shared SSE feed; falls back to poll).
+  const { prices } = useFxcmPriceStream(armed.length > 0);
 
   // Prime the chime's audio context on the first user gesture.
   useEffect(() => {
@@ -60,10 +60,8 @@ export default function CfdAlertEngine() {
   const prevRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
-    if (!prices) return;
-    const byInstrument = new Map(prices.map((p) => [p.instrument, p]));
     for (const a of armed) {
-      const p = byInstrument.get(a.instrument);
+      const p = prices[a.instrument];
       const cur = sourcePrice(p, a.source);
       if (cur == null) continue;
       const prev = prevRef.current.get(a.id);

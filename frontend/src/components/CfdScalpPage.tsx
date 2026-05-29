@@ -10,6 +10,7 @@ import {
   useFxcmWatchlistQuery,
   useFxcmWatchlistRemove,
 } from "../data/hooks";
+import { useFxcmPriceStream } from "../data/useFxcmPriceStream";
 import { useFxcmView } from "../lib/fxcm-view";
 import { cfdDigits, money } from "../lib/format";
 import { showToast } from "../lib/toast";
@@ -27,11 +28,13 @@ import "./cfd-scalp.css";
 // app's own stack — Calm v2 tokens (scoped extras in cfd-scalp.css), real FXCM
 // data, existing trade/close/alert wiring, lightweight-charts via CfdPriceChart.
 //
-// MOCK/FOUNDATION caveats unchanged: "ticks" ride a 1 s /api/fxcm/prices poll
-// (no per-tick push yet); SL/TP is a visual stub (not sent to the bridge).
+// Prices now ride a real SSE feed (useFxcmPriceStream → /api/fxcm/stream),
+// FCLite push under the hood, with the 1 s /prices poll as automatic fallback.
+// Positions still poll (P/L moves with the market; the stream carries prices
+// only). SL/TP remains a visual stub (not sent to the bridge).
 // ─────────────────────────────────────────────────────────────────────────────
 
-const POLL_INTERVAL_MS = 1000;
+const POSITIONS_POLL_MS = 1000;
 const ARM_TTL_MS = 2600;
 
 const LOT_LEVELS = [0, 1, 2, 3] as const;
@@ -450,7 +453,6 @@ interface Props {
 
 export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, onOpenChart }: Props) {
   const [bridgeOk, setBridgeOk] = useState<boolean | null>(null);
-  const [prices, setPrices] = useState<FxcmPrice[]>([]);
   const [positions, setPositions] = useState<FxcmPosition[]>([]);
   const [selected, setSelected] = useState<string>(selectedProp || "");
   const [lotLevel, setLotLevel] = useState<LotLevel>(0);
@@ -471,6 +473,7 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
 
   const wlSymbols = useMemo(() => (watchlist.data ?? []).map((p) => p.instrument), [watchlist.data]);
   useFxcmView(wlSymbols, !!bridgeOk);
+  const { prices: livePrices } = useFxcmPriceStream(!!bridgeOk);
 
   useEffect(() => {
     let cancelled = false;
@@ -478,26 +481,28 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
     return () => { cancelled = true; };
   }, []);
 
+  // Positions poll — the price stream carries quotes only; net P/L still needs
+  // the bridge's recomputed gross_pl as the market moves.
   useEffect(() => {
     if (!bridgeOk) return;
     let cancelled = false;
     const tick = async () => {
       try {
-        const [pr, pos] = await Promise.all([api.getFxcmPrices(), api.getFxcmPositions()]);
-        if (!cancelled) { setPrices(pr); setPositions(pos); }
+        const pos = await api.getFxcmPositions();
+        if (!cancelled) setPositions(pos);
       } catch { /* bridge blip — keep last frame */ }
     };
     tick();
-    const id = setInterval(tick, POLL_INTERVAL_MS);
+    const id = setInterval(tick, POSITIONS_POLL_MS);
     return () => { cancelled = true; clearInterval(id); };
   }, [bridgeOk]);
 
   const priceMap = useMemo(() => {
     const m = new Map<string, FxcmPrice>();
     for (const p of watchlist.data ?? []) m.set(p.instrument, p);
-    for (const p of prices) m.set(p.instrument, p);
+    for (const inst in livePrices) m.set(inst, livePrices[inst]);
     return m;
-  }, [prices, watchlist.data]);
+  }, [livePrices, watchlist.data]);
 
   const netPl = useMemo(
     () => positions.reduce((s, p) => s + (typeof p.pl === "number" ? p.pl : Number(p.gross_pl ?? 0)), 0),
