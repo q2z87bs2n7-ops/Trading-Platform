@@ -73,8 +73,10 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
   *only* cross-silo balance surface — every other balance view is filtered
   to the active silo. The CFD card pulls live FXCM equity / day P/L /
   position count via `useFxcmAccount` + `useFxcmPositions` (30 s poll,
-  `retry: 0`); both hooks are gated on the Hub overlay (`!!onClose`) so
-  the first-time landing splash doesn't hit the bridge. Switching silo also runs through the brand button
+  `retry: 0`); both hooks fetch on **both** the first-time landing splash
+  and the Hub overlay so the CFD card shows live equity/positions on first
+  load (a bridge-offline 503 with `retry: 0` keeps the card on its `—`
+  placeholder rather than reading `$0.00`). Switching silo also runs through the brand button
   → hub on desktop (the standalone stocks/crypto pill is gone); mobile
   keeps the inline toggle for fast access. Per-silo accent: stocks
   recolours the `--accent` tokens to green (`--pos`), crypto keeps the
@@ -586,6 +588,15 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
   precision is not available; the ladder is the correct approach.
   `fmtCryptoPrice` is used in `CryptoTicker`, `SparkCard` (via
   `isCrypto` prop), and `Positions` price/avg columns.
+  **Loading placeholder:** equity/P&L surfaces must not flash a misleading
+  `$0.00` / `Day +0.00%` while their source query is still in flight — show
+  `DASH` (`—`) instead. `moneyOr(n, ready)` / `pctOr(n, ready)` return the
+  formatted value when `ready`, else `DASH` (a *real* loaded zero still
+  renders `$0.00`). Presentational heroes take an additive default-on
+  `ready?: boolean` prop (e.g. `DiscoverHero`, `HeroCardMobile`, the splash
+  `SiloCard`); call sites pass `ready={!!query.data}`. Surfaces that already
+  render a skeleton / `null` until data lands (header equity readout, the
+  Portfolio / CFD-Discover heroes, `Positions`) don't need it.
 
 ## Workspace module pattern (reuse strategy)
 
