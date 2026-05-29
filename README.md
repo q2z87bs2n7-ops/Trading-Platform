@@ -13,7 +13,9 @@ Alpaca silos are paper-only — there is no live Alpaca trading path.
 
 On the **first session only**, an **asset class splash** is shown as the
 landing screen — pick Stocks, Crypto, or CFDs to enter. Subsequent loads
-land straight on the last-used silo's Discover. The splash doubles as an
+land straight on the last-used silo's Discover **while the session is fresh**;
+a tab left dormant longer than ~10 minutes re-shows the splash on its next load
+(and a service-worker reset always returns to it). The splash doubles as an
 **Account Hub** (re-opened from the header brand mark) showing a whole-account
 overview: total equity, day P/L, buying power, and a stocks-vs-crypto-vs-cash
 split. The active silo tints the accent (green for Stocks, blue for Crypto,
@@ -324,7 +326,9 @@ paid Alpaca data plan for the full consolidated tape.
 - Browser state is in `localStorage`: `asset_class_mode` (stocks / crypto /
   cfd — the silo the app boots into post-splash; also highlights the active
   card in the Account Hub), `splash_seen_v1` (set once the user has picked a
-  silo; clearing it restores the first-time landing), `platform_mode_v1`
+  silo; clearing it restores the first-time landing), `last_active_at`
+  (activity timestamp gating the resume-on-reload window — dormant > 10 min
+  re-shows the splash; `lib/session.ts`), `platform_mode_v1`
   (last-used mode pill), `theme` (light / dark), `chartbot_session` (256 KB
   byte budget —
   oldest user+assistant pairs drop once the budget is exceeded),

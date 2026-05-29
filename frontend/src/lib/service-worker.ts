@@ -1,3 +1,4 @@
+import { expireSession } from "./session";
 import { showToast } from "./toast";
 
 // One-shot: unregister every service worker, drop every cache, then reload.
@@ -13,6 +14,9 @@ export async function disableServiceWorker(): Promise<void> {
       const keys = await caches.keys();
       await Promise.all(keys.map((k) => caches.delete(k)));
     }
+    // A SW reset is a hard fresh start — expire the session so the reload lands
+    // on the splash rather than silently resuming the last silo/mode.
+    expireSession();
     showToast("Service worker disabled — reloading", "info", 1200);
     setTimeout(() => window.location.reload(), 600);
   } catch (e) {

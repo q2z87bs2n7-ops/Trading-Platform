@@ -23,6 +23,7 @@ import AllocationDonut from "./components/AllocationDonut";
 import PortfolioHero from "./components/PortfolioHero";
 import SectionHeading from "./components/SectionHeading";
 import { isCfdSymbol, isCryptoPosition, registerFxcmSymbols } from "./lib/asset-class";
+import { isSessionFresh, markActive } from "./lib/session";
 import { DONUT_COLORS_GREEN } from "./components/discover/util";
 import TVPlatform from "./components/TVPlatform";
 import ChatPanel from "./components/chat/ChatPanel";
@@ -57,6 +58,13 @@ function readAssetClassMode(): AssetClassMode | null {
 const SPLASH_SEEN_KEY = "splash_seen_v1";
 function readSplashSeen(): boolean {
   return localStorage.getItem(SPLASH_SEEN_KEY) === "1";
+}
+
+// Show the splash when the user has never picked a silo, OR when the last
+// session went dormant past the freshness window (see lib/session.ts). The
+// freshness clock (`last_active_at`) is refreshed on interaction + tab focus.
+function shouldShowSplash(): boolean {
+  return !readSplashSeen() || !isSessionFresh();
 }
 
 // Last-used platform mode — persisted so a reload lands on the same tab the
@@ -259,8 +267,9 @@ export default function App() {
   const [askOpen, setAskOpen] = useState(false);
   const [hubOpen, setHubOpen] = useState(false);
   // First-session-only splash: opens on the very first load, then dismissed.
+  // Also re-opens after a dormant session (see shouldShowSplash / SESSION_TTL).
   // The brand button (▾) re-opens it as the account hub.
-  const [landingOpen, setLandingOpen] = useState(() => !readSplashSeen());
+  const [landingOpen, setLandingOpen] = useState(shouldShowSplash);
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Workspace-only immersive mode: hides the app header for a near-full-screen
   // canvas (paired with the full-bleed `.app.bleed` layout).
@@ -277,6 +286,41 @@ export default function App() {
   useEffect(() => {
     if (!selected && symbols.length) setSelected(symbols[0]);
   }, [symbols.join(","), selected]);
+
+  // Keep the session-freshness clock current: mark active on mount, then on
+  // interaction (throttled) and on tab focus. A reload while fresh resumes where
+  // the user was; once this stops updating for SESSION_TTL the next load
+  // re-shows the splash (see shouldShowSplash). Boot-only check — flipping back
+  // to an already-mounted tab never yanks the user to the splash mid-session.
+  useEffect(() => {
+    markActive();
+    let lastWrite = Date.now();
+    const onActivity = () => {
+      const now = Date.now();
+      if (now - lastWrite >= 15_000) {
+        lastWrite = now;
+        markActive();
+      }
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        lastWrite = Date.now();
+        markActive();
+      }
+    };
+    window.addEventListener("pointerdown", onActivity, { passive: true });
+    window.addEventListener("keydown", onActivity);
+    window.addEventListener("scroll", onActivity, { passive: true });
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("pagehide", markActive);
+    return () => {
+      window.removeEventListener("pointerdown", onActivity);
+      window.removeEventListener("keydown", onActivity);
+      window.removeEventListener("scroll", onActivity);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("pagehide", markActive);
+    };
+  }, []);
 
   // Workspace is desktop-only. If a mobile reload rehydrated mode=workspace
   // (e.g. user resized down, or last session was desktop), fall back to
