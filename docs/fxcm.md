@@ -324,7 +324,7 @@ exposed at `/api/fxcm/*`.
 | `GET /health` | `GET /api/fxcm/health` | Bridge + connection status |
 | `GET /account` | `GET /api/fxcm/account` | Account balance/equity/margin |
 | `GET /prices` | `GET /api/fxcm/prices` | Subscribed offers (live bid/ask/digits/point_size/instrument_type/base_unit_size); only instruments in the active subscription set are returned |
-| `GET /prices/live` | (internal — feeds the SSE hub) | Fast in-memory price read off the push-maintained `latestOffers` cache (no `getLatestOffersSnapshot` round-trip, no `snapshotLock`), scoped to the subscribed (status-T) set. Same row shape as `/prices` plus `ts`. Polled tightly (~200 ms) by the `/api/fxcm/stream` hub. |
+| `GET /prices/live` | (internal — feeds the SSE hub) | Fast in-memory price read off the push-maintained `latestOffers` cache (no `getLatestOffersSnapshot` round-trip, no `snapshotLock`), scoped to the subscribed (status-T) set. Same row shape as `/prices` plus `ts`. Polled tightly (~100 ms) by the `/api/fxcm/stream` hub. |
 | (none — SSE) | `GET /api/fxcm/stream` | **Live price SSE feed** (Scalp + alert engine). QuoteHub-style fan-out: one shared upstream polls the bridge's `/prices/live`, per-client bounded `Queue(maxsize=100)` (drop-oldest), replay-latest-on-connect, supervisor that never crashes the process. Each `data:` frame is a JSON array of *changed* `FxcmPrice` rows; `: ping` keepalive every 15 s. **Render-only** (Vercel can't hold SSE open) — reached via `STREAM_BASE`. |
 | `POST /subscribe` | (internal) | Push offer IDs to subscribe (set status T). Body: `{"offer_ids": ["1", "121", ...]}`. Idempotent. Called by `fxcm.py` when watchlist adds instruments. |
 | `POST /unsubscribe` | (internal) | Push offer IDs to unsubscribe (set status D). Body: `{"offer_ids": [...]}`. Bridge guards against unsubscribing offer IDs still held in open positions or orders. Called by `fxcm.py` when watchlist removes instruments. |
@@ -417,9 +417,11 @@ Scalp mode and the alert engine ride a real-time SSE feed instead of polling
   the bridge route `GET /prices/live` — a pure in-memory read, no snapshot
   round-trip, no `snapshotLock`. Unsubscribing an offer evicts it from the map.
 - **FastAPI (fan-out).** `FxcmPriceHub` in `fxcm.py` is a QuoteHub-style
-  singleton: one shared upstream task polls `/prices/live` every ~200 ms
-  (`_STREAM_POLL_SEC`), diffs against the last-emitted row per instrument
-  (bid/ask change), and broadcasts only changed rows to per-client
+  singleton: one shared upstream task polls `/prices/live` every ~100 ms
+  (`_STREAM_POLL_SEC`; ~10fps tile cadence — the localhost map read is nearly
+  free, so this is the knob that sets Scalp's update rate), diffs against the
+  last-emitted row per instrument (bid/ask change), and broadcasts only changed
+  rows to per-client
   `asyncio.Queue(maxsize=100)` (drop-oldest so a slow client never stalls the
   upstream). New clients replay the last-known map so they paint immediately.
   The upstream runs only while ≥1 client is connected and **never crashes the

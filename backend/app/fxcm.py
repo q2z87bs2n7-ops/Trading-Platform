@@ -97,7 +97,7 @@ async def _patch(path: str, body: dict) -> Any:
 # open, so the frontend hits this via STREAM_BASE. Bridge offline → the loop
 # backs off and clients simply receive no ticks (their polling fallback covers).
 
-_STREAM_POLL_SEC = 0.2          # localhost map read — effectively free
+_STREAM_POLL_SEC = 0.1          # localhost map read — effectively free; ~10fps tile cadence
 _STREAM_BACKOFF_MAX_SEC = 5.0
 _STREAM_KEEPALIVE_SEC = 15.0    # SSE comment so idle proxies don't cull the conn
 
