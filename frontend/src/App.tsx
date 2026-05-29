@@ -23,6 +23,7 @@ import AllocationDonut from "./components/AllocationDonut";
 import PortfolioHero from "./components/PortfolioHero";
 import SectionHeading from "./components/SectionHeading";
 import { isCfdSymbol, isCryptoPosition, registerFxcmSymbols } from "./lib/asset-class";
+import { isSessionFresh, markActive } from "./lib/session";
 import { DONUT_COLORS_GREEN } from "./components/discover/util";
 import TVPlatform from "./components/TVPlatform";
 import ChatPanel from "./components/chat/ChatPanel";
@@ -59,31 +60,11 @@ function readSplashSeen(): boolean {
   return localStorage.getItem(SPLASH_SEEN_KEY) === "1";
 }
 
-// Session freshness. The "resume where you were on reload" behaviour (skip the
-// splash, land on the last silo/mode) should only hold while the session is
-// recent. After this much inactivity a reload / revisit re-shows the splash so a
-// long-dormant tab doesn't silently resume into the platform. `last_active_at`
-// is refreshed on interaction + tab focus (see the activity effect below).
-const LAST_ACTIVE_KEY = "last_active_at";
-const SESSION_TTL_MS = 10 * 60 * 1000; // 10 minutes
-
-function markActive(): void {
-  try {
-    localStorage.setItem(LAST_ACTIVE_KEY, String(Date.now()));
-  } catch {
-    /* private mode / quota — non-fatal */
-  }
-}
-
 // Show the splash when the user has never picked a silo, OR when the last
-// session went dormant past the freshness window. A returning user with no
-// activity record yet (first load after this shipped) is grandfathered in so the
-// rollout doesn't bounce everyone to the splash once.
+// session went dormant past the freshness window (see lib/session.ts). The
+// freshness clock (`last_active_at`) is refreshed on interaction + tab focus.
 function shouldShowSplash(): boolean {
-  if (!readSplashSeen()) return true;
-  const last = Number(localStorage.getItem(LAST_ACTIVE_KEY) || 0);
-  if (!last) return false;
-  return Date.now() - last > SESSION_TTL_MS;
+  return !readSplashSeen() || !isSessionFresh();
 }
 
 // Last-used platform mode — persisted so a reload lands on the same tab the
