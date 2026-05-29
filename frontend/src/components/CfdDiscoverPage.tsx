@@ -427,7 +427,7 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
       {bridgeOk && economic.data?.economic && economic.data.economic.length > 0 && (
         <div className="flex flex-col gap-3 mt-6">
           <SectionHeading label="Economic calendar" />
-          <EconomicCard rows={economic.data.economic} />
+          <EconomicCard rows={economic.data.economic} showFlags />
         </div>
       )}
 
