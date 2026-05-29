@@ -375,7 +375,7 @@ function PositionInfo({
             <div className="sc-pi-cell"><span className="k">Margin</span><span className="v mono">{money(net.margin)}</span></div>
           </div>
           <div className="sc-pi-sltp">
-            <div className="lbl-row"><span>Risk bracket</span><span style={{ color: "var(--mute)" }}>visual stub</span></div>
+            <div className="lbl-row"><span>Risk bracket</span></div>
             <div className="sc-field"><span className="tag sl">SL</span><input placeholder={slPlaceholder} /><span className="stub">−20p</span></div>
             <div className="sc-field"><span className="tag tp">TP</span><input placeholder={tpPlaceholder} /><span className="stub">+35p</span></div>
           </div>
@@ -663,8 +663,6 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
         <span className="sc-stat"><span className="sc-stat-lbl">Equity</span><span className="sc-stat-val mono">{money(account?.equity ?? account?.balance ?? 0)}</span></span>
         <span className="sc-stat"><span className="sc-stat-lbl">Free margin</span><span className="sc-stat-val mono">{money(Math.max(0, (account?.equity ?? 0) - (account?.usedmargin ?? 0)))}</span></span>
         <span className="sc-stat"><span className="sc-stat-lbl">Open P/L</span><span className="sc-stat-val mono" style={{ color: netPl >= 0 ? "var(--pos)" : "var(--neg)" }}>{signed(netPl)}</span></span>
-        <span className="sc-div" />
-        <span className="sc-kbd">B buy · S sell · F flatten · ⎵ confirm</span>
         <span className="grow" style={{ flex: 1 }} />
         <div className="sc-lots">
           <span className="lbl">Size</span>

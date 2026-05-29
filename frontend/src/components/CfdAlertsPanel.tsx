@@ -90,9 +90,6 @@ export default function CfdAlertsPanel({
     >
       <div className="px-4 py-2.5 flex items-center justify-between" style={{ borderBottom: "1px solid var(--hairline)" }}>
         <span className="text-[13px] font-semibold">Alerts</span>
-        <span className="text-[11px]" style={{ color: "var(--mute)" }}>
-          fires while open · toast + sound
-        </span>
       </div>
 
       {/* Add / edit form (scoped to the selected instrument) */}
