@@ -655,6 +655,13 @@ export interface FxcmPrice {
   instrument_type?: number;
   base_unit_size?: number;
   trading_status?: string;
+  // Overnight financing (rollover) for holding long/short — present on every
+  // instrument. Dividend is only present on instruments that carry one (index
+  // CFDs + single-share/ETF CFDs); the bridge omits it otherwise.
+  rollover_buy?: number;
+  rollover_sell?: number;
+  dividend_buy?: number;
+  dividend_sell?: number;
   // Instrument metadata merged by the bridge
   display_name?: string;
   type?: string;

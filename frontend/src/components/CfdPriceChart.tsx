@@ -9,7 +9,7 @@ import {
 import { useFxcmBars, useFxcmDisplayNames } from "../data/hooks";
 import { useTheme } from "../hooks/useTheme";
 import { useFxcmView } from "../lib/fxcm-view";
-import { cfdDigits, fmtSpread } from "../lib/format";
+import { cfdDigits } from "../lib/format";
 import type { FxcmBar, FxcmPrice } from "../types";
 import ErrorBanner from "./ErrorBanner";
 
@@ -19,6 +19,18 @@ import ErrorBanner from "./ErrorBanner";
 // data shapes, formatting (5dp / 3dp JPY / metals 4dp / indices 1dp), and
 // hooks are all different, and PriceChart already carries the Workspace
 // `responsive` tier branches.
+
+// Rollover / dividend financing values from the bridge (per the FClite
+// Instrument). Units are the SDK's convention (refine labels once we read real
+// demo numbers); shown signed, coloured by credit (+) vs debit (−).
+function fmtFin(n: number | undefined): string {
+  if (n == null || Number.isNaN(n)) return "—";
+  return `${n >= 0 ? "+" : ""}${n.toFixed(2)}`;
+}
+function rollColor(n: number | undefined): string {
+  if (n == null || n === 0) return "var(--mute)";
+  return n > 0 ? "var(--pos)" : "var(--neg)";
+}
 
 function readChartColors() {
   const cs = getComputedStyle(document.documentElement);
@@ -250,14 +262,29 @@ export default function CfdPriceChart({
         </div>
       </div>
 
-      {/* Bid/Ask/Spread chips — replaces the asset-class chips on stocks/crypto */}
+      {/* Rollover (every instrument) + Dividend (index / single-share-ETF CFDs
+         only — the bridge emits it via hasDividend*). Long & short values,
+         coloured by sign (credit = +, debit = −). Replaces the old
+         Bid/Ask/Spread chips (those live in the rate matrix + deal strip). */}
       {livePrice && (
         <div className="flex items-center gap-2 text-xs text-muted mb-2 flex-wrap">
-          <span>Bid {fmt(livePrice.bid)}</span>
-          <span>·</span>
-          <span>Ask {fmt(livePrice.ask)}</span>
-          <span>·</span>
-          <span>Spread {fmtSpread(livePrice.bid, livePrice.ask, livePrice.point_size)}</span>
+          <span>
+            Roll{" "}
+            <span style={{ color: rollColor(livePrice.rollover_buy) }}>L {fmtFin(livePrice.rollover_buy)}</span>
+            {" / "}
+            <span style={{ color: rollColor(livePrice.rollover_sell) }}>S {fmtFin(livePrice.rollover_sell)}</span>
+          </span>
+          {(livePrice.dividend_buy != null || livePrice.dividend_sell != null) && (
+            <>
+              <span>·</span>
+              <span>
+                Div{" "}
+                <span style={{ color: rollColor(livePrice.dividend_buy) }}>L {fmtFin(livePrice.dividend_buy)}</span>
+                {" / "}
+                <span style={{ color: rollColor(livePrice.dividend_sell) }}>S {fmtFin(livePrice.dividend_sell)}</span>
+              </span>
+            </>
+          )}
           {livePrice.high != null && livePrice.low != null && (
             <>
               <span>·</span>

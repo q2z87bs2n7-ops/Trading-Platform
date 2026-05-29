@@ -496,9 +496,22 @@ after subscription):
 - **`base_unit_size`** — minimum tradeable unit for non-FX instruments (e.g. `1`
   for indices and stock CFDs). Used as both the default amount and the step in
   `FxcmOrderSheet` when `instrument_type ≠ 1`.
+- **`rollover_buy` / `rollover_sell`** — overnight financing for holding
+  long / short (FCLite `Instrument.getBuyInterest()` / `getSellInterest()`).
+  Present on every instrument. The CFD chart shows them as `Roll L / S`,
+  coloured by sign (credit `+` / debit `−`).
+- **`dividend_buy` / `dividend_sell`** — only emitted when the instrument
+  carries a dividend (FCLite `hasDividendBuy()` / `hasDividendSell()` gate →
+  index CFDs + single-share / ETF CFDs); `getDividendBuy()` / `getDividendSell()`.
+  The chart shows `Div L / S` only when present. **Units are the SDK's
+  convention (per lot/contract per night) — labels TBD once real demo values
+  are read.** Added in `offerRow()` (the shared `/prices` + `/prices/live` +
+  SSE serializer), so a **bridge rebuild + redeploy** is required for these to
+  appear.
 
-`fmtSpread(bid, ask, pointSize)` in `frontend/src/lib/format.ts` applies this
-formula and renders as `"1.2 pts"`.
+`fmtSpread(bid, ask, pointSize)` in `frontend/src/lib/format.ts` applies the
+spread formula and renders as `"1.2 pts"` (now used in the rate matrix + deal
+strip; the CFD chart's chip row shows rollover/dividend instead of bid/ask/spread).
 
 ### `/api/fxcm/instruments` response shape (mind the casing)
 

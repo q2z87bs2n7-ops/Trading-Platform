@@ -370,6 +370,14 @@ public class FxcmSession {
             m.put("point_size",      safe(inst::getPointSize));
             m.put("instrument_type", safe(inst::getInstrumentType));
             m.put("base_unit_size",  safe(inst::getBaseUnitSize));
+            // Overnight financing (rollover) for holding long/short — present on
+            // every instrument. Dividend is only emitted when the instrument
+            // actually carries one (index CFDs + single-share/ETF CFDs), gated
+            // by hasDividend* so the UI can show it conditionally.
+            m.put("rollover_buy",    safe(inst::getBuyInterest));
+            m.put("rollover_sell",   safe(inst::getSellInterest));
+            if (safe(inst::hasDividendBuy) == Boolean.TRUE)  m.put("dividend_buy",  safe(inst::getDividendBuy));
+            if (safe(inst::hasDividendSell) == Boolean.TRUE) m.put("dividend_sell", safe(inst::getDividendSell));
         }
         return m;
     }
