@@ -7,6 +7,8 @@ import {
   useFxcmUnderlyingUnit,
 } from "../../data/hooks";
 import { cfdDigits } from "../../lib/format";
+import { isForexPair } from "../../lib/asset-class";
+import { useFxcmView } from "../../lib/fxcm-view";
 
 /**
  * Inline CFD order ticket for the Workspace Trade widget — the CFD analogue of
@@ -49,6 +51,10 @@ export default function FxcmOrderTicketInline({ instrument }: { instrument: stri
   const unit = useFxcmUnderlyingUnit();
   const submit = useFxcmSubmitOrder();
 
+  // Ensure the traded instrument is subscribed so its live price + lot/precision
+  // metadata are available (it may not be on the watchlist).
+  useFxcmView(instrument);
+
   const [side, setSide] = useState<"B" | "S">("B");
   const [orderType, setOrderType] = useState<UiOrderType>("OM");
   const [amount, setAmount] = useState("1000");
@@ -60,8 +66,12 @@ export default function FxcmOrderTicketInline({ instrument }: { instrument: stri
   const liveRate = side === "B" ? price?.ask : price?.bid;
   const needsRate = orderType === "EN";
 
-  // InstrumentType 1 = FX pair (1000-unit lots); others use BaseUnitSize.
-  const isFx = (price?.instrument_type ?? 1) === 1;
+  // InstrumentType 1 = FX pair (1000-unit lots); others use BaseUnitSize. The
+  // authoritative type comes from the live /prices row, but that's only present
+  // for subscribed instruments — fall back to a fiat-pair check so a non-FX
+  // instrument linked from search (not yet subscribed) doesn't wrongly default
+  // to 1,000-unit FX lots.
+  const isFx = price ? price.instrument_type === 1 : isForexPair(instrument);
   const amountStep = isFx ? 1000 : price?.base_unit_size ?? 1;
 
   // Reset the amount to the instrument's step when the instrument (or its

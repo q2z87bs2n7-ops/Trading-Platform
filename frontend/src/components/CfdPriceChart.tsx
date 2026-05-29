@@ -8,6 +8,7 @@ import {
 
 import { useFxcmBars, useFxcmDisplayNames } from "../data/hooks";
 import { useTheme } from "../hooks/useTheme";
+import { useFxcmView } from "../lib/fxcm-view";
 import { cfdDigits, fmtSpread } from "../lib/format";
 import type { FxcmBar, FxcmPrice } from "../types";
 import ErrorBanner from "./ErrorBanner";
@@ -58,6 +59,9 @@ export default function CfdPriceChart({
   livePrice?: FxcmPrice;
   onOpenChart?: () => void;
 }) {
+  // Keep the charted instrument subscribed (status T) for the live-tip price.
+  useFxcmView(instrument);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);

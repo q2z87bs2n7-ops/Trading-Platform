@@ -36,7 +36,10 @@ function parseQty(raw: string): number {
 // ── order ── "buy 100 AAPL at market" / "sell 50 AMD" / "buy 5 TSLA at 240".
 // Rigid grammar (side + qty + symbol), so it stays confident even in prose; the
 // order ticket validates the symbol downstream, so it isn't gated here.
-const order: Detector = (text) => {
+const order: Detector = (text, ctx) => {
+  // No local Alpaca order path in the CFD silo — let it fall to the AI
+  // fallback rather than open a wrong-silo Alpaca ticket.
+  if (ctx.assetClass === "cfd") return null;
   const m = lc(text).match(
     /\b(buy|sell|purchase|short)\s+(\d+(?:\.\d+)?[km]?)\s+([a-z]{1,5}(?:\.[a-z])?(?:\/[a-z]{3,4})?)\b(?:\s+(?:at\s+)?(market|\$?\d+(?:\.\d+)?))?/i,
   );
@@ -76,6 +79,9 @@ function closeFrom(
   keyword: string,
   raw: string,
 ): DetectorHit | null {
+  // CFD positions close through the FXCM flow, not the Alpaca close path that
+  // the `close` intent drives — suppress here so it routes to the AI fallback.
+  if (ctx.assetClass === "cfd") return null;
   if (!isValidSymbol(raw, ctx.symbolUniverse, ctx.assetClass)) return null;
   const symbol = toSymbol(raw, ctx.assetClass);
   return {
@@ -206,8 +212,9 @@ const marketSummary: Detector = (text) => {
 // get charted.
 const chart: Detector = (text, ctx) => {
   const t = text.trim();
-  // Bare single symbol.
-  if (/^[a-z]{1,5}(\.[a-z])?$/i.test(t) || /^[a-z]{2,5}\/[a-z]{3,4}$/i.test(t)) {
+  // Bare single symbol. Allows a trailing digit run for CFD indices (US30,
+  // NAS100) and a dot-suffix for stock CFDs (RBLX.us); validation gates it.
+  if (/^[a-z][a-z0-9]{0,6}(\.[a-z]{1,3})?$/i.test(t) || /^[a-z]{2,5}\/[a-z]{3,4}$/i.test(t)) {
     if (!isValidSymbol(t, ctx.symbolUniverse, ctx.assetClass)) return null;
     const symbol = toSymbol(t, ctx.assetClass);
     return {
@@ -308,7 +315,7 @@ const workspace: Detector = (text, ctx) => {
 
   // Set a channel's instrument: "set blue to NVDA".
   const setCh = lower.match(
-    /\bset\s+(?:the\s+)?(main|blue|green|amber)\s+(?:channel\s+)?to\s+([a-z]{1,5}(?:\.[a-z])?(?:\/[a-z]{3,4})?)\b/,
+    /\bset\s+(?:the\s+)?(main|blue|green|amber)\s+(?:channel\s+)?to\s+([a-z][a-z0-9]{0,6}(?:\.[a-z]{1,3})?(?:\/[a-z]{3,4})?)\b/,
   );
   if (setCh) {
     const symbol = toSymbol(setCh[2], ctx.assetClass);

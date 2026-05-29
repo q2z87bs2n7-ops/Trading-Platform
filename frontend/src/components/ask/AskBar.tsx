@@ -117,6 +117,27 @@ function buildCapabilityGroups(
   aiEnabled: boolean,
 ): ChipGroup[] {
   const crypto = assetClass === "crypto";
+
+  // CFD silo: no local Alpaca order/position chips (those run through the FXCM
+  // flow), and no market-summary/movers (Alpaca-only). Advertise what works
+  // locally — charts, workspace control — plus AI deep-dives when enabled.
+  if (assetClass === "cfd") {
+    const cfdGroups: ChipGroup[] = [
+      { label: "Charts", chips: ["Chart EUR/USD", "How's XAU/USD?"] },
+      {
+        label: "Your workspace",
+        chips: ["Trader layout", "Watch EUR/USD GBP/USD XAU/USD", "Set blue to US30"],
+      },
+    ];
+    if (aiEnabled) {
+      cfdGroups.push({
+        label: "Deep dive",
+        chips: ["What's moving gold today?", "Tell me about AAPL.us"],
+      });
+    }
+    return cfdGroups;
+  }
+
   const holding = topHoldingLabel(positions);
   const wlSym = freshWatchlistLabel(watchlist, positions);
 
@@ -191,6 +212,11 @@ function buildCapabilityGroups(
 // Silo-specific, and trims the AI-only skills when the bot is off.
 function capabilityHint(assetClass: AssetClass, aiEnabled: boolean): string {
   const crypto = assetClass === "crypto";
+  if (assetClass === "cfd") {
+    return aiEnabled
+      ? "Just tell it what you want — pull up any FXCM chart (EUR/USD, gold, US30), snap together a multi-panel workspace, and dig into stock-CFD profiles & technicals, all in plain English."
+      : "Just tell it what you want — pull up any FXCM chart, set channel symbols, and snap together your own multi-panel workspace in seconds. No menus, no hunting.";
+  }
   if (!aiEnabled) {
     return crypto
       ? "Just tell it what you want — pull up any chart, fire off a trade, scan the day's hottest crypto movers, and snap together your own multi-panel workspace in seconds. No menus, no hunting."

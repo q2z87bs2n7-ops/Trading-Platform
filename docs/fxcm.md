@@ -336,6 +336,7 @@ exposed at `/api/fxcm/*`.
 | `DELETE /order/{id}` | `DELETE /api/fxcm/order/{id}` | Cancel pending order |
 | `PATCH /order/{id}` | `PATCH /api/fxcm/order/{id}` | Modify pending entry order — body `{rate?, stop?, limit?}`; `0` = leave unchanged (FCLite `ChangeOrderRequest`, wired reflectively) |
 | `POST /close` | `POST /api/fxcm/close` | Close open trade — body `{trade_id, amount}`; `amount: 0` = full close |
+| (none — proxy-only) | `POST /api/fxcm/view` | Report on-screen instruments (`{instruments:[…]}`): subscribe new (T) immediately, sporadically return stale to D. See "View-driven subscription". |
 | `GET /debug` | `GET /api/fxcm/debug` | Raw snapshot counts (dev only) |
 
 ### DB-only endpoints (no bridge required)
@@ -374,22 +375,40 @@ call internally calls `IOffersManager.refresh()` which bulk-subscribes all
 ~501 instruments in the user's FXCM account, causing a 10+ second flood of
 offer-snapshot noise at startup.
 
-Instead, subscriptions are demand-driven and T/D status is kept accurate:
+Instead, subscriptions are demand-driven and T/D status is kept accurate. The
+**desired** set `fxcm.py` pushes to the bridge is `watchlist ∪ active view`, where
+"active view" is whatever the frontend is currently displaying (see "View-driven
+subscription" below). `_reconcile_subscriptions(cleanup=…)` diffs that desired
+set against `_subscribed_snapshot` (what we last pushed): it always subscribes
+newly-needed IDs immediately, and unsubscribes stale ones only on a cleanup pass.
 
-- **Boot** — `FxcmSession.subscribeBootInstruments()` reads open positions and
-  open orders, subscribes their offer IDs via `offersMgr.getLatestOffersSnapshot`
-  **and** calls `instrumentsMgr.subscribeInstruments()` to set FCLite status `T`.
-- **Watchlist add** — `GET /api/fxcm/watchlist` diffs `current_ids` against
-  `_last_subscribed_offer_ids`; new IDs fire a background `POST /subscribe`
-  (asyncio `create_task`). `_last_subscribed_offer_ids` is a **snapshot** of the
-  current watchlist (not an accumulating union) so removals are also detected.
-- **Watchlist remove** — removed IDs fire a background `POST /unsubscribe`.
-  The bridge's `unsubscribeOfferIds()` skips any offer ID still present in an
-  open position or order (those must stay `T` unconditionally), then calls
-  `instrumentsMgr.unsubscribeInstruments()` to restore status `D`.
-- **Subscribe call** — `FxcmSession.subscribeOfferIds()` filters already-subscribed
-  IDs (tracked in `subscribedOfferIds` ConcurrentHashMap), calls
-  `getLatestOffersSnapshot`, then calls `subscribeInstruments()`. Idempotent.
+- **Boot** — `subscribe_watchlist_at_boot()` seeds `_watchlist_offer_ids` and
+  reconciles (`cleanup=False`). The bridge's `subscribeBootInstruments()` also
+  subscribes open positions/orders so they're `T` from the start.
+- **Watchlist poll** — `GET /api/fxcm/watchlist` (≈3 s) refreshes
+  `_watchlist_offer_ids` and reconciles with `cleanup=True`, so it's the
+  steady-state heartbeat that returns dropped instruments to `D`.
+- **View-driven** — `POST /api/fxcm/view {instruments:[…]}` sets
+  `_view_offer_ids` and reconciles; cleanup runs **sporadically** there
+  (`random() < _VIEW_CLEANUP_PROB`, 0.15) to avoid subscribe/unsubscribe thrash
+  as the user clicks around. New instruments still subscribe immediately.
+- **Bridge subscribe/unsubscribe** — `FxcmSession.subscribeOfferIds()` filters
+  already-subscribed IDs (`subscribedOfferIds` ConcurrentHashMap), calls
+  `getLatestOffersSnapshot`, then `subscribeInstruments()`. `unsubscribeOfferIds()`
+  skips any offer ID still in an open position/order (always `T`), then
+  `unsubscribeInstruments()` restores `D`. Both idempotent.
+
+#### View-driven subscription (frontend)
+
+CFD surfaces that display an instrument register it for the lifetime of the
+mount via `useFxcmView(symbol, enabled)` (`frontend/src/lib/fxcm-view.ts`): a
+ref-counted singleton debounces (800 ms) the union of on-screen symbols and
+POSTs it to `/api/fxcm/view`. Wired into `CfdPriceChart`, `FxcmOrderTicketInline`
+(always CFD), and `TVChartWidget` / `TVPlatform` (gated on `assetClass==="cfd"`).
+This is why a just-opened chart or order ticket gets live bid/ask + per-instrument
+precision/lot metadata even when the instrument isn't on the watchlist — without
+it, `/prices` (which only returns the subscribed set) wouldn't carry the row, and
+the ticket would fall back to FX-style lot sizing.
 
 **T/D rule:** `T` = instrument is in view (being price-polled); `D` = not in view.
 Positions and orders are always `T` regardless of watchlist state. The bridge

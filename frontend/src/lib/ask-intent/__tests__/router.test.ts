@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { routeQuery } from "../router";
+import { registerFxcmSymbols } from "../../asset-class";
 import type { AssetClass, Intent, RouteContext, SymbolUniverse } from "../types";
+
+// Seed the FXCM classifier cache so the CFD silo can validate instruments
+// (resolveCfdSymbol reads it). US30/NAS100 aren't fiat pairs, so they only
+// resolve via the cache; EUR/USD & XAU/USD also hit the fiat-pair fallback.
+registerFxcmSymbols(["EUR/USD", "GBP/USD", "XAU/USD", "US30", "RBLX.us"]);
 
 // Stub catalogue. TECH/BEST/ON are intentionally real tickers *and* common
 // English words — the router must not chart them when they're used as prose.
@@ -62,6 +68,17 @@ const rows: Row[] = [
   { input: "set blue to NVDA", mode: "both", expected: "workspace" },
   { input: "add a news widget", mode: "both", expected: "workspace" },
 
+  // ── CFD silo ──
+  { input: "EUR/USD", silo: "cfd", mode: "both", expected: "chart" },
+  { input: "chart XAU/USD", silo: "cfd", mode: "both", expected: "chart" },
+  { input: "US30", silo: "cfd", mode: "both", expected: "chart" },
+  { input: "watch EUR/USD GBP/USD XAU/USD", silo: "cfd", mode: "both", expected: "workspace" },
+  { input: "set blue to US30", silo: "cfd", mode: "both", expected: "workspace" },
+  { input: "trader layout", silo: "cfd", mode: "both", expected: "workspace" },
+  // No local Alpaca trade path in CFD — order/close defer to the AI fallback.
+  { input: "buy 1000 EUR/USD", silo: "cfd", mode: "both", expected: "fallback" },
+  { input: "close EUR/USD", silo: "cfd", mode: "both", expected: "fallback" },
+
   // ── non-tickers / junk must not get charted or closed ──
   { input: "close the chart", mode: "both", expected: "fallback" },
   { input: "", mode: "both", expected: "fallback" },
@@ -93,6 +110,18 @@ describe("routeQuery", () => {
     expect(intent.type).toBe("workspace");
     if (intent.type === "workspace") {
       expect(intent.actions[0].silo).toBe("crypto");
+    }
+  });
+
+  it("CFD watch/set-channel target the cfd silo", () => {
+    const watch = routeQuery("watch EUR/USD GBP/USD XAU/USD", ctx("cfd", true));
+    expect(watch.type).toBe("workspace");
+    if (watch.type === "workspace") expect(watch.actions[0].silo).toBe("cfd");
+
+    const setCh = routeQuery("set blue to US30", ctx("cfd", true));
+    expect(setCh.type).toBe("workspace");
+    if (setCh.type === "workspace" && setCh.actions[0].kind === "set_channel") {
+      expect(setCh.actions[0].symbol).toBe("US30");
     }
   });
 

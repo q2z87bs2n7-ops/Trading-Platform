@@ -292,7 +292,8 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
   fxcm/health, fxcm/account, fxcm/prices, fxcm/positions,
   fxcm/orders, fxcm/summary, fxcm/closed_trades, fxcm/instruments,
   fxcm/instruments/{name:path}, fxcm/history, fxcm/order (POST/DELETE/PATCH),
-  fxcm/close (POST), fxcm/watchlist (GET/POST/DELETE-by-{instrument:path}),
+  fxcm/close (POST), fxcm/view (POST — subscribe on-screen instruments),
+  fxcm/watchlist (GET/POST/DELETE-by-{instrument:path}),
   fxcm/display-names (GET), fxcm/underlying-units (GET),
   fxcm/search-instruments (GET, `?q=`) —
   most of these proxy to the in-container FXCM bridge on 127.0.0.1:3001

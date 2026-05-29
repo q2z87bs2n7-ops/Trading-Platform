@@ -1,4 +1,5 @@
 import type { AssetClass, SymbolUniverse } from "./types";
+import { resolveCfdSymbol } from "../asset-class";
 
 // Trading-keyword + common-word denylist so we don't classify English words
 // ("OPEN", "NEWS", "ALL") as tickers in the regex heuristic path.
@@ -58,9 +59,12 @@ export function firstContentToken(text: string): string | undefined {
   return contentTokens(text)[0];
 }
 
-// Normalise a parsed symbol. Crypto pairs (with a slash) pass through; in the
-// crypto silo a bare coin ("BTC") becomes the USD pair ("BTC/USD").
+// Normalise a parsed symbol. In the CFD silo, resolve to the canonical FXCM
+// name (preserves the case-sensitive stock-CFD suffix, e.g. "rblx.us" →
+// "RBLX.us"). Crypto pairs (with a slash) pass through; in the crypto silo a
+// bare coin ("BTC") becomes the USD pair ("BTC/USD").
 export function toSymbol(raw: string, assetClass?: AssetClass): string {
+  if (assetClass === "cfd") return resolveCfdSymbol(raw) ?? raw.toUpperCase();
   const up = raw.toUpperCase();
   if (up.includes("/")) return up;
   return assetClass === "crypto" ? `${up}/USD` : up;
@@ -115,6 +119,9 @@ export function isValidSymbol(
   universe: SymbolUniverse,
   silo: AssetClass,
 ): boolean {
+  // CFD validity keys off the FXCM classifier cache (loaded independently of
+  // the Alpaca catalogue), not the stocks/crypto sets.
+  if (silo === "cfd") return resolveCfdSymbol(tok) != null;
   const up = tok.toUpperCase();
   if (!universe.loaded) {
     const bare = up.includes("/") ? up.split("/")[0] : up;

@@ -482,6 +482,13 @@ export const addFxcmWatchlistInstrument = (instrument: string) =>
 export const removeFxcmWatchlistInstrument = (instrument: string) =>
   sendFxcmJSON<FxcmPrice[]>("DELETE", `/api/fxcm/watchlist/${instrument}`);
 
+// Report the CFD instruments currently on screen so the bridge subscribes them
+// (status T → live prices) and returns stale ones to D. Best-effort.
+export const setFxcmView = (instruments: string[]) =>
+  sendFxcmJSON<{ view: number; subscribed: number }>("POST", "/api/fxcm/view", {
+    instruments,
+  });
+
 export const getFxcmPositions = () =>
   getFxcmJSON<FxcmPosition[]>("/api/fxcm/positions");
 

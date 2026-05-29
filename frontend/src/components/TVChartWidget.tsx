@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef } from "react";
 import type { DockviewPanelApi } from "dockview-core";
 
 import { useTheme } from "../hooks/useTheme";
+import { useFxcmView } from "../lib/fxcm-view";
 import { createDatafeed } from "../lib/tv-datafeed";
 import type { TVWidgetInstance } from "../lib/tv-widget-handle";
 
@@ -70,6 +71,10 @@ export default function TVChartWidget({ symbol, onSymbolChange, assetClass, pane
   useEffect(() => {
     assetClassRef.current = assetClass;
   }, [assetClass]);
+
+  // In the CFD silo, keep the charted instrument subscribed so its bars/quotes
+  // stream (the FXCM datafeed only returns prices for subscribed instruments).
+  useFxcmView(symbol, assetClass === "cfd");
 
   // Latest theme for the async onChartReady path (a toggle can land while the
   // widget is still loading).

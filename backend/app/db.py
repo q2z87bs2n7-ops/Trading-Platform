@@ -237,8 +237,12 @@ def get_asset_profile(symbol: str) -> dict | None:
     """
     with _connect() as conn:
         cur = conn.cursor()
+        # Case-insensitive match: most rows store upper-case symbols, but FXCM
+        # stock CFDs keep a lower-case exchange suffix (e.g. "AAPL.us"), so a
+        # blind .upper() would miss them.
         cur.execute(
-            "SELECT " + ", ".join(_PROFILE_COLS) + " FROM assets WHERE symbol = %s",
+            "SELECT " + ", ".join(_PROFILE_COLS)
+            + " FROM assets WHERE UPPER(symbol) = %s",
             (symbol.strip().upper(),),
         )
         row = cur.fetchone()
