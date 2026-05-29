@@ -17,9 +17,11 @@ import { getFxcmPrices, pingRelayHealth, streamFxcmPrices } from "../api";
 import type { FxcmPrice } from "../types";
 import { qk, queryClient } from "./queryClient";
 
-// Fallback poll cadence — matches Scalp's prior 1 s /prices poll so the degraded
-// path is no worse than before the stream existed.
-const POLL_MS = 1000;
+// Fallback poll cadence (degraded mode only — never runs while the SSE stream
+// is healthy). Gentler than the old 1 s: on a relay restart/blip every open
+// client drops to this poll at once, so a tighter cadence stampedes the relay
+// exactly as it's recovering. 2.5 s is plenty for a fallback tile refresh.
+const POLL_MS = 2500;
 // Ping the Render relay every 9 minutes to prevent spindown-triggered fallback.
 const KEEPALIVE_MS = 9 * 60 * 1000;
 // On an SSE drop, restore the stream on an exponential backoff (3s → … → 60s).

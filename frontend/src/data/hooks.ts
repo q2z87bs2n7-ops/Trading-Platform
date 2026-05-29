@@ -50,20 +50,24 @@ export const usePositions = () =>
 // FXCM account/positions for the splash card. Polled gently — the splash is
 // a transient overlay, not a constantly-mounted surface, and CfdDiscoverPage
 // owns the fast (3s) loop when the silo is active.
-export const useFxcmAccount = (enabled = true) =>
+// `poll` (default on) keeps the 30s cadence for the live Portfolio/Allocation
+// CFD surfaces; pass false on the splash / Account Hub, where a fetch-once is
+// enough (the card paints live-on-open but doesn't need to keep ticking while
+// the overview overlay lingers).
+export const useFxcmAccount = (enabled = true, poll = true) =>
   useQuery({
     queryKey: qk.fxcmAccount,
     queryFn: api.getFxcmAccount,
-    refetchInterval: 30_000,
+    refetchInterval: poll ? 30_000 : false,
     retry: 0, // bridge offline returns 503; don't hammer it
     enabled,
   });
 
-export const useFxcmPositions = (enabled = true) =>
+export const useFxcmPositions = (enabled = true, poll = true) =>
   useQuery({
     queryKey: qk.fxcmPositions,
     queryFn: api.getFxcmPositions,
-    refetchInterval: 30_000,
+    refetchInterval: poll ? 30_000 : false,
     retry: 0,
     enabled,
   });

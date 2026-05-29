@@ -290,8 +290,10 @@ export default function AssetClassSplash({
   // shows live equity/positions on first load (not just after entering the
   // silo). Bridge offline → 503 with retry:0, so the card stays on its DASH
   // placeholder rather than reading $0.00.
-  const fxcmAccount = useFxcmAccount(true);
-  const fxcmPositions = useFxcmPositions(true);
+  // Fetch-once here (poll=false): the overview card paints live-on-open but
+  // doesn't need to keep polling the bridge while the splash/Hub lingers.
+  const fxcmAccount = useFxcmAccount(true, false);
+  const fxcmPositions = useFxcmPositions(true, false);
   const fxcmEquity = fxcmAccount.data?.equity ?? 0;
   const fxcmDay = fxcmAccount.data?.day_pl ?? 0;
   const fxcmDayPct = fxcmEquity - fxcmDay > 0 ? fxcmDay / (fxcmEquity - fxcmDay) : 0;
