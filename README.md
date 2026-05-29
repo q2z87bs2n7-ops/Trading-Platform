@@ -19,7 +19,9 @@ a tab left dormant longer than ~10 minutes re-shows the splash on its next load
 **Account Hub** (re-opened from the header brand mark) showing a whole-account
 overview: total equity, day P/L, buying power, and a stocks-vs-crypto-vs-cash
 split. The active silo tints the accent (green for Stocks, blue for Crypto,
-orange for CFDs). All silos share the same mode toggle (Workspace is desktop-only):
+orange for CFDs). All silos share the same mode toggle (Workspace is
+desktop-only; the CFD silo adds a desktop-only **Scalp** surface, entered
+from the splash CFD card rather than the mode toggle):
 
 - **Discover** (default)
   - *Stocks* — silo holdings + allocation donut (green), indices marquee
@@ -30,16 +32,17 @@ orange for CFDs). All silos share the same mode toggle (Workspace is desktop-onl
   - *Crypto* — live crypto price marquee, holdings + allocation hero (crypto
     positions only, blue), crypto watchlist sparkline cards, inline chart, BTC
     news. No movers/most-active (Alpaca has no crypto screener).
-  - *CFDs* — FXCM account hero (equity / balance / margin), a
-    **customisable watchlist** rendered as a SparkCard grid +
-    AddSymbolTile (same UX as stocks/crypto; backed by FXCM's
-    Endpoints-suite watchlist API so picks persist across browsers and
-    devices), and an **inline lightweight-charts** panel for the selected
-    instrument (candles from `/api/fxcm/history` with 1m / 5m / 15m / 1H
-    / 1D pills; live tip from the page's existing price poll). Click any
-    card to switch the chart; "Open ↗" jumps to full TV Chart mode.
-    Requires the FXCM bridge to be running; shows an offline notice
-    otherwise.
+  - *CFDs* — FXCM account hero (equity / balance / margin), the **AI
+    market summary** (forex/CFD desk note), a **customisable watchlist**
+    rendered as a SparkCard grid + AddSymbolTile (same UX as
+    stocks/crypto; backed by FXCM's Endpoints-suite watchlist API so picks
+    persist across browsers and devices), and an **inline
+    lightweight-charts** panel for the selected instrument (candles from
+    `/api/fxcm/history` with 1m / 5m / 15m / 1H / 1D pills; live tip from
+    the page's existing price poll). Market-discovery only — open
+    positions live on Portfolio. Click any card to switch the chart;
+    "Open ↗" jumps to full TV Chart mode. Requires the FXCM bridge to be
+    running; shows an offline notice otherwise.
 - **Portfolio** — siloed value + day P/L hero with a reconstructed per-silo
   **net P/L curve** (from `/api/pnl-history`), positions strip (one card per
   position, filtered to the active asset class), open-orders table, and
@@ -68,6 +71,14 @@ orange for CFDs). All silos share the same mode toggle (Workspace is desktop-onl
   accent bar + channel dot on the tab so the canvas reads at a glance.
   Widgets adapt to their panel size, and live quotes and bars are shared across
   them over single ref-counted streams.
+- **Scalp** (CFD silo only, desktop only) — a traditional forex-broker
+  **rapid-trade surface** and the main CFD trading entry. Reached from the
+  splash / Account Hub **CFD card's "⚡ Scalp"** affordance (not a header
+  pill). Live bid/ask **rate tiles** with up/down tick flashes and
+  one-click market orders, a per-instrument **deal ticket** with a
+  small-timeframe chart, lot-size presets, and an open-positions blotter
+  with quick-close. *Foundation/mock for design to refine — "ticks" ride a
+  1 s price poll and SL/TP is a visual stub; see `BACKLOG.md`.*
 
 The **Ask anything** bar (centred modal, teal accent) is available from every
 mode — press `⌘K` (or `Ctrl+K`), or click the "Ask anything" pill in the
@@ -102,10 +113,11 @@ top nav; preference persists in `localStorage`.
   Java replaced the old Python 3.7 + C++ ForexConnect wheel because the
   wheel was Windows CPython 3.7 only and not Linux-deployable.
 - **Frontend:** React + TypeScript (Vite) + Tailwind on the Calm v2 token
-  set (light + dark in oklch, Inter + IBM Plex Mono). Four modes —
+  set (light + dark in oklch, Inter + IBM Plex Mono). Four shared modes —
   Discover, Portfolio, Chart (the full Charting Library at
   `frontend/public/charting_library/` plus the violet ChartBot panel), and a
-  desktop-only **Workspace** (a Dockview widget canvas).
+  desktop-only **Workspace** (a Dockview widget canvas) — plus a CFD-only,
+  desktop-only **Scalp** surface entered from the splash CFD card.
   Cross-mode Ask anything bar runs locally without any LLM call. Layouts
   are responsive down to phones (≤640px): a slim header + slide-in nav
   drawer, card lists in place of tables, a full-bleed chart, and

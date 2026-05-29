@@ -70,8 +70,9 @@ to Linux (Render), unlike the old Python 3.7 + C++ ForexConnect wheel
 | `fxcm-bridge/java/target/fxcm-bridge-1.0.0.jar` | Built fat JAR (all deps bundled) |
 | `backend/app/fxcm.py` | FastAPI proxy router at `/api/fxcm/*` (bridge calls + watchlist Endpoints-suite proxy) |
 | `backend/app/fxcm_auth.py` | JWT mint + cache for the Endpoints suite (`/iam/authenticate`, 60s lifetime, re-mint every ~50s) |
-| `frontend/src/components/CfdDiscoverPage.tsx` | CFD Discover page |
-| `frontend/src/components/CfdPriceChart.tsx` | Inline lightweight-charts panel on CFD Discover (FXCM history + live-tip) |
+| `frontend/src/components/CfdDiscoverPage.tsx` | CFD Discover page (market-discovery only: account hero · AI market summary · inline chart · economic calendar — no positions panel) |
+| `frontend/src/components/CfdScalpPage.tsx` | **CFD Scalp mode** — forex-broker rapid-trade surface (bid/ask one-click rate tiles, deal ticket, positions blotter). MOCK/foundation: 1 s prices poll for "ticks", SL/TP is a visual stub. Entered from the splash CFD card's "⚡ Scalp" affordance, not a header pill. See `CLAUDE.md` → frontend modes |
+| `frontend/src/components/CfdPriceChart.tsx` | Inline lightweight-charts panel on CFD Discover + Scalp (FXCM history + live-tip) |
 | `frontend/src/api.ts` | FXCM API functions (`getFxcm*` block). Bridge-dependent calls use `STREAM_BASE` (Render). DB-only calls (`getFxcmDisplayNames`, `getFxcmUnderlyingUnits`, `searchFxcmInstruments`) use `API_BASE` (Vercel). |
 | `frontend/src/types.ts` | FXCM types (`FxcmAccount`, `FxcmPrice`, `FxcmBar`, `FxcmPosition`, `FxcmInstrument`) |
 | `frontend/src/lib/asset-class.ts` | FXCM-aware `isCfdSymbol` / `isCryptoSymbol`; cache populated at boot by App.tsx |

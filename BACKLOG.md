@@ -10,6 +10,23 @@ chart, the FXCM-aware classifier, and the full **Workspace** integration (CFD
 is a first-class silo across every widget) are all shipped (see `docs/fxcm.md`
 and `docs/workspace.md` for the full reference). Outstanding:
 
+- **CFD Scalp mode — productionise the MOCK.** `CfdScalpPage.tsx` is a
+  deliberate foundation for design to redo the front end; the intent is a
+  traditional forex-broker rapid-trade surface (bid/ask one-click rate
+  tiles, flashing ticks, deal ticket, small-frame chart). Known gaps to
+  close once design lands: (1) **real ticks** — the flashes currently ride
+  a 1 s `/api/fxcm/prices` poll; wire them to the FCLite push subscription
+  below so they're true tick-by-tick. (2) **SL/TP** — the deal-ticket
+  inputs are a visual stub; wire `stop`/`limit` into `submitFxcmOrder`
+  (the `FxcmOrderRequest` fields exist but are untested from the UI — the
+  proven path only sends OM market orders). (3) **fat-finger guard** —
+  one-click fires immediately with a toast; consider an arm/confirm
+  toggle. (4) **tick / sub-minute chart** — reuses `CfdPriceChart` (min
+  timeframe m1); a true tick chart needs the push feed. (5) **mobile** —
+  scalp is desktop-only (guard bounces mobile to Discover); design a phone
+  layout if wanted. (6) entry is the splash CFD card's "⚡ Scalp"
+  affordance — revisit discoverability (a header indicator while on scalp,
+  etc.).
 - **CFD Workspace Watchlist — Cards view** — the CFD Watchlist widget is
   **List-only** (mid price + live spread). The SparkCard grid + Cards/List/Auto
   toggle (as in stocks/crypto) need per-instrument daily bars; wire `useFxcmBars`

@@ -83,7 +83,13 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
   pill switches between four modes
   (persisted across reloads via `localStorage('platform_mode_v1')`;
   **Workspace** is desktop-only — a mobile reload that rehydrates
-  `workspace` falls back to Discover):
+  `workspace` falls back to Discover). A fifth mode, **Scalp**, exists
+  only in the **CFD silo** and is deliberately **not** a header pill —
+  it's a rapid-trade surface reached from the **CFD card's "⚡ Scalp"
+  affordance** on the splash / Account Hub (`CfdScalpPage.tsx`, see
+  below). It's desktop- and CFD-only; a rehydrated `mode=scalp` on
+  mobile or in a non-CFD silo falls back to Discover (mirrors the
+  Workspace guard):
   - **Discover** (default) — one parameterized surface, `DiscoverPage.tsx`
     (`assetClass` prop), sharing the hero / AI summary / watchlist / inline
     chart / news scaffold across both silos and branching only where they
@@ -145,12 +151,43 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
       watchlist sidebar, inline chart, BTC news feed. No movers/most-active
       (Alpaca has no crypto screener).
     - *CFDs*: separate page (`CfdDiscoverPage.tsx`) — same 2-col shell
-      (watchlist sidebar + FXCM account hero / positions panel / inline
-      `CfdPriceChart` / economic calendar gated on the FXCM-derived country
-      set). Watchlist mutations go through the JWT-backed FXCM Endpoints
-      suite (`/api/fxcm/watchlist`); chart bars stream from
+      (watchlist sidebar + FXCM account hero / **AI market summary** /
+      inline `CfdPriceChart` / economic calendar gated on the FXCM-derived
+      country set). The old inline **open-positions panel was removed** so
+      CFD Discover is **market-discovery only**, consistent with the
+      stocks/crypto Discover surfaces — open positions live on Portfolio.
+      The AI market summary uses the same `MarketSummaryCard` +
+      `useMarketSummary(wlSymbols, "cfd")` as the other silos, with a
+      forex/CFD-flavoured desk-note prompt (USD tone, majors, gold,
+      indices, one macro headline; steers off the Alpaca portfolio tools
+      since the Ask backend doesn't cover FXCM instruments). Own
+      `cfd_market_summary_v1` cache + UTC session windows (Asia / London /
+      NY / Late). Watchlist mutations go through the JWT-backed FXCM
+      Endpoints suite (`/api/fxcm/watchlist`); chart bars stream from
       `/api/fxcm/history` with a 3 s `/api/fxcm/prices` poll for the live
       tip. Full surface inventory in `docs/fxcm.md`.
+  - **Scalp** (CFD-only, desktop-only — `CfdScalpPage.tsx`) — a
+    traditional forex-broker rapid-trade surface and the platform's
+    **main CFD trading entry**. Reached from the splash / Account Hub
+    CFD card's "⚡ Scalp" affordance (`enterMarket("cfd", "scalp")`), not
+    a header pill. Layout: an account/control strip (equity · day P/L ·
+    free margin · live open P/L · lot-size presets 1K/10K/50K/100K
+    units), a **rate matrix** of live bid/ask tiles (one per watchlist
+    instrument) with **up/down tick flashes**, broker-style
+    big-figure/pips/tenth price rendering, spread chip, and a net
+    position/P&L footer; a **deal-ticket focus column** (selected
+    instrument's big bid/ask, one-click Buy/Sell, small-timeframe chart
+    reusing `CfdPriceChart`, its open positions); and an
+    **open-positions blotter** with per-row + close-all. One-click
+    submits **market (OM) orders** via `useFxcmSubmitOrder` at the
+    selected lot (clamped to per-instrument `base_unit_size`).
+    **Status — MOCK / FOUNDATION for design to redo:** "live" ticks
+    ride a **1 s `/api/fxcm/prices` poll** (no FCLite per-tick push yet —
+    see BACKLOG; `subscribeBars` is still a no-op), and **SL/TP is a
+    visual stub** (bridge stop/limit params untested from here, so they
+    aren't sent). No order confirm/arm step — clicks fire immediately
+    with a toast. Instruments are subscribed via `useFxcmView` so the
+    bridge keeps them on status T (live bid/ask).
   - **Portfolio** — Unified `PortfolioHero` (siloed: silo holdings on the
     left with the **net P/L curve** from `/api/pnl-history` + day chip,
     plus a 2-col stat grid on the right — stocks show Cash · BP · Net
@@ -521,7 +558,7 @@ new surface. Full rules, precedents, and examples: `docs/workspace.md` →
 | Key | Writer | Read by | Notes |
 | --- | ------ | ------- | ----- |
 | `asset_class_mode` | `App.tsx` | `App.tsx` | `"stocks" \| "crypto" \| "cfd"`. **Load-bearing** — the silo the app boots into on subsequent loads (post-splash). Also highlights the active card in the Account Hub. Legacy `"forex"` values are migrated to `"cfd"` on read. |
-| `platform_mode_v1` | `App.tsx` | `App.tsx` | `"discover" \| "portfolio" \| "chart" \| "workspace"`. The header-pill mode the app boots into. A mobile reload that rehydrates `workspace` falls back to `discover` (workspace is desktop-only). |
+| `platform_mode_v1` | `App.tsx` | `App.tsx` | `"discover" \| "portfolio" \| "chart" \| "scalp" \| "workspace"`. The mode the app boots into. `workspace` is desktop-only; `scalp` is CFD- and desktop-only (and entered from the splash CFD card, not a header pill). A reload that rehydrates `workspace` on mobile — or `scalp` on mobile / in a non-CFD silo — falls back to `discover`. |
 | `splash_seen_v1` | `App.tsx` | `App.tsx` | `"1"` once the user has picked a silo from the splash. Subsequent loads skip the splash and land on the `asset_class_mode` silo **only while the session is fresh** (see `last_active_at`). Clearing this key restores the first-time landing. |
 | `last_active_at` | `App.tsx` + `lib/session.ts` | `App.tsx` (`shouldShowSplash`) | Epoch-ms of last activity (mount · interaction, throttled 15s · tab focus · pagehide). Gates the resume-on-reload behaviour: if a load happens > `SESSION_TTL_MS` (10 min) after the last activity — or the key is absent — the splash re-shows instead of resuming the last silo/mode. Boot-only check (never interrupts a mounted session). A **service-worker reset** (`disableServiceWorker`) calls `expireSession()` (removes this key) so the post-reset reload lands on the splash. Primitives live in `lib/session.ts`. |
 | `theme` | `hooks/useTheme.ts` + `index.html` bootstrap | both | `"light" \| "dark"`. Defaults to OS preference. |
@@ -529,7 +566,7 @@ new surface. Full rules, precedents, and examples: `docs/workspace.md` →
 | `chartbot_session` | `useChatSession` | `useChatSession` | Serialised turns + apiHistory, capped at 256 KB. |
 | `ask_session_v1` | `components/ask/AskBar.tsx` | `components/ask/AskBar.tsx` | Ask-anything transcript + apiHistory, capped at 256 KB. Each fallback turn stores its `cachedResp` so a reopen / reload replays the answer without re-billing Anthropic; workspace_actions and watchlist invalidations are **not** re-replayed from cache. Header **Clear** button (visible only when there are turns) wipes the key. Eviction drops the oldest turn (and matching user+assistant pair) when over budget. |
 | `ai_drawings_v1` | `tv-drawings.ts` | `tv-drawings.ts` | Per-symbol drawing UUIDs replayed on chart load. |
-| `market_summary_v1` / `crypto_market_summary_v1` | `useMarketSummary` | `useMarketSummary` + Ask-anything summary card | Per-silo cached AI market summary (window, date, content). |
+| `market_summary_v1` / `crypto_market_summary_v1` / `cfd_market_summary_v1` | `useMarketSummary` | `useMarketSummary` + Ask-anything summary card | Per-silo cached AI market summary (window, date, content). CFD uses UTC session windows (Asia / London / NY / Late) and a forex/CFD desk-note prompt; stocks use EST open/close windows. |
 | `app_settings_v1` | `lib/settings.ts` | `useSettings` + `SettingsMenu` + `MobileNavDrawer` | JSON-encoded `AppSettings`. Three per-surface AI toggles, each default `false` (opt-in — no Anthropic credits until enabled): `marketSummaryAiEnabled` / `askAiEnabled` / `chartbotEnabled`. When a surface is off it renders a shared `AiDisabledNotice` ("…enable in Settings") instead of calling Claude — except the Discover market summary, which still surfaces its last cached briefing (with an "AI off" hint) when one exists and only falls back to the notice when nothing is cached. |
 | `workspace_layouts_stocks_v2` / `workspace_layouts_crypto_v2` | `components/Workspace.tsx` | `components/Workspace.tsx` | Per-silo Workspace layouts — `{ active: { name, layout }, saved: {} }`. `active.layout` is the live Dockview `api.toJSON()`; `active.name` records the last-applied preset (Trader / Researcher / Watcher / Focus). `saved` holds the user's named layouts (the "My layouts" section of the in-canvas Layouts menu — Save current as… / Apply / Rename / Delete); each entry is `{ layout, channels }`, snapshotting both the Dockview JSON and that silo's colour-channel symbols, so Apply restores the arrangement *and* the per-channel tickers. Migrates transparently from the old `workspace_layout_{silo}_v1` (raw layout) on first load after upgrade; the v1 key is then removed. Applying a preset/custom layout clears only `active` (the `saved` map survives). |
 | `workspace_channels_v1` | `components/Workspace.tsx` | `components/Workspace.tsx` | Per-silo colour-channel symbols (`{stocks,crypto}` → channel → symbol). Seeded from `CHANNEL_DEFAULTS`; persists header-search picks across reloads. "main" is not stored here (it proxies the app's selected symbol). |
@@ -571,7 +608,8 @@ Accent colour is the tell: **teal = local intent parser** (free, instant) —
 the Ask anything module (`components/ask/` + `lib/ask-intent/`), available in
 all modes, with an optional `/api/ai/ask` fallback that adds watchlist/report
 and Workspace-control tools. **violet = real Claude API call** (Anthropic
-credits, slow) — the Discover AI market summary and the Chart-mode ChartBot
+credits, slow) — the Discover AI market summary (now on **all three silos**,
+incl. the forex/CFD desk note) and the Chart-mode ChartBot
 side panel (`backend/app/ai/router.py` hybrid tool loop). All three surfaces
 are opt-in via per-surface toggles in `app_settings_v1` (default off; off
 renders a shared `AiDisabledNotice`). Tunables: `AI_CHAT_ENABLED`,
