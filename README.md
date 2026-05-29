@@ -77,8 +77,8 @@ from the splash CFD card rather than the mode toggle):
   pill). Live bid/ask **rate tiles** with up/down tick flashes and
   one-click market orders, a per-instrument **deal ticket** with a
   small-timeframe chart, lot-size presets, and an open-positions blotter
-  with quick-close. *Foundation/mock for design to refine — "ticks" ride a
-  1 s price poll and SL/TP is a visual stub; see `BACKLOG.md`.*
+  with quick-close. *Foundation/mock for design to refine — ticks ride the
+  live SSE price stream and SL/TP is a visual stub; see `BACKLOG.md`.*
 
 The **Ask anything** bar (centred modal, teal accent) is available from every
 mode — press `⌘K` (or `Ctrl+K`), or click the "Ask anything" pill in the
