@@ -18,6 +18,7 @@ import Activities from "./components/Activities";
 import { HeaderEquityReadout, HeaderStatusInline } from "./components/TopBar";
 import DiscoverPage from "./components/DiscoverPage";
 import CfdDiscoverPage from "./components/CfdDiscoverPage";
+import CfdScalpPage from "./components/CfdScalpPage";
 import AssetClassSplash from "./components/AssetClassSplash";
 import AllocationDonut from "./components/AllocationDonut";
 import PortfolioHero from "./components/PortfolioHero";
@@ -40,7 +41,7 @@ import { useMobile } from "./hooks/useMobile";
 // out of the initial bundle, mirroring how the charting library is deferred.
 const Workspace = lazy(() => import("./components/Workspace"));
 
-type PlatformMode = "discover" | "portfolio" | "chart" | "workspace";
+type PlatformMode = "discover" | "portfolio" | "chart" | "scalp" | "workspace";
 type AssetClassMode = "stocks" | "crypto" | "cfd";
 
 function readAssetClassMode(): AssetClassMode | null {
@@ -65,14 +66,21 @@ function readSplashSeen(): boolean {
 const PLATFORM_MODE_KEY = "platform_mode_v1";
 function readPlatformMode(): PlatformMode {
   const raw = localStorage.getItem(PLATFORM_MODE_KEY);
-  if (raw === "discover" || raw === "portfolio" || raw === "chart" || raw === "workspace") {
+  if (
+    raw === "discover" ||
+    raw === "portfolio" ||
+    raw === "chart" ||
+    raw === "scalp" ||
+    raw === "workspace"
+  ) {
     return raw;
   }
   return "discover";
 }
 
 // "workspace" is desktop-only; the mobile header renders its own pill set and
-// deliberately omits it.
+// deliberately omits it. "scalp" is a CFD-only rapid-trade surface, injected
+// into the pill row only when the CFD silo is active (see `modes` below).
 const MODES: { value: PlatformMode; label: string }[] = [
   { value: "discover", label: "Discover" },
   { value: "portfolio", label: "Portfolio" },
@@ -274,6 +282,12 @@ export default function App() {
   const alpacaSilo: "stocks" | "crypto" = activeClass === "crypto" ? "crypto" : "stocks";
   const symbols = (activeClass === "crypto" ? cryptoWl?.symbols : wl?.symbols) ?? [];
 
+  // CFD silo gains a "Scalp" pill (after Chart) for the rapid-trade surface.
+  const modes: { value: PlatformMode; label: string }[] =
+    activeClass === "cfd"
+      ? [...MODES.slice(0, 3), { value: "scalp", label: "Scalp" }, ...MODES.slice(3)]
+      : MODES;
+
   useEffect(() => {
     if (!selected && symbols.length) setSelected(symbols[0]);
   }, [symbols.join(","), selected]);
@@ -284,6 +298,13 @@ export default function App() {
   useEffect(() => {
     if (isMobile && mode === "workspace") switchMode("discover");
   }, [isMobile, mode]);
+
+  // Scalp is a CFD-only, desktop-oriented surface. If a rehydrated mode=scalp
+  // lands while the active silo isn't CFD (or on mobile, which has no scalp
+  // pill), fall back to Discover so the user isn't stranded on a hidden mode.
+  useEffect(() => {
+    if (mode === "scalp" && (activeClass !== "cfd" || isMobile)) switchMode("discover");
+  }, [mode, activeClass, isMobile]);
 
   // Self-reload when the deployed build differs from this tab's bundle, so a
   // long-lived tab picks up new code (incl. the maintenance gate) on its own.
@@ -521,7 +542,7 @@ export default function App() {
           <div
             className="inline-flex items-center gap-1 justify-self-center"
           >
-            {MODES.map((m) => (
+            {modes.map((m) => (
               <ModePill
                 key={m.value}
                 active={mode === m.value}
@@ -562,6 +583,16 @@ export default function App() {
           assetClass={activeClass}
           selected={selected}
           onSelect={setSelected}
+        />
+      )}
+
+      {/* Scalp — CFD-only rapid-trade surface (bid/ask one-click, live tiles).
+         Desktop-only; the guard above kicks mobile/non-CFD back to Discover. */}
+      {mode === "scalp" && activeClass === "cfd" && !isMobile && (
+        <CfdScalpPage
+          selected={selected}
+          onSelectSymbol={setSelected}
+          onOpenChart={() => switchMode("chart")}
         />
       )}
 

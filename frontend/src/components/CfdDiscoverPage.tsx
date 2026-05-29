@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as api from "../api";
-import type { FxcmAccount, FxcmPosition, FxcmPrice } from "../types";
+import type { FxcmAccount, FxcmPrice } from "../types";
 import { fmtCfdPrice, money } from "../lib/format";
 import { fxcmCountrySet } from "../lib/fxcm-countries";
 import {
@@ -8,11 +8,11 @@ import {
   useFxcmBars,
   useFxcmDisplayNames,
   useFxcmInstruments,
-  useFxcmUnderlyingUnit,
   useFxcmWatchlistAdd,
   useFxcmWatchlistQuery,
   useFxcmWatchlistRemove,
 } from "../data/hooks";
+import { useMarketSummary } from "../hooks/useMarketSummary";
 // Note: selectedDailyBars below shares its cache key with CfdWatchlistCard's
 // useFxcmBars call, so the React Query layer dedupes when the user picks a
 // watchlist row (no extra network).
@@ -23,7 +23,7 @@ import { SparkCard, SparkCardSkeleton } from "./discover/SparkCard";
 import { StickyChartBar } from "./discover/StickyChartBar";
 import { showToast } from "../lib/toast";
 import SectionHeading from "./SectionHeading";
-import FxcmOrderSheet from "./trade/FxcmOrderSheet";
+import MarketSummaryCard from "./MarketSummaryCard";
 import CfdPriceChart from "./CfdPriceChart";
 import { useMobile } from "../hooks/useMobile";
 
@@ -168,99 +168,6 @@ function CfdWatchlistCard({
   );
 }
 
-// ── Positions panel ────────────────────────────────────────────────────────────
-
-function FxcmPositions({
-  positions,
-  prices,
-  onClose,
-  dn,
-}: {
-  positions: FxcmPosition[];
-  prices: Map<string, FxcmPrice>;
-  onClose: (tradeId: string | number) => void;
-  dn: (name: string) => string;
-}) {
-  const unit = useFxcmUnderlyingUnit();
-  const [closing, setClosing] = useState<string | null>(null);
-
-  if (positions.length === 0) {
-    return (
-      <div className="px-4 py-6 text-center text-[13px]" style={{ color: "var(--mute)" }}>
-        No open positions
-      </div>
-    );
-  }
-
-  async function handleClose(tradeId: string | number) {
-    setClosing(String(tradeId));
-    try {
-      await onClose(tradeId);
-    } finally {
-      setClosing(null);
-    }
-  }
-
-  return (
-    <div>
-      {positions.map((pos) => {
-        const tid = String(pos.trade_id ?? pos.offer_id ?? Math.random());
-        const instrument = String(pos.instrument ?? "");
-        const current = prices.get(instrument);
-        const currentRate = pos.buy_sell === "B" ? current?.bid : current?.ask;
-        const openRate = pos.open ?? pos.open_rate;
-        const pl = typeof pos.pl === "number" ? pos.pl : (typeof pos.gross_pl === "number" ? pos.gross_pl : 0);
-        const plUp = pl >= 0;
-
-        return (
-          <div
-            key={tid}
-            className="flex items-center px-4 py-3 gap-3 flex-wrap"
-            style={{ borderBottom: "1px solid var(--hairline)" }}
-          >
-            <div className="flex flex-col min-w-0 flex-1">
-              <span className="text-[13px] font-semibold">{dn(instrument)}</span>
-              <span className="text-[11px]" style={{ color: "var(--mute)" }}>
-                {pos.buy_sell === "B" ? "Buy" : "Sell"} · {pos.amount ?? "—"} {unit(instrument)}
-              </span>
-            </div>
-            <div className="flex gap-4 tabular-nums text-[12px]">
-              <div className="flex flex-col items-end">
-                <span style={{ color: "var(--mute)", fontSize: 10 }}>Open</span>
-                <span>{fmtCfdPrice(typeof openRate === "number" ? openRate : undefined, current?.digits ?? instrument)}</span>
-              </div>
-              <div className="flex flex-col items-end">
-                <span style={{ color: "var(--mute)", fontSize: 10 }}>Current</span>
-                <span>{fmtCfdPrice(currentRate, current?.digits ?? instrument)}</span>
-              </div>
-              <div className="flex flex-col items-end">
-                <span style={{ color: "var(--mute)", fontSize: 10 }}>P&amp;L</span>
-                <span style={{ color: plUp ? "var(--pos)" : "var(--neg)", fontWeight: 600 }}>
-                  {fmtPl(pl)}
-                </span>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => handleClose(tid)}
-              disabled={closing === tid}
-              className="text-[11.5px] font-medium px-2.5 py-1 rounded border cursor-pointer"
-              style={{
-                background: "var(--neg-bg)",
-                borderColor: "color-mix(in oklch, var(--neg) 30%, transparent)",
-                color: "var(--neg)",
-                opacity: closing === tid ? 0.5 : 1,
-              }}
-            >
-              {closing === tid ? "Closing…" : "Close"}
-            </button>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const POLL_INTERVAL_MS = 3000;
@@ -274,8 +181,6 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
   const [bridgeOk, setBridgeOk] = useState<boolean | null>(null);
   const [account, setAccount] = useState<FxcmAccount | null>(null);
   const [prices, setPrices] = useState<FxcmPrice[]>([]);
-  const [positions, setPositions] = useState<FxcmPosition[]>([]);
-  const [orderSheetOpen, setOrderSheetOpen] = useState(false);
   const [selected, setSelected] = useState<string>("");
   const isMobile = useMobile();
   // Ref attached to the inline chart card — drives the shared StickyChartBar
@@ -323,15 +228,13 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
         return;
       }
       try {
-        const [acct, pr, pos] = await Promise.all([
+        const [acct, pr] = await Promise.all([
           api.getFxcmAccount(),
           api.getFxcmPrices(),
-          api.getFxcmPositions(),
         ]);
         if (!cancelled) {
           setAccount(acct);
           setPrices(pr);
-          setPositions(pos);
         }
       } catch { /* non-fatal */ }
     }
@@ -343,12 +246,7 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
     if (!bridgeOk) return;
     const tick = async () => {
       try {
-        const [pr, pos] = await Promise.all([
-          api.getFxcmPrices(),
-          api.getFxcmPositions(),
-        ]);
-        setPrices(pr);
-        setPositions(pos);
+        setPrices(await api.getFxcmPrices());
       } catch { /* bridge went away — leave last data visible */ }
     };
     const id = setInterval(tick, POLL_INTERVAL_MS);
@@ -366,13 +264,10 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
     [watchlist.data],
   );
 
-  async function handleClosePosition(tradeId: string | number) {
-    await api.closeFxcmPosition(tradeId);
-    try {
-      const pos = await api.getFxcmPositions();
-      setPositions(pos);
-    } catch { /* leave stale */ }
-  }
+  // AI market summary — same surface as stocks/crypto Discover, with a
+  // forex/CFD-flavoured prompt. Gated by the marketSummaryAiEnabled setting
+  // (the card renders its own "AI off" notice when disabled).
+  const marketSummary = useMarketSummary(wlSymbols, "cfd");
 
   useEffect(() => {
     if (!selected && wlSymbols.length > 0) {
@@ -494,40 +389,18 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
       />
       <FxcmAccountHero account={account} />
 
-      {/* Positions */}
-      {bridgeOk && (
-        <div
-          className="mt-4"
-          style={{
-            background: "var(--panel)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--r)",
-            boxShadow: "var(--shadow-sm)",
-            overflow: "hidden",
-          }}
-        >
-          <div
-            className="px-4 py-3 flex items-center justify-between"
-            style={{ borderBottom: "1px solid var(--hairline)" }}
-          >
-            <span className="text-[13px] font-semibold">Open Positions</span>
-            {positions.length > 0 && (
-              <span
-                className="inline-flex items-center justify-center text-[10.5px] font-semibold tabular-nums rounded-full px-2"
-                style={{ background: "var(--accent-bg)", color: "var(--accent)", minWidth: 20, height: 18 }}
-              >
-                {positions.length}
-              </span>
-            )}
-          </div>
-          <FxcmPositions
-            positions={positions}
-            prices={priceMap}
-            onClose={handleClosePosition}
-            dn={dn}
-          />
-        </div>
-      )}
+      {/* AI market summary — mirrors stocks/crypto Discover. Open positions
+         deliberately live on Portfolio now, not here, so the CFD Discover
+         surface stays market-discovery only and consistent across silos. */}
+      <div className="mt-4">
+        <MarketSummaryCard
+          cache={marketSummary.cache}
+          isGenerating={marketSummary.isGenerating}
+          windowLabel={marketSummary.windowLabel}
+          onDismiss={marketSummary.dismiss}
+          disabled={marketSummary.disabled}
+        />
+      </div>
 
       {/* Inline chart */}
       {bridgeOk && selected && (
@@ -689,18 +562,6 @@ export default function CfdDiscoverPage({ onSelectSymbol, onOpenChart }: CfdDisc
           </aside>
           <main className="min-w-0">{mainContent}</main>
         </div>
-      )}
-
-      {/* Order sheet — sources from the full /api/fxcm/prices feed so the
-         picker covers every instrument, not just the watchlist subset. */}
-      {orderSheetOpen && (
-        <FxcmOrderSheet
-          instruments={prices}
-          onClose={() => setOrderSheetOpen(false)}
-          onSubmitted={() => {
-            api.getFxcmPositions().then(setPositions).catch(() => {});
-          }}
-        />
       )}
     </div>
   );

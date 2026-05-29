@@ -14,11 +14,11 @@ export interface MarketSummaryCache {
   dismissed: boolean;
 }
 
-// Per-silo cache so the stocks and crypto summaries never clobber each other.
+// Per-silo cache so the stocks / crypto / CFD summaries never clobber each other.
 function lsKey(assetClass: AssetClass): string {
-  return assetClass === "crypto"
-    ? "crypto_market_summary_v1"
-    : "market_summary_v1";
+  if (assetClass === "crypto") return "crypto_market_summary_v1";
+  if (assetClass === "cfd") return "cfd_market_summary_v1";
+  return "market_summary_v1";
 }
 
 const STOCK_WINDOW_LABELS: Record<SummaryWindow, string> = {
@@ -37,19 +37,35 @@ const CRYPTO_WINDOW_LABELS: Record<SummaryWindow, string> = {
   close: "Crypto Update · 18–24 UTC",
 };
 
+// FX trades around the clock on weekdays; label by the dominant session in
+// each UTC bucket so the desk note reads like a forex briefing.
+const CFD_WINDOW_LABELS: Record<SummaryWindow, string> = {
+  overnight: "FX Desk · Asia (00–06 UTC)",
+  open: "FX Desk · London (06–12 UTC)",
+  midday: "FX Desk · New York (12–18 UTC)",
+  close: "FX Desk · Late (18–24 UTC)",
+};
+
 export function windowLabel(w: SummaryWindow, assetClass: AssetClass): string {
-  return (assetClass === "crypto" ? CRYPTO_WINDOW_LABELS : STOCK_WINDOW_LABELS)[w];
+  const labels =
+    assetClass === "crypto"
+      ? CRYPTO_WINDOW_LABELS
+      : assetClass === "cfd"
+        ? CFD_WINDOW_LABELS
+        : STOCK_WINDOW_LABELS;
+  return labels[w];
 }
 
 function getDateStr(assetClass: AssetClass): string {
   return new Date().toLocaleDateString("en-CA", {
-    timeZone: assetClass === "crypto" ? "UTC" : "America/New_York",
+    timeZone: assetClass === "stocks" ? "America/New_York" : "UTC",
   });
 }
 
 export function getCurrentWindow(assetClass: AssetClass): SummaryWindow {
-  if (assetClass === "crypto") {
-    // Four fixed 6-hour UTC buckets (24/7 market, no open/close).
+  if (assetClass !== "stocks") {
+    // Crypto + CFD both run on fixed 6-hour UTC buckets (no equities-style
+    // open/close bell).
     const h =
       Number(
         new Date().toLocaleTimeString("en-US", {
@@ -159,14 +175,39 @@ function buildCryptoPrompt(w: SummaryWindow, watchlistSymbols: string[]): string
   );
 }
 
+// CFD/FXCM silo. The Ask backend steers the model off the Alpaca portfolio
+// tools for asset_class="cfd" (they don't cover FXCM instruments), so this
+// prompt leans on macro/FX narrative + one real headline rather than the
+// account-data tools the stock/crypto briefings use.
+function buildCfdPrompt(w: SummaryWindow, watchlistSymbols: string[]): string {
+  const ctx: Record<SummaryWindow, string> = {
+    overnight: "Asian-session",
+    open: "London-session",
+    midday: "New York-session",
+    close: "late-session",
+  };
+  const wl =
+    watchlistSymbols.length > 0
+      ? ` The desk is watching: ${watchlistSymbols.slice(0, 10).join(", ")}.`
+      : "";
+  return (
+    `Write a 150–200 word ${ctx[w]} FX & CFD market briefing in the voice of a forex trading-desk note — one continuous paragraph, no section labels or lists.` +
+    ` Cover the US dollar's tone, the major pairs (EUR/USD, GBP/USD, USD/JPY), gold (XAU/USD), and the major equity indices (US30, SPX500, NAS100) as risk barometers.` +
+    ` Use get_news without a symbol to ground the note in one real macro headline.` +
+    ` Do NOT call get_positions, get_orders, get_movers, or get_trending_stocks — this silo trades FXCM CFDs, not the Alpaca account.` +
+    wl +
+    ` Blend the dollar tone, key pairs, gold, indices, and the headline into a single flowing narrative — do not narrate the tool calls.`
+  );
+}
+
 function buildPrompt(
   w: SummaryWindow,
   watchlistSymbols: string[],
   assetClass: AssetClass,
 ): string {
-  return assetClass === "crypto"
-    ? buildCryptoPrompt(w, watchlistSymbols)
-    : buildStockPrompt(w, watchlistSymbols);
+  if (assetClass === "crypto") return buildCryptoPrompt(w, watchlistSymbols);
+  if (assetClass === "cfd") return buildCfdPrompt(w, watchlistSymbols);
+  return buildStockPrompt(w, watchlistSymbols);
 }
 
 export function useMarketSummary(
