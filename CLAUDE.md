@@ -170,7 +170,9 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
     traditional forex-broker rapid-trade surface and the platform's
     **main CFD trading entry**. Reached from the splash / Account Hub
     CFD card's "⚡ Scalp" affordance (`enterMarket("cfd", "scalp")`), not
-    a header pill. Layout: an account/control strip (equity · day P/L ·
+    a header pill. Layout is a **single-column stack on every viewport**
+    (desktop mirrors the iPad flow — no narrow side rail): an
+    account/control strip (equity · day P/L ·
     free margin · live open P/L · **per-instrument-type lot presets** —
     FX in 1K/10K/50K/100K units, non-FX in `1/5/10/25 × base_unit_size`
     contracts; the control stores a 0–3 level and each tile resolves its

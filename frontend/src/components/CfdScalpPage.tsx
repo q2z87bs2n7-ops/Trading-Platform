@@ -674,7 +674,10 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
         </button>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_360px] items-start">
+      {/* Single-column stack (matches the iPad layout): rate matrix on top,
+         then the chart in the main flow with the Buy/Sell deal ticket right
+         beneath it — not tucked into a narrow side rail. */}
+      <div className="flex flex-col gap-4">
         {/* Rate matrix */}
         <div>
           {watchlist.isPending ? (
@@ -723,8 +726,8 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
           )}
         </div>
 
-        {/* Focus column — selected instrument deal ticket + chart */}
-        <aside className="flex flex-col gap-4" style={{ position: "sticky", top: 16 }}>
+        {/* Chart + deal ticket — the chart leads, Buy/Sell sits right below it. */}
+        <section className="flex flex-col gap-4">
           {selected && selectedPrice ? (
             <>
               {/* Chart first — it drives the action. Scalping preset: opens on
@@ -815,7 +818,7 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
               Pick an instrument tile to open the deal ticket.
             </div>
           )}
-        </aside>
+        </section>
       </div>
 
       {/* Open-positions blotter */}
