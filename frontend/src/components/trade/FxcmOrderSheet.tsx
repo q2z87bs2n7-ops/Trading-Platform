@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useFxcmDisplayNames, useFxcmSubmitOrder, useFxcmUnderlyingUnit } from "../../data/hooks";
+import { useAutoSelect } from "./orderSheetParts";
 import type { FxcmPrice } from "../../types";
 
 interface Props {
@@ -32,6 +33,8 @@ export default function FxcmOrderSheet({ instruments, defaultInstrument, default
   const [error, setError] = useState<string | null>(null);
   const submit = useFxcmSubmitOrder();
   const submitting = submit.isPending;
+  // Open with the amount field highlighted (launched from the TradeBar).
+  const amountRef = useAutoSelect(true);
 
   const needsRate = orderType === "EN";
   const selectedPrice = instruments.find((p) => p.instrument === instrument);
@@ -191,6 +194,7 @@ export default function FxcmOrderSheet({ instruments, defaultInstrument, default
         <div className="flex flex-col gap-1">
           <label className="text-[11.5px]" style={{ color: "var(--mute)" }}>Amount ({unit(instrument)})</label>
           <input
+            ref={amountRef}
             type="number"
             min={amountStep}
             step={amountStep}

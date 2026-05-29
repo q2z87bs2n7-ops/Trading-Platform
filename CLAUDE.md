@@ -364,7 +364,12 @@ alongside the relay (see "Four runtime targets").
   UI surfaces in `components/trade/`: `OrderSheet.tsx` (shell +
   desktop body), `OrderSheetMobile.tsx` (mobile body),
   `orderSheetParts.tsx` (shared `Chip`/`Stepper`/`AmountToggle`/
-  `DollarInput`/`MobileHalfSheet`/`segStyle`/`TYPE_LABEL`/`TIF_LABEL`).
+  `DollarInput`/`MobileHalfSheet`/`segStyle`/`TYPE_LABEL`/`TIF_LABEL`/
+  `useAutoSelect`). The amount field opens **focused + highlighted** when
+  the ticket is launched from the floating `TradeBar` (`useAutoSelect`,
+  rAF-deferred focus+select) across all silos — `OrderSheet` desktop +
+  mobile bodies and `FxcmOrderSheet`; the Workspace `OrderTicketInline`
+  deliberately doesn't auto-focus (it's a docked widget, not a modal).
   The default export of `OrderSheet.tsx` still picks mobile vs desktop
   via `useMobile()`, and it re-exports the parts so legacy
   `from "./OrderSheet"` imports keep working. The mobile and desktop

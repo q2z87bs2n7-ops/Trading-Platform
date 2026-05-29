@@ -284,12 +284,13 @@ export default function OrderSheet({
                 )}
               </div>
               {dollars ? (
-                <DollarInput value={t.notional} onChange={t.setNotional} />
+                <DollarInput value={t.notional} onChange={t.setNotional} autoFocus />
               ) : (
                 <Stepper
                   value={t.qty}
                   onChange={t.setQty}
                   fractional={!!t.asset?.fractionable}
+                  autoFocus
                 />
               )}
               <div className="flex flex-wrap gap-2 mt-2">

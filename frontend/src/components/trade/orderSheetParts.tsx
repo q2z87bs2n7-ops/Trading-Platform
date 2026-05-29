@@ -3,7 +3,31 @@
 // and OrderTicketInline can pull from one place without dragging in the full
 // 1.4k-line file. Pure presentation — no business logic lives here.
 
+import { useEffect, useRef } from "react";
+
 import type { OType, TIF } from "../../hooks/useOrderTicket";
+
+// Focus + select an input on mount when `enabled`, so the amount field opens
+// already highlighted (type-to-replace) when the ticket is launched from the
+// floating TradeBar. Shared by the Stepper / DollarInput and the mobile qty box.
+export function useAutoSelect(enabled: boolean) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    // Defer one frame so the focus/select lands after the sheet's initial
+    // state settles (e.g. FXCM resets the amount on mount) and the open
+    // animation has started.
+    const id = requestAnimationFrame(() => {
+      const el = ref.current;
+      if (el) {
+        el.focus();
+        el.select();
+      }
+    });
+    return () => cancelAnimationFrame(id);
+  }, [enabled]);
+  return ref;
+}
 
 export const money = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD" });
@@ -69,12 +93,15 @@ export function Stepper({
   value,
   onChange,
   fractional,
+  autoFocus = false,
 }: {
   value: number;
   onChange: (n: number) => void;
   fractional: boolean;
+  autoFocus?: boolean;
 }) {
   const step = fractional ? 0.01 : 1;
+  const inputRef = useAutoSelect(autoFocus);
   const bump = (delta: number) =>
     onChange(Math.max(0, Number((value + delta).toFixed(fractional ? 2 : 0))));
   return (
@@ -100,6 +127,7 @@ export function Stepper({
         −
       </button>
       <input
+        ref={inputRef}
         type="number"
         min={0}
         step={step}
@@ -174,11 +202,14 @@ export function DollarInput({
   value,
   onChange,
   big = false,
+  autoFocus = false,
 }: {
   value: number | undefined;
   onChange: (n: number | undefined) => void;
   big?: boolean;
+  autoFocus?: boolean;
 }) {
+  const inputRef = useAutoSelect(autoFocus);
   return (
     <div
       className="flex items-center"
@@ -201,6 +232,7 @@ export function DollarInput({
         $
       </span>
       <input
+        ref={inputRef}
         type="number"
         min={0}
         step="any"

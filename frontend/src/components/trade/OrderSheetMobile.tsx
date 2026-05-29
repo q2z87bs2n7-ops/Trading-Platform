@@ -11,6 +11,7 @@ import {
   TYPE_LABEL,
   money,
   segStyle,
+  useAutoSelect,
 } from "./orderSheetParts";
 
 // Mobile-first order ticket. Same useOrderTicket instance as the parent
@@ -48,6 +49,8 @@ export default function OrderSheetMobile({
   const hasMoreTypes = t.availableOrderTypes.length > 3;
   const moreActive = !firstTypes.includes(t.type);
   const dollars = t.amountMode === "dollars" && t.notionalEligible;
+  // Open with the amount field highlighted (launched from the TradeBar).
+  const qtyRef = useAutoSelect(!dollars);
   const dollarFills = [100, 500, 1000];
   const advSubtitle =
     TIF_LABEL[t.tif] +
@@ -206,7 +209,7 @@ export default function OrderSheetMobile({
               </div>
             )}
             {dollars ? (
-              <DollarInput value={t.notional} onChange={t.setNotional} big />
+              <DollarInput value={t.notional} onChange={t.setNotional} big autoFocus />
             ) : (
               <div
                 className="flex items-stretch"
@@ -227,6 +230,7 @@ export default function OrderSheetMobile({
                   −
                 </button>
                 <input
+                  ref={qtyRef}
                   type="number"
                   min={0}
                   step={step}
