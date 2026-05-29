@@ -28,9 +28,14 @@ import CfdPriceChart from "./CfdPriceChart";
 
 const POLL_INTERVAL_MS = 1000;
 
-// Lot presets in base units (FX pairs trade in 1,000-unit lots; non-FX
-// instruments clamp to their own base_unit_size at submit time).
-const LOT_PRESETS = [1_000, 10_000, 50_000, 100_000];
+// ── Lot sizing ───────────────────────────────────────────────────────────────
+// FX pairs (instrument_type 1) trade in 1,000-unit lots; every other type
+// (indices, metals, stock CFDs, …) trades in multiples of its own
+// base_unit_size (often 1 contract). A single "units" number can't span both,
+// so the control stores a 0–3 *level* and each instrument resolves its own
+// presets from its metadata.
+const LOT_LEVELS = [0, 1, 2, 3] as const;
+type LotLevel = (typeof LOT_LEVELS)[number];
 
 function lotLabel(units: number): string {
   if (units >= 1_000_000) return `${units / 1_000_000}M`;
@@ -38,32 +43,104 @@ function lotLabel(units: number): string {
   return String(units);
 }
 
-// Split a formatted price into big-figure / pips / fractional-pip so the tile
-// can render the broker-style emphasis (small handle, big pips, tiny tenth).
-function splitBigFig(s: string): { big: string; pips: string; frac: string } {
-  if (!s || s === "—" || s.length < 3) return { big: s, pips: "", frac: "" };
-  return { big: s.slice(0, -3), pips: s.slice(-3, -1), frac: s.slice(-1) };
+// Per-instrument lot presets, indexed by level. FX → 1K/10K/50K/100K units;
+// non-FX → 1/5/10/25 × base_unit_size (shown as contract counts).
+function lotPresetsFor(price: FxcmPrice | undefined): { label: string; units: number }[] {
+  const isFx = (price?.instrument_type ?? 1) === 1;
+  if (isFx) {
+    return [1_000, 10_000, 50_000, 100_000].map((u) => ({ label: lotLabel(u), units: u }));
+  }
+  const base = Math.max(1, price?.base_unit_size ?? 1);
+  return [1, 5, 10, 25].map((m) => ({ label: `${m}×`, units: m * base }));
 }
 
-// Flip an up/down flash for ~400ms whenever the tracked value changes.
-function useTickFlash(value: number | undefined): "up" | "down" | null {
+function lotStep(price: FxcmPrice | undefined): number {
+  return (price?.instrument_type ?? 1) === 1 ? 1000 : Math.max(1, price?.base_unit_size ?? 1);
+}
+
+// ── Price rendering + flash ──────────────────────────────────────────────────
+
+// Decimal place of one pip/point, derived from the bridge point_size
+// (0.0001 FX → 4, 0.01 JPY/gold → 2, 1.0 index → 0). Falls back to all of
+// `digits` (treat every decimal as sub-pip) when point_size is missing.
+function pipDecimals(pointSize: number | undefined, digits: number): number {
+  if (!pointSize || pointSize <= 0) return digits;
+  return Math.max(0, Math.round(-Math.log10(pointSize)));
+}
+
+// Split a price into handle / big-pips / fractional-pip for broker-style
+// emphasis. Pip location comes from point_size (NOT a digit-count guess), so
+// indices (1dp) and stock CFDs (2dp) render correctly, not just 5dp FX. The
+// big-pips are the two whole-pip digits; the fractional pip is whatever trails
+// the pip decimal. A straddling decimal point is skipped for short quotes.
+function splitBigFig(
+  value: number | undefined,
+  digits: number,
+  pointSize: number | undefined,
+): { big: string; pips: string; frac: string } {
+  if (value == null || Number.isNaN(value)) return { big: "—", pips: "", frac: "" };
+  const s = value.toFixed(digits);
+  const subPip = Math.max(0, digits - pipDecimals(pointSize, digits));
+  const frac = subPip > 0 ? s.slice(s.length - subPip) : "";
+  let rem = subPip > 0 ? s.slice(0, s.length - subPip) : s;
+  if (rem.endsWith(".")) rem = rem.slice(0, -1);
+  // Emphasise the last two *digit* characters of the remainder.
+  let seen = 0;
+  let cut = 0;
+  for (let i = rem.length - 1; i >= 0; i--) {
+    if (rem[i] >= "0" && rem[i] <= "9") {
+      seen++;
+      if (seen === 2) {
+        cut = i;
+        break;
+      }
+    }
+  }
+  return { big: rem.slice(0, cut), pips: rem.slice(cut), frac };
+}
+
+// Dead-band so sub-pip float jitter doesn't strobe: a change counts only if it
+// clears half a point. Falls back to half a display unit when point_size is
+// absent.
+function flashEpsilon(pointSize: number | undefined, digits: number): number {
+  if (pointSize && pointSize > 0) return pointSize / 2;
+  return 0.5 * 10 ** -digits;
+}
+
+// Flip an up/down flash for ~400ms when the tracked value moves past the
+// dead-band. Each quote (bid OR ask) is compared against its OWN previous
+// value, so an unchanged side stays quiet even when its counterpart moves —
+// the per-quote uptick/downtick convention real dealing tiles use (reviewed;
+// see BACKLOG → CFD Scalp).
+function useTickFlash(value: number | undefined, eps: number): "up" | "down" | null {
   const prev = useRef<number | undefined>(value);
   const [dir, setDir] = useState<"up" | "down" | null>(null);
   useEffect(() => {
     if (value == null) return;
-    if (prev.current != null && value !== prev.current) {
-      setDir(value > prev.current ? "up" : "down");
+    const p = prev.current;
+    if (p != null && Math.abs(value - p) >= eps) {
+      setDir(value > p ? "up" : "down");
       prev.current = value;
       const t = setTimeout(() => setDir(null), 400);
       return () => clearTimeout(t);
     }
+    // Sub-epsilon move: advance the baseline without flashing so noise can't
+    // accumulate into a later false flash.
     prev.current = value;
-  }, [value]);
+  }, [value, eps]);
   return dir;
 }
 
-function BigFig({ value, digits }: { value: number | undefined; digits: number }) {
-  const { big, pips, frac } = splitBigFig(fmtCfdPrice(value, digits));
+function BigFig({
+  value,
+  digits,
+  pointSize,
+}: {
+  value: number | undefined;
+  digits: number;
+  pointSize: number | undefined;
+}) {
+  const { big, pips, frac } = splitBigFig(value, digits, pointSize);
   return (
     <span className="tabular-nums leading-none">
       <span style={{ fontSize: 15, opacity: 0.7 }}>{big}</span>
@@ -79,16 +156,18 @@ function RateButton({
   side,
   price,
   digits,
+  pointSize,
   busy,
   onClick,
 }: {
   side: "B" | "S";
   price: number | undefined;
   digits: number;
+  pointSize: number | undefined;
   busy: boolean;
   onClick: () => void;
 }) {
-  const flash = useTickFlash(price);
+  const flash = useTickFlash(price, flashEpsilon(pointSize, digits));
   const isBuy = side === "B";
   const base = isBuy ? "var(--pos)" : "var(--neg)";
   const flashBg =
@@ -117,7 +196,7 @@ function RateButton({
         {isBuy ? "Buy" : "Sell"}
       </span>
       <span style={{ color: "var(--text)" }}>
-        <BigFig value={price} digits={digits} />
+        <BigFig value={price} digits={digits} pointSize={pointSize} />
       </span>
     </button>
   );
@@ -145,6 +224,14 @@ function ScalpRateTile({
   onSell: () => void;
 }) {
   const digits = price.digits ?? cfdDigits(price.instrument);
+  const pointSize = price.point_size;
+  // Tint (never red/green) the spread chip only when the spread itself crosses
+  // the dead-band — a widening spread is a cost signal a scalper cares about;
+  // a static spread reads as quiet. Spread has no bullish/bearish meaning, so
+  // it's deliberately not flashed like a price.
+  const spread =
+    price.bid != null && price.ask != null ? price.ask - price.bid : undefined;
+  const spreadFlash = useTickFlash(spread, flashEpsilon(pointSize, digits));
   return (
     <div
       onClick={onSelect}
@@ -163,8 +250,12 @@ function ScalpRateTile({
       >
         <span className="text-[13px] font-semibold truncate">{displayName}</span>
         <span
-          className="text-[10.5px] font-medium tabular-nums px-1.5 py-0.5 rounded"
-          style={{ background: "var(--panel-2)", color: "var(--mute)" }}
+          className="text-[10.5px] font-medium tabular-nums px-1.5 py-0.5 rounded transition-colors"
+          style={{
+            background: spreadFlash ? "var(--accent-bg)" : "var(--panel-2)",
+            color: spreadFlash ? "var(--accent)" : "var(--mute)",
+          }}
+          title={spreadFlash === "up" ? "Spread widening" : spreadFlash === "down" ? "Spread tightening" : "Spread"}
         >
           {fmtSpread(price.bid, price.ask, price.point_size)}
         </span>
@@ -173,8 +264,8 @@ function ScalpRateTile({
         className="flex items-stretch gap-1 p-1"
         onClick={(e) => e.stopPropagation()}
       >
-        <RateButton side="S" price={price.bid} digits={digits} busy={busySell} onClick={onSell} />
-        <RateButton side="B" price={price.ask} digits={digits} busy={busyBuy} onClick={onBuy} />
+        <RateButton side="S" price={price.bid} digits={digits} pointSize={pointSize} busy={busySell} onClick={onSell} />
+        <RateButton side="B" price={price.ask} digits={digits} pointSize={pointSize} busy={busyBuy} onClick={onBuy} />
       </div>
       {net && net.units !== 0 && (
         <div
@@ -207,7 +298,7 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
   const [prices, setPrices] = useState<FxcmPrice[]>([]);
   const [positions, setPositions] = useState<FxcmPosition[]>([]);
   const [selected, setSelected] = useState<string>(selectedProp || "");
-  const [lot, setLot] = useState<number>(LOT_PRESETS[0]);
+  const [lotLevel, setLotLevel] = useState<LotLevel>(0);
   const [pending, setPending] = useState<Set<string>>(new Set());
 
   const dn = useFxcmDisplayNames();
@@ -315,9 +406,12 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
 
   async function placeOrder(instrument: string, side: "B" | "S") {
     const price = priceMap.get(instrument);
-    const isFx = (price?.instrument_type ?? 1) === 1;
-    const step = isFx ? 1000 : price?.base_unit_size ?? 1;
-    const amount = Math.max(step, Math.round(lot / step) * step);
+    // Resolve the lot from the *instrument's own* presets at the current level
+    // (FX in 1K-unit lots, non-FX in base_unit_size contracts), clamped to a
+    // valid step multiple so the bridge never rejects an off-step amount.
+    const step = lotStep(price);
+    const units = lotPresetsFor(price)[lotLevel]?.units ?? step;
+    const amount = Math.max(step, Math.round(units / step) * step);
     const key = `${instrument}:${side}`;
     setPending((p) => new Set(p).add(key));
     try {
@@ -348,11 +442,21 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
   }
 
   async function closeAll() {
-    await Promise.allSettled(
-      positions.map((p) => api.closeFxcmPosition(String(p.trade_id ?? ""))),
-    );
+    // Sequential, not Promise.all — the FCLite bridge is a single JVM session
+    // and doesn't take kindly to a burst of concurrent close requests.
+    let failed = 0;
+    for (const p of positions) {
+      try {
+        await api.closeFxcmPosition(String(p.trade_id ?? ""));
+      } catch {
+        failed++;
+      }
+    }
     await refreshPositions();
-    showToast("Closed all positions", "info");
+    showToast(
+      failed ? `Closed all but ${failed} position${failed === 1 ? "" : "s"}` : "Closed all positions",
+      failed ? "error" : "info",
+    );
   }
 
   if (bridgeOk === false) {
@@ -375,6 +479,10 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
 
   const selectedPrice = priceMap.get(selected);
   const selDigits = selectedPrice?.digits ?? cfdDigits(selected);
+  // Lot presets follow the selected instrument's type; the chosen level is
+  // shared across the matrix and resolved per-tile at submit (see placeOrder).
+  const selectedPresets = lotPresetsFor(selectedPrice);
+  const selectedLotUnits = selectedPresets[lotLevel]?.units ?? 0;
   const selectedPositions = positions.filter((p) => String(p.instrument) === selected);
 
   return (
@@ -407,23 +515,24 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
           color={netPl >= 0 ? "var(--pos)" : "var(--neg)"}
         />
 
-        {/* Lot size presets */}
+        {/* Lot size presets — labels follow the selected instrument's type
+            (units for FX, ×contracts for non-FX). */}
         <div className="flex items-center gap-2 ml-auto">
           <span className="text-[11px]" style={{ color: "var(--mute)" }}>Lot</span>
           <div className="flex items-center gap-1">
-            {LOT_PRESETS.map((u) => (
+            {selectedPresets.map((preset, i) => (
               <button
-                key={u}
+                key={i}
                 type="button"
-                onClick={() => setLot(u)}
+                onClick={() => setLotLevel(i as LotLevel)}
                 className="text-[11.5px] font-semibold px-2 py-1 rounded cursor-pointer border transition-colors"
                 style={{
-                  background: lot === u ? "var(--accent-bg)" : "var(--panel-2)",
-                  borderColor: lot === u ? "var(--accent)" : "var(--border)",
-                  color: lot === u ? "var(--accent)" : "var(--text-2)",
+                  background: lotLevel === i ? "var(--accent-bg)" : "var(--panel-2)",
+                  borderColor: lotLevel === i ? "var(--accent)" : "var(--border)",
+                  color: lotLevel === i ? "var(--accent)" : "var(--text-2)",
                 }}
               >
-                {lotLabel(u)}
+                {preset.label}
               </button>
             ))}
           </div>
@@ -488,6 +597,7 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
                     label="Sell"
                     price={selectedPrice.bid}
                     digits={selDigits}
+                    pointSize={selectedPrice.point_size}
                     busy={pending.has(`${selected}:S`)}
                     onClick={() => placeOrder(selected, "S")}
                   />
@@ -496,12 +606,13 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
                     label="Buy"
                     price={selectedPrice.ask}
                     digits={selDigits}
+                    pointSize={selectedPrice.point_size}
                     busy={pending.has(`${selected}:B`)}
                     onClick={() => placeOrder(selected, "B")}
                   />
                 </div>
                 <div className="text-[11px] flex items-center justify-between" style={{ color: "var(--mute)" }}>
-                  <span>{lot.toLocaleString()} {unit(selected)}</span>
+                  <span>{selectedLotUnits.toLocaleString()} {unit(selected)}</span>
                   {/* SL/TP is a design stub — not wired to the bridge yet. */}
                   <span style={{ opacity: 0.6 }}>SL / TP · coming soon</span>
                 </div>
@@ -604,6 +715,7 @@ function DealButton({
   label,
   price,
   digits,
+  pointSize,
   busy,
   onClick,
 }: {
@@ -611,10 +723,11 @@ function DealButton({
   label: string;
   price: number | undefined;
   digits: number;
+  pointSize: number | undefined;
   busy: boolean;
   onClick: () => void;
 }) {
-  const flash = useTickFlash(price);
+  const flash = useTickFlash(price, flashEpsilon(pointSize, digits));
   const accent = side === "B" ? "var(--pos)" : "var(--neg)";
   const bg = side === "B" ? "var(--pos-bg)" : "var(--neg-bg)";
   return (
@@ -633,7 +746,7 @@ function DealButton({
         {busy ? "…" : label}
       </span>
       <span style={{ color: "var(--text)" }}>
-        <BigFig value={price} digits={digits} />
+        <BigFig value={price} digits={digits} pointSize={pointSize} />
       </span>
     </button>
   );
@@ -653,6 +766,9 @@ function PositionRow({
   const dn = useFxcmDisplayNames();
   const pl = typeof pos.pl === "number" ? pos.pl : Number(pos.gross_pl ?? 0);
   const openRate = pos.open ?? pos.open_rate;
+  // /positions rows carry their own `digits` — prefer it over the caller's
+  // price-derived fallback so the open rate shows the instrument's precision.
+  const d = typeof pos.digits === "number" ? pos.digits : digits;
   return (
     <div
       className="flex items-center px-4 py-2.5 gap-3"
@@ -664,7 +780,7 @@ function PositionRow({
         )}
         <span className="text-[11px]" style={{ color: "var(--mute)" }}>
           {pos.buy_sell === "B" ? "Buy" : "Sell"} {Number(pos.amount ?? 0).toLocaleString()} @{" "}
-          {fmtCfdPrice(typeof openRate === "number" ? openRate : undefined, digits)}
+          {fmtCfdPrice(typeof openRate === "number" ? openRate : undefined, d)}
         </span>
       </div>
       <span

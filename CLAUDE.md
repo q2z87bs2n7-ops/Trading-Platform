@@ -171,16 +171,27 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
     **main CFD trading entry**. Reached from the splash / Account Hub
     CFD card's "⚡ Scalp" affordance (`enterMarket("cfd", "scalp")`), not
     a header pill. Layout: an account/control strip (equity · day P/L ·
-    free margin · live open P/L · lot-size presets 1K/10K/50K/100K
-    units), a **rate matrix** of live bid/ask tiles (one per watchlist
-    instrument) with **up/down tick flashes**, broker-style
+    free margin · live open P/L · **per-instrument-type lot presets** —
+    FX in 1K/10K/50K/100K units, non-FX in `1/5/10/25 × base_unit_size`
+    contracts; the control stores a 0–3 level and each tile resolves its
+    own amount at submit), a **rate matrix** of live bid/ask tiles (one
+    per watchlist instrument) with **up/down tick flashes**, broker-style
     big-figure/pips/tenth price rendering, spread chip, and a net
     position/P&L footer; a **deal-ticket focus column** (selected
     instrument's big bid/ask, one-click Buy/Sell, small-timeframe chart
     reusing `CfdPriceChart`, its open positions); and an
-    **open-positions blotter** with per-row + close-all. One-click
+    **open-positions blotter** with per-row + sequential close-all. One-click
     submits **market (OM) orders** via `useFxcmSubmitOrder` at the
-    selected lot (clamped to per-instrument `base_unit_size`).
+    selected lot (clamped to per-instrument `base_unit_size`). All
+    precision/pip handling reads the bridge **instrument metadata** off
+    `/prices` (`digits`, `point_size`, `instrument_type`, `base_unit_size`
+    — only present for subscribed offers, so `cfdDigits()` is the
+    pre-subscription fallback): the big-figure split locates the pip via
+    `point_size` (so indices/stock-CFDs render right, not just 5dp FX),
+    and tick flashes use a **per-side, ½-`point_size` dead-band** so an
+    unchanged quote stays quiet while its counterpart moves (the
+    FXCM/MT4/cTrader dealing-tile convention) instead of strobing every
+    poll.
     **Status — MOCK / FOUNDATION for design to redo:** "live" ticks
     ride a **1 s `/api/fxcm/prices` poll** (no FCLite per-tick push yet —
     see BACKLOG; `subscribeBars` is still a no-op), and **SL/TP is a
