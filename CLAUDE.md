@@ -22,7 +22,8 @@ real-time streaming. Supports **US equities**, **crypto**, and **CFDs
 (FXCM demo account — forex, indices, metals, commodities, stock CFDs)**
 in three separate silos. Alpaca silos are paper-only
 — there is no live trading path. The FXCM silo is a POC against a demo
-account via an FCLite Java bridge that co-runs with the relay on Render.
+account via an FCLite Java bridge that runs as its own Render service
+alongside the relay (see "Four runtime targets").
 
 **Hard rules — do not cross without an explicit, deliberate decision:**
 
@@ -645,26 +646,36 @@ Watchlists are not in localStorage — server-side via `/api/watchlist`.
    integration is intentionally disabled (`vercel.json`
    `git.deploymentEnabled=false`) — do not re-enable.
 2. **Render — always-on relay**, from `render.yaml` (Blueprint),
-   single Docker instance from `backend/Dockerfile`. Built from the
-   **repo-root context** (`dockerContext: .`) so the image ships the
-   root `VERSION` file the backend reads at startup; a root
+   single Docker instance from `backend/Dockerfile` (now **Python-only** —
+   no JVM). Built from the **repo-root context** (`dockerContext: .`) so the
+   image ships the root `VERSION` file the backend reads at startup; a root
    `.dockerignore` keeps that context lean (must exclude `frontend/`).
    The *only* host that can hold the Alpaca WebSocket open for
-   `/api/stream`. Never run >1 instance — `QuoteHub` and
+   `/api/stream`. Proxies `/api/fxcm/*` to the bridge service (#4) over
+   Render's private network via `FXCM_BRIDGE_URL` (default
+   `http://fxcm-bridge:3001`). Never run >1 instance — `QuoteHub` and
    `CryptoQuoteHub` are process-local with no external pub/sub. See
    `docs/landmines.md`.
 3. **GitHub Pages — dev previews**, via `preview-pages.yml`. Static
    frontend only; talks to the Vercel prod backend. Auto-publishes to
    `gh-pages` on every `claude/**` push. Cannot trigger a Vercel
    deploy.
-4. **FXCM bridge — co-runs with the relay on Render**. FCLite Java fat
-   JAR built into `backend/Dockerfile` and launched alongside uvicorn
-   by `backend/entrypoint.sh`; binds 127.0.0.1:3001 so the FastAPI
-   proxy reaches it in-container. The frontend hits FXCM endpoints
-   directly at the Render origin via `VITE_STREAM_BASE` (Vercel's
-   serverless container has no bridge). Full FCLite reference,
-   deploy lessons, and the API quirks future agents will need:
-   `docs/fxcm.md`.
+4. **FXCM bridge — its own Render service** (`fxcm-bridge`, a **private
+   service** off the public internet), from `fxcm-bridge/Dockerfile` +
+   `fxcm-bridge/entrypoint.sh`. FCLite Java fat JAR; binds
+   `FXCM_BRIDGE_HOST=0.0.0.0` on `FXCM_BRIDGE_PORT=3001` so the relay (#2)
+   reaches it over Render's private network. Was co-located in the relay
+   container — split out so the JVM no longer shares 512 MB with Python
+   (the OOM contention is gone, and an FXCM hiccup can't drop stock/crypto
+   streaming). **Both default to `127.0.0.1`/co-located when their env vars
+   are unset, so local dev still runs the bridge + relay in one process.**
+   Note FXCM creds (`FXCM_USER`/`FXCM_PASS`) are needed on **both** services
+   — the bridge for the FCLite login, the relay for the Endpoints-suite
+   watchlist JWT (`fxcm_auth.py`), which doesn't touch the bridge. The
+   frontend hits FXCM endpoints directly at the relay origin via
+   `VITE_STREAM_BASE` (Vercel's serverless container has no bridge). Full
+   FCLite reference, deploy lessons, and the API quirks future agents will
+   need: `docs/fxcm.md`.
 
 ## Two AI surfaces (teal Ask anything vs violet ChartBot)
 

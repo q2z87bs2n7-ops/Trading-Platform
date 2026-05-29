@@ -13,15 +13,17 @@ The platform supports three trading silos:
 |------|-------------|---------|
 | Stocks | Alpaca REST + WebSocket | Vercel + Render |
 | Crypto | Alpaca REST + WebSocket | Vercel + Render |
-| **CFDs** | **FXCM FCLite Java SDK** | **Render (co-runs with FastAPI)** |
+| **CFDs** | **FXCM FCLite Java SDK** | **Render (own `fxcm-bridge` service)** |
 
 The CFD silo is a **POC** running against a hardcoded FXCM demo account.
-The FCLite Java bridge ships **in the same Render container** as the FastAPI
-relay (multi-stage build in `backend/Dockerfile`, boot orchestrated by
-`backend/entrypoint.sh`). The frontend still handles the bridge being offline
-gracefully (shows an offline notice instead of crashing) — if the JVM dies,
-`/api/fxcm/*` returns 503 and the page recovers when Render restarts the
-container.
+The FCLite Java bridge runs as **its own Render service** (`fxcm-bridge`,
+private; `fxcm-bridge/Dockerfile` + `fxcm-bridge/entrypoint.sh`), reached by the
+relay over the private network via `FXCM_BRIDGE_URL`. It used to co-run inside
+the relay container; see "Render Deployment" for the split and the
+co-located-by-default local-dev behaviour. The frontend still handles the
+bridge being offline gracefully (shows an offline notice instead of crashing) —
+if the JVM dies, `/api/fxcm/*` returns 503 and the page recovers when Render
+restarts the service.
 
 ## Architecture
 
@@ -79,7 +81,8 @@ to Linux (Render), unlike the old Python 3.7 + C++ ForexConnect wheel
 | `frontend/src/lib/tv-datafeed.ts` | TV datafeed CFD branches (search/resolve/bars/quotes) |
 | `frontend/src/lib/tv-broker.ts` | TV broker — Alpaca routes short-circuited in CFD mode |
 | `frontend/src/components/trade/FxcmOrderSheet.tsx` | CFD order ticket (Alpaca's OrderSheet is not reusable) |
-| `backend/Dockerfile`, `backend/entrypoint.sh`, `backend/jvm-hosts.txt` | Render build / boot / DNS |
+| `fxcm-bridge/Dockerfile`, `fxcm-bridge/entrypoint.sh`, `backend/jvm-hosts.txt` | Bridge service: Render build / boot / DNS |
+| `backend/Dockerfile`, `backend/entrypoint.sh` | Relay service (Python-only) build / boot |
 
 ## Building the Bridge (local)
 
@@ -931,7 +934,7 @@ CFD trading still happens via `CfdDiscoverPage` + `FxcmOrderSheet`.
   `Positions` view + `FxcmClosePositionCard` (partial close loops over
   underlying trade_ids), sibling `FxcmOrders` blotter + `FxcmModifyOrderCard`,
   `Activities` mapping FXCM closed trades into the shared feed
-- Render deployment co-located with FastAPI (`backend/Dockerfile` multi-stage, `backend/entrypoint.sh` dual-process)
+- Render deployment as its own private service (`fxcm-bridge/Dockerfile`); relay reaches it via `FXCM_BRIDGE_URL` (see "Render Deployment")
 - FXCM-aware classifier + TV datafeed CFD branches for the chart
 
 - **Display names** — `fxcm_instruments` Postgres table (seeded once via
@@ -964,20 +967,32 @@ Outstanding work lives in `BACKLOG.md` → "CFDs (FXCM)".
 
 ## Render Deployment
 
-The bridge ships in the same container as the FastAPI relay. Touched files:
+The bridge runs as **its own Render service** (`fxcm-bridge`, a private
+service), separate from the FastAPI relay. It used to co-run inside the relay
+container; it was split out so the JVM no longer shares 512 MB with Python (the
+OOM contention is gone) and an FXCM hiccup can't take down stock/crypto
+streaming. Touched files:
 
 | File | Role |
 |---|---|
-| `backend/Dockerfile` | Multi-stage: `maven:3.9-eclipse-temurin-17` builds the fat JAR; `python:3.12-slim` + `openjdk-21-jre-headless` runs both processes. |
-| `backend/entrypoint.sh` | Backgrounds the JVM with tuned heap flags + `-Djdk.net.hosts.file=/app/jvm-hosts.txt`, then runs uvicorn. `kill -0` poll loop waits on both PIDs; SIGTERM kills both. |
-| `backend/jvm-hosts.txt` | DNS overrides baked into the image. |
-| `render.yaml` | Adds `FXCM_USER` / `FXCM_PASS` as `sync: false` secrets. |
+| `backend/Dockerfile` | Relay image — **Python-only** now (`python:3.12-slim`, no JVM). |
+| `backend/entrypoint.sh` | `exec uvicorn …` (single process; the old dual-process supervisor is gone). |
+| `fxcm-bridge/Dockerfile` | Bridge image — multi-stage: `maven:3.9-eclipse-temurin-17` builds the fat JAR, `eclipse-temurin:21-jre` runs it. Sets `FXCM_BRIDGE_HOST=0.0.0.0` / `FXCM_BRIDGE_PORT=3001`. |
+| `fxcm-bridge/entrypoint.sh` | `exec java …` with the tuned heap flags + `-Djdk.net.hosts.file=/app/jvm-hosts.txt`. |
+| `backend/jvm-hosts.txt` | DNS overrides; copied into the **bridge** image. |
+| `render.yaml` | Two services. Relay carries `FXCM_BRIDGE_URL=http://fxcm-bridge:3001`; both carry `FXCM_USER`/`FXCM_PASS` as `sync:false` secrets (bridge → FCLite login; relay → Endpoints-suite watchlist JWT). |
 
-The proxy in `backend/app/fxcm.py` talks to `http://127.0.0.1:3001`, which
-now resolves to the in-container JVM. The bridge stays bound to `127.0.0.1`
-so it's not reachable from outside the container. From the **frontend**, FXCM
-calls go directly to the Render origin (`VITE_STREAM_BASE`) — Vercel's
-serverless container has no bridge.
+**Bind/target config.** `BridgeServer.java` binds `FXCM_BRIDGE_HOST` (default
+`127.0.0.1`) on `FXCM_BRIDGE_PORT` (default `3001`); the relay's
+`backend/app/fxcm.py` targets `FXCM_BRIDGE_URL` (default
+`http://127.0.0.1:3001`). **All three default to co-located**, so local dev and
+the old single-container mode still work unchanged. In prod the bridge binds
+`0.0.0.0` and the relay reaches it over Render's private network at
+`http://fxcm-bridge:3001` — the bridge is a *private* service, so it's still
+not reachable from the public internet. *Verify on first deploy that Render
+routes the bridge on `:3001`; if it assigns a different internal port, update
+`FXCM_BRIDGE_URL`.* From the **frontend**, FXCM calls go to the relay origin
+(`VITE_STREAM_BASE`) — Vercel's serverless container has no bridge.
 
 **Render plan:** `starter` (512 MB). With the heap caps below the steady-state
 is ≈ 350–400 MB; bump to `standard` if it OOMs under load.

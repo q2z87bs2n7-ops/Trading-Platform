@@ -36,6 +36,10 @@ public class BridgeServer {
     // FXCM_BRIDGE_PORT, not PORT — Render (and most PaaS) inject PORT for the
     // public-facing process (uvicorn here), and the bridge must stay local.
     static final int    PORT      = Integer.parseInt(env("FXCM_BRIDGE_PORT", "3001"));
+    // Bind host. Default localhost (co-located dev / single-container mode).
+    // Set FXCM_BRIDGE_HOST=0.0.0.0 when the bridge runs as its own service so
+    // the relay can reach it over Render's private network.
+    static final String BIND_HOST = env("FXCM_BRIDGE_HOST", "127.0.0.1");
 
     static final ObjectMapper JSON = new ObjectMapper();
 
@@ -96,7 +100,7 @@ public class BridgeServer {
         session.subscribeBootInstruments();
         LOG.info("FXCM connected — account " + FXCM_USER);
 
-        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", PORT), 0);
+        HttpServer server = HttpServer.create(new InetSocketAddress(BIND_HOST, PORT), 0);
         server.createContext("/health",       ex -> handle(ex, BridgeServer::health));
         server.createContext("/account",      ex -> handle(ex, BridgeServer::account));
         server.createContext("/prices/live",   ex -> handle(ex, BridgeServer::pricesLive));
@@ -113,7 +117,7 @@ public class BridgeServer {
         server.createContext("/debug",        ex -> handle(ex, BridgeServer::debug));
         server.setExecutor(Executors.newCachedThreadPool());
         server.start();
-        LOG.info("Bridge listening on http://127.0.0.1:" + PORT);
+        LOG.info("Bridge listening on http://" + BIND_HOST + ":" + PORT);
     }
 
     // ── Route handlers ────────────────────────────────────────────────────────

@@ -1,23 +1,25 @@
-# Render Blueprint for the real-time quote relay.
+# Render Blueprint — two services:
+#   1. trading-relay (web)  — the always-on quote relay. Holds the single shared
+#      Alpaca WebSocket and fans quotes out to browsers over SSE (/api/stream),
+#      and proxies /api/fxcm/* to the bridge below. Vercel still serves the
+#      frontend + REST API; this exists for streaming + the FXCM proxy.
+#   2. fxcm-bridge (pserv)  — the FXCM FCLite Java bridge, now its OWN service
+#      (was co-located in the relay container). Private service: reachable only
+#      on Render's private network, never the public internet. Splitting it out
+#      means the JVM no longer shares 512MB with Python — the OOM contention is
+#      gone, and an FXCM hiccup can't drop stock/crypto streaming.
 #
-# This service is the always-on host that holds the single shared Alpaca
-# WebSocket and relays quotes to browsers over SSE (/api/stream). Vercel
-# still serves the frontend + REST API; this only exists for streaming.
-#
-# Deploy: Render dashboard -> New -> Blueprint -> pick this repo. Render
-# reads this file and creates the service. Then set the two secret env
-# vars (ALPACA_API_KEY / ALPACA_SECRET_KEY) in the dashboard.
+# Deploy: Render dashboard -> New -> Blueprint -> pick this repo. Then set the
+# secret env vars (sync:false) on EACH service in the dashboard.
 services:
   - type: web
     name: trading-relay
     runtime: docker
+    region: oregon
     dockerfilePath: ./backend/Dockerfile
     # Root context (not ./backend) so the image can COPY the repo-root VERSION
     # file that the backend reads at startup. .dockerignore keeps it lean.
     dockerContext: .
-    # Free instances sleep after ~15 min idle, which drops the upstream
-    # Alpaca stream until the next request. Use "starter" for a genuinely
-    # always-on relay; switch to "free" to trial it.
     plan: starter
     # The QuoteHub keeps one shared Alpaca stream per process, so this
     # service must never run more than a single instance.
@@ -33,10 +35,13 @@ services:
         value: "true"
       - key: ALPACA_DATA_FEED
         value: iex
-      # FXCM FCLite Java bridge co-runs in the same container (see
-      # backend/Dockerfile + entrypoint.sh). Leave URL/CONN at the Java
-      # defaults; set the two creds as dashboard secrets. Unset = the
-      # bridge falls back to its hardcoded demo account.
+      # FXCM bridge now runs as its own private service (below). The relay
+      # reaches it over the private network by service name. If your Render
+      # setup routes the bridge on a different internal port, update this.
+      - key: FXCM_BRIDGE_URL
+        value: "http://fxcm-bridge:3001"
+      # The relay still needs FXCM creds for the Endpoints-suite watchlist JWT
+      # (backend/app/fxcm_auth.py) — that path does NOT go through the bridge.
       - key: FXCM_USER
         sync: false # set in the Render dashboard (secret)
       - key: FXCM_PASS
@@ -46,3 +51,25 @@ services:
       # previews + local dev). Edit to match your real Vercel domain.
       - key: CORS_ORIGINS
         value: "http://localhost:5173,http://127.0.0.1:5173,https://q2z87bs2n7-ops.github.io,https://trading-platform-five.vercel.app"
+
+  - type: pserv
+    name: fxcm-bridge
+    runtime: docker
+    region: oregon # same region as the relay for private networking
+    dockerfilePath: ./fxcm-bridge/Dockerfile
+    dockerContext: .
+    plan: starter
+    # Single persistent FCLite login — never more than one instance.
+    numInstances: 1
+    autoDeploy: true
+    envVars:
+      # Unset = the bridge falls back to its hardcoded demo account.
+      - key: FXCM_USER
+        sync: false # set in the Render dashboard (secret)
+      - key: FXCM_PASS
+        sync: false # set in the Render dashboard (secret)
+      # Bind on the private network; the literal default in code is 127.0.0.1.
+      - key: FXCM_BRIDGE_HOST
+        value: "0.0.0.0"
+      - key: FXCM_BRIDGE_PORT
+        value: "3001"

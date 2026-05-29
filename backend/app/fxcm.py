@@ -13,6 +13,7 @@ app.fxcm.com uses) with a JWT minted by fxcm_auth.py. See the
 import asyncio
 import json
 import logging
+import os
 import random
 import time
 from typing import Any, Optional
@@ -26,7 +27,10 @@ from .fxcm_auth import get_access_token
 
 _log = logging.getLogger(__name__)
 
-BRIDGE_URL = "http://127.0.0.1:3001"
+# Co-located by default (single-container / local dev). When the bridge runs as
+# its own Render service, set FXCM_BRIDGE_URL to its private-network address
+# (e.g. http://fxcm-bridge:3001).
+BRIDGE_URL = os.getenv("FXCM_BRIDGE_URL", "http://127.0.0.1:3001")
 # Split timeout: connect fast so a wedged JVM can't tie up the single uvicorn
 # worker that also serves the Alpaca SSE relay; allow a more generous read for
 # heavier calls (history bars).
