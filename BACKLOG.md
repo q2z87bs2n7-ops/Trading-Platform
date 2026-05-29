@@ -17,23 +17,27 @@ and `docs/workspace.md` for the full reference). Outstanding:
   first cut:* lot presets are now **per-instrument-type** (FX units vs
   non-FX `×base_unit_size` contracts), the big-figure split + tick flashes
   read the bridge **instrument metadata** (`point_size`-located pip,
-  per-side ½-point dead-band so sides don't strobe in lockstep), and
-  close-all is sequential (single JVM session). Remaining gaps to close
-  once design lands: (1) **real ticks** — the flashes still ride a 1 s
-  `/api/fxcm/prices` poll; wire them to the FCLite push subscription below
-  so they're true tick-by-tick. (2) **SL/TP** — the deal-ticket inputs are
-  a visual stub; wire `stop`/`limit` into `submitFxcmOrder` (the
-  `FxcmOrderRequest` fields exist but are untested from the UI — the proven
-  path only sends OM market orders). (3) **fat-finger guard** — one-click
-  fires immediately with a toast; consider an arm/confirm toggle. (4)
-  **tick / sub-minute chart** — reuses `CfdPriceChart` (min timeframe m1);
-  a true tick chart needs the push feed. (5) **mobile** — scalp is
-  desktop-only (guard bounces mobile to Discover); design a phone layout if
-  wanted. (6) entry is the splash CFD card's "⚡ Scalp" affordance —
-  revisit discoverability (a header indicator while on scalp, etc.). (7)
-  the `cfdDigits()` fallback heuristic disagrees with the bridge for gold
+  per-side ½-point dead-band so sides don't strobe in lockstep), close-all
+  is sequential (single JVM session), a **1-click/confirm toggle** gates
+  execution (OFF arms the button for a second "Confirm" click), every
+  execution path raises a **success toast**, and the focus-column chart now
+  leads with a **scalping preset** (`CfdPriceChart` opens on m1 zoomed to
+  the recent bars via additive `defaultTimeframe`/`barsToShow` props).
+  Remaining gaps to close once design lands: (1) **real ticks** — the
+  flashes still ride a 1 s `/api/fxcm/prices` poll; wire them to the FCLite
+  push subscription below so they're true tick-by-tick. (2) **SL/TP** — the
+  deal-ticket inputs are a visual stub; wire `stop`/`limit` into
+  `submitFxcmOrder` (the `FxcmOrderRequest` fields exist but are untested
+  from the UI — the proven path only sends OM market orders). (3) **true
+  tick / sub-minute chart** — the m1 preset is the closest available; a real
+  tick chart needs the push feed. (4) **mobile** — scalp is desktop-only
+  (guard bounces mobile to Discover); design a phone layout if wanted. (5)
+  entry is the splash CFD card's "⚡ Scalp" affordance — revisit
+  discoverability (a header indicator while on scalp, etc.). (6) the
+  `cfdDigits()` fallback heuristic disagrees with the bridge for gold
   (returns 4dp; FXCM quotes XAU/USD at 2dp) — harmless while subscribed
-  (bridge `digits` wins) but worth reconciling app-wide.
+  (bridge `digits` wins) but worth reconciling app-wide. (7) persist the
+  1-click toggle preference (currently resets each mount).
 - **CFD Workspace Watchlist — Cards view** — the CFD Watchlist widget is
   **List-only** (mid price + live spread). The SparkCard grid + Cards/List/Auto
   toggle (as in stocks/crypto) need per-instrument daily bars; wire `useFxcmBars`

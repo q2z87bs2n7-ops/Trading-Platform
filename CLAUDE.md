@@ -177,12 +177,18 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
     own amount at submit), a **rate matrix** of live bid/ask tiles (one
     per watchlist instrument) with **up/down tick flashes**, broker-style
     big-figure/pips/tenth price rendering, spread chip, and a net
-    position/P&L footer; a **deal-ticket focus column** (selected
-    instrument's big bid/ask, one-click Buy/Sell, small-timeframe chart
-    reusing `CfdPriceChart`, its open positions); and an
-    **open-positions blotter** with per-row + sequential close-all. One-click
-    submits **market (OM) orders** via `useFxcmSubmitOrder` at the
-    selected lot (clamped to per-instrument `base_unit_size`). All
+    position/P&L footer; a **deal-ticket focus column** (chart on top —
+    it drives the action — a `CfdPriceChart` opened on a **scalping preset**
+    via additive `defaultTimeframe="m1"` + `barsToShow` props that zoom to
+    the recent bars; then the selected instrument's big bid/ask Buy/Sell,
+    then its open positions); and an **open-positions blotter** with
+    per-row + sequential close-all. A **1-click toggle** in the control
+    strip gates execution: ON fires on a single click; OFF arms the
+    button ("Confirm") and a second click within ~4 s executes — a
+    modal-free fat-finger guard (`requestOrder` → `placeOrder`). Orders
+    submit **market (OM)** via `useFxcmSubmitOrder` at the selected lot
+    (clamped to per-instrument `base_unit_size`); every execution path
+    (buy/sell, close, close-all) raises a success/error toast. All
     precision/pip handling reads the bridge **instrument metadata** off
     `/prices` (`digits`, `point_size`, `instrument_type`, `base_unit_size`
     — only present for subscribed offers, so `cfdDigits()` is the
@@ -196,9 +202,9 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
     ride a **1 s `/api/fxcm/prices` poll** (no FCLite per-tick push yet —
     see BACKLOG; `subscribeBars` is still a no-op), and **SL/TP is a
     visual stub** (bridge stop/limit params untested from here, so they
-    aren't sent). No order confirm/arm step — clicks fire immediately
-    with a toast. Instruments are subscribed via `useFxcmView` so the
-    bridge keeps them on status T (live bid/ask).
+    aren't sent — the 1-click/confirm toggle and the success toasts are
+    real, but SL/TP isn't). Instruments are subscribed via `useFxcmView`
+    so the bridge keeps them on status T (live bid/ask).
   - **Portfolio** — Unified `PortfolioHero` (siloed: silo holdings on the
     left with the **net P/L curve** from `/api/pnl-history` + day chip,
     plus a 2-col stat grid on the right — stocks show Cash · BP · Net

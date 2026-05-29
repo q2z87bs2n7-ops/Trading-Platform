@@ -52,12 +52,19 @@ export default function CfdPriceChart({
   instrument,
   livePrice,
   onOpenChart,
+  defaultTimeframe,
+  barsToShow,
 }: {
   instrument: string;
   // Optional — the parent CfdDiscoverPage already polls /api/fxcm/prices and
   // can pass the row for this instrument straight through.
   livePrice?: FxcmPrice;
   onOpenChart?: () => void;
+  // Additive, default-off presets for the Scalp surface. `defaultTimeframe`
+  // opens on a small frame (e.g. "m1"); `barsToShow` zooms to the most recent
+  // N bars instead of fit-to-content. Other callers keep the H1 / fit defaults.
+  defaultTimeframe?: string;
+  barsToShow?: number;
 }) {
   // Keep the charted instrument subscribed (status T) for the live-tip price.
   useFxcmView(instrument);
@@ -65,7 +72,7 @@ export default function CfdPriceChart({
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
-  const [timeframe, setTimeframe] = useState("H1");
+  const [timeframe, setTimeframe] = useState(defaultTimeframe ?? "H1");
   const { theme } = useTheme();
 
   const { data: bars, error, isPending } = useFxcmBars(instrument, timeframe);
@@ -170,8 +177,17 @@ export default function CfdPriceChart({
     seriesRef.current.setData(rows);
     chartRef.current?.priceScale("right").applyOptions({ autoScale: true });
     chartRef.current?.timeScale().resetTimeScale();
-    chartRef.current?.timeScale().fitContent();
-  }, [bars]);
+    if (barsToShow && rows.length > barsToShow) {
+      // Zoom to the most recent N bars (scalping preset) instead of showing
+      // the whole window; +2 leaves a little right-edge breathing room.
+      chartRef.current?.timeScale().setVisibleLogicalRange({
+        from: rows.length - barsToShow,
+        to: rows.length + 2,
+      });
+    } else {
+      chartRef.current?.timeScale().fitContent();
+    }
+  }, [bars, barsToShow]);
 
   if (!instrument) {
     return (

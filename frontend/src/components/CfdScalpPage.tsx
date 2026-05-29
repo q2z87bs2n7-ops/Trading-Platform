@@ -158,6 +158,7 @@ function RateButton({
   digits,
   pointSize,
   busy,
+  armed,
   onClick,
 }: {
   side: "B" | "S";
@@ -165,6 +166,7 @@ function RateButton({
   digits: number;
   pointSize: number | undefined;
   busy: boolean;
+  armed: boolean;
   onClick: () => void;
 }) {
   const flash = useTickFlash(price, flashEpsilon(pointSize, digits));
@@ -183,17 +185,20 @@ function RateButton({
       disabled={busy || price == null}
       className="flex-1 flex flex-col items-center justify-center py-2.5 px-2 cursor-pointer border-0 transition-colors"
       style={{
-        background: flashBg,
+        // Armed (confirm pending) wins over the tick flash so the pending
+        // action is unmistakable.
+        background: armed ? (isBuy ? "var(--pos-bg)" : "var(--neg-bg)") : flashBg,
+        boxShadow: armed ? `inset 0 0 0 2px ${base}` : "none",
         opacity: busy ? 0.5 : 1,
         borderRadius: 8,
       }}
-      title={isBuy ? "Buy at ask (one click)" : "Sell at bid (one click)"}
+      title={isBuy ? "Buy at ask" : "Sell at bid"}
     >
       <span
         className="text-[10px] font-semibold uppercase mb-0.5"
         style={{ color: base, letterSpacing: "0.06em" }}
       >
-        {isBuy ? "Buy" : "Sell"}
+        {armed ? "Confirm" : isBuy ? "Buy" : "Sell"}
       </span>
       <span style={{ color: "var(--text)" }}>
         <BigFig value={price} digits={digits} pointSize={pointSize} />
@@ -209,6 +214,8 @@ function ScalpRateTile({
   selected,
   busyBuy,
   busySell,
+  armedBuy,
+  armedSell,
   onSelect,
   onBuy,
   onSell,
@@ -219,6 +226,8 @@ function ScalpRateTile({
   selected: boolean;
   busyBuy: boolean;
   busySell: boolean;
+  armedBuy: boolean;
+  armedSell: boolean;
   onSelect: () => void;
   onBuy: () => void;
   onSell: () => void;
@@ -264,8 +273,8 @@ function ScalpRateTile({
         className="flex items-stretch gap-1 p-1"
         onClick={(e) => e.stopPropagation()}
       >
-        <RateButton side="S" price={price.bid} digits={digits} pointSize={pointSize} busy={busySell} onClick={onSell} />
-        <RateButton side="B" price={price.ask} digits={digits} pointSize={pointSize} busy={busyBuy} onClick={onBuy} />
+        <RateButton side="S" price={price.bid} digits={digits} pointSize={pointSize} busy={busySell} armed={armedSell} onClick={onSell} />
+        <RateButton side="B" price={price.ask} digits={digits} pointSize={pointSize} busy={busyBuy} armed={armedBuy} onClick={onBuy} />
       </div>
       {net && net.units !== 0 && (
         <div
@@ -300,6 +309,11 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
   const [selected, setSelected] = useState<string>(selectedProp || "");
   const [lotLevel, setLotLevel] = useState<LotLevel>(0);
   const [pending, setPending] = useState<Set<string>>(new Set());
+  // 1-click ON = fire on a single click; OFF = first click arms the
+  // instrument/side ("Confirm"), a second click within ARM_TTL executes.
+  const [oneClick, setOneClick] = useState(true);
+  const [armedKey, setArmedKey] = useState<string | null>(null);
+  const armTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const dn = useFxcmDisplayNames();
   const unit = useFxcmUnderlyingUnit();
@@ -404,6 +418,37 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
     }
   }
 
+  function disarm() {
+    if (armTimer.current) clearTimeout(armTimer.current);
+    armTimer.current = null;
+    setArmedKey(null);
+  }
+
+  // Buy/Sell click dispatcher. In 1-click mode it fires immediately; otherwise
+  // the first click arms the button (shows "Confirm") and the second click
+  // within ARM_TTL_MS executes — a simple, modal-free fat-finger guard.
+  const ARM_TTL_MS = 4000;
+  function requestOrder(instrument: string, side: "B" | "S") {
+    const key = `${instrument}:${side}`;
+    if (oneClick) {
+      placeOrder(instrument, side);
+      return;
+    }
+    if (armedKey === key) {
+      disarm();
+      placeOrder(instrument, side);
+      return;
+    }
+    if (armTimer.current) clearTimeout(armTimer.current);
+    setArmedKey(key);
+    armTimer.current = setTimeout(() => setArmedKey(null), ARM_TTL_MS);
+  }
+
+  // Tidy the arm timer on unmount.
+  useEffect(() => () => {
+    if (armTimer.current) clearTimeout(armTimer.current);
+  }, []);
+
   async function placeOrder(instrument: string, side: "B" | "S") {
     const price = priceMap.get(instrument);
     // Resolve the lot from the *instrument's own* presets at the current level
@@ -435,6 +480,7 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
   async function closePosition(tradeId: string | number) {
     try {
       await api.closeFxcmPosition(tradeId);
+      showToast("Position closed", "success");
       await refreshPositions();
     } catch (e) {
       showToast(`Close failed: ${(e as Error).message}`, "error");
@@ -537,6 +583,40 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
             ))}
           </div>
         </div>
+
+        {/* 1-click toggle — ON fires on a single click; OFF requires a second
+            "Confirm" click on the armed button. */}
+        <button
+          type="button"
+          onClick={() => {
+            setOneClick((v) => !v);
+            disarm();
+          }}
+          className="inline-flex items-center gap-2 text-[11.5px] font-semibold px-2.5 py-1.5 rounded cursor-pointer border transition-colors"
+          style={{
+            background: oneClick ? "var(--accent-bg)" : "var(--panel-2)",
+            borderColor: oneClick ? "var(--accent)" : "var(--border)",
+            color: oneClick ? "var(--accent)" : "var(--text-2)",
+          }}
+          title={oneClick ? "1-click trading ON — orders fire immediately" : "1-click OFF — click then Confirm"}
+          aria-pressed={oneClick}
+        >
+          <span
+            aria-hidden
+            className="inline-flex items-center"
+            style={{
+              width: 26,
+              height: 15,
+              borderRadius: 999,
+              padding: 2,
+              background: oneClick ? "var(--accent)" : "var(--border-2)",
+              justifyContent: oneClick ? "flex-end" : "flex-start",
+            }}
+          >
+            <span style={{ width: 11, height: 11, borderRadius: 999, background: "var(--panel)" }} />
+          </span>
+          {oneClick ? "⚡ 1-click" : "Confirm"}
+        </button>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_360px] items-start">
@@ -567,9 +647,11 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
                     selected={sym === selected}
                     busyBuy={pending.has(`${sym}:B`)}
                     busySell={pending.has(`${sym}:S`)}
+                    armedBuy={armedKey === `${sym}:B`}
+                    armedSell={armedKey === `${sym}:S`}
                     onSelect={() => handleSelect(sym)}
-                    onBuy={() => placeOrder(sym, "B")}
-                    onSell={() => placeOrder(sym, "S")}
+                    onBuy={() => requestOrder(sym, "B")}
+                    onSell={() => requestOrder(sym, "S")}
                   />
                 );
               })}
@@ -581,6 +663,23 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
         <aside className="flex flex-col gap-4" style={{ position: "sticky", top: 16 }}>
           {selected && selectedPrice ? (
             <>
+              {/* Chart first — it drives the action. Scalping preset: opens on
+                  the 1m frame, zoomed to the most recent bars (CfdPriceChart's
+                  own TF pills still let the user change it). */}
+              <div
+                className="rounded-card-lg p-2 flex"
+                style={{ background: "var(--panel)", border: "1px solid var(--border)", boxShadow: "var(--shadow-sm)", minHeight: 360 }}
+              >
+                <CfdPriceChart
+                  instrument={selected}
+                  livePrice={selectedPrice}
+                  onOpenChart={onOpenChart}
+                  defaultTimeframe="m1"
+                  barsToShow={90}
+                />
+              </div>
+
+              {/* Deal ticket — acts on the charted instrument. */}
               <div
                 className="rounded-card-lg p-4 flex flex-col gap-3"
                 style={{ background: "var(--panel)", border: "1px solid var(--border)", boxShadow: "var(--shadow-sm)" }}
@@ -599,7 +698,8 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
                     digits={selDigits}
                     pointSize={selectedPrice.point_size}
                     busy={pending.has(`${selected}:S`)}
-                    onClick={() => placeOrder(selected, "S")}
+                    armed={armedKey === `${selected}:S`}
+                    onClick={() => requestOrder(selected, "S")}
                   />
                   <DealButton
                     side="B"
@@ -608,23 +708,18 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
                     digits={selDigits}
                     pointSize={selectedPrice.point_size}
                     busy={pending.has(`${selected}:B`)}
-                    onClick={() => placeOrder(selected, "B")}
+                    armed={armedKey === `${selected}:B`}
+                    onClick={() => requestOrder(selected, "B")}
                   />
                 </div>
                 <div className="text-[11px] flex items-center justify-between" style={{ color: "var(--mute)" }}>
                   <span>{selectedLotUnits.toLocaleString()} {unit(selected)}</span>
-                  {/* SL/TP is a design stub — not wired to the bridge yet. */}
-                  <span style={{ opacity: 0.6 }}>SL / TP · coming soon</span>
+                  {oneClick ? (
+                    <span style={{ opacity: 0.6 }}>SL / TP · coming soon</span>
+                  ) : (
+                    <span style={{ color: "var(--accent)" }}>Confirm mode · click twice</span>
+                  )}
                 </div>
-              </div>
-
-              {/* Mini chart — reuses the Discover CFD chart (m1 available in its
-                  own timeframe pills) so scalpers get a small-frame view. */}
-              <div
-                className="rounded-card-lg p-2 flex"
-                style={{ background: "var(--panel)", border: "1px solid var(--border)", boxShadow: "var(--shadow-sm)", minHeight: 320 }}
-              >
-                <CfdPriceChart instrument={selected} livePrice={selectedPrice} onOpenChart={onOpenChart} />
               </div>
 
               {/* Positions for the selected instrument */}
@@ -717,6 +812,7 @@ function DealButton({
   digits,
   pointSize,
   busy,
+  armed,
   onClick,
 }: {
   side: "B" | "S";
@@ -725,6 +821,7 @@ function DealButton({
   digits: number;
   pointSize: number | undefined;
   busy: boolean;
+  armed: boolean;
   onClick: () => void;
 }) {
   const flash = useTickFlash(price, flashEpsilon(pointSize, digits));
@@ -738,12 +835,14 @@ function DealButton({
       className="flex-1 flex flex-col items-center justify-center py-3 rounded-card border-0 cursor-pointer transition-colors"
       style={{
         background: bg,
-        boxShadow: flash ? `inset 0 0 0 2px ${accent}` : "none",
+        // Armed (confirm pending) keeps a solid ring; otherwise a brief
+        // tick-flash ring.
+        boxShadow: armed || flash ? `inset 0 0 0 2px ${accent}` : "none",
         opacity: busy ? 0.5 : 1,
       }}
     >
       <span className="text-[11px] font-bold uppercase" style={{ color: accent, letterSpacing: "0.06em" }}>
-        {busy ? "…" : label}
+        {busy ? "…" : armed ? `Confirm ${label}` : label}
       </span>
       <span style={{ color: "var(--text)" }}>
         <BigFig value={price} digits={digits} pointSize={pointSize} />
