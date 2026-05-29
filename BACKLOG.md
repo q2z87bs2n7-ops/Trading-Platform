@@ -38,6 +38,20 @@ and `docs/workspace.md` for the full reference). Outstanding:
   (returns 4dp; FXCM quotes XAU/USD at 2dp) — harmless while subscribed
   (bridge `digits` wins) but worth reconciling app-wide. (7) persist the
   1-click toggle preference (currently resets each mount).
+- **Price alerts — server-side + delivery (future).** Shipped now:
+  client-side rate-cross alerts (`lib/alerts.ts`, `CfdAlertEngine`,
+  `CfdAlertsPanel`) that fire a toast + Web-Audio chime *while the app is
+  open*, persisted to `localStorage('cfd_alerts_v1')`. Deliberately scoped:
+  no server watcher, no push (out of scope for the build). To make alerts
+  fire when the tab is closed, move monitoring server-side — there's a
+  natural home (Render is always-on, already polls the FXCM bridge; rules
+  could move to Postgres behind the same `lib/alerts.ts` seam) — and add a
+  delivery channel (Web Push/VAPID or a Telegram bot are the free,
+  single-user-friendly options; SMS/Twilio is per-message cost). Cheap
+  extra alert types if wanted: **spread-widen** (alert when spread > X pts —
+  genuinely useful to a scalper) and **% / daily-change** thresholds; the
+  alert model is typed for `direction`/`source` so a `type` discriminator
+  slots in without a rewrite.
 - **CFD Workspace Watchlist — Cards view** — the CFD Watchlist widget is
   **List-only** (mid price + live spread). The SparkCard grid + Cards/List/Auto
   toggle (as in stocks/crypto) need per-instrument daily bars; wire `useFxcmBars`

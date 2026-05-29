@@ -19,6 +19,7 @@ import { HeaderEquityReadout, HeaderStatusInline } from "./components/TopBar";
 import DiscoverPage from "./components/DiscoverPage";
 import CfdDiscoverPage from "./components/CfdDiscoverPage";
 import CfdScalpPage from "./components/CfdScalpPage";
+import CfdAlertEngine from "./components/CfdAlertEngine";
 import AssetClassSplash from "./components/AssetClassSplash";
 import AllocationDonut from "./components/AllocationDonut";
 import PortfolioHero from "./components/PortfolioHero";
@@ -782,6 +783,10 @@ export default function App() {
 
       {/* Non-intrusive toast surface — bottom-right, auto-dismiss. */}
       <Toaster />
+
+      {/* Headless CFD price-alert monitor — only polls the bridge while there
+         are armed alerts; fires an on-screen toast + chime. */}
+      <CfdAlertEngine />
     </div>
 
       {/* Market picker / account hub. Always shown on load (landing); also

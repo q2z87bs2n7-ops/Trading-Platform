@@ -204,7 +204,19 @@ account via an FCLite Java bridge that co-runs with the relay on Render.
     visual stub** (bridge stop/limit params untested from here, so they
     aren't sent — the 1-click/confirm toggle and the success toasts are
     real, but SL/TP isn't). Instruments are subscribed via `useFxcmView`
-    so the bridge keeps them on status T (live bid/ask).
+    so the bridge keeps them on status T (live bid/ask). The focus column
+    also carries a **price-alerts panel** (`CfdAlertsPanel`): rate-cross
+    alerts (above/below a level on bid/ask/mid) for the selected
+    instrument, with edit / cancel / re-arm. Monitoring is **client-side
+    only** — a headless `CfdAlertEngine` mounted in `App.tsx` polls
+    `/api/fxcm/prices` *only while armed alerts exist* (subscribing those
+    instruments via `useFxcmView`), detects a true cross (needs a prior
+    sample on the opposite side, so an alert created already-past won't
+    fire), then raises a toast + a short Web-Audio chime (`lib/sound.ts`)
+    and marks the alert one-shot `triggered`. Rules persist in
+    `localStorage('cfd_alerts_v1')` via `lib/alerts.ts`. **No server
+    watcher and no push** (out of scope) — alerts only fire while the app
+    is open.
   - **Portfolio** — Unified `PortfolioHero` (siloed: silo holdings on the
     left with the **net P/L curve** from `/api/pnl-history` + day chip,
     plus a 2-col stat grid on the right — stocks show Cash · BP · Net
@@ -580,6 +592,7 @@ new surface. Full rules, precedents, and examples: `docs/workspace.md` →
 | `last_active_at` | `App.tsx` + `lib/session.ts` | `App.tsx` (`shouldShowSplash`) | Epoch-ms of last activity (mount · interaction, throttled 15s · tab focus · pagehide). Gates the resume-on-reload behaviour: if a load happens > `SESSION_TTL_MS` (10 min) after the last activity — or the key is absent — the splash re-shows instead of resuming the last silo/mode. Boot-only check (never interrupts a mounted session). A **service-worker reset** (`disableServiceWorker`) calls `expireSession()` (removes this key) so the post-reset reload lands on the splash. Primitives live in `lib/session.ts`. |
 | `theme` | `hooks/useTheme.ts` + `index.html` bootstrap | both | `"light" \| "dark"`. Defaults to OS preference. |
 | `discover_sidebar_collapsed_v1` | `components/DiscoverPage.tsx` | `components/DiscoverPage.tsx` | `"1"` when the desktop Discover watchlist sidebar is collapsed to its 32 px chevron strip. Absent / any other value = expanded. Desktop-only (mobile renders the watchlist as a horizontal CardsRow). |
+| `cfd_alerts_v1` | `lib/alerts.ts` | `lib/alerts.ts` (`useAlerts`) + `CfdAlertEngine` | JSON array of client-side CFD price alerts (`instrument`, `source` bid/ask/mid, `direction` above/below, `price`, `status` armed/triggered). Monitored in-browser by `CfdAlertEngine` while the app is open; fires a toast + chime on a rate cross, one-shot. No server watcher / push. Easily swappable to the DB later (isolated behind `lib/alerts.ts`). |
 | `chartbot_session` | `useChatSession` | `useChatSession` | Serialised turns + apiHistory, capped at 256 KB. |
 | `ask_session_v1` | `components/ask/AskBar.tsx` | `components/ask/AskBar.tsx` | Ask-anything transcript + apiHistory, capped at 256 KB. Each fallback turn stores its `cachedResp` so a reopen / reload replays the answer without re-billing Anthropic; workspace_actions and watchlist invalidations are **not** re-replayed from cache. Header **Clear** button (visible only when there are turns) wipes the key. Eviction drops the oldest turn (and matching user+assistant pair) when over budget. |
 | `ai_drawings_v1` | `tv-drawings.ts` | `tv-drawings.ts` | Per-symbol drawing UUIDs replayed on chart load. |

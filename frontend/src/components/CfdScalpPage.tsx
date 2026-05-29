@@ -13,6 +13,7 @@ import { cfdDigits, fmtCfdPrice, fmtSpread, money } from "../lib/format";
 import { showToast } from "../lib/toast";
 import type { FxcmPosition, FxcmPrice } from "../types";
 import CfdPriceChart from "./CfdPriceChart";
+import CfdAlertsPanel from "./CfdAlertsPanel";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CFD scalping mode — a traditional forex-broker rapid-trade surface.
@@ -525,6 +526,10 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
 
   const selectedPrice = priceMap.get(selected);
   const selDigits = selectedPrice?.digits ?? cfdDigits(selected);
+  const selMid =
+    selectedPrice?.bid != null && selectedPrice?.ask != null
+      ? (selectedPrice.bid + selectedPrice.ask) / 2
+      : selectedPrice?.bid ?? selectedPrice?.ask;
   // Lot presets follow the selected instrument's type; the chosen level is
   // shared across the matrix and resolved per-tile at submit (see placeOrder).
   const selectedPresets = lotPresetsFor(selectedPrice);
@@ -738,6 +743,10 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
                   ))}
                 </div>
               )}
+
+              {/* Price alerts — scoped to the selected instrument; the list
+                  manages every alert. Monitored by CfdAlertEngine. */}
+              <CfdAlertsPanel instrument={selected} currentPrice={selMid} digits={selDigits} />
             </>
           ) : (
             <div
