@@ -8,6 +8,7 @@ import {
 } from "../../data/hooks";
 import { cfdDigits } from "../../lib/format";
 import { isForexPair } from "../../lib/asset-class";
+import { useFxcmView } from "../../lib/fxcm-view";
 
 /**
  * Inline CFD order ticket for the Workspace Trade widget — the CFD analogue of
@@ -49,6 +50,10 @@ export default function FxcmOrderTicketInline({ instrument }: { instrument: stri
   const dn = useFxcmDisplayNames();
   const unit = useFxcmUnderlyingUnit();
   const submit = useFxcmSubmitOrder();
+
+  // Ensure the traded instrument is subscribed so its live price + lot/precision
+  // metadata are available (it may not be on the watchlist).
+  useFxcmView(instrument);
 
   const [side, setSide] = useState<"B" | "S">("B");
   const [orderType, setOrderType] = useState<UiOrderType>("OM");

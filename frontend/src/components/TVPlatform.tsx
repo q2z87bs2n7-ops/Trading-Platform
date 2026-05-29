@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef } from "react";
 
 import { useTheme } from "../hooks/useTheme";
 import { useMobile } from "../hooks/useMobile";
+import { useFxcmView } from "../lib/fxcm-view";
 import { createDatafeed } from "../lib/tv-datafeed";
 import { createBroker } from "../lib/tv-broker";
 import {
@@ -75,6 +76,9 @@ function normalizeSymbol(raw: string): string {
 
 export default function TVPlatform({ symbol, onSymbolChange, assetClass }: Props) {
   const isMobile = useMobile();
+  // CFD silo: keep the charted instrument subscribed so its FXCM bars/quotes
+  // stream (only subscribed instruments are priced).
+  useFxcmView(symbol, assetClass === "cfd");
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetRef = useRef<TVWidgetInstance | null>(null);
   const readyRef = useRef(false);

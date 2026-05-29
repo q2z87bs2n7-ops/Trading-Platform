@@ -12,6 +12,7 @@ app.fxcm.com uses) with a JWT minted by fxcm_auth.py. See the
 
 import asyncio
 import logging
+import random
 import time
 from typing import Any, Optional
 
@@ -265,11 +266,13 @@ async def subscribe_watchlist_at_boot() -> None:
         offer_ids = wl.get("offerIds") or []
         if not offer_ids:
             return
-        global _last_subscribed_offer_ids
-        current_ids = frozenset(int(oid) for oid in offer_ids)
-        _last_subscribed_offer_ids = current_ids
-        await _post("/subscribe", {"offer_ids": [str(i) for i in current_ids]})
-        _log.info("fxcm boot subscribe: pushed %d watchlist offer IDs to bridge", len(current_ids))
+        global _watchlist_offer_ids
+        _watchlist_offer_ids = frozenset(int(oid) for oid in offer_ids)
+        _reconcile_subscriptions(cleanup=False)
+        _log.info(
+            "fxcm boot subscribe: pushed %d watchlist offer IDs to bridge",
+            len(_watchlist_offer_ids),
+        )
     except Exception as exc:
         _log.warning("fxcm boot subscribe failed: %s", exc)
 
@@ -289,10 +292,49 @@ class WatchlistAddRequest(BaseModel):
     instrument: str  # symbol form, e.g. "EUR/USD", "XAU/USD", "US30"
 
 
+class ViewRequest(BaseModel):
+    # Symbols the frontend is currently displaying (charts, ticket, quotes).
+    instruments: list[str] = []
+
+
 # Module-level cache. Single-user app — no per-user scoping needed.
 _watchlist_id: Optional[str] = None
 _watchlist_id_lock = asyncio.Lock()
-_last_subscribed_offer_ids: frozenset[int] = frozenset()
+
+# ── Subscription lifecycle (T/D) ────────────────────────────────────────────
+# The bridge keeps an instrument status T (priced / in view) while subscribed
+# and D otherwise; open positions/orders are always T (the bridge guards those
+# on unsubscribe). The *desired* subscription set is driven by two sources:
+#   _watchlist_offer_ids — the user's pinned watchlist (refreshed on watchlist GET)
+#   _view_offer_ids       — instruments the frontend is currently displaying
+#                           (POST /view), so charts / tickets / quotes get T.
+# _subscribed_snapshot is what we've actually pushed to the bridge. Subscribing
+# newly-needed IDs happens immediately; returning stale IDs to D ("cleanup") is
+# sporadic to avoid subscribe/unsubscribe thrash as the user clicks around — the
+# watchlist poll also reconciles fully each cycle.
+_watchlist_offer_ids: frozenset[int] = frozenset()
+_view_offer_ids: frozenset[int] = frozenset()
+_subscribed_snapshot: frozenset[int] = frozenset()
+_VIEW_CLEANUP_PROB = 0.15
+
+
+def _reconcile_subscriptions(*, cleanup: bool) -> None:
+    """Push the desired subscription set (watchlist ∪ active view) to the bridge.
+    Subscribe newly-needed offer IDs always; unsubscribe stale ones only on a
+    cleanup pass. Fire-and-forget (best-effort; bridge guards positions/orders)."""
+    global _subscribed_snapshot
+    desired = _watchlist_offer_ids | _view_offer_ids
+    new_ids = desired - _subscribed_snapshot
+    if new_ids:
+        asyncio.create_task(_post("/subscribe", {"offer_ids": [str(i) for i in new_ids]}))
+        _subscribed_snapshot = _subscribed_snapshot | new_ids
+    if cleanup:
+        stale = _subscribed_snapshot - desired
+        if stale:
+            asyncio.create_task(
+                _post("/unsubscribe", {"offer_ids": [str(i) for i in stale]})
+            )
+            _subscribed_snapshot = _subscribed_snapshot - stale
 
 # offerId ↔ symbol map cached from the FCLite bridge's /instruments
 # endpoint. Refreshed on cache miss + every hour.
@@ -429,18 +471,14 @@ async def watchlist():
     if not symbols:
         return []
 
-    # Keep bridge subscription state in sync: subscribe new IDs, unsubscribe removed ones.
-    # _last_subscribed_offer_ids is the snapshot of what Python last told the bridge;
-    # the bridge guards unsubscribe against open positions/orders on its own.
-    global _last_subscribed_offer_ids
-    current_ids = frozenset(int(oid) for oid in offer_ids)
-    new_ids = current_ids - _last_subscribed_offer_ids
-    removed_ids = _last_subscribed_offer_ids - current_ids
-    if new_ids:
-        asyncio.create_task(_post("/subscribe", {"offer_ids": [str(i) for i in new_ids]}))
-    if removed_ids:
-        asyncio.create_task(_post("/unsubscribe", {"offer_ids": [str(i) for i in removed_ids]}))
-    _last_subscribed_offer_ids = current_ids
+    # Keep bridge subscription state in sync. The watchlist poll (≈3 s) is also
+    # the reconcile heartbeat: it refreshes the watchlist half of the desired
+    # set and runs a full cleanup (subscribe new, unsubscribe stale) against
+    # watchlist ∪ active view. The bridge guards unsubscribe against open
+    # positions/orders on its own.
+    global _watchlist_offer_ids
+    _watchlist_offer_ids = frozenset(int(oid) for oid in offer_ids)
+    _reconcile_subscriptions(cleanup=True)
 
     # Enrich with live bid/ask from the FCLite offers list.
     # Some instruments (indices, commodities) return instrument=null from the
@@ -508,6 +546,38 @@ async def watchlist_add(req: WatchlistAddRequest):
     # Return the updated enriched view so the client doesn't need a
     # second round-trip.
     return await watchlist()
+
+
+@router.post("/view")
+async def set_view(req: ViewRequest):
+    """Report the CFD instruments the frontend is currently displaying.
+
+    New instruments are subscribed immediately (status T → live prices, so a
+    just-opened chart / order ticket gets bid/ask + precision/lot metadata).
+    Instruments that drop out of the view return to D on a sporadic cleanup
+    pass here (and on every watchlist poll); the bridge keeps open
+    positions/orders subscribed regardless. Idempotent and best-effort.
+    """
+    global _view_offer_ids
+    _, sym_to_id = await _offer_map()
+    ids: set[int] = set()
+    missing = False
+    for sym in req.instruments:
+        oid = sym_to_id.get(sym)
+        if oid is None:
+            missing = True
+        else:
+            ids.add(oid)
+    # A symbol the map hasn't seen (e.g. just surfaced by FXCM) — refresh once.
+    if missing:
+        await _refresh_offer_map()
+        for sym in req.instruments:
+            oid = _offer_map_by_symbol.get(sym)
+            if oid is not None:
+                ids.add(oid)
+    _view_offer_ids = frozenset(ids)
+    _reconcile_subscriptions(cleanup=random.random() < _VIEW_CLEANUP_PROB)
+    return {"view": len(_view_offer_ids), "subscribed": len(_subscribed_snapshot)}
 
 
 @router.delete("/watchlist/{instrument:path}")
