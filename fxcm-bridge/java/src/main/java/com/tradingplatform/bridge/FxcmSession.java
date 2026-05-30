@@ -370,6 +370,10 @@ public class FxcmSession {
             m.put("point_size",      safe(inst::getPointSize));
             m.put("instrument_type", safe(inst::getInstrumentType));
             m.put("base_unit_size",  safe(inst::getBaseUnitSize));
+            // Notional inputs: contract value scaling + the currency the notional
+            // comes out in (so the client can convert it to the account ccy).
+            m.put("contract_multiplier", safe(inst::getContractMultiplier));
+            m.put("contract_currency",   safe(inst::getContractCurrency));
             // Overnight financing (rollover) for holding long/short — present on
             // every instrument. Dividend is only emitted when the instrument
             // actually carries one (index CFDs + single-share/ETF CFDs), gated
@@ -425,10 +429,19 @@ public class FxcmSession {
             // perfectly without leverage/conversion lookups, so surface gross_pl as a
             // recomputed-from-mid approximation when possible, else fall back to gross.
             m.put("live_pl", safe(pos::getGrossPL));
-            // Instrument metadata (digits = price precision for pip rendering).
+            // Instrument metadata (digits = price precision for pip rendering;
+            // contract_multiplier + contract_currency drive notional/exposure).
             m.put("digits", safe(() -> {
                 Instrument inst = instrumentsMgr.getInstrumentByOfferId(pos.getOfferId());
                 return inst != null ? (Integer) inst.getClass().getMethod("getDigits").invoke(inst) : null;
+            }));
+            m.put("contract_multiplier", safe(() -> {
+                Instrument inst = instrumentsMgr.getInstrumentByOfferId(pos.getOfferId());
+                return inst != null ? inst.getContractMultiplier() : null;
+            }));
+            m.put("contract_currency", safe(() -> {
+                Instrument inst = instrumentsMgr.getInstrumentByOfferId(pos.getOfferId());
+                return inst != null ? inst.getContractCurrency() : null;
             }));
             m.put("open_time", safe(() -> {
                 Object t = pos.getClass().getMethod("getOpenTime").invoke(pos);

@@ -654,6 +654,8 @@ export interface FxcmPrice {
   point_size?: number;
   instrument_type?: number;
   base_unit_size?: number;
+  contract_multiplier?: number;
+  contract_currency?: string;
   trading_status?: string;
   // Overnight financing (rollover) for holding long/short — present on every
   // instrument. Dividend is only present on instruments that carry one (index
@@ -700,7 +702,12 @@ export interface FxcmPosition {
   live_pl?: number;
   // Alias for used_margin so AllocationDonut (keyed on market_value) can render CFDs.
   market_value?: number;
+  used_margin?: number;
   digits?: number;
+  // Notional inputs (present once the bridge forwards them; absent → multiplier
+  // defaults to 1, contract ccy inferred from the symbol's base leg).
+  contract_multiplier?: number;
+  contract_currency?: string;
   open_time?: string;
   [key: string]: unknown;
 }
