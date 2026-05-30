@@ -201,42 +201,61 @@
 </div>
 
 <script>
+  // Raw account inputs (both accounts). Slices are derived from these.
+  const M = {
+    P_stock:  30100,   // Σ stock market_value
+    P_crypto:  7710,   // Σ crypto market_value
+    C_alpaca:  4500,   // Alpaca cash (negative = margin debit)
+    E_fxcm:    1240,   // FXCM equity (= used + free margin)
+    M_used:     472,   // FXCM used margin
+    N_cfd:    18900,   // Σ |net_notional| (hedge-netted within instrument, USD)
+  };
+
+  const usd = n => "$" + Math.round(n).toLocaleString("en-US");
+
+  // L = margin loan (debit); attributes to stocks since crypto is non-marginable.
+  const L = Math.max(-M.C_alpaca, 0);
+  const lev = M.N_cfd / M.M_used;                 // notional ÷ margin requirement
+  const cfdBadge = "⚡" + Math.round(lev) + "×";
+
   const DATA = {
+    // Capital = equity. Stocks net out the loan; cash floored at 0; CFD = equity.
     capital: {
       label: "Capital deployed",
-      total: "$43,550",
       seg: [
-        { name:"Stocks", color:"var(--pos)",    val:"$30,100", pct:69 },
-        { name:"Crypto", color:"var(--accent)", val:"$7,710",  pct:18 },
-        { name:"Cash",   color:"var(--cash)",   val:"$4,500",  pct:10 },
-        { name:"CFD",    color:"var(--cfd)",    val:"$1,240",  pct:3, badge:"⚡40×" },
+        { name:"Stocks", color:"var(--pos)",    val: M.P_stock - L },
+        { name:"Crypto", color:"var(--accent)", val: M.P_crypto },
+        { name:"Cash",   color:"var(--cash)",   val: Math.max(M.C_alpaca, 0) },
+        { name:"CFD",    color:"var(--cfd)",    val: M.E_fxcm, badge: cfdBadge },
       ],
     },
+    // Exposure = notional at risk. No cash slice; CFD = notional, not equity.
     exposure: {
       label: "Market exposure",
-      total: "$61,210",
       seg: [
-        { name:"Stocks", color:"var(--pos)",    val:"$30,100", pct:49 },
-        { name:"Crypto", color:"var(--accent)", val:"$7,710",  pct:13 },
-        { name:"CFD",    color:"var(--cfd)",    val:"$18,900", pct:31, badge:"⚡40×" },
-        { name:"Cash",   color:"var(--cash)",   val:"$4,500",  pct:7 },
+        { name:"Stocks", color:"var(--pos)",    val: M.P_stock },
+        { name:"Crypto", color:"var(--accent)", val: M.P_crypto },
+        { name:"CFD",    color:"var(--cfd)",    val: M.N_cfd, badge: cfdBadge },
       ],
     },
   };
 
   function setMode(mode) {
     const d = DATA[mode];
+    const seg = d.seg.filter(s => s.val > 0);
+    const total = seg.reduce((a, s) => a + s.val, 0) || 1;
+
     document.getElementById("btn-cap").setAttribute("aria-pressed", mode==="capital");
     document.getElementById("btn-exp").setAttribute("aria-pressed", mode==="exposure");
     document.getElementById("axis-label").textContent = d.label;
-    document.getElementById("total").textContent = d.total;
+    document.getElementById("total").textContent = usd(total);
     document.getElementById("bar").innerHTML =
-      d.seg.map(s => `<div style="width:${s.pct}%;background:${s.color}"></div>`).join("");
-    document.getElementById("legend").innerHTML = d.seg.map(s => `
+      seg.map(s => `<div style="width:${(s.val/total)*100}%;background:${s.color}"></div>`).join("");
+    document.getElementById("legend").innerHTML = seg.map(s => `
       <span class="item">
         <span class="swatch" style="background:${s.color}"></span>
         <span class="name">${s.name}</span>
-        <span class="val mono">${s.val} · ${s.pct}%</span>
+        <span class="val mono">${usd(s.val)} · ${Math.round((s.val/total)*100)}%</span>
         ${s.badge ? `<span class="badge">${s.badge}</span>` : ""}
       </span>`).join("");
   }
