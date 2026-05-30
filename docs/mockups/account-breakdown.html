@@ -102,6 +102,13 @@
   .enter .nm { font-size: 13.5px; flex: 1; }
   .enter .meta { font-size: 12px; color: var(--mute); }
   .enter .chev { color: var(--mute); font-size: 14px; }
+  .lev-chip {
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 10.5px;
+    color: var(--mute); border: 1px solid var(--line); border-radius: 999px;
+    padding: 1px 6px; cursor: help;
+  }
+  /* lights up when a silo is actually levered (>1x) */
+  .lev-chip.hot { color: var(--cfd); border-color: color-mix(in oklch, var(--cfd) 45%, transparent); }
 
   /* CFD margin gauge */
   .gauge-wrap { margin: 4px 0 2px; }
@@ -154,9 +161,10 @@
     <div class="legend" id="legend"></div>
 
     <div class="axis-note" id="note">
-      <b>Capital</b> = where your money actually sits. CFDs show their FXCM
-      account equity (the margin backing the trades), not face value — so the
-      slice is small and honest.
+      <b>Capital</b> = the equity backing each silo. Crypto is 1:1
+      (non-marginable); Stocks is a Reg-T margin account so its equity can sit
+      under its market value; CFDs show FXCM account equity, not face value.
+      Leverage is a per-silo property — CFD is just the extreme.
     </div>
   </div>
 
@@ -171,7 +179,8 @@
         <div class="d up mono">+$512 · +1.22%</div>
       </div>
     </div>
-    <!-- this bar is legitimately 1:1 value-backed -->
+    <!-- exposure slices; equities are a Reg-T margin account, so market_value
+         is exposure, not necessarily 1:1 capital. crypto alone is non-marginable. -->
     <div class="bar">
       <div style="width:71%;background:var(--pos)"></div>
       <div style="width:18%;background:var(--accent)"></div>
@@ -186,12 +195,22 @@
     <div style="margin-top:14px">
       <div class="enter">
         <span class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--pos)"></span>
-        <span class="nm">Stocks</span><span class="meta mono">12 positions</span><span class="chev">→</span>
+        <span class="nm">Stocks</span>
+        <span class="lev-chip" title="Reg-T margin: up to ~2x overnight, ~4x intraday">1.0&times;</span>
+        <span class="meta mono">12 positions</span><span class="chev">→</span>
       </div>
       <div class="enter">
         <span class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--accent)"></span>
-        <span class="nm">Crypto</span><span class="meta mono">3 positions</span><span class="chev">→</span>
+        <span class="nm">Crypto</span>
+        <span class="lev-chip" title="Non-marginable: always 1:1 cash-backed">1.0&times;</span>
+        <span class="meta mono">3 positions</span><span class="chev">→</span>
       </div>
+    </div>
+    <div class="axis-note">
+      Equities is a <b>Reg-T margin account</b> — buy on margin and Stocks’
+      leverage rises toward 2&times; (4&times; intraday) and this chip lights up.
+      Crypto is non-marginable, so it’s pinned at 1.0&times;. Same axis as CFD,
+      just a gentler band.
     </div>
   </div>
 
@@ -244,9 +263,10 @@
     capital: {
       label: "Capital deployed",
       total: "$43,550",
-      note: '<b>Capital</b> = where your money actually sits. CFDs show their FXCM ' +
-            'account equity (the margin backing the trades), not face value — so the ' +
-            'slice is small and honest.',
+      note: '<b>Capital</b> = the equity backing each silo. Crypto is 1:1 ' +
+            '(non-marginable); Stocks is a Reg-T margin account so its equity can sit ' +
+            'under its market value; CFDs show FXCM account equity, not face value. ' +
+            'Leverage is a per-silo property — CFD is just the extreme.',
       seg: [
         { name:"Stocks", color:"var(--pos)",    val:"$30,100", pct:69 },
         { name:"Crypto", color:"var(--accent)", val:"$7,710",  pct:18 },
