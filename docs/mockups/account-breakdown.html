@@ -238,12 +238,20 @@
     <div class="cfd-stats">
       <div class="s"><div class="k">Free margin</div><div class="v mono">$768</div></div>
       <div class="s"><div class="k">Exposure</div><div class="v mono">$18,900</div></div>
-      <div class="s"><div class="k">Leverage</div><div class="v mono lev">≈15×</div></div>
+      <div class="s"><div class="k" title="notional ÷ margin requirement">Leverage</div><div class="v mono lev">≈40×</div></div>
     </div>
 
     <div class="axis-note">
-      <b>$472</b> of margin is controlling <b>$18,900</b> of market — that 15×
-      gap is the risk a value-weighted bar would hide. Here it's stated outright.
+      <b>$472</b> of margin requirement is controlling <b>$18,900</b> of market —
+      leverage = notional ÷ margin = <b>40×</b> (not notional ÷ equity). That gap
+      is the risk a value-weighted bar would hide; here it's stated outright.
+    </div>
+
+    <div class="axis-note" style="margin-top:8px;border-top:1px solid var(--line);padding-top:10px">
+      <b>How exposure is derived</b> — non-FX: <span class="mono">rate × contract_multiplier × contracts</span>;
+      FX: <span class="mono">amount</span> (base-ccy face, multiplier 1). Both converted
+      to USD via FXCM's auto-streamed status-<b>V</b> conversion offer, inverted
+      (<span class="mono">×1/rate</span>) when USD is that pair's base.
     </div>
 
     <div class="scalp">⚡ Scalp · 4 positions →</div>
@@ -264,14 +272,14 @@
       label: "Capital deployed",
       total: "$43,550",
       note: '<b>Capital</b> = the equity backing each silo. Crypto is 1:1 ' +
-            '(non-marginable); Stocks is a Reg-T margin account so its equity can sit ' +
-            'under its market value; CFDs show FXCM account equity, not face value. ' +
-            'Leverage is a per-silo property — CFD is just the extreme.',
+            '(non-marginable); Stocks is a Reg-T margin account; CFDs show FXCM account ' +
+            'equity, not face value. The ⚡ badge is per-silo leverage = notional ÷ ' +
+            'margin requirement — CFD is just the extreme tail.',
       seg: [
         { name:"Stocks", color:"var(--pos)",    val:"$30,100", pct:69 },
         { name:"Crypto", color:"var(--accent)", val:"$7,710",  pct:18 },
         { name:"Cash",   color:"var(--cash)",   val:"$4,500",  pct:10 },
-        { name:"CFD",    color:"var(--cfd)",    val:"$1,240",  pct:3, badge:"⚡15×" },
+        { name:"CFD",    color:"var(--cfd)",    val:"$1,240",  pct:3, badge:"⚡40×" },
       ],
     },
     exposure: {
@@ -283,7 +291,7 @@
       seg: [
         { name:"Stocks", color:"var(--pos)",    val:"$30,100", pct:49 },
         { name:"Crypto", color:"var(--accent)", val:"$7,710",  pct:13 },
-        { name:"CFD",    color:"var(--cfd)",    val:"$18,900", pct:31, badge:"⚡15×" },
+        { name:"CFD",    color:"var(--cfd)",    val:"$18,900", pct:31, badge:"⚡40×" },
         { name:"Cash",   color:"var(--cash)",   val:"$4,500",  pct:7 },
       ],
     },
