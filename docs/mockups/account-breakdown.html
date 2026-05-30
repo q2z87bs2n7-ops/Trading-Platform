@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Account breakdown — three products (mockup)</title>
+<style>
+  /* Calm-v2-ish tokens, dark. Approximate of the real app palette. */
+  :root {
+    --bg:        oklch(22% 0.012 250);
+    --panel:     oklch(26% 0.014 250);
+    --panel-2:   oklch(31% 0.016 250);
+    --line:      oklch(38% 0.016 250);
+    --text:      oklch(96% 0.01 250);
+    --text-2:    oklch(80% 0.012 250);
+    --mute:      oklch(64% 0.012 250);
+    --pos:       oklch(72% 0.15 150);   /* stocks green */
+    --accent:    oklch(70% 0.13 250);   /* crypto blue */
+    --cfd:       oklch(72% 0.18 55);    /* cfd amber */
+    --neg:       oklch(66% 0.18 25);
+    --cash:      oklch(58% 0.012 250);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: Inter, system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    display: flex; justify-content: center; padding: 40px 16px;
+  }
+  .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  .wrap { width: 100%; max-width: 560px; }
+
+  .splash-head { text-align: center; margin-bottom: 22px; }
+  .splash-head h1 { font-size: 19px; font-weight: 600; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .splash-head p { margin: 0; color: var(--mute); font-size: 13px; }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 16px; padding: 18px; margin-bottom: 14px;
+  }
+
+  /* ---- Top unified Capital bar ---- */
+  .topbar-head {
+    display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 14px;
+  }
+  .topbar-head .label { color: var(--mute); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .topbar-head .total { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; }
+
+  .toggle {
+    display: inline-flex; background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 999px; padding: 2px; gap: 2px; font-size: 11.5px;
+  }
+  .toggle button {
+    border: 0; background: transparent; color: var(--mute); cursor: pointer;
+    padding: 4px 11px; border-radius: 999px; font: inherit; transition: .12s;
+  }
+  .toggle button[aria-pressed="true"] { background: var(--text); color: var(--bg); font-weight: 600; }
+
+  .bar {
+    display: flex; height: 11px; width: 100%; overflow: hidden;
+    border-radius: 999px; background: var(--panel-2); gap: 2px;
+  }
+  .bar > div { transition: width .45s cubic-bezier(.4,0,.2,1); min-width: 2px; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 12px 18px; margin-top: 12px; font-size: 12.5px; }
+  .legend .item { display: flex; align-items: center; gap: 7px; }
+  .legend .swatch { width: 10px; height: 10px; border-radius: 3px; }
+  .legend .name { color: var(--text-2); }
+  .legend .val { color: var(--mute); }
+  .badge {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 10.5px; font-weight: 600; padding: 1px 6px; border-radius: 999px;
+    background: color-mix(in oklch, var(--cfd) 22%, transparent);
+    color: var(--cfd); margin-left: 2px;
+  }
+  .axis-note { margin-top: 10px; font-size: 11.5px; color: var(--mute); line-height: 1.45; }
+  .axis-note b { color: var(--text-2); font-weight: 600; }
+
+  /* ---- Account group section ---- */
+  .group-label {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.07em;
+    color: var(--mute); margin: 22px 4px 8px;
+  }
+  .group-label .rule { flex: 1; height: 1px; background: var(--line); }
+
+  /* Brokerage card */
+  .acct-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 14px; }
+  .acct-head .who { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; }
+  .acct-head .who .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .acct-head .eq { text-align: right; }
+  .acct-head .eq .n { font-size: 18px; font-weight: 600; }
+  .acct-head .eq .d { font-size: 12px; }
+  .up { color: var(--pos); } .down { color: var(--neg); }
+
+  /* Silo enter rows */
+  .enter {
+    display: flex; align-items: center; gap: 12px; padding: 9px 4px;
+    border-top: 1px solid var(--line); cursor: pointer;
+  }
+  .enter:hover { background: color-mix(in oklch, var(--panel-2) 60%, transparent); border-radius: 8px; }
+  .enter .nm { font-size: 13.5px; flex: 1; }
+  .enter .meta { font-size: 12px; color: var(--mute); }
+  .enter .chev { color: var(--mute); font-size: 14px; }
+
+  /* CFD margin gauge */
+  .gauge-wrap { margin: 4px 0 2px; }
+  .gauge-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px; }
+  .gauge-row .k { color: var(--mute); }
+  .gauge {
+    height: 9px; border-radius: 999px; background: var(--panel-2);
+    overflow: hidden; position: relative;
+  }
+  .gauge > div { height: 100%; background: var(--cfd); border-radius: 999px; }
+  .cfd-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 13px; }
+  .cfd-stats .s { background: var(--panel-2); border-radius: 10px; padding: 9px 10px; }
+  .cfd-stats .s .k { font-size: 10.5px; color: var(--mute); text-transform: uppercase; letter-spacing: 0.04em; }
+  .cfd-stats .s .v { font-size: 14.5px; font-weight: 600; margin-top: 3px; }
+  .lev { color: var(--cfd); }
+
+  .scalp {
+    display: inline-flex; align-items: center; gap: 5px; margin-top: 12px;
+    font-size: 12.5px; font-weight: 600; color: var(--cfd);
+    background: color-mix(in oklch, var(--cfd) 14%, transparent);
+    border: 1px solid color-mix(in oklch, var(--cfd) 35%, transparent);
+    padding: 6px 12px; border-radius: 9px; cursor: pointer;
+  }
+
+  .foot { text-align:center; color: var(--mute); font-size: 11px; margin-top: 20px; line-height:1.5; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="splash-head">
+    <h1>Your account</h1>
+    <p>Pick a product to trade · all figures live</p>
+  </div>
+
+  <!-- ===== Top unified Capital bar (Option B layer) ===== -->
+  <div class="card">
+    <div class="topbar-head">
+      <div>
+        <div class="label" id="axis-label">Capital deployed</div>
+        <div class="total mono" id="total">$43,550</div>
+      </div>
+      <div class="toggle" role="group" aria-label="Weighting">
+        <button id="btn-cap"  aria-pressed="true"  onclick="setMode('capital')">Capital</button>
+        <button id="btn-exp"  aria-pressed="false" onclick="setMode('exposure')">Exposure</button>
+      </div>
+    </div>
+
+    <div class="bar" id="bar"></div>
+    <div class="legend" id="legend"></div>
+
+    <div class="axis-note" id="note">
+      <b>Capital</b> = where your money actually sits. CFDs show their FXCM
+      account equity (the margin backing the trades), not face value — so the
+      slice is small and honest.
+    </div>
+  </div>
+
+  <!-- ===== Account group 1: Brokerage (Alpaca) ===== -->
+  <div class="group-label"><span>Brokerage · Alpaca</span><span class="rule"></span><span class="mono">$42,310</span></div>
+
+  <div class="card">
+    <div class="acct-head">
+      <div class="who"><span class="dot" style="background:var(--pos)"></span>One cash pool · stocks + crypto</div>
+      <div class="eq">
+        <div class="n mono">$42,310</div>
+        <div class="d up mono">+$512 · +1.22%</div>
+      </div>
+    </div>
+    <!-- this bar is legitimately 1:1 value-backed -->
+    <div class="bar">
+      <div style="width:71%;background:var(--pos)"></div>
+      <div style="width:18%;background:var(--accent)"></div>
+      <div style="width:11%;background:var(--cash)"></div>
+    </div>
+    <div class="legend">
+      <span class="item"><span class="swatch" style="background:var(--pos)"></span><span class="name">Stocks</span><span class="val mono">$30,100 · 71%</span></span>
+      <span class="item"><span class="swatch" style="background:var(--accent)"></span><span class="name">Crypto</span><span class="val mono">$7,710 · 18%</span></span>
+      <span class="item"><span class="swatch" style="background:var(--cash)"></span><span class="name">Cash</span><span class="val mono">$4,500 · 11%</span></span>
+    </div>
+
+    <div style="margin-top:14px">
+      <div class="enter">
+        <span class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--pos)"></span>
+        <span class="nm">Stocks</span><span class="meta mono">12 positions</span><span class="chev">→</span>
+      </div>
+      <div class="enter">
+        <span class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--accent)"></span>
+        <span class="nm">Crypto</span><span class="meta mono">3 positions</span><span class="chev">→</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Account group 2: CFD (FXCM) — risk-native, separate pool ===== -->
+  <div class="group-label"><span>CFD · FXCM</span><span class="rule"></span><span class="mono">$1,240</span></div>
+
+  <div class="card" style="border-color: color-mix(in oklch, var(--cfd) 30%, var(--line))">
+    <div class="acct-head">
+      <div class="who"><span class="dot" style="background:var(--cfd)"></span>Isolated cash · leveraged</div>
+      <div class="eq">
+        <div class="n mono">$1,240</div>
+        <div class="d down mono">−$18 · −1.43%</div>
+      </div>
+    </div>
+
+    <!-- margin utilization gauge: CFD's native metric, not a value slice -->
+    <div class="gauge-wrap">
+      <div class="gauge-row">
+        <span class="k">Margin used</span>
+        <span class="mono"><span style="color:var(--cfd)">$472</span> of $1,240 · 38%</span>
+      </div>
+      <div class="gauge"><div style="width:38%"></div></div>
+    </div>
+
+    <div class="cfd-stats">
+      <div class="s"><div class="k">Free margin</div><div class="v mono">$768</div></div>
+      <div class="s"><div class="k">Exposure</div><div class="v mono">$18,900</div></div>
+      <div class="s"><div class="k">Leverage</div><div class="v mono lev">≈15×</div></div>
+    </div>
+
+    <div class="axis-note">
+      <b>$472</b> of margin is controlling <b>$18,900</b> of market — that 15×
+      gap is the risk a value-weighted bar would hide. Here it's stated outright.
+    </div>
+
+    <div class="scalp">⚡ Scalp · 4 positions →</div>
+  </div>
+
+  <div class="foot">
+    Mockup · recommendation = separate account groups (Alpaca / FXCM) +
+    CFD margin&amp;leverage gauge, with a Capital⇄Exposure toggle on the unified bar.<br>
+    Toggle the top bar to see CFD balloon under exposure-weighting while stocks/crypto shrink.
+  </div>
+
+</div>
+
+<script>
+  // Two honest denominators. Same dollars, different question.
+  const DATA = {
+    capital: {
+      label: "Capital deployed",
+      total: "$43,550",
+      note: '<b>Capital</b> = where your money actually sits. CFDs show their FXCM ' +
+            'account equity (the margin backing the trades), not face value — so the ' +
+            'slice is small and honest.',
+      seg: [
+        { name:"Stocks", color:"var(--pos)",    val:"$30,100", pct:69 },
+        { name:"Crypto", color:"var(--accent)", val:"$7,710",  pct:18 },
+        { name:"Cash",   color:"var(--cash)",   val:"$4,500",  pct:10 },
+        { name:"CFD",    color:"var(--cfd)",    val:"$1,240",  pct:3, badge:"⚡15×" },
+      ],
+    },
+    exposure: {
+      label: "Market exposure",
+      total: "$61,210",
+      note: '<b>Exposure</b> = how much market you’re riding. Now the CFD’s ' +
+            '$18,900 notional dominates and the spot silos shrink — the same risk, ' +
+            'told the other way. Neither bar is wrong; they answer different questions.',
+      seg: [
+        { name:"Stocks", color:"var(--pos)",    val:"$30,100", pct:49 },
+        { name:"Crypto", color:"var(--accent)", val:"$7,710",  pct:13 },
+        { name:"CFD",    color:"var(--cfd)",    val:"$18,900", pct:31, badge:"⚡15×" },
+        { name:"Cash",   color:"var(--cash)",   val:"$4,500",  pct:7 },
+      ],
+    },
+  };
+
+  function setMode(mode) {
+    const d = DATA[mode];
+    document.getElementById("btn-cap").setAttribute("aria-pressed", mode==="capital");
+    document.getElementById("btn-exp").setAttribute("aria-pressed", mode==="exposure");
+    document.getElementById("axis-label").textContent = d.label;
+    document.getElementById("total").textContent = d.total;
+    document.getElementById("note").innerHTML = d.note;
+
+    document.getElementById("bar").innerHTML =
+      d.seg.map(s => `<div style="width:${s.pct}%;background:${s.color}"></div>`).join("");
+
+    document.getElementById("legend").innerHTML = d.seg.map(s => `
+      <span class="item">
+        <span class="swatch" style="background:${s.color}"></span>
+        <span class="name">${s.name}</span>
+        <span class="val mono">${s.val} · ${s.pct}%</span>
+        ${s.badge ? `<span class="badge">${s.badge}</span>` : ""}
+      </span>`).join("");
+  }
+  setMode("capital");
+</script>
+</body>
+</html>
