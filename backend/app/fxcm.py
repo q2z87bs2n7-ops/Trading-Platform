@@ -36,6 +36,14 @@ BRIDGE_URL = os.getenv("FXCM_BRIDGE_URL", "http://127.0.0.1:3001")
 # heavier calls (history bars).
 TIMEOUT = httpx.Timeout(connect=2.0, read=10.0, write=10.0, pool=2.0)
 
+# History (bars) is the one genuinely heavy bridge call: a liquid major's
+# intraday window (e.g. EUR/USD m1, whose 2-day window spans the weekend back to
+# Friday's full session) is a few thousand bars and routinely takes longer than
+# the default 10s read. The bridge's own history latch allows 30s, so the proxy
+# must not cut it off sooner — otherwise the request 503s and the chart renders
+# blank. Give /history a read ceiling just past that latch (connect stays fast).
+HISTORY_TIMEOUT = httpx.Timeout(connect=2.0, read=32.0, write=10.0, pool=2.0)
+
 # One pooled, keep-alive client for every bridge call. Re-creating an
 # AsyncClient per request opened a fresh localhost TCP connection each time —
 # at the SSE hub's poll cadence that churned several conns/sec on the shared
@@ -63,9 +71,12 @@ router = APIRouter(prefix="/api/fxcm", tags=["fxcm"])
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
-async def _get(path: str, params: dict = None) -> Any:
+async def _get(path: str, params: dict = None, timeout: httpx.Timeout = None) -> Any:
     try:
-        r = await _bridge().get(path, params=params)
+        kwargs: dict = {"params": params}
+        if timeout is not None:
+            kwargs["timeout"] = timeout  # per-call override (e.g. heavier /history)
+        r = await _bridge().get(path, **kwargs)
         r.raise_for_status()
         return r.json()
     except (httpx.ConnectError, httpx.TimeoutException):
@@ -379,7 +390,7 @@ async def history(
         params["from"] = from_
     if to:
         params["to"] = to
-    return await _get("/history", params=params)
+    return await _get("/history", params=params, timeout=HISTORY_TIMEOUT)
 
 
 @router.post("/order")
