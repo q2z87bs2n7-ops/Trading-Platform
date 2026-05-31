@@ -80,7 +80,7 @@ function FxcmAccountHero({ account }: { account: FxcmAccount | null }) {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="flex flex-col gap-1">
           <span className="text-[12px]" style={{ color: "var(--mute)" }}>
-            FXCM demo account equity
+            Account equity
           </span>
           <span
             className="font-semibold tabular-nums"

@@ -99,7 +99,9 @@ function EconomicRowItem({
   showFlag?: boolean;
 }) {
   const { day, time } = fmtWhen(r.date);
-  const href = eventLink(r.event);
+  // FRED is US-only data; on the multi-country CFD calendar, non-US rows would
+  // otherwise deep-link to an unrelated US series. Gate the link to US events.
+  const href = r.country === "US" ? eventLink(r.event) : null;
   const fsrc = showFlag ? flagSrc(r.country) : null;
   const inner = (
     <>
