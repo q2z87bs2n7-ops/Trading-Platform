@@ -329,7 +329,7 @@ export default function AssetClassSplash({
             Paper trading
           </span>
           <h1 className="text-[26px] font-semibold" style={{ letterSpacing: "-0.02em", color: "var(--text)" }}>
-            {onClose ? "Your account" : "Pick a market to step into."}
+            Your account
           </h1>
         </div>
 
