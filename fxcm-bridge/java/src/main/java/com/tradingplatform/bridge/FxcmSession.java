@@ -76,6 +76,20 @@ public class FxcmSession {
         new java.util.concurrent.ConcurrentHashMap<>();
     private final Map<String, Long> lastPushMs = new java.util.concurrent.ConcurrentHashMap<>();
 
+    // Price refresher: the FCLite offer-change push (subscribeOfferChange) was
+    // observed to fire only once or twice then go silent, so latestOffers — which
+    // backs /prices/live and the SSE feed — froze for ~90s+ at a time. A fresh
+    // getLatestOffersSnapshot, by contrast, returns prices timestamped 1-6s ago.
+    // So poll the snapshot on a timer and keep latestOffers warm ourselves rather
+    // than trusting the push. scheduleWithFixedDelay = no overlapping snapshots.
+    private final ScheduledExecutorService priceRefresher =
+        Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "fxcm-price-refresh");
+            t.setDaemon(true);
+            return t;
+        });
+    private static final long PRICE_REFRESH_MS = 400;
+
     static final Map<String, int[]> TIMEFRAME_MAP = new LinkedHashMap<>();
     static {
         // {TimeframeUnit constant, count}
@@ -161,6 +175,23 @@ public class FxcmSession {
         catch (Exception e) { LOG.warning("closedMgr unavailable: " + e.getMessage()); }
         try { historyMgr = session.getPriceHistoryManager(); }
         catch (Exception e) { LOG.warning("historyMgr unavailable: " + e.getMessage()); }
+
+        // Keep latestOffers warm via periodic snapshot (the push is unreliable —
+        // see PRICE_REFRESH_MS). No-ops while nothing is subscribed.
+        priceRefresher.scheduleWithFixedDelay(
+            this::refreshSubscribedOffers, PRICE_REFRESH_MS, PRICE_REFRESH_MS, TimeUnit.MILLISECONDS);
+    }
+
+    // Refresh every subscribed offer from a fresh snapshot (fetchOfferSnapshot
+    // writes latestOffers on success). Runs on the priceRefresher thread; all
+    // failures are swallowed so a transient snapshot error never kills the loop.
+    private void refreshSubscribedOffers() {
+        try {
+            String[] ids = subscribedOfferIds.toArray(new String[0]);
+            if (ids.length > 0) fetchOfferSnapshot(ids);
+        } catch (Throwable t) {
+            // Intentionally quiet — a stray error here must not stop future ticks.
+        }
     }
 
     // ── Selective subscription ─────────────────────────────────────────────────
