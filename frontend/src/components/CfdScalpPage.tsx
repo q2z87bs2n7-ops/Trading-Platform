@@ -3,6 +3,7 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 import * as api from "../api";
 import {
   useFxcmAccount,
+  useFxcmBars,
   useFxcmDisplayNames,
   useFxcmSubmitOrder,
   useFxcmUnderlyingUnit,
@@ -272,19 +273,39 @@ const RateRow = memo(function RateRow({
   onRemove: () => void;
 }) {
   const digits = price.digits ?? cfdDigits(sym);
+  const hasLive = price.bid != null || price.ask != null;
+  // Market closed → no live bid/ask. Fall back to the last daily close as an
+  // indicative level, mirroring the Discover watchlist card. Same D1 query key
+  // so React Query dedupes — no extra network for symbols shown there too.
+  const { data: bars } = useFxcmBars(sym, "D1", !hasLive);
+  const indic = !hasLive ? bars?.[bars.length - 1]?.close : undefined;
   const flash = useTickFlash(midOf(price), flashEpsilon(price.point_size, digits));
   const spr = spreadNum(price.bid, price.ask, price.point_size);
   const sprCls = typicalSpread > 0 && spr <= typicalSpread * 0.9 ? "tight" : typicalSpread > 0 && spr >= typicalSpread * 1.12 ? "wide" : "";
   return (
     <div className={`sc-mx-row${selected ? " sel" : ""}`} onClick={onSelect}>
       <span className="sc-mx-sym">{sym}</span>
-      <span className={`sc-q bid${flash === "dn" ? " flash-dn" : ""}`}>
-        <BigFig value={price.bid} digits={digits} pointSize={price.point_size} size={0.6} />
-      </span>
-      <span className={`sc-mx-spread mono ${sprCls}`}>{fmtSpreadNum(spr)}</span>
-      <span className={`sc-q ask${flash === "up" ? " flash-up" : ""}`}>
-        <BigFig value={price.ask} digits={digits} pointSize={price.point_size} size={0.6} />
-      </span>
+      {indic != null ? (
+        <>
+          <span className="sc-q ind" title="Indicative — market closed">
+            <BigFig value={indic} digits={digits} pointSize={price.point_size} size={0.6} />
+          </span>
+          <span className="sc-mx-spread mono">—</span>
+          <span className="sc-q ind" title="Indicative — market closed">
+            <BigFig value={indic} digits={digits} pointSize={price.point_size} size={0.6} />
+          </span>
+        </>
+      ) : (
+        <>
+          <span className={`sc-q bid${flash === "dn" ? " flash-dn" : ""}`}>
+            <BigFig value={price.bid} digits={digits} pointSize={price.point_size} size={0.6} />
+          </span>
+          <span className={`sc-mx-spread mono ${sprCls}`}>{fmtSpreadNum(spr)}</span>
+          <span className={`sc-q ask${flash === "up" ? " flash-up" : ""}`}>
+            <BigFig value={price.ask} digits={digits} pointSize={price.point_size} size={0.6} />
+          </span>
+        </>
+      )}
       <span className="sc-mx-pl mono" style={{ color: net ? (net.pl >= 0 ? "var(--pos)" : "var(--neg)") : "var(--mute)" }}>
         {net ? signed(net.pl) : "·"}
       </span>

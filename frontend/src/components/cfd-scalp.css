@@ -105,6 +105,8 @@
 .sc-q.bid { color: var(--neg); } .sc-q.ask { color: var(--pos); }
 .sc-q.flash-up { background: color-mix(in oklab, var(--pos-bg), transparent calc((1 - var(--flash-a)) * 100%)); }
 .sc-q.flash-dn { background: color-mix(in oklab, var(--neg-bg), transparent calc((1 - var(--flash-a)) * 100%)); }
+/* Indicative (last close, market closed) — muted so it doesn't read as a live tradeable quote. */
+.sc-q.ind { color: var(--mute); opacity: .75; }
 .sc-mx-spread { font-size: 10px; text-align: center; color: var(--mute); }
 .sc-mx-spread.wide { color: var(--neg); } .sc-mx-spread.tight { color: var(--pos); }
 .sc-mx-pl { font-size: 11px; font-weight: 600; text-align: right; }
