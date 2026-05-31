@@ -336,7 +336,7 @@ exposed at `/api/fxcm/*`.
 |---|---|---|
 | `GET /health` | `GET /api/fxcm/health` | Bridge + connection status |
 | `GET /account` | `GET /api/fxcm/account` | Account balance/equity/margin |
-| `GET /prices` | `GET /api/fxcm/prices` | Subscribed offers (live bid/ask/digits/point_size/instrument_type/base_unit_size); only instruments in the active subscription set are returned |
+| `GET /prices` | `GET /api/fxcm/prices` | Subscribed offers (live bid/ask/digits/point_size/instrument_type/base_unit_size/contract_multiplier/contract_currency); only instruments in the active subscription set are returned |
 | `GET /prices/live` | (internal — feeds the SSE hub) | Fast in-memory price read off the push-maintained `latestOffers` cache (no `getLatestOffersSnapshot` round-trip, no `snapshotLock`), scoped to the subscribed (status-T) set. Same row shape as `/prices` plus `ts`. Polled (~200 ms) by the `/api/fxcm/stream` hub over the shared keep-alive client. |
 | (none — SSE) | `GET /api/fxcm/stream` | **Live price SSE feed** (Scalp + alert engine). QuoteHub-style fan-out: one shared upstream polls the bridge's `/prices/live`, per-client bounded `Queue(maxsize=100)` (drop-oldest), replay-latest-on-connect, supervisor that never crashes the process. Each `data:` frame is a JSON array of *changed* `FxcmPrice` rows; `: ping` keepalive every 15 s. **Render-only** (Vercel can't hold SSE open) — reached via `STREAM_BASE`. |
 | `POST /subscribe` | (internal) | Push offer IDs to subscribe (set status T). Body: `{"offer_ids": ["1", "121", ...]}`. Idempotent. Called by `fxcm.py` when watchlist adds instruments. |
@@ -502,8 +502,26 @@ after subscription):
   `8` = stock CFD; others = commodity/treasury/bullion. Used by `FxcmOrderSheet`
   to set the amount step: type `1` → 1,000-unit lots; all others → `BaseUnitSize`.
 - **`base_unit_size`** — minimum tradeable unit for non-FX instruments (e.g. `1`
-  for indices and stock CFDs). Used as both the default amount and the step in
-  `FxcmOrderSheet` when `instrument_type ≠ 1`.
+  for indices and stock CFDs). **Order sizing only — NOT the contract value
+  multiplier** (a common trap; they're orthogonal). Used as both the default
+  amount and the step in `FxcmOrderSheet` when `instrument_type ≠ 1`.
+- **`contract_multiplier`** — FCLite `Instrument.getContractMultiplier()`; the
+  monetary value of one point/unit. **This is the multiplier for notional /
+  exposure**, not `base_unit_size`. Non-FX notional =
+  `|amount| × contract_multiplier × rate` (in `contract_currency`); FX amount is
+  already the base-ccy face (multiplier effectively 1).
+- **`contract_currency`** — FCLite `getContractCurrency()`; the currency the
+  notional comes out in, so the client knows which USD pair to convert through
+  (multiply when USD is the quote, invert when USD is the base). Both
+  `contract_multiplier` + `contract_currency` were already emitted on
+  `/instruments`; they're now also wired into `offerRow()` (`/prices`) and the
+  open-positions builder (`/positions`) — a **bridge rebuild + redeploy** is
+  required for them to appear there. Consumed by `lib/fxcm-exposure.ts`
+  (`computeCfdExposure`) to build per-instrument notional, net hedges within an
+  instrument, convert to USD, and derive `leverage = exposure ÷ used_margin`.
+  FCLite exposes **no** `getMMR()`/`getLeverage()` on `Account` — margin is a
+  fixed per-contract figure (`used_margin`), decoupled from notional, so
+  leverage is always computed, never read.
 - **`rollover_buy` / `rollover_sell`** — overnight financing for holding
   long / short (FCLite `Instrument.getBuyInterest()` / `getSellInterest()`).
   Present on every instrument. The CFD chart shows them as `Roll L / S`,
@@ -559,13 +577,17 @@ screen build. New (all optional — bridge falls back silently when a getter
 isn't present in the FCLite build):
 
 - **`/positions`** rows now carry `bid`, `ask`, `mid`, `live_pl`, `digits`,
-  `open_time`. The FastAPI proxy in `backend/app/fxcm.py` additionally
+  `contract_multiplier`, `contract_currency`, `open_time`. The FastAPI proxy in
+  `backend/app/fxcm.py` additionally
   aliases `market_value = used_margin` so the shared `AllocationDonut`
   reads a uniform shape. `live_pl` currently mirrors `gross_pl` (the
   FCLite-maintained "fresh as of this call" value) — a from-mid pip
   recompute was prototyped and pulled because cross-pair currency
   conversion needs more work; the raw `bid`/`ask`/`mid` are present so a
-  frontend recompute is straightforward when needed.
+  frontend recompute is straightforward when needed. `contract_multiplier` +
+  `contract_currency` feed `lib/fxcm-exposure.ts` for notional/leverage on the
+  Account Hub (see "Per-instrument price precision"); **needs the bridge
+  rebuild + redeploy** to populate, degrades to multiplier 1 until then.
 - **`/orders`** rows now carry `stop`, `limit`, `digits`, `created_time`.
 - **`/closed_trades`** rows now carry `open_time`, `close_time` (ISO 8601;
   absent if the SDK build's `ClosedPosition` doesn't expose the getter).

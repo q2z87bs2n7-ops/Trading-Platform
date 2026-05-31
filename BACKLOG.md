@@ -135,6 +135,18 @@ and `docs/workspace.md` for the full reference). Outstanding:
   `DELETE /api/fxcm/orders` route in the proxy that fetches the list and
   iterates `DELETE /api/fxcm/order/{id}`. Defer until the Orders blotter UX
   demands it.
+- **Verify CFD exposure semantics against the live demo account.** The Account
+  Hub's Market-exposure axis (`lib/fxcm-exposure.ts`) computes notional as
+  `|amount| × contract_multiplier × rate` (non-FX) / `|amount|` (FX), netting
+  hedges within an instrument and converting to USD via the status-`V`/pair
+  rate. This was derived, not yet checked against real positions — confirm once
+  the bridge ships `contract_multiplier`/`contract_currency` on `/positions`
+  that (a) `amount` is the contract count the formula assumes for
+  indices/stock-CFDs (vs `amount/base_unit_size`), and (b) a known position's
+  computed notional + leverage match the FXCM platform. Until then the axis
+  degrades to multiplier 1 (understates indices/metals). Cross-currency
+  conversion (non-USD `contract_currency` with no in-book pair) falls back to
+  the contract-ccy figure and sets `approximate`.
 - **FXCM rollover / dividend activity stream** — FCLite doesn't expose
   deposits, withdrawals, overnight swap, or stock-CFD dividend adjustments as
   discrete events. The FXCM Activities feed shows closed trades only.

@@ -17,8 +17,11 @@ land straight on the last-used silo's Discover **while the session is fresh**;
 a tab left dormant longer than ~10 minutes re-shows the splash on its next load
 (and a service-worker reset always returns to it). The splash doubles as an
 **Account Hub** (re-opened from the header brand mark) showing a whole-account
-overview: total equity, day P/L, buying power, and a stocks-vs-crypto-vs-cash
-split. The active silo tints the accent (green for Stocks, blue for Crypto,
+overview: a two-axis breakdown toggling **Capital deployed** (equity) vs
+**Market exposure** (notional) — the only honest way to put leveraged CFDs on
+the same chart as spot stocks/crypto — over two Brokerage cards (Alpaca and
+FXCM, the latter with a margin-used gauge + leverage). The active silo tints
+the accent (green for Stocks, blue for Crypto,
 orange for CFDs). All silos share the same mode toggle (Workspace is
 desktop-only; the CFD silo adds a desktop-only **Scalp** surface, entered
 from the splash CFD card rather than the mode toggle):

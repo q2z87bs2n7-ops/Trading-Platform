@@ -69,11 +69,24 @@ alongside the relay (see "Four runtime targets").
   `localStorage('asset_class_mode')` is now **load-bearing** — it
   selects the silo the app boots into (was previously just a last-used
   hint). The header brand button re-opens the splash on demand as the
-  **Account Hub**: a whole-account overview (total equity, day P/L,
-  buying power, stocks-vs-crypto-vs-cash split) that is intentionally the
+  **Account Hub**: a whole-account overview that is intentionally the
   *only* cross-silo balance surface — every other balance view is filtered
-  to the active silo. The CFD card pulls live FXCM equity / day P/L /
-  position count via `useFxcmAccount` + `useFxcmPositions` (30 s poll,
+  to the active silo. Its breakdown is a **two-axis module**
+  (`TwoAxisModule` in `AssetClassSplash.tsx`) toggling **Capital deployed**
+  vs **Market exposure** — because the three products don't share one honest
+  denominator (CFDs are leveraged up to 400:1, so value-weighting either
+  hides their risk or drowns the spot silos). **Capital** = equity: the stock
+  slice nets the Reg-T margin loan out (`stockMV − L`, `L = max(−cash,0)`,
+  attributed wholly to stocks since crypto is non-marginable), cash floored
+  at 0, CFD = FXCM account equity. **Exposure** = notional at risk: drops cash
+  entirely, and the CFD slice swaps equity → notional (`lib/fxcm-exposure.ts`).
+  Both modes badge the CFD slice with per-silo leverage
+  (`notional ÷ used_margin`). Below the module sit two **Brokerage cards** —
+  *Alpaca* (stocks/crypto/cash allocation bar + Stocks/Crypto silo-nav rows)
+  and *FXCM* (margin-used gauge, Free margin / Exposure / Leverage stats,
+  "Forex & CFDs", ⚡ Scalp corner) — which double as the silo picker. The CFD
+  card pulls live FXCM equity / day P/L / positions / margin via
+  `useFxcmAccount` + `useFxcmPositions` (30 s poll,
   `retry: 0`); both hooks fetch on **both** the first-time landing splash
   and the Hub overlay so the CFD card shows live equity/positions on first
   load (a bridge-offline 503 with `retry: 0` keeps the card on its `—`
@@ -609,8 +622,9 @@ alongside the relay (see "Four runtime targets").
   `DASH` (`—`) instead. `moneyOr(n, ready)` / `pctOr(n, ready)` return the
   formatted value when `ready`, else `DASH` (a *real* loaded zero still
   renders `$0.00`). Presentational heroes take an additive default-on
-  `ready?: boolean` prop (e.g. `DiscoverHero`, `HeroCardMobile`, the splash
-  `SiloCard`); call sites pass `ready={!!query.data}`. Surfaces that already
+  `ready?: boolean` prop (e.g. `DiscoverHero`, `HeroCardMobile`); the splash
+  Brokerage cards thread `alpacaReady`/`fxcmReady` (`!!query.data`) through
+  `moneyOr` + a `DayChip`/`Bar` ready gate. Surfaces that already
   render a skeleton / `null` until data lands (header equity readout, the
   Portfolio / CFD-Discover heroes, `Positions`) don't need it.
 
