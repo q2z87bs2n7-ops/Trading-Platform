@@ -14,7 +14,6 @@ import { useFxcmPriceStream } from "../data/useFxcmPriceStream";
 import { useFxcmView } from "../lib/fxcm-view";
 import { cfdDigits, money } from "../lib/format";
 import { showToast } from "../lib/toast";
-import { useTheme } from "../hooks/useTheme";
 import type { FxcmPosition, FxcmPrice } from "../types";
 import { AssetSearch } from "./AssetSearch";
 import CfdPriceChart from "./CfdPriceChart";
@@ -481,7 +480,6 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
   const addMut = useFxcmWatchlistAdd();
   const removeMut = useFxcmWatchlistRemove();
   const submit = useFxcmSubmitOrder();
-  const { theme, toggle: toggleTheme } = useTheme();
 
   const wlSymbols = useMemo(() => (watchlist.data ?? []).map((p) => p.instrument), [watchlist.data]);
   useFxcmView(wlSymbols, !!bridgeOk);
@@ -654,7 +652,7 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
   const selNet = selectedPrice ? netForSym(positions, selected, selectedPrice) : null;
 
   return (
-    <div className="sc-root sc-cockpit max-w-[1680px] mx-auto" style={{ padding: "12px 12px 48px" }} data-theme={theme}>
+    <div className="sc-root sc-cockpit max-w-[1680px] mx-auto" style={{ padding: "12px 12px 48px" }}>
       {/* Top bar */}
       <div className="sc-bar">
         <span className="sc-brand"><span className="bolt">⚡</span> Scalp</span>
@@ -679,7 +677,6 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
         >
           <span className="tog"><span className="knob" /></span>{oneClick ? "1-click" : "Confirm"}
         </button>
-        <button type="button" className="sc-iconbtn" title="Toggle theme" onClick={toggleTheme}>{theme === "dark" ? "☾" : "☀"}</button>
       </div>
 
       {/* Main 3-pane grid */}
