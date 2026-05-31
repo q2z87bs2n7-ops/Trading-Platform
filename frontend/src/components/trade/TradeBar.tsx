@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
-import { useFxcmDisplayNames, useFxcmPrices } from "../../data/hooks";
+import { useFxcmDisplayNames, useFxcmPrices, useFxcmWatchlistQuery } from "../../data/hooks";
 import { useLiveQuotes } from "../../data/useLiveQuotes";
 import { useMobile } from "../../hooks/useMobile";
 import { fmtCfdPrice } from "../../lib/format";
+import type { FxcmPrice } from "../../types";
 import OrderSheet from "./OrderSheet";
 import FxcmOrderSheet from "./FxcmOrderSheet";
 
@@ -32,6 +33,21 @@ export default function TradeBar({ symbol, assetClass }: Props) {
   const symLabel = isCfd ? dn(symUpper) : symUpper;
   const { quotes } = useLiveQuotes(!isCfd && symUpper ? [symUpper] : []);
   const fxcmPrices = useFxcmPrices(isCfd);
+  const watchlist = useFxcmWatchlistQuery(isCfd);
+  // The order sheet's instrument dropdown lists the user's CFD watchlist (the
+  // set they actually trade) — not /prices, which is only the currently
+  // subscribed offers. Prefer the fully-priced /prices row when an instrument
+  // is subscribed (so digits / type / lot step are present), and always
+  // include the symbol the bar was opened on so it's present + selectable.
+  const orderInstruments = useMemo<FxcmPrice[]>(() => {
+    if (!isCfd) return [];
+    const priced = new Map((fxcmPrices.data ?? []).map((p) => [p.instrument, p]));
+    const list = (watchlist.data ?? []).map((w) => priced.get(w.instrument) ?? w);
+    if (symUpper && !list.some((p) => p.instrument === symUpper)) {
+      list.unshift(priced.get(symUpper) ?? ({ instrument: symUpper } as FxcmPrice));
+    }
+    return list;
+  }, [isCfd, fxcmPrices.data, watchlist.data, symUpper]);
   const quote = quotes[symUpper];
   const fxcmRow = isCfd
     ? (fxcmPrices.data ?? []).find((p) => p.instrument === symUpper)
@@ -154,7 +170,7 @@ export default function TradeBar({ symbol, assetClass }: Props) {
         {isCfd
           ? open && (
               <FxcmOrderSheet
-                instruments={fxcmPrices.data ?? []}
+                instruments={orderInstruments}
                 defaultInstrument={symUpper}
                 defaultSide={side === "buy" ? "B" : "S"}
                 onClose={() => setOpen(false)}
@@ -241,7 +257,7 @@ export default function TradeBar({ symbol, assetClass }: Props) {
       {isCfd
         ? open && (
             <FxcmOrderSheet
-              instruments={fxcmPrices.data ?? []}
+              instruments={orderInstruments}
               defaultInstrument={symUpper}
               defaultSide={side === "buy" ? "B" : "S"}
               onClose={() => setOpen(false)}
