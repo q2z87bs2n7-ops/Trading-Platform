@@ -5,10 +5,10 @@ import { showToast } from "../lib/toast";
 
 // Developer tool (Settings → Developer): surface the FXCM subscription status
 // (T / V / D) of every instrument and, prominently, of the user's watchlist —
-// the set Scalp trades. An instrument that stays D can't be promoted to T from
-// here (the demo account just lacks its market-data subscription), so seeing it
-// explains "no live price" without guessing. Fetches on demand (it hits the
-// bridge for the full ~500-instrument list).
+// the set Scalp trades. Seeing a D row explains "no live price / no metadata"
+// without guessing; the bridge re-subscribes the watchlist set on its poll, so
+// Refresh re-checks. Fetches on demand (it hits the bridge for the full
+// ~500-instrument list).
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
   T: { label: "Tradable · live", color: "var(--pos)" },
@@ -70,8 +70,8 @@ export default function FxcmSubscriptionsTool() {
         <div className="flex flex-col min-w-0">
           <span className="text-[13px] font-medium">FXCM subscriptions</span>
           <span className="text-[12px] mt-0.5 leading-snug" style={{ color: "var(--mute)" }}>
-            T/V/D status per instrument. A watchlist row stuck on D has no live
-            price and can't be promoted here (account data-subscription limit).
+            T/V/D status per instrument. A watchlist row on D has no live price
+            or metadata. Refresh to re-check after the bridge re-subscribes.
           </span>
         </div>
         <button
