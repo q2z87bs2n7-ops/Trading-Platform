@@ -253,8 +253,21 @@ export default function AssetClassSplash({
     boxShadow: "var(--shadow-sm)",
   } as const;
 
-  // A clickable row inside the Alpaca card (silo navigation).
-  const EnterRow = ({ dot, label, onClick }: { dot: string; label: string; onClick: () => void }) => (
+  // A clickable nav row at the bottom of a Brokerage card. `glyph` (e.g. "⚡")
+  // replaces the dot; `accent` tints the label (used for the Scalp row).
+  const EnterRow = ({
+    dot,
+    glyph,
+    label,
+    accent,
+    onClick,
+  }: {
+    dot?: string;
+    glyph?: string;
+    label: string;
+    accent?: string;
+    onClick: () => void;
+  }) => (
     <button
       type="button"
       onClick={onClick}
@@ -267,11 +280,23 @@ export default function AssetClassSplash({
         e.currentTarget.style.background = "transparent";
       }}
     >
-      <span style={{ width: 8, height: 8, borderRadius: 99, background: dot }} />
-      <span className="text-[13.5px] flex-1" style={{ color: "var(--text)" }}>{label}</span>
+      {glyph ? (
+        <span style={{ width: 8, textAlign: "center", color: accent ?? "var(--mute)", fontSize: 12 }}>
+          {glyph}
+        </span>
+      ) : (
+        <span style={{ width: 8, height: 8, borderRadius: 99, background: dot }} />
+      )}
+      <span
+        className="text-[13.5px] flex-1"
+        style={{ color: accent ?? "var(--text)", fontWeight: accent ? 600 : 400 }}
+      >
+        {label}
+      </span>
       <span style={{ color: "var(--mute)" }}>→</span>
     </button>
   );
+
 
   return (
     <div
@@ -323,10 +348,7 @@ export default function AssetClassSplash({
           <GroupLabel title="Brokerage · Alpaca" value={moneyOr(alpacaEquity, alpacaReady)} />
           <div className="w-full flex flex-col gap-4" style={{ ...cardStyle, padding: "18px 22px" }}>
             <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <span style={{ width: 8, height: 8, borderRadius: 99, background: "var(--pos)" }} />
-                <span className="text-[14px] font-semibold">Stocks &amp; Crypto</span>
-              </div>
+              <span className="text-[14px] font-semibold">Stocks &amp; Crypto</span>
               <div className="flex flex-col items-end">
                 <span className="font-mono font-semibold tabular-nums text-[18px]">
                   {moneyOr(alpacaEquity, alpacaReady)}
@@ -342,109 +364,87 @@ export default function AssetClassSplash({
             <span className="text-[11.5px]" style={{ color: "var(--mute)" }}>{stockSub}</span>
           </div>
 
-          {/* Brokerage · FXCM — isolated cash, leveraged. Whole card enters CFD;
-              the ⚡ Scalp corner jumps to the rapid-trade surface (desktop only). */}
+          {/* Brokerage · FXCM — isolated cash, leveraged. Info up top; the
+              "Markets" + "⚡ Scalp" enter-rows at the bottom mirror the Alpaca
+              card, so nothing overlaps the equity readout. */}
           <div className="mt-4">
             <GroupLabel title="Brokerage · FXCM" value={moneyOr(fxcmEquity, fxcmReady)} />
           </div>
-          <div className="relative" style={{ minWidth: 0 }}>
-            <button
-              type="button"
-              onClick={() => onSelect("cfd")}
-              className="w-full flex flex-col gap-4 text-left cursor-pointer border-0 transition-colors"
-              style={{
-                ...cardStyle,
-                padding: "18px 22px",
-                borderColor: currentClass === "cfd" ? "var(--border-2)" : "var(--border)",
-              }}
-              onMouseEnter={(e: { currentTarget: HTMLButtonElement }) => {
-                e.currentTarget.style.borderColor = "var(--border-2)";
-              }}
-              onMouseLeave={(e: { currentTarget: HTMLButtonElement }) => {
-                e.currentTarget.style.borderColor =
-                  currentClass === "cfd" ? "var(--border-2)" : "var(--border)";
-              }}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <span style={{ width: 8, height: 8, borderRadius: 99, background: CFD_COLOR }} />
-                  <span className="text-[14px] font-semibold">Forex &amp; CFDs</span>
-                </div>
-                <div className="flex flex-col items-end">
-                  <span className="font-mono font-semibold tabular-nums text-[18px]">
-                    {moneyOr(fxcmEquity, fxcmReady)}
-                  </span>
-                  <DayChip value={fxcmDay} pctValue={fxcmDayPct} ready={fxcmReady} />
-                </div>
+          <div
+            className="w-full flex flex-col gap-4"
+            style={{
+              ...cardStyle,
+              padding: "18px 22px",
+              borderColor: currentClass === "cfd" ? "var(--border-2)" : "var(--border)",
+            }}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <span className="text-[14px] font-semibold">Forex &amp; CFDs</span>
+              <div className="flex flex-col items-end">
+                <span className="font-mono font-semibold tabular-nums text-[18px]">
+                  {moneyOr(fxcmEquity, fxcmReady)}
+                </span>
+                <DayChip value={fxcmDay} pctValue={fxcmDayPct} ready={fxcmReady} />
               </div>
+            </div>
 
-              {/* Margin-used gauge (decoupled from exposure). */}
-              <div className="flex flex-col gap-1.5">
-                <div className="flex justify-between text-[12px]">
-                  <span style={{ color: "var(--mute)" }}>Margin used</span>
-                  <span className="tabular-nums" style={{ color: "var(--mute)" }}>
-                    {fxcmReady ? (
-                      <>
-                        <span style={{ color: CFD_COLOR }}>{money(fxcmUsed)}</span> of {money(fxcmEquity)} ·{" "}
-                        {fxcmEquity > 0 ? Math.round((fxcmUsed / fxcmEquity) * 100) : 0}%
-                      </>
-                    ) : (
-                      DASH
-                    )}
-                  </span>
-                </div>
-                <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--panel-2)" }}>
-                  <div
-                    style={{
-                      height: "100%",
-                      width: `${fxcmEquity > 0 ? Math.min((fxcmUsed / fxcmEquity) * 100, 100) : 0}%`,
-                      background: CFD_COLOR,
-                    }}
-                  />
-                </div>
+            {/* Margin-used gauge (decoupled from exposure). */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex justify-between text-[12px]">
+                <span style={{ color: "var(--mute)" }}>Margin used</span>
+                <span className="tabular-nums" style={{ color: "var(--mute)" }}>
+                  {fxcmReady ? (
+                    <>
+                      <span style={{ color: CFD_COLOR }}>{money(fxcmUsed)}</span> of {money(fxcmEquity)} ·{" "}
+                      {fxcmEquity > 0 ? Math.round((fxcmUsed / fxcmEquity) * 100) : 0}%
+                    </>
+                  ) : (
+                    DASH
+                  )}
+                </span>
               </div>
+              <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--panel-2)" }}>
+                <div
+                  style={{
+                    height: "100%",
+                    width: `${fxcmEquity > 0 ? Math.min((fxcmUsed / fxcmEquity) * 100, 100) : 0}%`,
+                    background: CFD_COLOR,
+                  }}
+                />
+              </div>
+            </div>
 
-              <div className="grid grid-cols-3 gap-2.5">
-                {[
-                  { k: "Free margin", v: moneyOr(fxcmFree, fxcmReady) },
-                  { k: "Exposure", v: fxcmReady ? money(exposure.exposureUsd) : DASH },
-                  { k: "Leverage", v: fxcmReady ? (levBadge ? `${Math.round(exposure.leverage)}×` : "—") : DASH, lev: true },
-                ].map((s) => (
-                  <div key={s.k} className="rounded-card" style={{ background: "var(--panel-2)", padding: "9px 10px" }}>
-                    <div className="text-[10.5px] uppercase" style={{ color: "var(--mute)", letterSpacing: "0.04em" }}>
-                      {s.k}
-                    </div>
-                    <div
-                      className="font-mono font-semibold tabular-nums text-[14.5px] mt-0.5"
-                      style={s.lev ? { color: CFD_COLOR } : undefined}
-                    >
-                      {s.v}
-                    </div>
+            <div className="grid grid-cols-3 gap-2.5">
+              {[
+                { k: "Free margin", v: moneyOr(fxcmFree, fxcmReady) },
+                { k: "Exposure", v: fxcmReady ? money(exposure.exposureUsd) : DASH },
+                { k: "Leverage", v: fxcmReady ? (levBadge ? `${Math.round(exposure.leverage)}×` : "—") : DASH, lev: true },
+              ].map((s) => (
+                <div key={s.k} className="rounded-card" style={{ background: "var(--panel-2)", padding: "9px 10px" }}>
+                  <div className="text-[10.5px] uppercase" style={{ color: "var(--mute)", letterSpacing: "0.04em" }}>
+                    {s.k}
                   </div>
-                ))}
-              </div>
-            </button>
-            {onSelectScalp && !isMobile && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSelectScalp();
-                }}
-                className="absolute top-3 right-3 cursor-pointer transition-colors"
-                style={{
-                  background: "oklch(72% 0.18 55 / 0.14)",
-                  color: "oklch(58% 0.16 55)",
-                  border: "1px solid oklch(72% 0.18 55 / 0.45)",
-                  borderRadius: 999,
-                  padding: "4px 11px",
-                  fontSize: 11.5,
-                  fontWeight: 600,
-                }}
-              >
-                ⚡ Scalp
-              </button>
-            )}
+                  <div
+                    className="font-mono font-semibold tabular-nums text-[14.5px] mt-0.5"
+                    style={s.lev ? { color: CFD_COLOR } : undefined}
+                  >
+                    {s.v}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div>
+              <EnterRow dot={CFD_COLOR} label="Markets" onClick={() => onSelect("cfd")} />
+              {onSelectScalp && !isMobile && (
+                <EnterRow
+                  glyph="⚡"
+                  label="Scalp"
+                  accent="oklch(58% 0.16 55)"
+                  onClick={onSelectScalp}
+                />
+              )}
+            </div>
           </div>
         </div>
       </div>
