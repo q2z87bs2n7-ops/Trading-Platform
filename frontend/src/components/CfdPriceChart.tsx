@@ -181,7 +181,14 @@ export default function CfdPriceChart({
   }, [theme]);
 
   useEffect(() => {
-    if (!bars || !seriesRef.current) return;
+    if (!seriesRef.current) return;
+    if (!bars) {
+      // Switched to an instrument whose history isn't cached yet — clear the
+      // previous candles so its price axis doesn't linger (stale) while the new
+      // instrument's bars load.
+      seriesRef.current.setData([]);
+      return;
+    }
     const rows = (bars as FxcmBar[])
       .map((b) => ({
         time: isoToEpochSec(b.time) as UTCTimestamp,

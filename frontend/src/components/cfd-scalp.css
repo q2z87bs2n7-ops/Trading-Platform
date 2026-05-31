@@ -110,10 +110,16 @@
 .sc-mx-spread { font-size: 10px; text-align: center; color: var(--mute); }
 .sc-mx-spread.wide { color: var(--neg); } .sc-mx-spread.tight { color: var(--pos); }
 .sc-mx-pl { font-size: 11px; font-weight: 600; text-align: right; }
-.sc-mx-x { background: transparent; border: none; color: var(--mute); cursor: pointer; font-size: 11px; opacity: 0;
+.sc-mx-x { background: transparent; border: none; color: var(--mute); cursor: pointer; font-size: 11px; opacity: .55;
   justify-self: end; transition: opacity .12s, color .12s; }
-.sc-mx-row:hover .sc-mx-x { opacity: 1; }
 .sc-mx-x:hover { color: var(--neg); }
+/* Hover-reveal the × only on real pointers. On touch a hover-revealed control
+   makes iOS Safari swallow the first tap (tap = hover, second tap = click), so
+   the row needed a double-tap to select; keeping it visible lets one tap pick. */
+@media (hover: hover) {
+  .sc-mx-x { opacity: 0; }
+  .sc-mx-row:hover .sc-mx-x { opacity: 1; }
+}
 .sc-add { padding: 8px var(--pane-pad-x); font-size: 11px; color: var(--accent); cursor: pointer; flex: none; }
 .sc-add:hover { background: var(--accent-soft); }
 
