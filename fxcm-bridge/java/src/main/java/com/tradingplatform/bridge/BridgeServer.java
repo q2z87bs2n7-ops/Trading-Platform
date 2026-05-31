@@ -105,6 +105,7 @@ public class BridgeServer {
         server.createContext("/account",      ex -> handle(ex, BridgeServer::account));
         server.createContext("/prices/live",   ex -> handle(ex, BridgeServer::pricesLive));
         server.createContext("/prices",        ex -> handle(ex, BridgeServer::prices));
+        server.createContext("/diag",          ex -> handle(ex, BridgeServer::diag));
         server.createContext("/subscribe",    ex -> handle(ex, BridgeServer::subscribe));
         server.createContext("/unsubscribe",  ex -> handle(ex, BridgeServer::unsubscribe));
         server.createContext("/positions",    ex -> handle(ex, BridgeServer::positions));
@@ -149,6 +150,11 @@ public class BridgeServer {
     // no snapshot round-trip. Scoped to the subscribed (status-T) set.
     static Object pricesLive(HttpExchange ex) {
         return session.getLiveOffers();
+    }
+
+    // Temporary streaming diagnostics — see FxcmSession.getDiag().
+    static Object diag(HttpExchange ex) {
+        return session.getDiag();
     }
 
     @SuppressWarnings("unchecked")

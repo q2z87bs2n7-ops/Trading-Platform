@@ -241,6 +241,14 @@ async def health():
     return await _get("/health")
 
 
+@router.get("/diag")
+async def diag():
+    """Temporary streaming diagnostics — proxies the bridge's /diag (per-offer
+    subscription status + push-tick stats + push-cache vs fresh-snapshot bid/ask).
+    Lets us read the truth from the public relay since the bridge is private."""
+    return await _get("/diag")
+
+
 @router.get("/account")
 async def account():
     return await _get("/account")

@@ -216,7 +216,12 @@ public class FxcmSession {
     private void cacheOffer(String offerId) {
         if (offerId == null) return;
         Offer o = safe(() -> offersMgr.getOfferById(offerId));
-        if (o != null) latestOffers.put(offerId, o);
+        if (o != null) {
+            latestOffers.put(offerId, o);
+            // Diagnostics: count every push and stamp the wall clock.
+            tickCount.computeIfAbsent(offerId, k -> new java.util.concurrent.atomic.AtomicLong()).incrementAndGet();
+            lastPushMs.put(offerId, System.currentTimeMillis());
+        }
     }
 
     private List<String> idsToSymbols(Set<String> offerIds) {
@@ -348,6 +353,54 @@ public class FxcmSession {
             if (offer != null) result.add(offerRow(offer));
         }
         return result;
+    }
+
+    // ── Diagnostics (temporary): GET /diag ──────────────────────────────────────
+    // Per subscribed offer, compares the push cache against a fresh snapshot and
+    // reports subscription status + tick stats, so we can see (a) which
+    // instruments actually stream (status T, tick_count rising) vs sit idle, and
+    // (b) whether the cached push bid/ask lags a fresh getLatestOffersSnapshot.
+    Map<String,Object> getDiag() {
+        long now = System.currentTimeMillis();
+        Map<String,Object> out = new LinkedHashMap<>();
+        out.put("now_ms", now);
+        out.put("subscribed_count", subscribedOfferIds.size());
+
+        String[] ids = subscribedOfferIds.toArray(new String[0]);
+        // Fresh snapshot for the same set, to compare against the push cache.
+        Map<String,Offer> fresh = new HashMap<>();
+        try {
+            Offer[] snap = fetchOfferSnapshot(ids);
+            for (Offer o : snap) if (o != null && o.getOfferId() != null) fresh.put(o.getOfferId(), o);
+        } catch (Exception e) {
+            out.put("snapshot_error", e.getMessage());
+        }
+
+        List<Map<String,Object>> rows = new ArrayList<>();
+        for (String id : ids) {
+            Map<String,Object> r = new LinkedHashMap<>();
+            r.put("offer_id", id);
+            InstrumentDescriptor d = safe(() -> instrumentsMgr.getInstrumentDescriptorByOfferId(id));
+            r.put("symbol", d != null ? safe(d::getSymbol) : null);
+            r.put("status", d != null ? safe(d::getSubscriptionStatus) : null);
+            Long last = lastPushMs.get(id);
+            java.util.concurrent.atomic.AtomicLong tc = tickCount.get(id);
+            r.put("tick_count", tc != null ? tc.get() : 0L);
+            r.put("ms_since_push", last != null ? now - last : null);
+
+            Offer cached = latestOffers.get(id);
+            r.put("cache_bid", cached != null ? safe(cached::getBid) : null);
+            r.put("cache_ask", cached != null ? safe(cached::getAsk) : null);
+            r.put("cache_ts",  cached != null ? safe(() -> { Date t = cached.getTime(); return t != null ? t.getTime() : null; }) : null);
+
+            Offer f = fresh.get(id);
+            r.put("snap_bid", f != null ? safe(f::getBid) : null);
+            r.put("snap_ask", f != null ? safe(f::getAsk) : null);
+            r.put("snap_ts",  f != null ? safe(() -> { Date t = f.getTime(); return t != null ? t.getTime() : null; }) : null);
+            rows.add(r);
+        }
+        out.put("offers", rows);
+        return out;
     }
 
     // Shared offer → JSON-map projection. instrument/digits/point_size/etc. come
