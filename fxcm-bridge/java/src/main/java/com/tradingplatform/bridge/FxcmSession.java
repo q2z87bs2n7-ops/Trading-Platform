@@ -469,6 +469,13 @@ public class FxcmSession {
         }
     }
 
+    // Same, coerced to Double (or null). Used for the bid/ask adjustment that
+    // turns a raw Offer price into FXCM's dealable price.
+    private static Double numAsDouble(Object target, String method) {
+        Object v = numMethod(target, method);
+        return (v instanceof Number) ? ((Number) v).doubleValue() : null;
+    }
+
     // Shared offer → JSON-map projection. instrument/digits/point_size/etc. come
     // from the InstrumentByOfferId lookup (null for not-fully-subscribed offers,
     // patched by the FastAPI layer from its offerId↔symbol map).
@@ -478,8 +485,19 @@ public class FxcmSession {
         Map<String,Object> m = new LinkedHashMap<>();
         m.put("offer_id",   id);
         m.put("instrument", inst != null ? inst.getSymbol() : null);
-        m.put("bid",        safe(offer::getBid));
-        m.put("ask",        safe(offer::getAsk));
+        // FXCM quotes a *dealable* price = raw Offer price + Instrument
+        // bid/ask adjustment. Offer.getBid()/getAsk() are raw and read ~1 pip
+        // wider than the platform (proven via /diag): e.g. EUR/USD raw spread
+        // 2.4 → +0.00004/-0.00005 adjustment → 1.5 dealable. Apply it so every
+        // surface (tiles, deal strip, spread, P/L) matches FXCM. Adjustments are
+        // 0 for instruments with no markup (e.g. XAU/USD), so this is a no-op
+        // there. Read reflectively — the getters aren't in our FCLite stubs.
+        Double rawBid = safe(offer::getBid);
+        Double rawAsk = safe(offer::getAsk);
+        Double bidAdj = inst != null ? numAsDouble(inst, "getBidAdjustment") : null;
+        Double askAdj = inst != null ? numAsDouble(inst, "getAskAdjustment") : null;
+        m.put("bid", rawBid != null ? rawBid + (bidAdj != null ? bidAdj : 0.0) : null);
+        m.put("ask", rawAsk != null ? rawAsk + (askAdj != null ? askAdj : 0.0) : null);
         m.put("high",       safe(offer::getHigh));
         m.put("low",        safe(offer::getLow));
         m.put("volume",     safe(offer::getVolume));
@@ -536,10 +554,17 @@ public class FxcmSession {
             m.put("used_margin", safe(pos::getUsedMargin));
             m.put("stop_rate",   safe(pos::getStopRate));
             m.put("limit_rate",  safe(pos::getLimitRate));
-            // Live bid/ask/mid from the position-specific snapshot.
+            // Live dealable bid/ask/mid from the position-specific snapshot
+            // (raw + instrument adjustment, same as offerRow — keeps the
+            // position mark consistent with the rate tiles).
             Offer offer = offerMap.get(pos.getOfferId());
-            Double bid = offer != null ? safe(offer::getBid) : null;
-            Double ask = offer != null ? safe(offer::getAsk) : null;
+            Instrument pInst = safe(() -> instrumentsMgr.getInstrumentByOfferId(pos.getOfferId()));
+            Double rawBid = offer != null ? safe(offer::getBid) : null;
+            Double rawAsk = offer != null ? safe(offer::getAsk) : null;
+            Double bAdj = pInst != null ? numAsDouble(pInst, "getBidAdjustment") : null;
+            Double aAdj = pInst != null ? numAsDouble(pInst, "getAskAdjustment") : null;
+            Double bid = rawBid != null ? rawBid + (bAdj != null ? bAdj : 0.0) : null;
+            Double ask = rawAsk != null ? rawAsk + (aAdj != null ? aAdj : 0.0) : null;
             m.put("bid", bid);
             m.put("ask", ask);
             Double mid = (bid != null && ask != null) ? (bid + ask) / 2.0 : null;
