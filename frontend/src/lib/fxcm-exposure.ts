@@ -62,23 +62,71 @@ export function computeCfdExposure(positions: FxcmPosition[]): CfdExposure {
   };
   if (!positions?.length) return empty;
 
-  // Conversion rates we can read straight off the book (each FX position is a
-  // live rate for its own pair).
+  const { byInst, rates } = aggregateByInstrument(positions);
+
+  let forexUsd = 0;
+  let cfdUsd = 0;
+  let usedMargin = 0;
+  let approximate = false;
+
+  for (const sym in byInst) {
+    const a = byInst[sym];
+    usedMargin += a.margin;
+    const { usd, approximate: approx } = instrumentNotionalUsd(sym, a, rates);
+    if (approx) approximate = true;
+    if (a.isFx) forexUsd += usd;
+    else cfdUsd += usd;
+  }
+
+  const exposureUsd = forexUsd + cfdUsd;
+  return {
+    exposureUsd,
+    usedMargin,
+    leverage: usedMargin > 0 ? exposureUsd / usedMargin : 0,
+    forexUsd,
+    cfdUsd,
+    approximate,
+  };
+}
+
+// Per-instrument |net notional| in the account currency, keyed by symbol — the
+// same model computeCfdExposure sums for the splash card, projected one slice
+// per instrument so the Portfolio allocation donut can size CFDs by exposure
+// (not margin). Fully-hedged (net 0) instruments are dropped.
+export function cfdNotionalByInstrument(
+  positions: FxcmPosition[],
+): Record<string, number> {
+  if (!positions?.length) return {};
+  const { byInst, rates } = aggregateByInstrument(positions);
+  const out: Record<string, number> = {};
+  for (const sym in byInst) {
+    const { usd } = instrumentNotionalUsd(sym, byInst[sym], rates);
+    if (usd > 0) out[sym] = usd;
+  }
+  return out;
+}
+
+interface InstAgg {
+  net: number;
+  mid: number;
+  mult: number;
+  ccy: string;
+  isFx: boolean;
+  margin: number;
+}
+
+// Net positions within each instrument (a long+short hedge cancels) and gather
+// the per-pair live mids as the conversion-rate book.
+function aggregateByInstrument(
+  positions: FxcmPosition[],
+): { byInst: Record<string, InstAgg>; rates: RateMap } {
   const rates: RateMap = {};
   for (const p of positions) {
     const sym = (p.instrument || "").toUpperCase();
     if (sym && fxLegs(sym) && p.mid) rates[sym] = p.mid;
   }
 
-  type Agg = {
-    net: number;
-    mid: number;
-    mult: number;
-    ccy: string;
-    isFx: boolean;
-    margin: number;
-  };
-  const byInst: Record<string, Agg> = {};
+  const byInst: Record<string, InstAgg> = {};
   for (const p of positions) {
     const sym = (p.instrument || "").toUpperCase();
     if (!sym) continue;
@@ -98,48 +146,32 @@ export function computeCfdExposure(positions: FxcmPosition[]): CfdExposure {
     if (mid) a.mid = mid;
     a.margin += Number(p.used_margin ?? p.market_value ?? 0);
   }
+  return { byInst, rates };
+}
 
-  let forexUsd = 0;
-  let cfdUsd = 0;
-  let usedMargin = 0;
-  let approximate = false;
+// One instrument's |net notional| in the account ccy.
+//   non-FX: |net| × contract_multiplier × rate, converted to ACCT
+//   FX:     |net| (already base-ccy face), converted to ACCT
+// `approximate` flags a missing conversion rate (caller surfaces it).
+function instrumentNotionalUsd(
+  sym: string,
+  a: InstAgg,
+  rates: RateMap,
+): { usd: number; approximate: boolean } {
+  const netAbs = Math.abs(a.net);
+  if (netAbs === 0) return { usd: 0, approximate: false };
 
-  for (const sym in byInst) {
-    const a = byInst[sym];
-    usedMargin += a.margin;
-    const netAbs = Math.abs(a.net);
-    if (netAbs === 0) continue; // fully hedged within the instrument → flat
-
-    if (a.isFx) {
-      const [base, quote] = fxLegs(sym)!;
-      let usd: number;
-      if (quote === ACCT) usd = netAbs * a.mid; // X/USD
-      else if (base === ACCT) usd = netAbs; // USD/X (amount already USD)
-      else {
-        const f = toUsd(base, rates); // cross
-        if (f == null) {
-          approximate = true;
-          usd = netAbs * a.mid;
-        } else usd = netAbs * f;
-      }
-      forexUsd += usd;
-    } else {
-      const notionalCcy = netAbs * a.mult * a.mid;
-      const f = toUsd(a.ccy, rates);
-      if (f == null) {
-        approximate = true;
-        cfdUsd += notionalCcy;
-      } else cfdUsd += notionalCcy * f;
-    }
+  if (a.isFx) {
+    const [base, quote] = fxLegs(sym)!;
+    if (quote === ACCT) return { usd: netAbs * a.mid, approximate: false }; // X/USD
+    if (base === ACCT) return { usd: netAbs, approximate: false }; // USD/X
+    const f = toUsd(base, rates); // cross
+    if (f == null) return { usd: netAbs * a.mid, approximate: true };
+    return { usd: netAbs * f, approximate: false };
   }
 
-  const exposureUsd = forexUsd + cfdUsd;
-  return {
-    exposureUsd,
-    usedMargin,
-    leverage: usedMargin > 0 ? exposureUsd / usedMargin : 0,
-    forexUsd,
-    cfdUsd,
-    approximate,
-  };
+  const notionalCcy = netAbs * a.mult * a.mid;
+  const f = toUsd(a.ccy, rates);
+  if (f == null) return { usd: notionalCcy, approximate: true };
+  return { usd: notionalCcy * f, approximate: false };
 }

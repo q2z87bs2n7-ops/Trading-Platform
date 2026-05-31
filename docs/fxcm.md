@@ -579,8 +579,9 @@ isn't present in the FCLite build):
 - **`/positions`** rows now carry `bid`, `ask`, `mid`, `live_pl`, `digits`,
   `contract_multiplier`, `contract_currency`, `open_time`. The FastAPI proxy in
   `backend/app/fxcm.py` additionally
-  aliases `market_value = used_margin` so the shared `AllocationDonut`
-  reads a uniform shape. `live_pl` currently mirrors `gross_pl` (the
+  aliases `market_value = used_margin` for any margin-keyed consumer (the
+  Portfolio donut now sizes CFDs by notional instead — see "CFD Portfolio
+  screen"). `live_pl` currently mirrors `gross_pl` (the
   FCLite-maintained "fresh as of this call" value) — a from-mid pip
   recompute was prototyped and pulled because cross-pair currency
   conversion needs more work; the raw `bid`/`ask`/`mid` are present so a
@@ -977,7 +978,9 @@ CFD trading still happens via `CfdDiscoverPage` + `FxcmOrderSheet`.
   cumulative-sums each closed trade's realized `pl` by `close_time` and tips
   the line with current open unrealized P/L (`equity − balance`); rendered via
   `discover/PnlSparkline.tsx`, shared with the CFD Discover `FxcmAccountHero`), shared
-  `AllocationDonut` over per-instrument used-margin, netted-per-instrument
+  `AllocationDonut` sized by per-instrument |net notional| (exposure, via
+  `cfdNotionalByInstrument` in `lib/fxcm-exposure.ts` — the same model the
+  splash card sums — not used-margin), netted-per-instrument
   `Positions` view + `FxcmClosePositionCard` (partial close loops over
   underlying trade_ids), sibling `FxcmOrders` blotter + `FxcmModifyOrderCard`,
   `Activities` mapping FXCM closed trades into the shared feed

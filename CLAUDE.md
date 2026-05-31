@@ -280,7 +280,10 @@ alongside the relay (see "Four runtime targets").
     is degenerate — start == end — and renders nothing; slice palette is
     **per-silo** — green ramp (`DONUT_COLORS_GREEN`) for stocks, amber
     (`DONUT_COLORS_AMBER`, hue 55) for CFD, blue default for crypto — matching
-    each silo's `--accent`) +
+    each silo's `--accent`; stocks/crypto slices are sized by position market
+    value, **CFD slices by per-instrument |net notional|** (exposure, via
+    `cfdNotionalByInstrument` in `lib/fxcm-exposure.ts` — the splash card's
+    model — not used-margin)) +
     promoted `Positions` block (`SectionHeading size="lg"`) + a 2-col
     `Orders` + `Activities` row beneath. Clicking a Positions row
     switches to Chart mode for that symbol (was: just repopulated the

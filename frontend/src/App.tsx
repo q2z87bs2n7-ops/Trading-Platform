@@ -25,6 +25,7 @@ import AllocationDonut from "./components/AllocationDonut";
 import PortfolioHero from "./components/PortfolioHero";
 import SectionHeading from "./components/SectionHeading";
 import { isCfdSymbol, isCryptoPosition, registerFxcmSymbols } from "./lib/asset-class";
+import { cfdNotionalByInstrument } from "./lib/fxcm-exposure";
 import { isSessionFresh, markActive } from "./lib/session";
 import { DONUT_COLORS_AMBER, DONUT_COLORS_GREEN } from "./components/discover/util";
 import TVPlatform from "./components/TVPlatform";
@@ -815,22 +816,15 @@ function PortfolioAllocation({
 }) {
   const positions = usePositions();
   const fxcm = useFxcmPositions(activeClass === "cfd");
-  // FXCM returns one row per trade lot. Net per instrument so the donut shows
-  // one slice per pair/CFD (matching the netted Positions blotter), not one
-  // slice per lot. used_margin is the per-position $ exposure on a CFD book.
+  // FXCM returns one row per trade lot. For CFDs the donut sizes each slice by
+  // |net notional| (exposure), netted per instrument — the same model the
+  // splash card uses (lib/fxcm-exposure.ts) — rather than used margin, since
+  // FXCM charges a fixed margin per contract that doesn't reflect market size.
   const siloPositions =
     activeClass === "cfd"
-      ? Array.from(
-          (fxcm.data || []).reduce((acc, p) => {
-            const symbol = String(p.instrument || "");
-            if (!symbol) return acc;
-            const margin = Number(
-              (p.used_margin as number | undefined) ?? p.market_value ?? 0,
-            );
-            acc.set(symbol, (acc.get(symbol) || 0) + margin);
-            return acc;
-          }, new Map<string, number>()),
-        ).map(([symbol, market_value]) => ({ symbol, market_value }))
+      ? Object.entries(cfdNotionalByInstrument(fxcm.data || [])).map(
+          ([symbol, market_value]) => ({ symbol, market_value }),
+        )
       : (positions.data?.positions || []).filter((p) =>
           activeClass === "crypto" ? isCryptoPosition(p) : !isCryptoPosition(p),
         );
