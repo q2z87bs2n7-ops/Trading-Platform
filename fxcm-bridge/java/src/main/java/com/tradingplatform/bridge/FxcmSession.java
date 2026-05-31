@@ -436,10 +436,37 @@ public class FxcmSession {
             r.put("snap_bid", f != null ? safe(f::getBid) : null);
             r.put("snap_ask", f != null ? safe(f::getAsk) : null);
             r.put("snap_ts",  f != null ? safe(() -> { Date t = f.getTime(); return t != null ? t.getTime() : null; }) : null);
+
+            // Probe candidate dealable-price / adjustment fields reflectively, so
+            // this compiles whether or not the FCLite 1.3.3 build exposes them.
+            // Our spread (ask-bid) reads wider than FXCM's dealable quote, so the
+            // docs' getBidTradable/getAskTradable + Instrument bid/ask adjustment
+            // are the suspects. Dump whatever exists next to the raw values.
+            if (f != null) {
+                r.put("probe_bidTradable", numMethod(f, "getBidTradable"));
+                r.put("probe_askTradable", numMethod(f, "getAskTradable"));
+                r.put("probe_pipCost",     numMethod(f, "getPipCost"));
+            }
+            Instrument im = safe(() -> instrumentsMgr.getInstrumentByOfferId(id));
+            if (im != null) {
+                r.put("probe_bidAdjustment", numMethod(im, "getBidAdjustment"));
+                r.put("probe_askAdjustment", numMethod(im, "getAskAdjustment"));
+            }
             rows.add(r);
         }
         out.put("offers", rows);
         return out;
+    }
+
+    // Reflectively invoke a no-arg numeric getter by name; null if it doesn't
+    // exist on this build or throws. For probing FCLite fields not in our stubs.
+    private static Object numMethod(Object target, String method) {
+        try {
+            Object v = target.getClass().getMethod(method).invoke(target);
+            return v;
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     // Shared offer → JSON-map projection. instrument/digits/point_size/etc. come
