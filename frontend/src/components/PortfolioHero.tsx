@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import {
   useAccount,
   useFxcmAccount,
+  useFxcmClosedTrades,
   useFxcmOrders,
   useFxcmPositions,
   useOrders,
@@ -11,6 +12,8 @@ import {
 } from "../data/hooks";
 import { useMobile } from "../hooks/useMobile";
 import { isCryptoOrder, isCryptoPosition } from "../lib/asset-class";
+import { buildClosedTradePnl } from "../lib/fxcm-pnl";
+import { PnlSparkline } from "./discover/PnlSparkline";
 import type { Order, Position } from "../types";
 
 const money = (n: number) =>
@@ -293,13 +296,14 @@ function AlpacaPortfolioHero({
   );
 }
 
-// FXCM CFD silo: no per-symbol P/L history (bridge doesn't expose it), so
-// the curve slot is intentionally empty — kept as a fixed-height spacer so
-// the right-side stat grid keeps the same baseline as stocks/crypto.
+// FXCM CFD silo: net-P/L curve rebuilt client-side from closed trades
+// (lib/fxcm-pnl.ts) — cumulative realized P/L tipped with current open
+// unrealized — so the curve slot matches the stocks/crypto variant.
 function CfdPortfolioHero({ isMobile }: { isMobile: boolean }) {
   const account = useFxcmAccount(true);
   const positions = useFxcmPositions(true);
   const orders = useFxcmOrders(true);
+  const closed = useFxcmClosedTrades(true);
 
   const acct = account.data;
 
@@ -322,6 +326,7 @@ function CfdPortfolioHero({ isMobile }: { isMobile: boolean }) {
   }
 
   const equity = Number(acct?.equity ?? 0);
+  const balance = Number(acct?.balance ?? equity);
   const dayPl = Number(acct?.day_pl ?? 0);
   const grossPl = Number(acct?.gross_pl ?? 0);
   const usableMargin = Number(acct?.usablemargin ?? 0);
@@ -331,9 +336,11 @@ function CfdPortfolioHero({ isMobile }: { isMobile: boolean }) {
   const dayUp = dayPl >= 0;
   const grossUp = grossPl >= 0;
   const openOrderCount = Array.isArray(orders.data) ? orders.data.length : 0;
-  // Reserve the same vertical space the SVG curve uses in the stocks/crypto
-  // variant (70px) so the stat-grid baseline aligns across silos.
   void positions;
+
+  // Net-P/L curve: cumulative realized P/L from closed trades, tipped with the
+  // account's current open unrealized P/L (equity − balance) so it ends live.
+  const pnl = buildClosedTradePnl(closed.data, equity - balance);
 
   const stats: Array<{ label: string; value: string; color?: string }> = [
     { label: "Used margin", value: money(usedMargin) },
@@ -398,7 +405,11 @@ function CfdPortfolioHero({ isMobile }: { isMobile: boolean }) {
             Day · vs market open
           </span>
         </div>
-        <div style={{ minHeight: 70, marginTop: 4 }} aria-hidden />
+        <PnlSparkline
+          pnl={pnl}
+          height={70}
+          emptyLabel={closed.isPending ? "Loading curve…" : "No closed trades yet."}
+        />
       </div>
 
       <div

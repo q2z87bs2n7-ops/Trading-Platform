@@ -6,12 +6,14 @@ import { fxcmCountrySet } from "../lib/fxcm-countries";
 import {
   useEconomicCalendar,
   useFxcmBars,
+  useFxcmClosedTrades,
   useFxcmDisplayNames,
   useFxcmInstruments,
   useFxcmWatchlistAdd,
   useFxcmWatchlistQuery,
   useFxcmWatchlistRemove,
 } from "../data/hooks";
+import { buildClosedTradePnl } from "../lib/fxcm-pnl";
 import { useMarketSummary } from "../hooks/useMarketSummary";
 // Note: selectedDailyBars below shares its cache key with CfdWatchlistCard's
 // useFxcmBars call, so the React Query layer dedupes when the user picks a
@@ -20,6 +22,7 @@ import { AddSymbolTile } from "./discover/AddSymbolTile";
 import { CardsRow } from "./discover/CardsRow";
 import { CfdTicker } from "./discover/CfdTicker";
 import { EconomicCard } from "./discover/EconomicCard";
+import { PnlSparkline } from "./discover/PnlSparkline";
 import { SparkCard, SparkCardSkeleton } from "./discover/SparkCard";
 import { StickyChartBar } from "./discover/StickyChartBar";
 import { showToast } from "../lib/toast";
@@ -48,6 +51,7 @@ function ChevronGlyph({ dir }: { dir: "left" | "right" }) {
 // ── Account hero ───────────────────────────────────────────────────────────────
 
 function FxcmAccountHero({ account }: { account: FxcmAccount | null }) {
+  const closed = useFxcmClosedTrades(!!account);
   if (!account) {
     return (
       <div
@@ -67,6 +71,10 @@ function FxcmAccountHero({ account }: { account: FxcmAccount | null }) {
   const usedMargin = typeof account.usedmargin === "number" ? account.usedmargin : 0;
   const dayPl = typeof account.day_pl === "number" ? account.day_pl : 0;
   const dayUp = dayPl >= 0;
+
+  // Net-P/L curve: cumulative realized P/L from closed trades, tipped with the
+  // account's current open unrealized P/L (equity − balance) so it ends live.
+  const pnl = buildClosedTradePnl(closed.data, equity - balance);
 
   return (
     <div
@@ -115,6 +123,10 @@ function FxcmAccountHero({ account }: { account: FxcmAccount | null }) {
           </strong>
         </div>
       </div>
+      <PnlSparkline
+        pnl={pnl}
+        emptyLabel={closed.isPending ? "Loading curve…" : "No closed trades yet."}
+      />
     </div>
   );
 }
