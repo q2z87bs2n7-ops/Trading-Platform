@@ -242,10 +242,12 @@ alongside the relay (see "Four runtime targets").
     — only present for subscribed offers, so `cfdDigits()` is the
     pre-subscription fallback): the big-figure split locates the pip via
     `point_size` (so indices/stock-CFDs render right, not just 5dp FX),
-    and tick flashes use a **per-side, ½-`point_size` dead-band** so an
-    unchanged quote stays quiet while its counterpart moves (the
-    FXCM/MT4/cTrader dealing-tile convention) instead of strobing every
-    poll.
+    and tick flashes use a **sub-tick dead-band** (`0.4·10^-digits`, a
+    fraction of the minimum tick — *not* the pip) so an unchanged quote
+    stays quiet while every genuine one-tick move flashes (the
+    FXCM/MT4/cTrader dealing-tile convention). The earlier ½-`point_size`
+    band was a half-pip (~5 ticks on 5dp FX), so liquid majors moving 1-2
+    fractional pips never lit up while choppy illiquid pairs did.
     **Status — MOCK / FOUNDATION for design to redo:** live ticks now
     ride a **real SSE feed** (`useFxcmPriceStream` → `/api/fxcm/stream`,
     FCLite `subscribeOfferChange` push under the hood — see `docs/fxcm.md`

@@ -125,10 +125,18 @@ function fmtUnits(n: number): string {
 }
 
 // ── Flash (per the dealing-tile convention: mid-direction drives which side
-// lights up, gated by a half-point dead-band so jitter doesn't strobe). ───────
+// lights up, gated by a sub-tick dead-band so a literally unchanged quote stays
+// quiet but every genuine tick flashes). ──────────────────────────────────────
+// The dead-band is a fraction of the *minimum tick* (10^-digits), NOT the pip.
+// The old point_size/2 was a half-PIP (≈5 last-digit ticks on 5dp FX), so a
+// liquid major moving 1-2 fractional pips never flashed, while choppy illiquid
+// pairs that jump several pips did. Quotes are discrete at 10^-digits, so the
+// smallest mid move (one side ticking) is 0.5·10^-digits; 0.4·10^-digits fires
+// on that while delta-0 doesn't. point_size is unused now (kept for the call
+// signature — the right scale here is the tick, which point_size isn't for FX).
 function flashEpsilon(pointSize: number | undefined, digits: number): number {
-  if (pointSize && pointSize > 0) return pointSize / 2;
-  return 0.5 * 10 ** -digits;
+  void pointSize;
+  return 0.4 * 10 ** -digits;
 }
 function useTickFlash(value: number | undefined, eps: number): "up" | "dn" | null {
   const prev = useRef<number | undefined>(value);
