@@ -207,7 +207,17 @@ public class BridgeServer {
         String timeframe  = q.getOrDefault("timeframe","H1");
         String from       = q.get("from");
         String to         = q.get("to");
-        return session.getHistory(instrument, timeframe, from, to);
+        // Bound the request to a recent bar count. Unbounded (-1) over the wide
+        // intraday window pulled a liquid major's whole Friday session (m1 ≈
+        // 1400+ bars) — heavy enough to blow the read budget so the chart never
+        // rendered. FCLite returns the most-recent `count` bars (still spans the
+        // weekend back into Friday). Caps m1/m5 without truncating H1/D1/W1.
+        int count = 1500;
+        try {
+            String c = q.get("count");
+            if (c != null && !c.isEmpty()) count = Integer.parseInt(c);
+        } catch (NumberFormatException ignore) {}
+        return session.getHistory(instrument, timeframe, from, to, count);
     }
 
     static Object closePosition(HttpExchange ex) throws Exception {
