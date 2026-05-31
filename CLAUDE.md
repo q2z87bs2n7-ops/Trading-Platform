@@ -202,9 +202,7 @@ alongside the relay (see "Four runtime targets").
     preset drives the action, **keyed on the selected symbol so it remounts
     cleanly per instrument** — the reused chart instance otherwise failed to
     repaint its candle series when switching between constantly-ticking FX
-    pairs — with a dashed **entry line** at the selected
-    instrument's net average — long green / short red, via the chart's
-    additive `entryLine` prop + LWC `createPriceLine` — and the
+    pairs — and the
     Sell/spread/Buy deal strip beneath) ·
     **Position info** (right — net side/size/avg/P&L/pips, mark/spread/margin,
     visual-stub SL/TP, Reverse + Close), then a full-width **blotter**
