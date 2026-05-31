@@ -26,7 +26,7 @@ import PortfolioHero from "./components/PortfolioHero";
 import SectionHeading from "./components/SectionHeading";
 import { isCfdSymbol, isCryptoPosition, registerFxcmSymbols } from "./lib/asset-class";
 import { isSessionFresh, markActive } from "./lib/session";
-import { DONUT_COLORS_GREEN } from "./components/discover/util";
+import { DONUT_COLORS_AMBER, DONUT_COLORS_GREEN } from "./components/discover/util";
 import TVPlatform from "./components/TVPlatform";
 import ChatPanel from "./components/chat/ChatPanel";
 import TradeBar from "./components/trade/TradeBar";
@@ -846,7 +846,13 @@ function PortfolioAllocation({
     >
       <AllocationDonut
         positions={siloPositions as unknown as Parameters<typeof AllocationDonut>[0]["positions"]}
-        colors={activeClass === "stocks" ? DONUT_COLORS_GREEN : undefined}
+        colors={
+          activeClass === "stocks"
+            ? DONUT_COLORS_GREEN
+            : activeClass === "cfd"
+              ? DONUT_COLORS_AMBER
+              : undefined
+        }
       />
     </div>
   );

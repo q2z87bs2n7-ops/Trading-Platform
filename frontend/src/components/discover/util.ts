@@ -114,3 +114,16 @@ export const DONUT_COLORS_GREEN = [
   "oklch(84% 0.05 155)",
   "oklch(90% 0.03 155)",
 ];
+
+// Amber/orange ramp (hue 55) for the CFD silo, matching its --accent
+// (oklch(72% 0.18 55)) the way the green ramp matches --pos for stocks.
+export const DONUT_COLORS_AMBER = [
+  "oklch(48% 0.13 55)",
+  "oklch(56% 0.13 55)",
+  "oklch(64% 0.13 55)",
+  "oklch(70% 0.12 55)",
+  "oklch(76% 0.10 55)",
+  "oklch(82% 0.08 55)",
+  "oklch(87% 0.06 55)",
+  "oklch(91% 0.04 55)",
+];
