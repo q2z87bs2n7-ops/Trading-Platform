@@ -117,6 +117,13 @@ function scheduleStreamRetry() {
 function start() {
   startKeepalive();
   streamBackoff = 0;
+  // Seed from the /prices snapshot immediately, and keep polling until the SSE
+  // delivers its first frame (openStream clears it then). The SSE source reads
+  // the bridge's push cache, which is empty for a freshly-subscribed instrument
+  // until FXCM pushes its first tick — whereas /prices pulls FCLite's current
+  // snapshot, so tiles paint live bid/ask right away instead of sitting on the
+  // stale last-close fallback through the warm-up.
+  startPolling();
   openStream();
 }
 
