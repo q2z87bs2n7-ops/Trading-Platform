@@ -35,7 +35,8 @@ from the splash CFD card rather than the mode toggle):
   - *Crypto* — live crypto price marquee, holdings + allocation hero (crypto
     positions only, blue), crypto watchlist sparkline cards, inline chart, BTC
     news. No movers/most-active (Alpaca has no crypto screener).
-  - *CFDs* — FXCM account hero (equity / balance / margin), the **AI
+  - *CFDs* — FXCM account hero (equity / balance / margin + a **net-P/L
+    curve** rebuilt from closed trades), the **AI
     market summary** (forex/CFD desk note), a **customisable watchlist**
     rendered as a SparkCard grid + AddSymbolTile (same UX as
     stocks/crypto; backed by FXCM's Endpoints-suite watchlist API so picks
@@ -47,7 +48,10 @@ from the splash CFD card rather than the mode toggle):
     "Open ↗" jumps to full TV Chart mode. Requires the FXCM bridge to be
     running; shows an offline notice otherwise.
 - **Portfolio** — siloed value + day P/L hero with a reconstructed per-silo
-  **net P/L curve** (from `/api/pnl-history`), positions strip (one card per
+  **net P/L curve** (stocks/crypto from `/api/pnl-history`; CFD rebuilt from
+  closed trades), an **allocation donut** (per-silo colour — stocks green,
+  crypto blue, CFD amber — sized by market value, or by notional exposure for
+  CFDs), positions strip (one card per
   position, filtered to the active asset class), open-orders table, and
   account activity. Order entry is the floating bottom-centre **TradeBar**
   pill that opens a bottom-sheet order ticket.
@@ -77,7 +81,9 @@ from the splash CFD card rather than the mode toggle):
 - **Scalp** (CFD silo only, desktop only) — a traditional forex-broker
   **rapid-trade surface** and the main CFD trading entry. Reached from the
   splash / Account Hub **CFD card's "⚡ Scalp"** affordance (not a header
-  pill). Live bid/ask **rate tiles** with up/down tick flashes and
+  pill). Live bid/ask **rate tiles** with up/down tick flashes (falling back
+  to the last daily close as a muted **indicative** level while a market is
+  closed) and
   one-click market orders, a per-instrument **deal ticket** with a
   small-timeframe chart, lot-size presets, and an open-positions blotter
   with quick-close. *Foundation/mock for design to refine — ticks ride the
