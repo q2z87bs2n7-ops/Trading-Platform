@@ -68,6 +68,14 @@ public class FxcmSession {
     // session handling is not safe for concurrent snapshot requests.
     private final ReentrantLock snapshotLock = new ReentrantLock();
 
+    // ── Diagnostics (temporary): per-offer push-tick counters + last-push wall
+    // clock, to settle whether non-position instruments ever stream and whether
+    // the push cache lags a fresh snapshot. Read via GET /diag. Cheap; remove
+    // once the streaming staleness is understood.
+    private final Map<String, java.util.concurrent.atomic.AtomicLong> tickCount =
+        new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<String, Long> lastPushMs = new java.util.concurrent.ConcurrentHashMap<>();
+
     static final Map<String, int[]> TIMEFRAME_MAP = new LinkedHashMap<>();
     static {
         // {TimeframeUnit constant, count}
