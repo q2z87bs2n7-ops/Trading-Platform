@@ -542,7 +542,7 @@ public class FxcmSession {
         return result;
     }
 
-    List<Map<String,Object>> getHistory(String instrument, String timeframe, String fromStr, String toStr, int count) throws Exception {
+    List<Map<String,Object>> getHistory(String instrument, String timeframe, String fromStr, String toStr) throws Exception {
         if (historyMgr == null) throw new RuntimeException("Price history manager unavailable");
 
         int[] tf = TIMEFRAME_MAP.get(timeframe);
@@ -558,10 +558,7 @@ public class FxcmSession {
         List<Map<String,Object>>[] result = new List[]{Collections.emptyList()};
         final Exception[] err = {null};
 
-        // count > 0 caps the request to the most-recent N bars (FCLite walks back
-        // from `to`); <= 0 falls back to the legacy unbounded fetch over [from,to].
-        int fetch = count > 0 ? count : -1;
-        historyMgr.getPrices(instrument, fcliteTf, from, to, fetch, new IPriceHistoryManagerCallback() {
+        historyMgr.getPrices(instrument, fcliteTf, from, to, -1, new IPriceHistoryManagerCallback() {
             public void onSuccess(IPriceHistoryResponse response) {
                 List<Map<String,Object>> bars = new ArrayList<>();
                 int count = response.getCount();
