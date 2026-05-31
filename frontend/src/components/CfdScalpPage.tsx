@@ -174,7 +174,13 @@ function netForSym(positions: FxcmPosition[], sym: string, price: FxcmPrice | un
   for (const p of ps) {
     const amt = Number(p.amount ?? 0);
     const open = Number(p.open ?? p.open_rate ?? 0);
-    pl += typeof p.pl === "number" ? p.pl : Number(p.gross_pl ?? 0);
+    // Prefer live_pl (gross_pl, recomputed fresh each fetch) like the Portfolio
+    // view. The account-ccy `pl` is "stale at fetch" — FCLite only refreshes it
+    // on trade events, so it freezes at the market-close figure between
+    // sessions, making the rate-matrix P/L wrong while the market moves.
+    pl += typeof p.live_pl === "number" ? p.live_pl
+        : typeof p.pl === "number" ? p.pl
+        : Number(p.gross_pl ?? 0);
     margin += Number((p.used_margin as number | undefined) ?? p.market_value ?? 0);
     if (p.buy_sell === "B") { buy += amt; costB += amt * open; }
     else { sell += amt; costS += amt * open; }
@@ -536,7 +542,15 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
   }, [livePrices, watchlist.data]);
 
   const netPl = useMemo(
-    () => positions.reduce((s, p) => s + (typeof p.pl === "number" ? p.pl : Number(p.gross_pl ?? 0)), 0),
+    () =>
+      positions.reduce(
+        (s, p) =>
+          s +
+          (typeof p.live_pl === "number" ? p.live_pl
+            : typeof p.pl === "number" ? p.pl
+            : Number(p.gross_pl ?? 0)),
+        0,
+      ),
     [positions],
   );
 
