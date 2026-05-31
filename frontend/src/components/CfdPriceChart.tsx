@@ -215,28 +215,45 @@ export default function CfdPriceChart({
     }
   }, [bars, barsToShow]);
 
-  // Dashed entry line at the position's net average (Scalp). Re-runs on
-  // entry/side/theme change and after bars load (series is ready by then).
+  // Dashed entry line at the position's net average (Scalp). Only drawn once
+  // the candle series actually has data: calling createPriceLine on an empty
+  // series (the window between the per-instrument remount and bars loading) is
+  // the one thing this chart does only for instruments that carry an open
+  // position, and it could wedge LWC's paint loop — leaving the candles blank
+  // while the rest of the app stayed up (no React error boundary fired). Gating
+  // on loaded bars + a finite price + a defensive catch keeps the line from ever
+  // breaking the chart.
   useEffect(() => {
     const series = seriesRef.current;
     if (!series) return;
-    if (entryLineRef.current) {
-      series.removePriceLine(entryLineRef.current);
+    try {
+      if (entryLineRef.current) {
+        series.removePriceLine(entryLineRef.current);
+        entryLineRef.current = null;
+      }
+      if (
+        entryLine &&
+        Number.isFinite(entryLine.price) &&
+        entryLine.price > 0 &&
+        bars &&
+        bars.length > 0
+      ) {
+        const cs = getComputedStyle(document.documentElement);
+        const token = entryLine.side === "B" ? "--pos" : "--neg";
+        const color =
+          cs.getPropertyValue(token).trim() || (entryLine.side === "B" ? "#26a69a" : "#ef5350");
+        entryLineRef.current = series.createPriceLine({
+          price: entryLine.price,
+          color,
+          lineWidth: 1,
+          lineStyle: LineStyle.Dashed,
+          axisLabelVisible: true,
+          title: entryLine.side === "B" ? "Long" : "Short",
+        });
+      }
+    } catch {
+      // An LWC price-line error must never break candle rendering.
       entryLineRef.current = null;
-    }
-    if (entryLine && entryLine.price > 0) {
-      const cs = getComputedStyle(document.documentElement);
-      const token = entryLine.side === "B" ? "--pos" : "--neg";
-      const color =
-        cs.getPropertyValue(token).trim() || (entryLine.side === "B" ? "#26a69a" : "#ef5350");
-      entryLineRef.current = series.createPriceLine({
-        price: entryLine.price,
-        color,
-        lineWidth: 1,
-        lineStyle: LineStyle.Dashed,
-        axisLabelVisible: true,
-        title: entryLine.side === "B" ? "Long" : "Short",
-      });
     }
   }, [entryLine?.price, entryLine?.side, theme, bars]);
 
