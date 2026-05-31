@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useAccount, useClock, useFxcmAccount, useFxcmPositions, usePositions } from "../data/hooks";
+import { useAccount, useFxcmAccount, useFxcmPositions, usePositions } from "../data/hooks";
 import { useMobile } from "../hooks/useMobile";
 import { isCryptoPosition } from "../lib/asset-class";
 import { computeCfdExposure } from "../lib/fxcm-exposure";
@@ -9,16 +9,12 @@ type AssetClassMode = "stocks" | "crypto" | "cfd";
 
 const CFD_COLOR = "oklch(72% 0.18 55)";
 
-const timeHM = (ts: number) =>
-  new Date(ts * 1000).toLocaleTimeString(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
 type Seg = { label: string; value: number; color: string; badge?: string };
 
 // Shared allocation bar + legend. Segments with value ≤ 0 are dropped.
-function Bar({ segs }: { segs: Seg[] }) {
+// `extra` items render in the legend only (value, no bar slice, no %) — used to
+// surface cash so the figures reconcile to equity without distorting the bar.
+function Bar({ segs, extra }: { segs: Seg[]; extra?: { label: string; value: number; color: string }[] }) {
   const shown = segs.filter((s) => s.value > 0);
   const total = shown.reduce((a, s) => a + s.value, 0) || 1;
   return (
@@ -61,6 +57,15 @@ function Bar({ segs }: { segs: Seg[] }) {
                 {s.badge}
               </span>
             )}
+          </span>
+        ))}
+        {extra?.map((e) => (
+          <span key={e.label} className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-sm" style={{ background: e.color }} />
+            <span style={{ color: "var(--text-2)" }}>{e.label}</span>
+            <span className="tabular-nums" style={{ color: "var(--mute)" }}>
+              {money(e.value)}
+            </span>
           </span>
         ))}
       </div>
@@ -113,7 +118,7 @@ function TwoAxisModule({
             className="text-[11px] uppercase"
             style={{ color: "var(--mute)", letterSpacing: "0.06em" }}
           >
-            {mode === "capital" ? "Capital deployed" : "Market exposure"}
+            {mode === "capital" ? "Account equity" : "Market exposure"}
           </span>
           <span
             className="font-semibold tabular-nums"
@@ -184,7 +189,6 @@ export default function AssetClassSplash({
   const isMobile = useMobile();
   const account = useAccount();
   const positions = usePositions();
-  const clock = useClock();
 
   // Fetch-once here (poll=false): the overview paints live-on-open but doesn't
   // keep polling the bridge while the splash/Hub lingers. Bridge offline → 503
@@ -219,32 +223,26 @@ export default function AssetClassSplash({
 
   const alpacaReady = !!a && !!positions.data;
   const fxcmReady = !!fx;
-  const levBadge = exposure.leverage > 0 ? `⚡${Math.round(exposure.leverage)}×` : undefined;
 
   const capitalSegs: Seg[] = [
     { label: "Stocks", value: stockMV - L, color: "var(--pos)" },
     { label: "Crypto", value: cryptoMV, color: "var(--accent)" },
     { label: "Cash", value: cashPos, color: "var(--mute)" },
-    { label: "CFD", value: fxcmEquity, color: CFD_COLOR, badge: levBadge },
+    { label: "CFD", value: fxcmEquity, color: CFD_COLOR },
   ];
   const exposureSegs: Seg[] = [
     { label: "Stocks", value: stockMV, color: "var(--pos)" },
     { label: "Crypto", value: cryptoMV, color: "var(--accent)" },
-    { label: "CFD", value: exposure.exposureUsd, color: CFD_COLOR, badge: levBadge },
+    { label: "CFD", value: exposure.exposureUsd, color: CFD_COLOR },
   ];
 
+  // Alpaca card bar = stocks + crypto only; cash rides the legend as an extra
+  // (raw a.cash, can be negative = margin debit) so the figures reconcile to
+  // equity without distorting the bar.
   const alpacaAlloc: Seg[] = [
     { label: "Stocks", value: stockMV, color: "var(--pos)" },
     { label: "Crypto", value: cryptoMV, color: "var(--accent)" },
-    { label: "Cash", value: cashPos, color: "var(--mute)" },
   ];
-
-  const clk = clock.data;
-  const stockSub = clk
-    ? clk.is_open
-      ? `Open until ${timeHM(clk.next_close)}`
-      : `Closed · opens ${timeHM(clk.next_open)}`
-    : "Market hours";
 
   const cardStyle = {
     background: "var(--panel)",
@@ -356,12 +354,16 @@ export default function AssetClassSplash({
                 <DayChip value={alpacaDay} pctValue={alpacaDayPct} ready={alpacaReady} />
               </div>
             </div>
-            {alpacaReady && <Bar segs={alpacaAlloc} />}
+            {alpacaReady && (
+              <Bar
+                segs={alpacaAlloc}
+                extra={[{ label: "Cash", value: cash, color: "var(--mute)" }]}
+              />
+            )}
             <div>
               <EnterRow dot="var(--pos)" label="Stocks" onClick={() => onSelect("stocks")} />
               <EnterRow dot="var(--accent)" label="Crypto" onClick={() => onSelect("crypto")} />
             </div>
-            <span className="text-[11.5px]" style={{ color: "var(--mute)" }}>{stockSub}</span>
           </div>
 
           {/* Brokerage · FXCM — isolated cash, leveraged. Info up top; the
@@ -391,7 +393,7 @@ export default function AssetClassSplash({
             {/* Margin-used gauge (decoupled from exposure). */}
             <div className="flex flex-col gap-1.5">
               <div className="flex justify-between text-[12px]">
-                <span style={{ color: "var(--mute)" }}>Margin used</span>
+                <span style={{ color: "var(--mute)" }}>Margin</span>
                 <span className="tabular-nums" style={{ color: "var(--mute)" }}>
                   {fxcmReady ? (
                     <>
@@ -418,7 +420,7 @@ export default function AssetClassSplash({
               {[
                 { k: "Free margin", v: moneyOr(fxcmFree, fxcmReady) },
                 { k: "Exposure", v: fxcmReady ? money(exposure.exposureUsd) : DASH },
-                { k: "Leverage", v: fxcmReady ? (levBadge ? `${Math.round(exposure.leverage)}×` : "—") : DASH, lev: true },
+                { k: "Leverage", v: fxcmReady ? (exposure.leverage > 0 ? `${Math.round(exposure.leverage)}×` : "—") : DASH, lev: true },
               ].map((s) => (
                 <div key={s.k} className="rounded-card" style={{ background: "var(--panel-2)", padding: "9px 10px" }}>
                   <div className="text-[10.5px] uppercase" style={{ color: "var(--mute)", letterSpacing: "0.04em" }}>
