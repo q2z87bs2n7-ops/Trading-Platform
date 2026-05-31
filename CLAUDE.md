@@ -167,7 +167,10 @@ alongside the relay (see "Four runtime targets").
       watchlist sidebar, inline chart, BTC news feed. No movers/most-active
       (Alpaca has no crypto screener).
     - *CFDs*: separate page (`CfdDiscoverPage.tsx`) — same 2-col shell
-      (watchlist sidebar + FXCM account hero / **AI market summary** /
+      (watchlist sidebar + FXCM account hero (equity + day chip + Balance /
+      Used / Free margin + the same closed-trades net-P/L curve as the CFD
+      PortfolioHero, via `lib/fxcm-pnl.ts` + `discover/PnlSparkline.tsx`) /
+      **AI market summary** /
       inline `CfdPriceChart` / economic calendar gated on the FXCM-derived
       country set, each row flag-prefixed via `EconomicCard`'s default-off
       `showFlags` prop — enabled only on CFD Discover). The old inline
@@ -284,8 +287,14 @@ alongside the relay (see "Four runtime targets").
     surfaces in any header — it lives in the hero (`buying_power` for
     stocks, `non_marginable_buying_power` for crypto). **CFD/FXCM** runs
     the same shell with silo-specific bodies: `CfdPortfolioHero` (equity +
-    day chip + Used/Free margin · Total P/L · Open orders — no sparkline
-    yet; see BACKLOG), netted-per-instrument `Positions`, the
+    day chip + Used/Free margin · Total P/L · Open orders + a **net-P/L
+    curve** rebuilt client-side from closed trades — `lib/fxcm-pnl.ts`'s
+    `buildClosedTradePnl` cumulative-sums each closed trade's realized `pl`
+    by `close_time` (FCLite already nets them — no FIFO) and tips the line
+    with current open unrealized P/L (`equity − balance`); rendered via the
+    shared `discover/PnlSparkline.tsx`, the same 80px area-filled SVG the
+    stocks/crypto `DiscoverHero` uses, which the CFD Discover
+    `FxcmAccountHero` shares too), netted-per-instrument `Positions`, the
     `FxcmOrders` blotter (FXCM's `OM`/`SE`/`LE` order model diverges
     enough that folding it into `Orders.tsx` would be ugly), and
     `Activities` sourced from `/api/fxcm/closed_trades`. `TradeBar` runs

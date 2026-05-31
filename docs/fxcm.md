@@ -972,7 +972,11 @@ CFD trading still happens via `CfdDiscoverPage` + `FxcmOrderSheet`.
   AddSymbolTile + SparkCard pattern works against it identically to
   stocks/crypto.
 - **CFD Portfolio screen** — `CfdPortfolioHero` (equity + day-chip +
-  Free margin / Total P/L / Open orders; no sparkline), shared
+  Free margin / Total P/L / Open orders + a net-P/L curve rebuilt
+  client-side from closed trades — `lib/fxcm-pnl.ts`'s `buildClosedTradePnl`
+  cumulative-sums each closed trade's realized `pl` by `close_time` and tips
+  the line with current open unrealized P/L (`equity − balance`); rendered via
+  `discover/PnlSparkline.tsx`, shared with the CFD Discover `FxcmAccountHero`), shared
   `AllocationDonut` over per-instrument used-margin, netted-per-instrument
   `Positions` view + `FxcmClosePositionCard` (partial close loops over
   underlying trade_ids), sibling `FxcmOrders` blotter + `FxcmModifyOrderCard`,
