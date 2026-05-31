@@ -195,7 +195,8 @@ alongside the relay (see "Four runtime targets").
     handoff `design_handoff_cfd_scalp_cockpit`, adapted onto our Calm-v2
     tokens via `components/cfd-scalp.css`): a top **stats bar** (brand · Live
     pill · equity/free-margin/open-P&L · hotkey hint · size chips · 1-click
-    toggle · theme), then a grid of **Rate Matrix** (left, click-to-select
+    toggle — no in-scalp theme toggle; the global nav theme switch is the
+    single source), then a grid of **Rate Matrix** (left, click-to-select
     rows with bid/ask flash + spread + per-instrument P/L + inline remove) ·
     **Chart + Deal strip** (center — `CfdPriceChart` on the m1 scalping
     preset drives the action, with a dashed **entry line** at the selected
@@ -214,7 +215,13 @@ alongside the relay (see "Four runtime targets").
     own amount at submit), a **rate matrix** of live bid/ask tiles (one
     per watchlist instrument) with **up/down tick flashes**, broker-style
     big-figure/pips/tenth price rendering, spread chip, and a net
-    position/P&L footer — instruments are managed inline (a per-tile ×
+    position/P&L footer. When an instrument has **no live bid/ask** (market
+    closed — FXCM stops quoting indices/CFDs while FX keeps a last quote; both
+    `/prices` and the SSE stream read the same offers, so polling can't fill
+    it), the tile falls back to the **last `D1` bar close** as a muted,
+    spread-less **indicative** level (mirrors the Discover watchlist card, same
+    `useFxcmBars` key so React Query dedupes) rather than a dash. Instruments
+    are managed inline (a per-tile ×
     removes, a trailing `AddSymbolTile` searches + adds via the same FXCM
     Endpoints-suite watchlist as Discover, so no round-trip to manage it);
     a **deal-ticket focus column** (chart on top —
@@ -270,7 +277,10 @@ alongside the relay (see "Four runtime targets").
     extracted from the old DiscoverHero — Portfolio is the spec'd home
     for the donut, Discover is now market discovery only; a **lone position**
     draws a full ring via `buildRing` since a single 360° `buildArc` slice
-    is degenerate — start == end — and renders nothing) +
+    is degenerate — start == end — and renders nothing; slice palette is
+    **per-silo** — green ramp (`DONUT_COLORS_GREEN`) for stocks, amber
+    (`DONUT_COLORS_AMBER`, hue 55) for CFD, blue default for crypto — matching
+    each silo's `--accent`) +
     promoted `Positions` block (`SectionHeading size="lg"`) + a 2-col
     `Orders` + `Activities` row beneath. Clicking a Positions row
     switches to Chart mode for that symbol (was: just repopulated the
