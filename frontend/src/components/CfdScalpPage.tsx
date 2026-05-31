@@ -749,6 +749,7 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
           <div className="sc-chart-host">
             {selected && selectedPrice ? (
               <CfdPriceChart
+                key={selected}
                 instrument={selected}
                 livePrice={selectedPrice}
                 onOpenChart={onOpenChart}
