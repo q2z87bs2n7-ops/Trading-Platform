@@ -518,6 +518,17 @@ _view_offer_ids: frozenset[int] = frozenset()
 _subscribed_snapshot: frozenset[int] = frozenset()
 _VIEW_CLEANUP_PROB = 0.15
 
+# Periodic forced re-subscribe. The snapshot can desync from the bridge through
+# paths we don't model (FXCM decaying a subscription server-side on idle, a
+# /subscribe the bridge accepted but didn't apply, etc.) — and the symptom is
+# terminal: tiles go grey and never recover because every layer still believes
+# it's subscribed. Rather than chase each cause, every Nth watchlist poll
+# (~30 s) we re-push the *entire* desired set regardless of the snapshot, so any
+# desync self-heals within one interval. Cheap: the bridge subscribe is
+# idempotent for already-T instruments.
+_reconcile_tick = 0
+_FORCE_RESUBSCRIBE_EVERY = 10  # watchlist polls (~3 s each) → ~30 s
+
 # Last bridge boot id we reconciled against. The bridge restarts independently
 # of the relay (separate Render services); when it does it loses every
 # subscription except positions/orders, but our _subscribed_snapshot still
@@ -547,14 +558,14 @@ async def _check_bridge_restart() -> None:
         _subscribed_snapshot = frozenset()
 
 
-def _reconcile_subscriptions(*, cleanup: bool) -> None:
+def _reconcile_subscriptions(*, cleanup: bool, force: bool = False) -> None:
     """Push the desired subscription set (watchlist ∪ active view) to the bridge.
     Subscribe newly-needed offer IDs always; unsubscribe stale ones only on a
-    cleanup pass."""
-    asyncio.create_task(_reconcile_subscriptions_async(cleanup=cleanup))
+    cleanup pass. `force` re-pushes the whole desired set (periodic self-heal)."""
+    asyncio.create_task(_reconcile_subscriptions_async(cleanup=cleanup, force=force))
 
 
-async def _reconcile_subscriptions_async(*, cleanup: bool) -> None:
+async def _reconcile_subscriptions_async(*, cleanup: bool, force: bool = False) -> None:
     """Only mark IDs subscribed *after* the bridge confirms the POST. The old
     code optimistically added new_ids to _subscribed_snapshot before the
     fire-and-forget POST ran — so a single dropped /subscribe (bridge mid-
@@ -562,10 +573,14 @@ async def _reconcile_subscriptions_async(*, cleanup: bool) -> None:
     those IDs were subscribed when they weren't, and the next reconcile computed
     no new IDs and never retried → instruments stuck unsubscribed (gray tiles)
     until an unrelated restart. Awaiting + only committing on success makes a
-    failed push self-heal on the next ~3s poll."""
+    failed push self-heal on the next ~3s poll.
+
+    `force` ignores the snapshot and re-pushes every desired ID, recovering from
+    any silent desync (server-side decay, an accepted-but-unapplied subscribe).
+    Idempotent on the bridge for instruments already on status T."""
     global _subscribed_snapshot
     desired = _watchlist_offer_ids | _view_offer_ids
-    new_ids = desired - _subscribed_snapshot
+    new_ids = desired if force else (desired - _subscribed_snapshot)
     if new_ids:
         try:
             await _post("/subscribe", {"offer_ids": [str(i) for i in new_ids]})
@@ -742,7 +757,11 @@ async def watchlist():
     # Clear the snapshot first if the bridge restarted, so the reconcile below
     # re-pushes every watchlist subscription (not just newly-added ones).
     await _check_bridge_restart()
-    _reconcile_subscriptions(cleanup=True)
+    # Every Nth poll, force a full re-push so any silent desync self-heals.
+    global _reconcile_tick
+    _reconcile_tick += 1
+    force = _reconcile_tick % _FORCE_RESUBSCRIBE_EVERY == 0
+    _reconcile_subscriptions(cleanup=True, force=force)
 
     # Enrich with live bid/ask from the FCLite offers list.
     # Some instruments (indices, commodities) return instrument=null from the

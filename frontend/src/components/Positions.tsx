@@ -952,7 +952,7 @@ function FxcmStripRow({
           className="font-mono text-[11px] tabular-nums"
           style={{ color: "var(--mute)" }}
         >
-          mark
+          current
         </div>
       </div>
       <div className="text-right">
