@@ -342,9 +342,12 @@ export default function App() {
   // Scalp is a CFD-only, desktop-oriented surface. If a rehydrated mode=scalp
   // lands while the active silo isn't CFD (or on mobile, which has no scalp
   // pill), fall back to Discover so the user isn't stranded on a hidden mode.
+  // Skip while the splash/hub is open: the silo is still being chosen there, and
+  // bouncing mode mid-resolve is what kicked a resuming scalper back to Discover.
   useEffect(() => {
+    if (landingOpen || hubOpen) return;
     if (mode === "scalp" && (activeClass !== "cfd" || isMobile)) switchMode("discover");
-  }, [mode, activeClass, isMobile]);
+  }, [mode, activeClass, isMobile, landingOpen, hubOpen]);
 
   // Self-reload when the deployed build differs from this tab's bundle, so a
   // long-lived tab picks up new code (incl. the maintenance gate) on its own.
@@ -457,7 +460,14 @@ export default function App() {
     } catch {
       /* private mode / quota — non-fatal */
     }
-    if (platformMode) switchMode(platformMode);
+    if (platformMode) {
+      switchMode(platformMode);
+    } else if (m === "cfd" && readPlatformMode() === "scalp" && !isMobile) {
+      // Re-entering CFD (e.g. resuming a dormant session via the splash) should
+      // honour the last mode. Scalp is CFD-only and not a header pill, so a
+      // plain CFD entry would otherwise always strand a scalper on Discover.
+      switchMode("scalp");
+    }
     setLandingOpen(false);
     setHubOpen(false);
   }
