@@ -199,9 +199,14 @@ export function useFxcmClosePosition() {
 // bridge requires explicit `from`/`to` dates (TV datafeed already passes
 // them) — pick a window that yields ~200–400 bars per timeframe so the
 // chart has enough scrollback without bloating the response.
+// Windows are computed in UTC (toISOString). The intraday ones must always reach
+// back past a weekend to the last trading session — a too-tight window computed
+// late Sunday / early Monday UTC can land entirely in non-trading time and the
+// bridge returns GPH-65 "No data found". m1 at 2 days did exactly that (Sat→Mon,
+// no Friday); 5 days clears a normal weekend plus a holiday Monday.
 const FXCM_WINDOW_DAYS: Record<string, number> = {
-  m1: 2,
-  m5: 7,
+  m1: 5,
+  m5: 10,
   m15: 14,
   m30: 21,
   H1: 60,
