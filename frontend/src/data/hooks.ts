@@ -63,6 +63,15 @@ export const useFxcmAccount = (enabled = true, poll = true) =>
     enabled,
   });
 
+export const useFxcmMargin = (instrument: string, enabled = true) =>
+  useQuery({
+    queryKey: ["fxcm", "margin", instrument] as const,
+    queryFn: () => api.getFxcmMargin(instrument),
+    refetchInterval: 30_000,
+    retry: 0,
+    enabled: enabled && !!instrument,
+  });
+
 export const useFxcmPositions = (enabled = true, poll = true) =>
   useQuery({
     queryKey: qk.fxcmPositions,

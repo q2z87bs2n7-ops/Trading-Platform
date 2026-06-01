@@ -1,9 +1,12 @@
 import { useState, useEffect } from "react";
-import { useFxcmDisplayNames, useFxcmSubmitOrder, useFxcmUnderlyingUnit } from "../../data/hooks";
+import { useFxcmDisplayNames, useFxcmMargin, useFxcmSubmitOrder, useFxcmUnderlyingUnit } from "../../data/hooks";
 import { isForexPair } from "../../lib/asset-class";
 import { useFxcmView } from "../../lib/fxcm-view";
 import { useAutoSelect } from "./orderSheetParts";
 import type { FxcmPrice } from "../../types";
+
+const money = (n: number) =>
+  n.toLocaleString("en-US", { style: "currency", currency: "USD" });
 
 interface Props {
   instruments: FxcmPrice[];
@@ -57,6 +60,18 @@ export default function FxcmOrderSheet({ instruments, defaultInstrument, default
     ? selectedPrice.instrument_type === 1
     : isForexPair(instrument);
   const amountStep = isFx ? 1000 : (selectedPrice?.base_unit_size ?? 1);
+
+  // Required margin (EMR per base_unit_size lot, scaled to the order amount) and
+  // available (free) margin, from the bridge's margin provider.
+  const { data: margin } = useFxcmMargin(instrument);
+  const lotUnits = margin?.base_unit_size || amountStep || 1;
+  const perLot = margin?.emr || margin?.mmr;
+  const amtNum = parseInt(amount, 10);
+  const requiredMargin =
+    perLot != null && amtNum > 0 ? (amtNum / lotUnits) * perLot : undefined;
+  const availMargin = margin?.usable_margin;
+  const insufficient =
+    requiredMargin != null && availMargin != null && requiredMargin > availMargin;
 
   // Reset amount to the correct step whenever the instrument changes.
   useEffect(() => {
@@ -222,6 +237,25 @@ export default function FxcmOrderSheet({ instruments, defaultInstrument, default
               fontSize: 13,
             }}
           />
+        </div>
+
+        {/* Margin: required for this order + available (free) */}
+        <div className="flex items-center justify-between text-[12px]" style={{ color: "var(--mute)" }}>
+          <span>
+            Required margin{" "}
+            <span
+              className="font-mono tabular-nums"
+              style={{ color: insufficient ? "var(--neg)" : "var(--text-2)" }}
+            >
+              {requiredMargin != null ? money(requiredMargin) : "—"}
+            </span>
+          </span>
+          <span>
+            Available{" "}
+            <span className="font-mono tabular-nums" style={{ color: "var(--text-2)" }}>
+              {availMargin != null ? money(availMargin) : "—"}
+            </span>
+          </span>
         </div>
 
         {/* Rate (limit/stop only) */}

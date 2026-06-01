@@ -355,6 +355,27 @@ public class FxcmSession {
         return m;
     }
 
+    // Required margin for an instrument + the account's free margin, for the
+    // order ticket. EMR (entry margin requirement) is per base_unit_size lot, so
+    // the client scales it to the order amount. usable_margin = free margin.
+    Map<String,Object> getMargin(String instrument) {
+        Map<String,Object> m = new LinkedHashMap<>();
+        Account acct = firstAccount();
+        Instrument inst = safe(() -> instrumentsMgr.getInstrumentBySymbol(instrument));
+        if (acct == null || inst == null) return m;
+        final Account a = acct;
+        final Instrument i = inst;
+        m.put("instrument", instrument);
+        m.put("base_unit_size", safe(i::getBaseUnitSize));
+        m.put("usable_margin", safe(a::getUsableMargin));
+        m.put("used_margin", safe(a::getUsedMargin));
+        // EMR per base-unit lot from the margin provider (FXCM's "Required
+        // Margin"); fall back to MMR if EMR is absent on this account tier.
+        m.put("emr", safe(() -> session.getMarginProvider().getMargins(i, a).getEMR()));
+        m.put("mmr", safe(() -> session.getMarginProvider().getMMR(i, a)));
+        return m;
+    }
+
     private Account firstAccount() {
         AccountInfo[] infos = accountsMgr.getAccountsInfo();
         if (infos != null && infos.length > 0) {

@@ -336,6 +336,7 @@ exposed at `/api/fxcm/*`.
 |---|---|---|
 | `GET /health` | `GET /api/fxcm/health` | Bridge + connection status |
 | `GET /account` | `GET /api/fxcm/account` | Account balance/equity/margin |
+| `GET /margin?instrument=` | `GET /api/fxcm/margin` | Required margin (EMR per `base_unit_size` lot, via `session.getMarginProvider().getMargins()`) + free margin (`usable_margin`) for the order ticket. Client scales EMR to the order amount. |
 | `GET /prices` | `GET /api/fxcm/prices` | Subscribed offers (live bid/ask/digits/point_size/instrument_type/base_unit_size/contract_multiplier/contract_currency); only instruments in the active subscription set are returned |
 | `GET /prices/live` | (internal — feeds the SSE hub) | Fast in-memory price read off the push-maintained `latestOffers` cache (no `getLatestOffersSnapshot` round-trip, no `snapshotLock`), scoped to the subscribed (status-T) set. Same row shape as `/prices` plus `ts`. Polled (~200 ms) by the `/api/fxcm/stream` hub over the shared keep-alive client. |
 | (none — SSE) | `GET /api/fxcm/stream` | **Live price SSE feed** (Scalp + alert engine). QuoteHub-style fan-out: one shared upstream polls the bridge's `/prices/live`, per-client bounded `Queue(maxsize=100)` (drop-oldest), replay-latest-on-connect, supervisor that never crashes the process. Each `data:` frame is a JSON array of *changed* `FxcmPrice` rows; `: ping` keepalive every 15 s. **Render-only** (Vercel can't hold SSE open) — reached via `STREAM_BASE`. |

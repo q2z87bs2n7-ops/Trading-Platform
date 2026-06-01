@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import {
   useFxcmDisplayNames,
+  useFxcmMargin,
   useFxcmPrices,
   useFxcmSubmitOrder,
   useFxcmUnderlyingUnit,
@@ -24,6 +25,9 @@ const ORDER_TYPES = [
   { value: "EN", label: "Entry" },
 ] as const;
 type UiOrderType = (typeof ORDER_TYPES)[number]["value"];
+
+const fmtMoney = (n: number) =>
+  n.toLocaleString("en-US", { style: "currency", currency: "USD" });
 
 function Label({ children }: { children: React.ReactNode }) {
   return (
@@ -73,6 +77,17 @@ export default function FxcmOrderTicketInline({ instrument }: { instrument: stri
   // to 1,000-unit FX lots.
   const isFx = price ? price.instrument_type === 1 : isForexPair(instrument);
   const amountStep = isFx ? 1000 : price?.base_unit_size ?? 1;
+
+  // Required margin for the order + available (free) margin.
+  const { data: margin } = useFxcmMargin(instrument);
+  const lotUnits = margin?.base_unit_size || amountStep || 1;
+  const perLot = margin?.emr || margin?.mmr;
+  const amtNum = parseInt(amount, 10);
+  const requiredMargin =
+    perLot != null && amtNum > 0 ? (amtNum / lotUnits) * perLot : undefined;
+  const availMargin = margin?.usable_margin;
+  const insufficientMargin =
+    requiredMargin != null && availMargin != null && requiredMargin > availMargin;
 
   // Reset the amount to the instrument's step when the instrument (or its
   // step) changes — switching channel symbol must not keep an invalid lot.
@@ -190,6 +205,24 @@ export default function FxcmOrderTicketInline({ instrument }: { instrument: stri
           className="font-mono tabular-nums w-full"
           style={inputStyle}
         />
+      </div>
+
+      <div className="flex items-center justify-between text-[11.5px]" style={{ color: "var(--mute)" }}>
+        <span>
+          Req. margin{" "}
+          <span
+            className="font-mono tabular-nums"
+            style={{ color: insufficientMargin ? "var(--neg)" : "var(--text-2)" }}
+          >
+            {requiredMargin != null ? fmtMoney(requiredMargin) : "—"}
+          </span>
+        </span>
+        <span>
+          Avail.{" "}
+          <span className="font-mono tabular-nums" style={{ color: "var(--text-2)" }}>
+            {availMargin != null ? fmtMoney(availMargin) : "—"}
+          </span>
+        </span>
       </div>
 
       {needsRate && (

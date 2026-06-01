@@ -433,7 +433,8 @@ alongside the relay (see "Four runtime targets").
   watchlist, movers,
   most-active, indices, market-news, crypto/tickers, ai/chat, ai/ask (last two gated by
   `AI_CHAT_ENABLED`; require `ANTHROPIC_API_KEY`),
-  fxcm/health, fxcm/account, fxcm/prices, fxcm/stream (SSE — live price
+  fxcm/health, fxcm/account, fxcm/margin (required EMR-per-lot + free margin for
+  the order ticket), fxcm/prices, fxcm/stream (SSE — live price
   feed for Scalp + alerts; QuoteHub-style fan-out over the bridge's
   in-memory /prices/live push cache, Render-only), fxcm/positions,
   fxcm/orders, fxcm/summary, fxcm/closed_trades, fxcm/instruments,

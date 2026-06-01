@@ -280,6 +280,12 @@ async def account():
     return await _get("/account")
 
 
+@router.get("/margin")
+async def margin(instrument: str = "EUR/USD"):
+    """Required margin (EMR per lot) + free margin for an instrument (order ticket)."""
+    return await _get("/margin", params={"instrument": instrument})
+
+
 @router.get("/prices")
 async def prices(instrument: str = None):
     params = {"instrument": instrument} if instrument else None

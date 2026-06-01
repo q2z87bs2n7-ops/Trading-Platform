@@ -109,6 +109,7 @@ public class BridgeServer {
         HttpServer server = HttpServer.create(new InetSocketAddress(BIND_HOST, PORT), 0);
         server.createContext("/health",       ex -> handle(ex, BridgeServer::health));
         server.createContext("/account",      ex -> handle(ex, BridgeServer::account));
+        server.createContext("/margin",       ex -> handle(ex, BridgeServer::margin));
         server.createContext("/prices/live",   ex -> handle(ex, BridgeServer::pricesLive));
         server.createContext("/prices",        ex -> handle(ex, BridgeServer::prices));
         server.createContext("/diag",          ex -> handle(ex, BridgeServer::diag));
@@ -140,6 +141,13 @@ public class BridgeServer {
 
     static Object account(HttpExchange ex) throws Exception {
         return session.getAccount();
+    }
+
+    // Required margin (EMR per lot) + free margin for an instrument, for the ticket.
+    static Object margin(HttpExchange ex) throws Exception {
+        Map<String,String> q = parseQuery(ex.getRequestURI());
+        String instrument = q.getOrDefault("instrument", "EUR/USD");
+        return session.getMargin(instrument);
     }
 
     static Object prices(HttpExchange ex) throws Exception {

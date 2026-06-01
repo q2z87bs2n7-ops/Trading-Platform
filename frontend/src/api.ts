@@ -468,6 +468,19 @@ export const getFxcmHealth = () =>
 export const getFxcmAccount = () =>
   getFxcmJSON<FxcmAccount>("/api/fxcm/account");
 
+export interface FxcmMargin {
+  instrument?: string;
+  base_unit_size?: number;
+  usable_margin?: number; // free margin
+  used_margin?: number;
+  emr?: number; // entry margin requirement, per base_unit_size lot
+  mmr?: number; // maintenance margin requirement, per lot (fallback)
+}
+export const getFxcmMargin = (instrument: string) =>
+  getFxcmJSON<FxcmMargin>(
+    `/api/fxcm/margin?instrument=${encodeURIComponent(instrument)}`,
+  );
+
 export const getFxcmPrices = (instrument?: string) =>
   getFxcmJSON<FxcmPrice[]>(
     `/api/fxcm/prices${instrument ? `?instrument=${encodeURIComponent(instrument)}` : ""}`,
