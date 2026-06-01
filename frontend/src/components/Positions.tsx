@@ -221,7 +221,7 @@ function StripRowMobile({
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
         <StripStat
-          k="Mark"
+          k="Current"
           v={isCryptoPosition(p) ? fmtCryptoPrice(p.current_price) : money(p.current_price)}
           sub={pct(p.change_today)}
           tone={dayUp ? "pos" : "neg"}
@@ -503,7 +503,7 @@ function AlpacaPositions({
                 <th className={`${TH} text-left`}>Symbol</th>
                 <th className={TH}>Qty</th>
                 <th className={TH}>Avg</th>
-                <th className={TH}>Mark</th>
+                <th className={TH}>Current</th>
                 <th className={TH}>Day</th>
                 <th className={TH}>Value</th>
                 <th className={TH}>Unreal P/L</th>
@@ -832,7 +832,7 @@ function CfdPositions({
                 <th className={TH}>Side</th>
                 <th className={TH}>Qty</th>
                 <th className={TH}>Open</th>
-                <th className={TH}>Mark</th>
+                <th className={TH}>Current</th>
                 <th className={TH}>P/L</th>
                 <th className={TH}>Margin</th>
                 <th className={`${TH} text-center`}></th>
@@ -1068,7 +1068,7 @@ function FxcmStripCard({
           sub=""
         />
         <StripStat
-          k="Mark"
+          k="Current"
           v={row.mark > 0 ? row.mark.toFixed(row.digits) : "—"}
           sub=""
         />

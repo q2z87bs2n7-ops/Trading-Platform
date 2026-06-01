@@ -425,8 +425,8 @@ function PositionInfo({
             </div>
           </div>
           <div className="sc-pi-grid">
-            <div className="sc-pi-cell"><span className="k">Mark (bid)</span><span className="v mono">{fmt(price?.bid)}</span></div>
-            <div className="sc-pi-cell"><span className="k">Mark (ask)</span><span className="v mono">{fmt(price?.ask)}</span></div>
+            <div className="sc-pi-cell"><span className="k">Current (bid)</span><span className="v mono">{fmt(price?.bid)}</span></div>
+            <div className="sc-pi-cell"><span className="k">Current (ask)</span><span className="v mono">{fmt(price?.ask)}</span></div>
             <div className="sc-pi-cell"><span className="k">Spread</span><span className="v mono">{fmtSpreadNum(spreadNum(price?.bid, price?.ask, price?.point_size))} pips</span></div>
             <div className="sc-pi-cell"><span className="k">Margin</span><span className="v mono">{money(net.margin)}</span></div>
           </div>

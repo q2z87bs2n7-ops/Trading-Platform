@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { useFxcmDisplayNames, useFxcmSubmitOrder, useFxcmUnderlyingUnit } from "../../data/hooks";
+import { isForexPair } from "../../lib/asset-class";
+import { useFxcmView } from "../../lib/fxcm-view";
 import { useAutoSelect } from "./orderSheetParts";
 import type { FxcmPrice } from "../../types";
 
@@ -36,13 +38,24 @@ export default function FxcmOrderSheet({ instruments, defaultInstrument, default
   // Open with the amount field highlighted (launched from the TradeBar).
   const amountRef = useAutoSelect(true);
 
+  // Subscribe the selected instrument so its live row carries instrument_type /
+  // base_unit_size / digits (the bridge only resolves that metadata for
+  // status-T instruments). Without this, opening the ticket for a non-subscribed
+  // CFD left selectedPrice metadata-less and the lot defaulted to FX 1000.
+  useFxcmView(instrument);
+
   const needsRate = orderType === "EN";
   const selectedPrice = instruments.find((p) => p.instrument === instrument);
   const liveRate = side === "B" ? selectedPrice?.ask : selectedPrice?.bid;
 
-  // InstrumentType 1 = FX pair: fixed 1000-unit lots.
-  // All other types use BaseUnitSize as the step/default.
-  const isFx = (selectedPrice?.instrument_type ?? 1) === 1;
+  // InstrumentType 1 = FX pair (1000-unit lots); others use BaseUnitSize. The
+  // authoritative type comes from the live /prices row, but that's only present
+  // once subscribed — fall back to a symbol-based forex check so a non-FX
+  // instrument (e.g. JPN225) doesn't wrongly default to 1,000-unit FX lots
+  // before its metadata arrives. Mirrors FxcmOrderTicketInline.
+  const isFx = selectedPrice?.instrument_type != null
+    ? selectedPrice.instrument_type === 1
+    : isForexPair(instrument);
   const amountStep = isFx ? 1000 : (selectedPrice?.base_unit_size ?? 1);
 
   // Reset amount to the correct step whenever the instrument changes.

@@ -204,7 +204,7 @@ alongside the relay (see "Four runtime targets").
     repaint its candle series when switching between constantly-ticking FX
     pairs — and the
     Sell/spread/Buy deal strip beneath) ·
-    **Position info** (right — net side/size/avg/P&L/pips, mark/spread/margin,
+    **Position info** (right — net side/size/avg/P&L/pips, current/spread/margin,
     visual-stub SL/TP, Reverse + Close), then a full-width **blotter**
     (per-fill close + Flatten-all) and the alerts panel. **Hotkeys:** B/S
     fire, F flattens, Space confirms an armed order. Collapses to a single

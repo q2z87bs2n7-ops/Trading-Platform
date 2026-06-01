@@ -364,7 +364,7 @@ export default function FxcmClosePositionCard({
               className="text-[11px] uppercase"
               style={{ color: "var(--mute)" }}
             >
-              Mark
+              Current
             </span>
             <span className="font-mono text-[15px] tabular-nums">
               {mark != null ? mark.toFixed(digits) : "—"}
