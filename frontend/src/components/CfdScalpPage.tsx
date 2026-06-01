@@ -379,6 +379,8 @@ function PositionInfo({
   unitLabel,
   onReverse,
   onClose,
+  onSetStopLimit,
+  sltpBusy,
 }: {
   sym: string;
   name: string;
@@ -387,9 +389,16 @@ function PositionInfo({
   unitLabel: string;
   onReverse: () => void;
   onClose: () => void;
+  // Apply SL/TP to the open position. 0 = leave that leg unchanged.
+  onSetStopLimit: (stop: number, limit: number) => void;
+  sltpBusy: boolean;
 }) {
   const digits = price?.digits ?? cfdDigits(sym);
   const fmt = (n: number | undefined) => (n == null ? "—" : n.toFixed(digits));
+  const [sl, setSl] = useState("");
+  const [tp, setTp] = useState("");
+  // Reset the inputs whenever the selected position changes.
+  useEffect(() => { setSl(""); setTp(""); }, [sym, net?.side]);
   const slPlaceholder =
     price && net
       ? (net.side === "B" ? (price.bid ?? 0) - 20 * (price.point_size ?? 0) : (price.ask ?? 0) + 20 * (price.point_size ?? 0)).toFixed(digits)
@@ -398,6 +407,9 @@ function PositionInfo({
     price && net
       ? (net.side === "B" ? (price.ask ?? 0) + 35 * (price.point_size ?? 0) : (price.bid ?? 0) - 35 * (price.point_size ?? 0)).toFixed(digits)
       : "";
+  const slNum = parseFloat(sl);
+  const tpNum = parseFloat(tp);
+  const canApply = (sl.trim() !== "" && slNum > 0) || (tp.trim() !== "" && tpNum > 0);
   return (
     <div className="sc-pane sc-posinfo">
       <div className="sc-pane-head">Position · {sym || "—"}</div>
@@ -432,8 +444,35 @@ function PositionInfo({
           </div>
           <div className="sc-pi-sltp">
             <div className="lbl-row"><span>Risk bracket</span></div>
-            <div className="sc-field"><span className="tag sl">SL</span><input placeholder={slPlaceholder} /><span className="stub">−20p</span></div>
-            <div className="sc-field"><span className="tag tp">TP</span><input placeholder={tpPlaceholder} /><span className="stub">+35p</span></div>
+            <div className="sc-field">
+              <span className="tag sl">SL</span>
+              <input
+                inputMode="decimal"
+                value={sl}
+                placeholder={slPlaceholder}
+                onChange={(e) => setSl(e.target.value)}
+              />
+              <button type="button" className="stub" title="Use suggested" onClick={() => slPlaceholder && setSl(slPlaceholder)}>−20p</button>
+            </div>
+            <div className="sc-field">
+              <span className="tag tp">TP</span>
+              <input
+                inputMode="decimal"
+                value={tp}
+                placeholder={tpPlaceholder}
+                onChange={(e) => setTp(e.target.value)}
+              />
+              <button type="button" className="stub" title="Use suggested" onClick={() => tpPlaceholder && setTp(tpPlaceholder)}>+35p</button>
+            </div>
+            <button
+              type="button"
+              className="sc-btn"
+              disabled={!canApply || sltpBusy}
+              style={{ width: "100%", marginTop: 6, opacity: !canApply || sltpBusy ? 0.5 : 1 }}
+              onClick={() => onSetStopLimit(slNum > 0 ? slNum : 0, tpNum > 0 ? tpNum : 0)}
+            >
+              {sltpBusy ? "Applying…" : "Apply SL / TP"}
+            </button>
           </div>
           <div className="sc-pi-actions">
             <button type="button" className="sc-btn" onClick={onReverse}>Reverse</button>
@@ -528,6 +567,7 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
   const [oneClick, setOneClick] = useState(true);
   const [armedKey, setArmedKey] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [sltpBusy, setSltpBusy] = useState(false);
   const armTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const dn = useFxcmDisplayNames();
@@ -638,6 +678,24 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
     }
     await refreshPositions();
     if (failed) showToast(`Couldn't close ${failed} position${failed === 1 ? "" : "s"}`, "error");
+  }
+
+  // Attach SL/TP to the open trade(s) for this instrument. The bridge keys
+  // contingent orders by trade_id, so apply to each underlying fill. Any FXCM
+  // rejection (e.g. stop too close to market) surfaces as the toast message.
+  async function setStopLimit(sym: string, stop: number, limit: number) {
+    const ids = positions.filter((p) => String(p.instrument) === sym).map((p) => String(p.trade_id ?? "")).filter(Boolean);
+    if (ids.length === 0) { showToast("No open position", "error"); return; }
+    setSltpBusy(true);
+    try {
+      for (const id of ids) await api.setFxcmStopLimit(id, stop, limit);
+      showToast(`SL/TP set on ${dn(sym)}`, "success");
+      await refreshPositions();
+    } catch (e) {
+      showToast(`SL/TP failed: ${(e as Error).message}`, "error");
+    } finally {
+      setSltpBusy(false);
+    }
   }
 
   async function flattenAll() {
@@ -830,6 +888,8 @@ export default function CfdScalpPage({ selected: selectedProp, onSelectSymbol, o
           unitLabel={unit(selected)}
           onReverse={() => reverseSym(selected)}
           onClose={() => flattenSym(selected)}
+          onSetStopLimit={(stop, limit) => setStopLimit(selected, stop, limit)}
+          sltpBusy={sltpBusy}
         />
       </div>
 

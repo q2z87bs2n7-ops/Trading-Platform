@@ -13,6 +13,7 @@ import com.fxcm.api.entity.order.request.changeorder.*;
 import com.fxcm.api.entity.order.request.closemarketorder.*;
 import com.fxcm.api.entity.order.request.entry.*;
 import com.fxcm.api.entity.order.request.marketorder.*;
+import com.fxcm.api.entity.order.request.stoplimit.*;
 import com.fxcm.api.entity.pricehistory.*;
 import com.fxcm.api.interfaces.connection.*;
 import com.fxcm.api.interfaces.errors.*;
@@ -850,6 +851,37 @@ public class FxcmSession {
             .setTimeInForce("IOC");
         if (closeAmount > 0) req.setAmount(closeAmount);
         ordersMgr.createCloseMarketOrder(req.build());
+    }
+
+    // Attach / update a stop (SL) and/or take-profit limit (TP) on an OPEN
+    // position, via the same request factory as placeOrder. rate <= 0 skips that
+    // leg (so callers can set just one). FCLite contingent orders are keyed to
+    // the trade by setTradeId. Errors propagate so the relay can surface the
+    // FXCM reason (e.g. stop too close to market) as a toast.
+    void setTradeStopLimit(String tradeId, double stop, double limit) throws Exception {
+        if (tradeId == null || tradeId.isEmpty())
+            throw new IllegalArgumentException("trade_id required");
+        OpenPosition pos = positionsMgr.getOpenPosition(tradeId);
+        if (pos == null) throw new IllegalArgumentException("No open position for trade " + tradeId);
+        if (stop <= 0 && limit <= 0)
+            throw new IllegalArgumentException("stop or limit required");
+
+        if (stop > 0) {
+            StopOrderRequest req = ordersMgr.getRequestFactory()
+                .createStopOrderRequestBuilder()
+                .setTradeId(tradeId)
+                .setRate(stop)
+                .build();
+            ordersMgr.createStopOrder(req);
+        }
+        if (limit > 0) {
+            LimitOrderRequest req = ordersMgr.getRequestFactory()
+                .createLimitOrderRequestBuilder()
+                .setTradeId(tradeId)
+                .setRate(limit)
+                .build();
+            ordersMgr.createLimitOrder(req);
+        }
     }
 
     // ── Utility ───────────────────────────────────────────────────────────────

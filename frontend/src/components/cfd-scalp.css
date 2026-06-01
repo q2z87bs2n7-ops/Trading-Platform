@@ -174,7 +174,8 @@
 .sc-field .tag.sl { color: var(--neg); } .sc-field .tag.tp { color: var(--pos); }
 .sc-field input { flex: 1; background: transparent; border: none; outline: none; color: var(--text); font-family: var(--font-mono); font-size: 12px; width: 100%; }
 .sc-field input::placeholder { color: var(--mute); }
-.sc-field .stub { font-size: 8.5px; color: var(--mute); }
+.sc-field .stub { font-size: 8.5px; color: var(--mute); background: transparent; border: none; cursor: pointer; }
+.sc-field .stub:hover { color: var(--text-2); }
 .sc-pi-actions { display: flex; gap: 7px; margin-top: 1px; }
 .sc-btn { flex: 1; font-size: 11px; font-weight: 600; padding: 8px; border-radius: 8px; cursor: pointer; border: 1px solid var(--border); background: var(--panel-2); color: var(--text-2); }
 .sc-btn:hover { color: var(--text); border-color: var(--border-2); }

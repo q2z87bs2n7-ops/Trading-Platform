@@ -572,6 +572,18 @@ export const closeFxcmPosition = (tradeId: string | number, amount = 0) =>
     amount,
   });
 
+// Attach/update SL (stop) and/or TP (limit) on an open position. 0 = skip leg.
+export const setFxcmStopLimit = (
+  tradeId: string | number,
+  stop: number,
+  limit: number,
+) =>
+  sendFxcmJSON<{ status: string; trade_id?: string }>("POST", "/api/fxcm/stop-limit", {
+    trade_id: String(tradeId),
+    stop,
+    limit,
+  });
+
 export const getFxcmOrders = () => getFxcmJSON<FxcmOrder[]>("/api/fxcm/orders");
 
 export const cancelFxcmOrder = (orderId: string) =>

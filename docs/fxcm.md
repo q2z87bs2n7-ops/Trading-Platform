@@ -73,7 +73,7 @@ to Linux (Render), unlike the old Python 3.7 + C++ ForexConnect wheel
 | `backend/app/fxcm.py` | FastAPI proxy router at `/api/fxcm/*` (bridge calls + watchlist Endpoints-suite proxy) |
 | `backend/app/fxcm_auth.py` | JWT mint + cache for the Endpoints suite (`/iam/authenticate`, 60s lifetime, re-mint every ~50s) |
 | `frontend/src/components/CfdDiscoverPage.tsx` | CFD Discover page (market-discovery only: account hero · AI market summary · inline chart · economic calendar — no positions panel) |
-| `frontend/src/components/CfdScalpPage.tsx` | **CFD Scalp mode** — forex-broker rapid-trade surface (bid/ask one-click rate tiles, deal ticket, positions blotter). MOCK/foundation: prices ride the SSE stream (positions polled every 3 s for P/L), SL/TP is a visual stub. Entered from the splash CFD card's "⚡ Scalp" affordance, not a header pill. See `CLAUDE.md` → frontend modes |
+| `frontend/src/components/CfdScalpPage.tsx` | **CFD Scalp mode** — forex-broker rapid-trade surface (bid/ask one-click rate tiles, deal ticket, positions blotter). MOCK/foundation: prices ride the SSE stream (positions polled every 3 s for P/L); SL/TP is live via `POST /api/fxcm/stop-limit`. Entered from the splash CFD card's "⚡ Scalp" affordance, not a header pill. See `CLAUDE.md` → frontend modes |
 | `frontend/src/components/CfdPriceChart.tsx` | Inline lightweight-charts panel on CFD Discover + Scalp (FXCM history + live-tip) |
 | `frontend/src/api.ts` | FXCM API functions (`getFxcm*` block). Bridge-dependent calls use `STREAM_BASE` (Render). DB-only calls (`getFxcmDisplayNames`, `getFxcmUnderlyingUnits`, `searchFxcmInstruments`) use `API_BASE` (Vercel). |
 | `frontend/src/types.ts` | FXCM types (`FxcmAccount`, `FxcmPrice`, `FxcmBar`, `FxcmPosition`, `FxcmInstrument`) |
@@ -352,6 +352,7 @@ exposed at `/api/fxcm/*`.
 | `DELETE /order/{id}` | `DELETE /api/fxcm/order/{id}` | Cancel pending order |
 | `PATCH /order/{id}` | `PATCH /api/fxcm/order/{id}` | Modify pending entry order — body `{rate?, stop?, limit?}`; `0` = leave unchanged (FCLite `ChangeOrderRequest`, wired reflectively) |
 | `POST /close` | `POST /api/fxcm/close` | Close open trade — body `{trade_id, amount}`; `amount: 0` = full close |
+| `POST /stop-limit` | `POST /api/fxcm/stop-limit` | Attach/update SL (stop) + TP (limit) on an open trade — body `{trade_id, stop?, limit?}`; `0` = skip leg (FCLite `createStopOrder`/`createLimitOrder`, contingent orders keyed by trade_id) |
 | (none — proxy-only) | `POST /api/fxcm/view` | Report on-screen instruments (`{instruments:[…]}`): subscribe new (T) immediately, sporadically return stale to D. See "View-driven subscription". |
 | `GET /debug` | `GET /api/fxcm/debug` | Raw snapshot counts (dev only) |
 

@@ -205,7 +205,7 @@ alongside the relay (see "Four runtime targets").
     pairs — and the
     Sell/spread/Buy deal strip beneath) ·
     **Position info** (right — net side/size/avg/P&L/pips, current/spread/margin,
-    visual-stub SL/TP, Reverse + Close), then a full-width **blotter**
+    live SL/TP (Risk bracket → `/api/fxcm/stop-limit`), Reverse + Close), then a full-width **blotter**
     (per-fill close + Flatten-all) and the alerts panel. **Hotkeys:** B/S
     fire, F flattens, Space confirms an armed order. Collapses to a single
     column below 1180px (scalp stays desktop-only). Underneath it reuses the
@@ -254,9 +254,11 @@ alongside the relay (see "Four runtime targets").
     → "Live price stream"), with the 1 s `/api/fxcm/prices` poll kept as
     the automatic fallback; the **alert engine shares the same feed**.
     (`subscribeBars` — live *bar* updates in the chart — is still a no-op.)
-    **SL/TP is a visual stub** (bridge stop/limit params untested from here, so they
-    aren't sent — the 1-click/confirm toggle and the success toasts are
-    real, but SL/TP isn't). Instruments are subscribed via `useFxcmView`
+    **SL/TP is live** — the Risk-bracket inputs attach a stop / take-profit to the
+    open trade(s) via `POST /api/fxcm/stop-limit` → the bridge's
+    `createStopOrder`/`createLimitOrder` (contingent orders keyed by trade_id);
+    each leg is optional and any FXCM rejection surfaces as the toast.
+    Instruments are subscribed via `useFxcmView`
     so the bridge keeps them on status T (live bid/ask). The focus column
     also carries a **price-alerts panel** (`CfdAlertsPanel`): rate-cross
     alerts (above/below a level on bid/ask/mid) for the selected
@@ -436,7 +438,8 @@ alongside the relay (see "Four runtime targets").
   in-memory /prices/live push cache, Render-only), fxcm/positions,
   fxcm/orders, fxcm/summary, fxcm/closed_trades, fxcm/instruments,
   fxcm/instruments/{name:path}, fxcm/history, fxcm/order (POST/DELETE/PATCH),
-  fxcm/close (POST), fxcm/view (POST — subscribe on-screen instruments),
+  fxcm/close (POST), fxcm/stop-limit (POST — attach SL/TP to an open trade),
+  fxcm/view (POST — subscribe on-screen instruments),
   fxcm/watchlist (GET/POST/DELETE-by-{instrument:path}),
   fxcm/display-names (GET), fxcm/underlying-units (GET),
   fxcm/search-instruments (GET, `?q=`) —

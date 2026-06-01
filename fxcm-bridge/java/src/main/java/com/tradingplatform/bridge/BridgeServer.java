@@ -121,6 +121,7 @@ public class BridgeServer {
         server.createContext("/history",      ex -> handle(ex, BridgeServer::history));
         server.createContext("/order",        ex -> handleOrder(ex));
         server.createContext("/close",        ex -> handle(ex, BridgeServer::closePosition));
+        server.createContext("/stop-limit",   ex -> handle(ex, BridgeServer::stopLimit));
         server.createContext("/debug",        ex -> handle(ex, BridgeServer::debug));
         server.setExecutor(Executors.newCachedThreadPool());
         server.start();
@@ -234,6 +235,23 @@ public class BridgeServer {
         session.closePosition(tradeId.toString(), amount);
         Map<String,Object> r = new LinkedHashMap<>();
         r.put("status","close_submitted");
+        r.put("trade_id", tradeId.toString());
+        return r;
+    }
+
+    // Attach/update SL (stop) and/or TP (limit) on an open position.
+    static Object stopLimit(HttpExchange ex) throws Exception {
+        if (!"POST".equals(ex.getRequestMethod()))
+            throw new IllegalArgumentException("POST required");
+        @SuppressWarnings("unchecked")
+        Map<String,Object> body = JSON.readValue(ex.getRequestBody(), Map.class);
+        Object tradeId = body.get("trade_id");
+        if (tradeId == null) throw new IllegalArgumentException("trade_id required");
+        double stop  = body.get("stop")  instanceof Number ? ((Number)body.get("stop")).doubleValue()  : 0;
+        double limit = body.get("limit") instanceof Number ? ((Number)body.get("limit")).doubleValue() : 0;
+        session.setTradeStopLimit(tradeId.toString(), stop, limit);
+        Map<String,Object> r = new LinkedHashMap<>();
+        r.put("status","stoplimit_submitted");
         r.put("trade_id", tradeId.toString());
         return r;
     }

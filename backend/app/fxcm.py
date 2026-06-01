@@ -63,6 +63,25 @@ router = APIRouter(prefix="/api/fxcm", tags=["fxcm"])
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
+def _bridge_error_detail(resp: httpx.Response) -> str:
+    """Unwrap the bridge's error body into a clean message for HTTPException.detail.
+
+    The bridge returns failures as ``{"error": "<FXCM reason>"}`` (e.g. an order
+    rejected for insufficient margin / market closed). Without unwrapping, the
+    relay forwarded the raw JSON string as ``detail`` and the frontend toast
+    showed the whole ``{"error":"..."}`` blob, so it was never clear *why* an
+    order failed. Pull the inner message out; fall back to the raw text."""
+    try:
+        body = resp.json()
+        if isinstance(body, dict):
+            msg = body.get("error") or body.get("detail") or body.get("message")
+            if msg:
+                return str(msg)
+    except Exception:
+        pass
+    return resp.text
+
+
 async def _get(path: str, params: dict = None) -> Any:
     try:
         r = await _bridge().get(path, params=params)
@@ -71,7 +90,7 @@ async def _get(path: str, params: dict = None) -> Any:
     except (httpx.ConnectError, httpx.TimeoutException):
         raise HTTPException(503, "FXCM bridge not running")
     except httpx.HTTPStatusError as e:
-        raise HTTPException(e.response.status_code, e.response.text)
+        raise HTTPException(e.response.status_code, _bridge_error_detail(e.response))
 
 
 async def _post(path: str, body: dict) -> Any:
@@ -82,7 +101,7 @@ async def _post(path: str, body: dict) -> Any:
     except (httpx.ConnectError, httpx.TimeoutException):
         raise HTTPException(503, "FXCM bridge not running")
     except httpx.HTTPStatusError as e:
-        raise HTTPException(e.response.status_code, e.response.text)
+        raise HTTPException(e.response.status_code, _bridge_error_detail(e.response))
 
 
 async def _delete(path: str) -> Any:
@@ -93,7 +112,7 @@ async def _delete(path: str) -> Any:
     except (httpx.ConnectError, httpx.TimeoutException):
         raise HTTPException(503, "FXCM bridge not running")
     except httpx.HTTPStatusError as e:
-        raise HTTPException(e.response.status_code, e.response.text)
+        raise HTTPException(e.response.status_code, _bridge_error_detail(e.response))
 
 
 async def _patch(path: str, body: dict) -> Any:
@@ -104,7 +123,7 @@ async def _patch(path: str, body: dict) -> Any:
     except (httpx.ConnectError, httpx.TimeoutException):
         raise HTTPException(503, "FXCM bridge not running")
     except httpx.HTTPStatusError as e:
-        raise HTTPException(e.response.status_code, e.response.text)
+        raise HTTPException(e.response.status_code, _bridge_error_detail(e.response))
 
 
 # ── Live price stream (SSE) ─────────────────────────────────────────────────────
@@ -225,6 +244,13 @@ class OrderRequest(BaseModel):
 class CloseRequest(BaseModel):
     trade_id: str
     amount: int = 0
+
+
+class StopLimitRequest(BaseModel):
+    # Attach/update SL (stop) and/or TP (limit) on an open position. 0 = skip leg.
+    trade_id: str
+    stop: float = 0
+    limit: float = 0
 
 
 class ChangeOrderRequest(BaseModel):
@@ -408,6 +434,12 @@ async def modify_order(order_id: str, req: ChangeOrderRequest):
 @router.post("/close")
 async def close_position(req: CloseRequest):
     return await _post("/close", req.dict())
+
+
+@router.post("/stop-limit")
+async def set_stop_limit(req: StopLimitRequest):
+    """Attach/update SL+TP on an open position (Scalp Risk bracket)."""
+    return await _post("/stop-limit", req.dict())
 
 
 async def subscribe_watchlist_at_boot() -> None:
