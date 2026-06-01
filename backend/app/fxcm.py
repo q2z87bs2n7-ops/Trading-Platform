@@ -486,6 +486,34 @@ _view_offer_ids: frozenset[int] = frozenset()
 _subscribed_snapshot: frozenset[int] = frozenset()
 _VIEW_CLEANUP_PROB = 0.15
 
+# Last bridge boot id we reconciled against. The bridge restarts independently
+# of the relay (separate Render services); when it does it loses every
+# subscription except positions/orders, but our _subscribed_snapshot still
+# claims we pushed the full set, so the next reconcile computes no new IDs and
+# the watchlist instruments silently never get re-subscribed (→ stale tiles for
+# everything except open positions). Detecting a boot_id change and clearing the
+# snapshot forces a full re-push on the next reconcile.
+_bridge_boot_id: Optional[int] = None
+
+
+async def _check_bridge_restart() -> None:
+    """Reset the subscription snapshot if the bridge reports a new boot id."""
+    global _bridge_boot_id, _subscribed_snapshot
+    try:
+        health = await _get("/health")
+    except HTTPException:
+        return  # bridge down — nothing to reconcile against yet
+    boot = health.get("boot_id") if isinstance(health, dict) else None
+    if boot is None:
+        return
+    if _bridge_boot_id is None:
+        _bridge_boot_id = boot
+        return
+    if boot != _bridge_boot_id:
+        _log.info("fxcm bridge restart detected (boot_id %s→%s) — re-subscribing", _bridge_boot_id, boot)
+        _bridge_boot_id = boot
+        _subscribed_snapshot = frozenset()
+
 
 def _reconcile_subscriptions(*, cleanup: bool) -> None:
     """Push the desired subscription set (watchlist ∪ active view) to the bridge.
@@ -663,6 +691,9 @@ async def watchlist():
     # positions/orders on its own.
     global _watchlist_offer_ids
     _watchlist_offer_ids = frozenset(int(oid) for oid in offer_ids)
+    # Clear the snapshot first if the bridge restarted, so the reconcile below
+    # re-pushes every watchlist subscription (not just newly-added ones).
+    await _check_bridge_restart()
     _reconcile_subscriptions(cleanup=True)
 
     # Enrich with live bid/ask from the FCLite offers list.

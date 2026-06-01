@@ -43,6 +43,12 @@ public class BridgeServer {
 
     static final ObjectMapper JSON = new ObjectMapper();
 
+    // Process boot id — lets the relay detect a bridge restart and re-push its
+    // watchlist subscriptions (the bridge only self-re-subscribes positions/
+    // orders at boot, so without this the relay's stale "already subscribed"
+    // snapshot leaves watchlist instruments unsubscribed → stale tiles).
+    static final long BOOT_ID = System.currentTimeMillis();
+
     // FCLite session — set after successful login
     static volatile FxcmSession session = null;
 
@@ -127,6 +133,7 @@ public class BridgeServer {
         Map<String,Object> r = new LinkedHashMap<>();
         r.put("status", session != null && session.isConnected() ? "ok" : "connecting");
         r.put("account", FXCM_USER);
+        r.put("boot_id", BOOT_ID);
         return r;
     }
 
