@@ -41,7 +41,20 @@ function merge(rows: FxcmPrice[]) {
   if (rows.length === 0) return;
   queryClient.setQueryData<PriceMap>(qk.fxcmLivePrices, (prev) => {
     const next = { ...(prev ?? {}) };
-    for (const r of rows) if (r.instrument) next[r.instrument] = r;
+    for (const r of rows) {
+      if (!r.instrument) continue;
+      // Timestamp guard: never let an older tick overwrite a newer one. At app
+      // open the fresh /prices poll and the SSE's replay-of-last-cached frame
+      // race, and the SSE replay can carry an *older* quote — without this guard
+      // it clobbers the fresh poll value (and the first SSE frame also kills the
+      // poll), freezing tiles on a stale price until the market moves. `ts` is
+      // the bridge's offer time; missing ts always merges (can't compare).
+      const cur = next[r.instrument];
+      const curTs = typeof cur?.ts === "number" ? cur.ts : undefined;
+      const newTs = typeof r.ts === "number" ? r.ts : undefined;
+      if (cur && curTs !== undefined && newTs !== undefined && newTs < curTs) continue;
+      next[r.instrument] = r;
+    }
     return next;
   });
 }

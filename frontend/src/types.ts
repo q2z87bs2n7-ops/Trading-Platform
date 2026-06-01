@@ -650,6 +650,9 @@ export interface FxcmPrice {
   ask?: number;
   high?: number;
   low?: number;
+  // Bridge offer time (epoch ms). Used to drop out-of-order ticks in the
+  // price-stream merge so a stale SSE replay can't overwrite a fresher poll.
+  ts?: number;
   digits?: number;
   point_size?: number;
   instrument_type?: number;
