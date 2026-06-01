@@ -518,20 +518,36 @@ async def _check_bridge_restart() -> None:
 def _reconcile_subscriptions(*, cleanup: bool) -> None:
     """Push the desired subscription set (watchlist ∪ active view) to the bridge.
     Subscribe newly-needed offer IDs always; unsubscribe stale ones only on a
-    cleanup pass. Fire-and-forget (best-effort; bridge guards positions/orders)."""
+    cleanup pass."""
+    asyncio.create_task(_reconcile_subscriptions_async(cleanup=cleanup))
+
+
+async def _reconcile_subscriptions_async(*, cleanup: bool) -> None:
+    """Only mark IDs subscribed *after* the bridge confirms the POST. The old
+    code optimistically added new_ids to _subscribed_snapshot before the
+    fire-and-forget POST ran — so a single dropped /subscribe (bridge mid-
+    restart / transient 503, common during redeploys) left the snapshot claiming
+    those IDs were subscribed when they weren't, and the next reconcile computed
+    no new IDs and never retried → instruments stuck unsubscribed (gray tiles)
+    until an unrelated restart. Awaiting + only committing on success makes a
+    failed push self-heal on the next ~3s poll."""
     global _subscribed_snapshot
     desired = _watchlist_offer_ids | _view_offer_ids
     new_ids = desired - _subscribed_snapshot
     if new_ids:
-        asyncio.create_task(_post("/subscribe", {"offer_ids": [str(i) for i in new_ids]}))
-        _subscribed_snapshot = _subscribed_snapshot | new_ids
+        try:
+            await _post("/subscribe", {"offer_ids": [str(i) for i in new_ids]})
+            _subscribed_snapshot = _subscribed_snapshot | new_ids
+        except HTTPException:
+            pass  # leave snapshot unchanged → retried next reconcile
     if cleanup:
         stale = _subscribed_snapshot - desired
         if stale:
-            asyncio.create_task(
-                _post("/unsubscribe", {"offer_ids": [str(i) for i in stale]})
-            )
-            _subscribed_snapshot = _subscribed_snapshot - stale
+            try:
+                await _post("/unsubscribe", {"offer_ids": [str(i) for i in stale]})
+                _subscribed_snapshot = _subscribed_snapshot - stale
+            except HTTPException:
+                pass
 
 # offerId ↔ symbol map cached from the FCLite bridge's /instruments
 # endpoint. Refreshed on cache miss + every hour.
