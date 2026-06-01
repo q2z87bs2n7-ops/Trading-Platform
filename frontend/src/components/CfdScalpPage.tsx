@@ -296,8 +296,29 @@ const RateRow = memo(function RateRow({
   const flash = useTickFlash(midOf(price), flashEpsilon(price.point_size, digits));
   const spr = spreadNum(price.bid, price.ask, price.point_size);
   const sprCls = typicalSpread > 0 && spr <= typicalSpread * 0.9 ? "tight" : typicalSpread > 0 && spr >= typicalSpread * 1.12 ? "wide" : "";
+  // Select on pointerup, not click. A live tile flashes/repaints on every tick,
+  // and when a tick lands between touchstart and the synthesized click iOS
+  // Safari drops that click — so a tap on a fast-moving row needed a second tap
+  // (sporadically, only when a tick coincided). pointerup fires immediately and
+  // isn't affected by the mid-tap repaint; guard so the trailing click (mouse)
+  // doesn't double-fire. touch-action:manipulation kills the 300ms tap delay.
+  const justPointerSelected = useRef(false);
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (e.button != null && e.button !== 0) return; // primary/touch only
+    justPointerSelected.current = true;
+    onSelect();
+  };
+  const handleClick = () => {
+    if (justPointerSelected.current) { justPointerSelected.current = false; return; }
+    onSelect();
+  };
   return (
-    <div className={`sc-mx-row${selected ? " sel" : ""}`} onClick={onSelect}>
+    <div
+      className={`sc-mx-row${selected ? " sel" : ""}`}
+      style={{ touchAction: "manipulation" }}
+      onPointerUp={handlePointerUp}
+      onClick={handleClick}
+    >
       <span className="sc-mx-sym">{sym}</span>
       {indic != null ? (
         <>
@@ -327,6 +348,7 @@ const RateRow = memo(function RateRow({
         type="button"
         className="sc-mx-x"
         title="Remove"
+        onPointerUp={(e) => e.stopPropagation()}
         onClick={(e) => { e.stopPropagation(); onRemove(); }}
       >
         ×
